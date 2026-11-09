@@ -13,6 +13,7 @@
 //	traces.flow       — from flow_tracker (TC)
 //	traces.latency    — from latency_probe (tracepoint)
 //	traces.correlated — cross-correlated events from PacketCorrelator
+//	traces.stats      — flow_tracker's FLOW_STATS counters, on a timer
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
 package main
@@ -47,6 +48,10 @@ const (
 
 	// TopicTracesCorrelated receives cross-correlated events.
 	TopicTracesCorrelated = "traces.correlated"
+
+	// TopicTracesStats receives flow_tracker's FLOW_STATS counters, one
+	// snapshot per --stats-interval.
+	TopicTracesStats = "traces.stats"
 
 	// Mirror topics for dashboard ingestor compatibility.
 	// The dashboard eBPF ingestor subscribes to ebpf.*.events topics.
@@ -179,7 +184,7 @@ func (tp *TracePublisher) Connect(ctx context.Context) error {
 	// Subscribe to all trace topics + mirror topics for dashboard ingestor
 	topics := []string{
 		TopicTracesPacket, TopicTracesFlow,
-		TopicTracesLatency, TopicTracesCorrelated,
+		TopicTracesLatency, TopicTracesCorrelated, TopicTracesStats,
 		TopicEBPFPacket, TopicEBPFFlow, TopicEBPFLatency,
 	}
 	for _, topic := range topics {
@@ -243,6 +248,11 @@ func (tp *TracePublisher) PublishLatencyEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesLatency, payload)
 	tp.enqueue(TopicEBPFLatency, payload)
 	atomic.AddUint64(&tp.stats.LatencyEvents, 1)
+}
+
+// PublishStats queues a FLOW_STATS snapshot on traces.stats.
+func (tp *TracePublisher) PublishStats(payload json.RawMessage) {
+	tp.enqueue(TopicTracesStats, payload)
 }
 
 // PublishCorrelatedFlow queues a correlated flow for publishing.

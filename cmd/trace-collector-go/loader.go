@@ -28,9 +28,6 @@ type BPFLoader interface {
 	// AttachXDP attaches the loaded XDP program to a network interface.
 	AttachXDP(iface string) error
 
-	// GetTraceMap returns a reader for the STATS hash map (fallback for polling).
-	GetTraceMap() MapReader
-
 	// GetStatsMap returns a reader for flow_tracker's FLOW_STATS counters.
 	GetStatsMap() MapReader
 
@@ -41,9 +38,10 @@ type BPFLoader interface {
 	GetLatencyMap() MapReader
 
 	// GetPacketEventsCh returns a channel that streams raw packet events
-	// from the PACKET_EVENTS ring buffer via mmap. Returns nil if the
-	// ringbuf is not available (e.g., program not attached or no kernel support).
-	GetPacketEventsCh(ctx context.Context) <-chan []byte
+	// from the PACKET_EVENTS ring buffer via mmap, or an error saying why
+	// there is none (program not attached, no kernel support). It is the
+	// only source of packet traces: there is no poll fallback.
+	GetPacketEventsCh(ctx context.Context) (<-chan []byte, error)
 
 	// Close detaches programs and closes all map file descriptors.
 	Close() error
@@ -74,7 +72,6 @@ type MockBPFLoader struct {
 	attached       bool
 	iface          string
 	programPath    string
-	traceMap       *MockMapReader
 	statsMap       *MockMapReader
 	flowMap        *MockMapReader
 	latencyMap     *MockMapReader
@@ -85,7 +82,6 @@ type MockBPFLoader struct {
 // NewMockBPFLoader creates a new mock loader with empty maps.
 func NewMockBPFLoader() *MockBPFLoader {
 	return &MockBPFLoader{
-		traceMap:   NewMockMapReader(),
 		statsMap:   NewMockMapReader(),
 		flowMap:    NewMockMapReader(),
 		latencyMap: NewMockMapReader(),
@@ -117,10 +113,6 @@ func (m *MockBPFLoader) AttachXDP(iface string) error {
 	return nil
 }
 
-func (m *MockBPFLoader) GetTraceMap() MapReader {
-	return m.traceMap
-}
-
 func (m *MockBPFLoader) GetStatsMap() MapReader {
 	return m.statsMap
 }
@@ -133,10 +125,13 @@ func (m *MockBPFLoader) GetLatencyMap() MapReader {
 	return m.latencyMap
 }
 
-func (m *MockBPFLoader) GetPacketEventsCh(_ context.Context) <-chan []byte {
+func (m *MockBPFLoader) GetPacketEventsCh(_ context.Context) (<-chan []byte, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.packetEventsCh
+	if m.packetEventsCh == nil {
+		return nil, fmt.Errorf("mock loader has no PACKET_EVENTS ring buffer")
+	}
+	return m.packetEventsCh, nil
 }
 
 func (m *MockBPFLoader) Close() error {

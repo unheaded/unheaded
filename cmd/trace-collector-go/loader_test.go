@@ -67,9 +67,6 @@ func TestMockBPFLoader_LoadAfterClose(t *testing.T) {
 func TestMockBPFLoader_MapsNotNil(t *testing.T) {
 	loader := NewMockBPFLoader()
 
-	if loader.GetTraceMap() == nil {
-		t.Error("GetTraceMap() returned nil")
-	}
 	if loader.GetStatsMap() == nil {
 		t.Error("GetStatsMap() returned nil")
 	}

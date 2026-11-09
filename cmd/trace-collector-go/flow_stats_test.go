@@ -4,13 +4,16 @@
 package main
 
 import (
+	"context"
 	"encoding/binary"
 	"encoding/json"
+	"flag"
 	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Every STAT_* key flow-tracker writes into FLOW_STATS comes out under its
@@ -62,5 +65,107 @@ func TestCollectFlowStats_NamesMatchFlowTrackerKeys(t *testing.T) {
 		if _, ok := want[name]; !ok {
 			t.Errorf("published %q, which flow-tracker does not define", name)
 		}
+	}
+}
+
+// recordingStatsSink keeps every FLOW_STATS snapshot handed to it.
+type recordingStatsSink struct {
+	got chan FlowStats
+}
+
+func (s *recordingStatsSink) PublishStats(payload json.RawMessage) {
+	var fs FlowStats
+	if err := json.Unmarshal(payload, &fs); err != nil {
+		panic(err)
+	}
+	s.got <- fs
+}
+
+// noStatsMap is a stats source whose FLOW_STATS map is not there
+// (flow_tracker not attached).
+type noStatsMap struct{}
+
+func (noStatsMap) GetStatsMap() MapReader { return nil }
+
+func putStat(m *MockMapReader, key uint32, val uint64) {
+	k := make([]byte, 4)
+	binary.LittleEndian.PutUint32(k, key)
+	v := make([]byte, 8)
+	binary.LittleEndian.PutUint64(v, val)
+	m.Insert(k, v)
+}
+
+// traces.stats goes out on every tick, whatever the trace reader does: it
+// used to ride the poll path, so in ringbuf mode (the normal one) it never
+// went out at all. Each tick reads the counters afresh.
+func TestRunFlowStats_PublishesEachTick(t *testing.T) {
+	loader := NewMockBPFLoader()
+	putStat(loader.statsMap, 0, 10) // STAT_PACKETS_INGRESS
+	putStat(loader.statsMap, 2, 3)  // STAT_FLOWS_NEW
+
+	sink := &recordingStatsSink{got: make(chan FlowStats, 4)}
+	tick := make(chan time.Time)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		runFlowStats(ctx, loader, sink, tick)
+		close(done)
+	}()
+
+	tick <- time.Now()
+	first := <-sink.got
+	if first.PacketsIngress != 10 || first.FlowsNew != 3 {
+		t.Errorf("first snapshot = %+v, want packets_ingress 10, flows_new 3", first)
+	}
+
+	putStat(loader.statsMap, 0, 25)
+	tick <- time.Now()
+	second := <-sink.got
+	if second.PacketsIngress != 25 {
+		t.Errorf("second snapshot packets_ingress = %d, want 25", second.PacketsIngress)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("runFlowStats did not stop when its context ended")
+	}
+	if n := len(sink.got); n != 0 {
+		t.Errorf("%d snapshots published without a tick", n)
+	}
+}
+
+// No FLOW_STATS map: nothing published, and the loop keeps going.
+func TestRunFlowStats_NoMapPublishesNothing(t *testing.T) {
+	sink := &recordingStatsSink{got: make(chan FlowStats, 4)}
+	tick := make(chan time.Time)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		runFlowStats(ctx, noStatsMap{}, sink, tick)
+		close(done)
+	}()
+	tick <- time.Now()
+	tick <- time.Now() // received: the first tick did not end the loop
+	cancel()
+	<-done
+	if n := len(sink.got); n != 0 {
+		t.Errorf("published %d snapshots with no FLOW_STATS map", n)
+	}
+}
+
+// The stats interval is a flag with a sane default; poll mode's
+// --read-interval went with poll mode.
+func TestStatsIntervalFlag(t *testing.T) {
+	f := flag.Lookup("stats-interval")
+	if f == nil {
+		t.Fatal("no --stats-interval flag")
+	}
+	if f.DefValue != "10s" {
+		t.Errorf("--stats-interval default = %s, want 10s", f.DefValue)
+	}
+	if flag.Lookup("read-interval") != nil {
+		t.Error("--read-interval still defined; it only drove the deleted poll path")
 	}
 }

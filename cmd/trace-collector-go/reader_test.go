@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/binary"
 	"net"
+	"strings"
 	"testing"
 	"time"
 )
@@ -228,137 +229,9 @@ func TestFiveTuple_Reverse(t *testing.T) {
 
 // ── TraceReader tests ───────────────────────────────────────────────────────
 
-func TestTraceReader_PollOnce(t *testing.T) {
-	loader := NewMockBPFLoader()
-
-	// Insert a trace entry into the mock trace map
-	te := makeTraceEntry(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6, uint64(time.Now().UnixNano()),
-	)
-	encoded := te.Encode()
-	loader.traceMap.Insert([]byte("flow1"), encoded[:])
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	config := DefaultTraceReaderConfig()
-	reader := NewTraceReader(loader, publisher, config)
-
-	// Run a single poll
-	ctx := context.Background()
-	reader.pollOnce(ctx)
-
-	stats := reader.Stats()
-	if stats.EntriesRead != 1 {
-		t.Errorf("EntriesRead = %d, want 1", stats.EntriesRead)
-	}
-	if stats.PollCycles != 1 {
-		t.Errorf("PollCycles = %d, want 1", stats.PollCycles)
-	}
-
-	// Entry should have been deleted (DeleteAfterRead=true)
-	if loader.traceMap.Len() != 0 {
-		t.Errorf("trace map should be empty after read, has %d entries", loader.traceMap.Len())
-	}
-}
-
-func TestTraceReader_EmptyMap(t *testing.T) {
-	loader := NewMockBPFLoader()
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
-
-	reader.pollOnce(context.Background())
-
-	stats := reader.Stats()
-	if stats.EntriesRead != 0 {
-		t.Errorf("EntriesRead = %d, want 0", stats.EntriesRead)
-	}
-}
-
-func TestTraceReader_MultipleEntries(t *testing.T) {
-	loader := NewMockBPFLoader()
-
-	// Insert multiple entries
-	for i := 0; i < 10; i++ {
-		te := makeTraceEntry(
-			net.ParseIP("10.10.10.1"),
-			net.ParseIP("10.10.10.2"),
-			uint16(8080+i), 443, 6, uint64(i*1000),
-		)
-		encoded := te.Encode()
-		key := make([]byte, 4)
-		binary.LittleEndian.PutUint32(key, uint32(i))
-		loader.traceMap.Insert(key, encoded[:])
-	}
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
-
-	reader.pollOnce(context.Background())
-
-	stats := reader.Stats()
-	if stats.EntriesRead != 10 {
-		t.Errorf("EntriesRead = %d, want 10", stats.EntriesRead)
-	}
-}
-
-func TestTraceReader_BadEntry(t *testing.T) {
-	loader := NewMockBPFLoader()
-
-	// Insert a too-short value (should cause decode error)
-	loader.traceMap.Insert([]byte("bad"), []byte("tooshort"))
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
-
-	reader.pollOnce(context.Background())
-
-	stats := reader.Stats()
-	if stats.DecodeErrors != 1 {
-		t.Errorf("DecodeErrors = %d, want 1", stats.DecodeErrors)
-	}
-}
-
-func TestTraceReader_EventChannel(t *testing.T) {
-	loader := NewMockBPFLoader()
-
-	te := makeTraceEntry(
-		net.ParseIP("192.168.1.1"),
-		net.ParseIP("192.168.1.2"),
-		12345, 80, 6, 999999,
-	)
-	encoded := te.Encode()
-	loader.traceMap.Insert([]byte("flow-x"), encoded[:])
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
-
-	reader.pollOnce(context.Background())
-
-	// Should have an event on the channel
-	select {
-	case entry := <-reader.Events():
-		if entry.SrcPort != 12345 {
-			t.Errorf("event SrcPort = %d, want 12345", entry.SrcPort)
-		}
-		if entry.DstPort != 80 {
-			t.Errorf("event DstPort = %d, want 80", entry.DstPort)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("timeout waiting for event")
-	}
-}
-
 func TestTraceReader_RingbufMode(t *testing.T) {
-	loader := NewMockBPFLoader()
-
-	// Create a buffered channel to simulate ringbuf events
 	ringbufCh := make(chan []byte, 10)
-	loader.packetEventsCh = ringbufCh
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	config := DefaultTraceReaderConfig()
-	reader := NewTraceReader(loader, publisher, config)
+	reader := NewTraceReader(DefaultTraceReaderConfig())
 
 	// Send kernel PacketEvents (what PACKET_EVENTS carries) through the ringbuf channel
 	ringbufCh <- encodeKernelPacketEvent(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 8080, 443, 6, 1000)
@@ -369,7 +242,7 @@ func TestTraceReader_RingbufMode(t *testing.T) {
 	// Run in background
 	done := make(chan struct{})
 	go func() {
-		reader.Run(ctx)
+		reader.Run(ctx, ringbufCh)
 		close(done)
 	}()
 
@@ -403,13 +276,8 @@ func TestTraceReader_RingbufMode(t *testing.T) {
 }
 
 func TestTraceReader_RingbufBadData(t *testing.T) {
-	loader := NewMockBPFLoader()
-
 	ringbufCh := make(chan []byte, 10)
-	loader.packetEventsCh = ringbufCh
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
+	reader := NewTraceReader(DefaultTraceReaderConfig())
 
 	// Send bad data followed by good data
 	ringbufCh <- []byte("tooshort")
@@ -418,7 +286,7 @@ func TestTraceReader_RingbufBadData(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		reader.Run(ctx)
+		reader.Run(ctx, ringbufCh)
 		close(done)
 	}()
 
@@ -442,18 +310,13 @@ func TestTraceReader_RingbufBadData(t *testing.T) {
 }
 
 func TestTraceReader_RingbufChannelClose(t *testing.T) {
-	loader := NewMockBPFLoader()
-
 	ringbufCh := make(chan []byte, 10)
-	loader.packetEventsCh = ringbufCh
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	reader := NewTraceReader(loader, publisher, DefaultTraceReaderConfig())
+	reader := NewTraceReader(DefaultTraceReaderConfig())
 
 	ctx := context.Background()
 	done := make(chan struct{})
 	go func() {
-		reader.Run(ctx)
+		reader.Run(ctx, ringbufCh)
 		close(done)
 	}()
 
@@ -468,61 +331,34 @@ func TestTraceReader_RingbufChannelClose(t *testing.T) {
 	}
 }
 
-func TestTraceReader_FallbackToPollWhenNoRingbuf(t *testing.T) {
-	loader := NewMockBPFLoader()
-	// packetEventsCh is nil — should fall back to poll mode
-
-	te := makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 5555, 80, 6, 123)
-	encoded := te.Encode()
-	loader.traceMap.Insert([]byte("test"), encoded[:])
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	config := DefaultTraceReaderConfig()
-	config.ReadInterval = 50 * time.Millisecond
-	reader := NewTraceReader(loader, publisher, config)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		reader.Run(ctx)
-		close(done)
-	}()
-
-	// Should get the entry via poll mode
-	select {
-	case entry := <-reader.Events():
-		if entry.SrcPort != 5555 {
-			t.Errorf("SrcPort = %d, want 5555", entry.SrcPort)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("timeout waiting for poll event")
+// Ringbuf or nothing: with no PACKET_EVENTS ring buffer there is no poll
+// fallback to drop to (it read packet_marker's 8-byte STATS counters as
+// 68-byte traces and published none), so the start is refused, saying why.
+func TestOpenPacketEvents_RefusesWithoutRingbuf(t *testing.T) {
+	loader := NewMockBPFLoader() // packetEventsCh nil: no ring buffer
+	ch, err := openPacketEvents(context.Background(), loader)
+	if err == nil {
+		t.Fatal("no ring buffer, and no error")
 	}
-
-	cancel()
-	<-done
+	if ch != nil {
+		t.Error("returned a channel along with the error")
+	}
+	for _, want := range []string{"PACKET_EVENTS", "--enable-packet-marker=false"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %s", err, want)
+		}
+	}
 }
 
-func TestTraceReader_NoDeleteWhenDisabled(t *testing.T) {
+func TestOpenPacketEvents_RingbufAvailable(t *testing.T) {
 	loader := NewMockBPFLoader()
-
-	te := makeTraceEntry(
-		net.ParseIP("10.0.0.1"),
-		net.ParseIP("10.0.0.2"),
-		80, 80, 17, 12345,
-	)
-	encoded := te.Encode()
-	loader.traceMap.Insert([]byte("keep-me"), encoded[:])
-
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
-	config := DefaultTraceReaderConfig()
-	config.DeleteAfterRead = false
-	reader := NewTraceReader(loader, publisher, config)
-
-	reader.pollOnce(context.Background())
-
-	// Entry should still be in the map
-	if loader.traceMap.Len() != 1 {
-		t.Errorf("trace map should still have entry, has %d", loader.traceMap.Len())
+	loader.packetEventsCh = make(chan []byte)
+	ch, err := openPacketEvents(context.Background(), loader)
+	if err != nil {
+		t.Fatalf("openPacketEvents: %v", err)
+	}
+	if ch == nil {
+		t.Fatal("nil channel with no error")
 	}
 }
 

@@ -198,14 +198,6 @@ func (n *NativeBPFLoader) AttachXDP(iface string) error {
 	return nil
 }
 
-// GetTraceMap returns a reader for the packet_marker STATS map.
-// Note: PACKET_EVENTS is a ringbuf which requires mmap-based reading.
-// Until ringbuf support is added, we read from the STATS hash map
-// which contains per-event-type counters.
-func (n *NativeBPFLoader) GetTraceMap() MapReader {
-	return n.mapReader("packet_marker", "STATS")
-}
-
 // GetStatsMap returns a reader for the flow_tracker FLOW_STATS map.
 func (n *NativeBPFLoader) GetStatsMap() MapReader {
 	return n.mapReader("flow_tracker", "FLOW_STATS")
@@ -223,22 +215,25 @@ func (n *NativeBPFLoader) GetLatencyMap() MapReader {
 
 // GetPacketEventsCh returns a channel streaming raw packet events from the
 // PACKET_EVENTS ring buffer. Uses mmap-based reading via pkg/ebpf.ReadRingbuf.
-// Returns nil if the packet_marker program isn't loaded or ringbuf unavailable.
-func (n *NativeBPFLoader) GetPacketEventsCh(ctx context.Context) <-chan []byte {
+// It fails if packet_marker is not loaded and attached, or the ring buffer
+// cannot be opened.
+func (n *NativeBPFLoader) GetPacketEventsCh(ctx context.Context) (<-chan []byte, error) {
 	n.mu.Lock()
 	prog, exists := n.programs["packet_marker"]
 	n.mu.Unlock()
 
-	if !exists || !prog.attached {
-		return nil
+	switch {
+	case !exists:
+		return nil, errors.New("packet_marker is not loaded")
+	case !prog.attached:
+		return nil, errors.New("packet_marker is not attached")
 	}
 
 	ch, err := n.loader.ReadRingbuf(ctx, prog.specName, "PACKET_EVENTS")
 	if err != nil {
-		log.Warn().Err(err).Msg("failed to open PACKET_EVENTS ringbuf, falling back to poll mode")
-		return nil
+		return nil, fmt.Errorf("open PACKET_EVENTS: %w", err)
 	}
-	return ch
+	return ch, nil
 }
 
 // Close detaches all programs and releases resources.
