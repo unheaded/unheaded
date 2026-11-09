@@ -11,7 +11,7 @@
 //! 3. Skip if CHAOS flag is set (Yaldabaoth owns that packet)
 //! 4. Enforce hop limit (emit ANOMALY, pass — routing is broken, not our call)
 //!    4b. ADR-125 hop checks: off unless CONFIG key 4 says observe or enforce;
-//!        enforce drops only in a `hop-enforce` build, else it runs as observe
+//!    enforce drops only in a `hop-enforce` build, else it runs as observe
 //! 5. Increment Hop Count (saturating)
 //! 6. Sophia dictionary lookups for QoS, circuit state, service routing
 //! 7. Circuit breaker enforcement via CIRCUIT_ERRORS map
@@ -201,6 +201,8 @@ const CFG_CHECK_MODE: u32 = 4;
 // Anything else, 0 included, is off.
 const CHECK_MODE_OBSERVE: u64 = 1;
 const CHECK_MODE_ENFORCE: u64 = 2;
+// run_checks counts a refused enforce as `mode >> 1`.
+const _: () = assert!(CHECK_MODE_OBSERVE >> 1 == 0 && CHECK_MODE_ENFORCE >> 1 == 1);
 
 /// Whether enforce may drop. Only a `hop-enforce` build: the object refuses
 /// enforce until FND-031, FND-033 and FND-035 close (ADR-125, 2026-11-09), so
@@ -561,11 +563,15 @@ fn run_checks(monad: &Monad, src: &[u8; 16], flow_label: u32) -> bool {
     }
     increment_stat(STAT_CHECKS_FAILED);
     emit_event(EventType::Anomaly as u8, hop_id as u8, flow_label, monad);
-    if mode != CHECK_MODE_ENFORCE {
+    if !ENFORCE_BUILT {
+        // One path for observe and for refused enforce: the count is
+        // arithmetic on mode (1 or 2 here), not a branch on it. A branch made
+        // the verifier walk the rest of the program once more for the refused
+        // path (224,283 instructions against 171,672, 2026-11-09).
+        add_stat(STAT_CHECKS_ENFORCE_REFUSED, mode >> 1);
         return false;
     }
-    if !ENFORCE_BUILT {
-        increment_stat(STAT_CHECKS_ENFORCE_REFUSED);
+    if mode != CHECK_MODE_ENFORCE {
         return false;
     }
     increment_stat(STAT_CHECKS_ENFORCED);
@@ -825,6 +831,19 @@ fn increment_stat(key: u32) {
         }
     } else {
         let _ = STATS.insert(&key, &1u64, 0);
+    }
+}
+
+/// Saturating add of `n` to a STATS counter. `n` may be 0: the caller adds
+/// without branching on it.
+#[inline(always)]
+fn add_stat(key: u32, n: u64) {
+    if let Some(v) = STATS.get_ptr_mut(&key) {
+        unsafe {
+            *v = (*v).saturating_add(n);
+        }
+    } else {
+        let _ = STATS.insert(&key, &n, 0);
     }
 }
 

@@ -482,7 +482,8 @@ findings:
       read. 2026-11-07: enforce is refused in the writer, `unheaded hop mode`. 2026-11-09: the object refuses too;
       built without the `hop-enforce` cargo feature, as every package builds it, hop_xdp runs key 4 = 2 as observe
       and counts STATS 18 (ADR-125). Only the tests/hopchecks lab object is built with it; the proof is a root run of
-      tests/hopchecks, attended.
+      tests/hopchecks, attended. Proved 2026-11-09 as root on west (6.17.0-41): 41 programs load, tests/hopchecks 46
+      pass on both objects; verified instructions 146794 default, 171672 hop-enforce.
 
   - id: FND-035
     title: >-
