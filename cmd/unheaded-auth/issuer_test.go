@@ -302,14 +302,14 @@ func TestLockout(t *testing.T) {
 	h := iss.Handler()
 	bad := `{"username":"dev","password":"nope"}`
 	good := `{"username":"dev","password":"correct horse battery"}`
-	for i := 1; i <= 5; i++ {
+	for i := 1; i <= maxFailuresPerPair; i++ {
 		if w := loginFrom(h, "10.0.0.1", bad); w.Code != 401 {
 			t.Fatalf("failure %d: status %d, want 401", i, w.Code)
 		}
 	}
 	w := loginFrom(h, "10.0.0.1", good)
 	if w.Code != 429 {
-		t.Fatalf("6th attempt: status %d, want 429", w.Code)
+		t.Fatalf("attempt %d: status %d, want 429", maxFailuresPerPair+1, w.Code)
 	}
 	if w.Header().Get("Retry-After") == "" {
 		t.Error("429 without Retry-After")

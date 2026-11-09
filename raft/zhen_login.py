@@ -45,12 +45,12 @@ ISSUER_TIMEOUT = 15  # argon2id is slow on purpose
 SESSION_ID_BYTES = 32
 
 # The issuer's lockout sees only this backend's address. The dashboard and the
-# board each spend 2 and 9 of its 5 and 20 from that address (pkg/bff), so this
-# third backend gets what is left of the 20: one failure per client, which brings
-# the per-username sum to the issuer's limit with no margin.
+# board each spend 2 and 9 from that address (pkg/bff); with this UI's 5 and 5
+# the sums are 9 and 23, under the issuer's 10 and 25, so one client cannot
+# lock a username on every UI (Stevie, 2026-11-09: five tries, not one).
 FAILURE_WINDOW = 600
-CLIENT_USER_FAILURES = 1
-CLIENT_FAILURES = 1
+CLIENT_USER_FAILURES = 5
+CLIENT_FAILURES = 5
 MAX_TRACKED_KEYS = 10000
 
 OPERATOR_ROLES = frozenset({'admin', 'operator'})

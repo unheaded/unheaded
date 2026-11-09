@@ -21,9 +21,11 @@ import (
 // limits, so one client address cannot reach them. Several together can. The
 // issuer takes no forwarded address.
 const (
-	lockoutWindow        = 10 * time.Minute
-	maxFailuresPerPair   = 5
-	maxFailuresPerSource = 20
+	lockoutWindow = 10 * time.Minute
+	// Above the summed budgets of the dashboard, the board and the Zhen UI,
+	// which share one source address (2+2+5 and 9+9+5; Stevie, 2026-11-09).
+	maxFailuresPerPair   = 10
+	maxFailuresPerSource = 25
 	// maxTrackedKeys bounds memory under a flood of distinct addresses.
 	maxTrackedKeys = 10000
 )

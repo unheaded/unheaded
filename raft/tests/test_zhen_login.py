@@ -9,6 +9,7 @@ import base64
 import http.client
 import io
 import json
+import re
 import shutil
 import ssl
 import subprocess
@@ -182,11 +183,12 @@ def test_a_wrong_password_is_401_and_makes_no_session(client, world):
 
 
 def test_a_failed_login_is_counted_before_the_next_reaches_the_issuer(client, world):
-    assert _login(client, password='wrong').status_code == 401  # nosec B106 - the wrong password under test
+    for _ in range(zhen_login.CLIENT_USER_FAILURES):
+        assert _login(client, password='wrong').status_code == 401  # nosec B106 - the wrong password under test
     r = _login(client)
     assert r.status_code == 429
     assert int(r.headers['Retry-After']) > 0
-    assert len([c for c in world.calls if c[0] == 'issuer']) == 1
+    assert len([c for c in world.calls if c[0] == 'issuer']) == zhen_login.CLIENT_USER_FAILURES
 
 
 def test_a_token_the_daemon_will_not_name_makes_no_session(client, world):
@@ -254,9 +256,25 @@ def test_a_long_token_is_held_to_the_cap():
     assert zhen_login.token_life(_token(life=86400), 0) == zhen_login.MAX_TOKEN_LIFE
 
 
-def test_budget_sums_stay_under_the_issuers_source_limit():
-    # pkg/bff: 9 per client on each of two backends; the issuer locks at 20.
-    assert 2 * 9 + zhen_login.CLIENT_FAILURES < 20
+def _go_const(path, name):
+    src = (Path(__file__).resolve().parents[2] / path).read_text(encoding='utf-8')
+    m = re.search(rf'^\s*{name}\s*=\s*(\d+)', src, re.M)
+    assert m, f'{name} not found in {path}'
+    return int(m.group(1))
+
+
+def test_budget_sums_stay_under_the_issuers_limits():
+    # The dashboard, the board and this UI reach the issuer from one address.
+    # Summed, one client's budgets stay strictly under the issuer's locks, so
+    # one client cannot lock a username on every UI (Stevie, 2026-11-09).
+    backends = _go_const('pkg/bff/failures.go', 'IssuerAddressBackends')
+    per_user = _go_const('pkg/bff/failures.go', 'ClientUserLoginFailures')
+    per_client = _go_const('pkg/bff/failures.go', 'ClientLoginFailures')
+    pair = _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerPair')
+    source = _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerSource')
+    assert backends * per_user + zhen_login.CLIENT_USER_FAILURES < pair
+    assert backends * per_client + zhen_login.CLIENT_FAILURES < source
+    assert zhen_login.CLIENT_USER_FAILURES == 5
     assert zhen_login.FAILURE_WINDOW >= 600
 
 
