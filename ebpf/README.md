@@ -65,6 +65,11 @@ cd ebpf/packet-marker
 cargo build --target bpfel-unknown-none --release
 ```
 
+`hop-ebpf` refuses enforce mode (CONFIG key 4 = 2 acts as observe) unless it is
+built with `--features hop-enforce`. Only the test path builds that variant
+(`scripts/check-ebpf-loads.sh`, `scripts/test-go-root.sh`, for `tests/hopchecks`);
+packages and releases ship the refusing default until FND-031, 033 and 035 close.
+
 ### Running Tests
 
 ```bash
