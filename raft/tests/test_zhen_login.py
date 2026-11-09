@@ -258,7 +258,7 @@ def test_a_long_token_is_held_to_the_cap():
 
 def _go_const(path, name):
     src = (Path(__file__).resolve().parents[2] / path).read_text(encoding='utf-8')
-    m = re.search(rf'^\s*{name}\s*=\s*(\d+)', src, re.M)
+    m = re.search(rf'^\s*{name}\s*=\s*(\d+)', src, re.MULTILINE)
     assert m, f'{name} not found in {path}'
     return int(m.group(1))
 
