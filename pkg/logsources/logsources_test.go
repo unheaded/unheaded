@@ -219,6 +219,11 @@ func TestSyslogSenders(t *testing.T) {
 	if got[1].Addr.String() != "192.0.2.2" || got[1].Tag != "pihole-dns" {
 		t.Errorf("tagged: %+v", got[1])
 	}
+	// The relay stamps a row's host and retention on what it relays, so the
+	// row decides them, not the facility or hostname a sender claims.
+	if got[0].Host != "west" || got[0].Retention != "operational" {
+		t.Errorf("host and retention not carried: %+v", got[0])
+	}
 	if got[3].Addr.String() != "192.0.2.3" {
 		t.Errorf("a mapped address must compare equal to the IPv4 one: %+v", got[3])
 	}

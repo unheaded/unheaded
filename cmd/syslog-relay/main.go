@@ -58,8 +58,12 @@ const (
 	minMaxMsg = 2048
 	maxMaxMsg = 64 << 10
 
-	// sourceUnknown is UNHEADED_SOURCE for a sender or tag with no row.
+	// sourceUnknown is UNHEADED_SOURCE (and UNHEADED_SOURCE_HOST) for a
+	// sender or tag with no row.
 	sourceUnknown = "unknown"
+	// retentionUnknown is UNHEADED_RETENTION for a line with no row: the
+	// shorter class, since nobody decided to keep it.
+	retentionUnknown = "operational"
 
 	udpReadBuffer = 64 << 10 // the largest datagram UDP can carry
 	metricsRetry  = 30 * time.Second
@@ -93,7 +97,9 @@ var relaySpec = cmdline.Spec{
 		"syslog-relay --listen udp://10.10.20.1:514 --listen tcp://10.10.20.1:514 --sources /etc/unheaded/log-sources.yaml",
 	},
 	Details: "Senders are the kind: syslog-device rows of the sources file that are not excluded; a match is <ip> or\n" +
-		"<ip> <tag>. Others are counted and dropped. SIGHUP reloads the sources file; a bad file keeps the old list.",
+		"<ip> <tag>. Others are counted and dropped. SIGHUP reloads the sources file; a bad file keeps the old list.\n" +
+		"Under systemd the listeners come from unheaded-syslog-relay.socket (LISTEN_FDS): each passed socket must be\n" +
+		"one --listen names and each --listen must arrive, or the relay refuses to start. With none passed it binds them.",
 }
 
 type listenAddr struct {
@@ -253,23 +259,35 @@ func (b *bucket) allow(now time.Time) bool {
 	return true
 }
 
+// row is what the relay stamps on a message from the sources.yaml row it
+// matched. The relay decides these, so Vector may trust them; nothing in the
+// message does (ADR-124, Consequences).
+type row struct {
+	id        string // UNHEADED_SOURCE
+	host      string // UNHEADED_SOURCE_HOST
+	retention string // UNHEADED_RETENTION
+}
+
+// unknownRow is stamped on a message no row claims.
+var unknownRow = row{id: sourceUnknown, host: sourceUnknown, retention: retentionUnknown}
+
 // sender is one address on the allowlist.
 type sender struct {
-	id     string            // the row with no tag, if any
-	tags   map[string]string // tag to row id
+	self   *row           // the row with no tag, if any
+	tags   map[string]row // tag to row
 	bucket *bucket
 }
 
 // source names the row for a message. A sender can only reach rows on its own
 // address, so a claimed tag never impersonates another host.
-func (s *sender) source(tag string) string {
-	if id, ok := s.tags[tag]; ok {
-		return id
+func (s *sender) source(tag string) row {
+	if r, ok := s.tags[tag]; ok {
+		return r
 	}
-	if s.id != "" {
-		return s.id
+	if s.self != nil {
+		return *s.self
 	}
-	return sourceUnknown
+	return unknownRow
 }
 
 // allowlist is immutable; a reload swaps in a new one. State is bounded by its
@@ -295,17 +313,18 @@ func buildAllowlist(rows []logsources.Sender, rate, burst int, now time.Time) *a
 		limits[row.Addr] = l
 	}
 	a := &allowlist{senders: make(map[netip.Addr]*sender, len(limits)), unknown: newBucket(rate, burst, now)}
-	for _, row := range rows {
-		s := a.senders[row.Addr]
+	for _, r := range rows {
+		s := a.senders[r.Addr]
 		if s == nil {
-			l := limits[row.Addr]
-			s = &sender{tags: map[string]string{}, bucket: newBucket(l[0], l[1], now)}
-			a.senders[row.Addr] = s
+			l := limits[r.Addr]
+			s = &sender{tags: map[string]row{}, bucket: newBucket(l[0], l[1], now)}
+			a.senders[r.Addr] = s
 		}
-		if row.Tag == "" {
-			s.id = row.ID
+		stamp := row{id: r.ID, host: r.Host, retention: r.Retention}
+		if r.Tag == "" {
+			s.self = &stamp
 		} else {
-			s.tags[row.Tag] = row.ID
+			s.tags[r.Tag] = stamp
 		}
 	}
 	return a
@@ -409,8 +428,18 @@ func (r *relay) reload() {
 	r.log.Info().Int("senders", len(list.senders)).Msg("sources reloaded")
 }
 
-// listen binds everything, so a bad address fails before anything is served.
-func (r *relay) listen() error {
+// listen takes the sockets systemd passed (fds, from activationFDs), or with
+// none binds every --listen itself. Either way a bad address fails before
+// anything is served.
+func (r *relay) listen(fds []inheritedFD) error {
+	if fds != nil {
+		udp, tcp, err := inheritListeners(fds, r.cfg.listens)
+		if err != nil {
+			return err
+		}
+		r.udp, r.tcp = udp, tcp
+		return nil
+	}
 	for _, l := range r.cfg.listens {
 		switch l.network {
 		case "udp":
@@ -620,7 +649,7 @@ func (r *relay) handle(from netip.Addr, raw []byte) bool {
 		r.metrics.dropped.WithLabelValues(dropEmpty).Inc()
 		return true
 	}
-	source := sourceUnknown
+	source := unknownRow
 	if s != nil {
 		source = s.source(m.AppName)
 	}
@@ -635,20 +664,22 @@ func (r *relay) handle(from netip.Addr, raw []byte) bool {
 		r.metrics.dropped.WithLabelValues(dropJournal).Inc()
 		return true
 	}
-	r.metrics.lastSeen.WithLabelValues(source).SetToCurrentTime()
+	r.metrics.lastSeen.WithLabelValues(source.id).SetToCurrentTime()
 	return true
 }
 
 // journalFields builds the entry. Everything out of m is sanitised and is only
 // the sender's claim; ADR-124 lists which fields are which. The names are all
 // constants, so nothing a sender writes can choose a field.
-func journalFields(m syslog.Message, addr netip.Addr, source string, parseErr error) map[string]string {
+func journalFields(m syslog.Message, addr netip.Addr, source row, parseErr error) map[string]string {
 	fields := map[string]string{
-		"MESSAGE":         m.Text,
-		"PRIORITY":        strconv.Itoa(max(m.Severity, severityFloor)),
-		"SYSLOG_FACILITY": strconv.Itoa(m.Facility),
-		"REMOTE_ADDR":     addr.String(),
-		"UNHEADED_SOURCE": source,
+		"MESSAGE":              m.Text,
+		"PRIORITY":             strconv.Itoa(max(m.Severity, severityFloor)),
+		"SYSLOG_FACILITY":      strconv.Itoa(m.Facility),
+		"REMOTE_ADDR":          addr.String(),
+		"UNHEADED_SOURCE":      source.id,
+		"UNHEADED_SOURCE_HOST": source.host,
+		"UNHEADED_RETENTION":   source.retention,
 	}
 	for name, value := range map[string]string{
 		"SYSLOG_IDENTIFIER":       m.AppName,
@@ -738,8 +769,20 @@ func run(ctx context.Context, cfg config, log zerolog.Logger) error {
 	if err != nil {
 		return err
 	}
-	if err := r.listen(); err != nil {
+	fds, err := activationFDs(os.Getenv, os.Getpid())
+	if err != nil {
 		return err
+	}
+	// sd_listen_fds(3) with unset_environment: the variables are this
+	// process's alone.
+	for _, name := range activationEnv {
+		_ = os.Unsetenv(name)
+	}
+	if err := r.listen(fds); err != nil {
+		return err
+	}
+	if fds != nil {
+		r.log.Info().Int("sockets", len(fds)).Msg("listening on sockets systemd passed")
 	}
 	hup := make(chan os.Signal, 1)
 	signal.Notify(hup, syscall.SIGHUP)
