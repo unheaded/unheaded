@@ -1,6 +1,8 @@
 # ADR-035: Wotan Active-Passive Redundancy
 
-## Status: SUPERSEDED by ADR-064 (2026-05-05) — Phases 0-2 code reused; active-passive design retired in favour of 3-node active/active K8s cluster (rationale: "active passive works but doesn't scale")
+## Status: ACCEPTED (reinstated 2026-11-03 by decision pack DP-214, which superseded ADR-064: active/passive with Akira failover is the two-host design; a third node reopens ADR-064). PostgreSQL persistence withdrawn 2026-11-09 (amendment below).
+
+Previously: SUPERSEDED by ADR-064 (2026-05-05) — "active passive works but doesn't scale".
 
 ## Date: 2026-04-05
 ## Decision Makers: Stevie Bellis (Principal), Claude (Advisor)

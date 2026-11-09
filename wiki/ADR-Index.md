@@ -59,7 +59,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [032](../docs/adr/ADR-032-python-to-go-rust-migration.md) | [Python → Go/Rust Migration](ADR-032-Python-to-Go-Rust-Migration) | Planned | 2026-04-03 |
 | [033](../docs/adr/ADR-033-netbox-ipam.md) | [NetBox IPAM](ADR-033-Netbox-IPAM) | Planned | 2026-04-03 |
 | [034](../docs/adr/ADR-034-grpc-mtls-default-transport.md) | [gRPC mTLS Default Transport](ADR-034-gRPC-mTLS-Default-Transport) | Accepted | 2026-04-02 |
-| [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [~~Wotan Active-Passive Redundancy~~](ADR-035-Wotan-Active-Passive-Redundancy) | **Superseded by ADR-064** (2026-05-05) | 2026-04-05 |
+| [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [Wotan Active-Passive Redundancy](ADR-035-Wotan-Active-Passive-Redundancy) | **Accepted** (reinstated by DP-214, 2026-11-03; PostgreSQL persistence withdrawn 2026-11-09) | 2026-04-05 |
 | [036](../docs/adr/ADR-036-claude-distillation-training.md) | [Claude Distillation Training Data](ADR-036-Claude-Distillation-Training) | **Withdrawn** | 2026-04-05 |
 | [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | Planned | 2026-04-05 |
 | [038](../docs/adr/ADR-038-kanban-git-audit-trail.md) | [Kanban GUID → Git Commit Audit](ADR-038-Kanban-Git-Audit-Trail) | Accepted | 2026-04-05 |
@@ -156,6 +156,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [133](../docs/adr/ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](../docs/adr/ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
 | [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF | **Proposed** | 2026-11-05 |
+| [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Proposed** (parked) | 2026-11-09 |
 
 ---
 

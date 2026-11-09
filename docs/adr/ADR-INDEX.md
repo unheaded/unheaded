@@ -16,18 +16,18 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214).
 
 | Status | Count |
 |--------|-------|
-| Accepted | 60 |
-| Proposed | 36 |
+| Accepted | 61 |
+| Proposed | 37 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
 | Pipe Dream | 5 |
 | PoC / Research | 2 |
-| Superseded / Deprecated | 10 |
+| Superseded / Deprecated | 8 |
 | Acknowledged | 1 |
 | Implemented | 2 |
 | Partially implemented | 1 |
@@ -98,7 +98,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [032](ADR-032-python-to-go-rust-migration.md) | Python → Go/Rust Migration | Planned | 2026-04-03 |
 | [033](ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |
 | [034](ADR-034-grpc-mtls-default-transport.md) | gRPC mTLS Default Transport | Accepted | 2026-04-02 |
-| [035](ADR-035-wotan-active-passive-redundancy.md) | ~~Wotan Active-Passive Redundancy~~ | **Superseded by ADR-064** (2026-05-05) | 2026-04-05 |
+| [035](ADR-035-wotan-active-passive-redundancy.md) | Wotan Active-Passive Redundancy (WAL replication, Akira failover; PostgreSQL persistence withdrawn 2026-11-09) | **Accepted** (reinstated by DP-214, 2026-11-03) | 2026-04-05 |
 | [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **Withdrawn** | 2026-04-05 |
 | [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | Planned | 2026-04-05 |
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
@@ -197,3 +197,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [135](ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF: tagged reply word read at SRET (SET_BRK, YIELD, KILL), heap window VA [0x10000, 0x40000), user pointers by slice offset, retry hand-off for blocking calls, kill in BPF, root cwd for rows (S-STAGE-2B; DP-213, DP-501, DP-502) | **Proposed** | 2026-11-04 |
 | [136](ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down certificate authority for lab names: root key on a YubiKey, rotated working certificates; BIND is third party and needs Stevie's confirmation; chaos-controller's certificate waits on it | **Proposed** (parked) | 2026-11-06 |
 | [137](ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` once it boots with a websocket TTY; the check stays as it is until then | **Proposed** (parked) | 2026-11-06 |
+| [138](ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI: a first-party Go front on `pkg/tls` Strict, proxying to the app over a Unix socket | **Proposed** (parked) | 2026-11-09 |
