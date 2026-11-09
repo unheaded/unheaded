@@ -77,6 +77,34 @@ func TestSocketUnitMatchesExecStart(t *testing.T) {
 	}
 }
 
+// The repo's sources file, as the relay reads it: Pi-hole's tagged files reach
+// their own rows, everything else from its address the journal row, and each
+// carries its row's retention, not the facility rsyslog sets.
+func TestRepoSourcesStampPihole(t *testing.T) {
+	r := &relay{cfg: config{sources: "../../config/logging/sources.yaml", rate: defaultRate, burst: defaultBurst}}
+	list, err := r.loadAllowlist()
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := list.senders[netip.MustParseAddr("10.10.20.252")]
+	if s == nil {
+		t.Fatal("10.10.20.252 is not a sender")
+	}
+	for tag, want := range map[string]row{
+		"pihole-dns":  {"pihole/dns", "pihole", "operational"},
+		"pihole-ftl":  {"pihole/ftl", "pihole", "operational"},
+		"pihole-web":  {"pihole/web", "pihole", "audit"},
+		"pihole-FTL":  {"pihole/journal", "pihole", "operational"},
+		"cron":        {"pihole/journal", "pihole", "operational"},
+		"":            {"pihole/journal", "pihole", "operational"},
+		"pihole-dns ": {"pihole/journal", "pihole", "operational"},
+	} {
+		if got := s.source(tag); got != want {
+			t.Errorf("tag %q: %+v, want %+v", tag, got, want)
+		}
+	}
+}
+
 // Answer #18 of 2026-11-09: no capability, its own user namespace, and it
 // binds only the metrics port itself.
 func TestServiceUnitHoldsNoCapability(t *testing.T) {

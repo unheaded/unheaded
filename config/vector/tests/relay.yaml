@@ -1,0 +1,184 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Unit tests for lines the syslog relay writes (ADR-124 Consequences; answer
+# #18 of 2026-11-09): the device's sources.yaml row, which the relay stamps
+# as UNHEADED_SOURCE / UNHEADED_SOURCE_HOST / UNHEADED_RETENTION, decides
+# unit, host and retention, never the facility or hostname a sender claims.
+# Run: scripts/test-vector-config.sh
+tests:
+  - name: a device claiming facility 4 (auth) keeps its row's operational retention
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "query[A] example.org from 10.10.20.1"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          PRIORITY: "6"
+          SYSLOG_FACILITY: "4"
+          SYSLOG_IDENTIFIER: pihole-dns
+          REMOTE_ADDR: 10.10.20.252
+          UNHEADED_SOURCE: pihole/dns
+          UNHEADED_SOURCE_HOST: pihole
+          UNHEADED_RETENTION: operational
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "1"
+    outputs:
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.retention, "operational")
+              assert_eq!(.unit, "pihole/dns")
+              assert_eq!(.host, "pihole")
+              f = parse_json!(.fields)
+              assert_eq!(f.relay_host, "west")
+              assert_eq!(f.SYSLOG_FACILITY, "4")
+
+  - name: authpriv (10) from a device is not audit either
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "x"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          SYSLOG_FACILITY: "10"
+          UNHEADED_SOURCE: "device:192.168.69.148"
+          UNHEADED_SOURCE_HOST: "device:192.168.69.148"
+          UNHEADED_RETENTION: operational
+    outputs:
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.retention, "operational")
+              assert_eq!(.unit, "device:192.168.69.148")
+              assert_eq!(.host, "device:192.168.69.148")
+
+  - name: a row that says audit is audit, whatever the facility
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "admin login"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          SYSLOG_FACILITY: "21"
+          UNHEADED_SOURCE: pihole/web
+          UNHEADED_SOURCE_HOST: pihole
+          UNHEADED_RETENTION: audit
+    outputs:
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.retention, "audit")
+              assert_eq!(.unit, "pihole/web")
+
+  - name: a relayed line with no retention stamp is kept as audit, under unknown
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "x"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          SYSLOG_FACILITY: "1"
+          UNHEADED_SOURCE: "bad source\nwith a newline"
+          UNHEADED_SOURCE_HOST: "laptop.example"
+    outputs:
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.retention, "audit")
+              assert_eq!(.unit, "unknown")
+              assert_eq!(.host, "unknown")
+
+  - name: the relay's own log lines (stdout) stay west's, under its unit
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: '{"level":"info","service":"syslog-relay","message":"sources reloaded"}'
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: stdout
+          SYSLOG_FACILITY: "3"
+          UNHEADED_SOURCE: pihole/web
+          UNHEADED_SOURCE_HOST: pihole
+          UNHEADED_RETENTION: audit
+    outputs:
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.unit, "unheaded-syslog-relay.service")
+              assert_eq!(.host, "west")
+              assert_eq!(.retention, "operational")
+
+  - name: another unit cannot borrow the relay's stamps
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "Failed password for root from 203.0.113.9 port 22 ssh2"
+          host: west
+          _SYSTEMD_UNIT: evil.service
+          _TRANSPORT: journal
+          SYSLOG_FACILITY: "3"
+          UNHEADED_SOURCE: pihole/dns
+          UNHEADED_SOURCE_HOST: pihole
+          UNHEADED_RETENTION: operational
+    outputs:
+      - extract_from: journal_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.unit, "evil.service")
+              assert_eq!(.host, "west")
+      - extract_from: journal_auth_metrics
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.tags.host, "west")
+              assert_eq!(.tags.unit, "evil.service")
+
+  - name: a device's failed password counts for the device, not for west
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "Failed password for admin from 192.168.69.20 port 50022 ssh2"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          PRIORITY: "6"
+          SYSLOG_FACILITY: "10"
+          SYSLOG_IDENTIFIER: sshd
+          REMOTE_ADDR: 192.168.69.129
+          REMOTE_HOSTNAME_CLAIMED: west
+          UNHEADED_SOURCE: "device:192.168.69.129"
+          UNHEADED_SOURCE_HOST: "device:192.168.69.129"
+          UNHEADED_RETENTION: audit
+    outputs:
+      - extract_from: journal_auth_metrics
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.name, "auth_failures_total")
+              assert_eq!(.tags.kind, "ssh")
+              assert_eq!(.tags.host, "device:192.168.69.129")
+              assert_eq!(.tags.unit, "device:192.168.69.129")
+      - extract_from: journal_volume
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "device:192.168.69.129")
+              assert_eq!(.auth, "ssh")

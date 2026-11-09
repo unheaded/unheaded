@@ -630,16 +630,52 @@ sources:
     owner: sentinel
     status: gap
     note: "D3 (Phase 6); file absent on 2026-11-03 (no web request since the v6.8 update); admin UI access = audit"
+  # How the Pi-hole rows above arrive (Phase 6, D3): the container's rsyslog
+  # forwards to the relay, which takes a sender only from a syslog-device row
+  # and stamps that row's id, host and retention on each line (ADR-124). So
+  # these rows, not the facility the container claims, decide the class.
+  - id: pihole/dns
+    host: pihole
+    kind: syslog-device
+    match: "10.10.20.252 pihole-dns"
+    retention: operational
+    max_silence: 1h
+    canary: dns-query
+    owner: sentinel
+    status: gap
+    note: "pihole/pihole-log through the relay (imfile Tag=pihole-dns, Step 150). PERSONAL DATA, as pihole/pihole-log"
+  - id: pihole/ftl
+    host: pihole
+    kind: syslog-device
+    match: "10.10.20.252 pihole-ftl"
+    retention: operational
+    max_silence: 24h
+    canary: "none: FTL events"
+    owner: sentinel
+    status: gap
+    note: "pihole/ftl-log through the relay (imfile Tag=pihole-ftl, Step 150)"
+  - id: pihole/web
+    host: pihole
+    kind: syslog-device
+    match: "10.10.20.252 pihole-web"
+    retention: audit
+    max_silence: 7d
+    canary: http-get
+    owner: sentinel
+    status: gap
+    note: "pihole/webserver-log through the relay (imfile Tag=pihole-web, Step 150); admin UI access = audit"
+  # The container's journal: imjournal forwards each unit under its own tag,
+  # so this row takes every line from the address that no tag row above names.
   - id: pihole/journal
     host: pihole
-    kind: lxd-journal
-    match: pihole
+    kind: syslog-device
+    match: 10.10.20.252
     retention: operational
     max_silence: 24h
     canary: "none: container journal; unit lifecycle"
     owner: sentinel
     status: gap
-    note: "D3 (Phase 6): rsyslog imjournal -> relay"
+    note: "D3 (Phase 6): rsyslog imjournal -> relay. Was kind lxd-journal (match pihole) until 2026-11-09; the relay is how it ships"
   - id: lan/dns-queries
     host: pihole
     kind: lxd-file

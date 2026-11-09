@@ -67,6 +67,25 @@ transforms:
         rest = remove!(rest, [k])
       }
       retention = if audit { "audit" } else { "operational" }
+      # Lines the syslog relay wrote for a device (ADR-124; answer #18 of
+      # 2026-11-09). Their unit is the relay for every one, and their
+      # facility and hostname are the sender's claim: a sender that picks
+      # facility 4 or 10 must not file its line as audit, and a device's
+      # "Failed password" must not count as west's. The relay's own stamps
+      # decide instead, from the device's sources.yaml row: UNHEADED_SOURCE
+      # is the unit, UNHEADED_SOURCE_HOST the host, UNHEADED_RETENTION the
+      # class. Only the relay can write them: _SYSTEMD_UNIT and _TRANSPORT
+      # are journald's own, and the relay's own log lines arrive on stdout,
+      # so they stay west's. A stamp that is missing or malformed files the
+      # line as audit (never shorten evidence) under host and unit unknown.
+      if (string(."_SYSTEMD_UNIT") ?? "") == "unheaded-syslog-relay.service" && (string(."_TRANSPORT") ?? "") == "journal" {
+        rest.relay_host = host
+        unit = string(.UNHEADED_SOURCE) ?? ""
+        if !match(unit, r'^[a-z0-9][A-Za-z0-9._/:@-]{0,127}$') { unit = "unknown" }
+        host = string(.UNHEADED_SOURCE_HOST) ?? ""
+        if !match(host, r'^(west|east|pihole|device:[0-9A-Za-z.:-]{1,64}|unknown)$') { host = "unknown" }
+        retention = if (string(.UNHEADED_RETENTION) ?? "") == "operational" { "operational" } else { "audit" }
+      }
       . = {
         "timestamp": ts,
         "host": host,

@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-124: Native syslog relay, `cmd/syslog-relay`
 
-**Status:** Proposed (D2 answered native, Stevie 2026-11-03). Carried by S-LOG-HARVEST Phase 5.
+**Status:** Proposed (D2 answered native, Stevie 2026-11-03). Carried by S-LOG-HARVEST Phase 5. Amended 2026-11-09 (Stevie's answer #18): socket activation instead of `CAP_NET_BIND_SERVICE`; Vector files relayed lines by their row.
 **Date:** 2026-11-04
 **Related:** ADR-092 (log shipping), ADR-087 (NOC, network-device syslog planned), ADR-123 (uniform logs, parked), ADR-117 (ClickHouse is the only log store), ADR-111 (command-line shape), `config/logging/sources.yaml`.
 
@@ -23,7 +23,9 @@ Neither has a receiver: nothing on west listens for syslog. A receiver takes byt
 
 A first-party receiver: RFC 5424 and RFC 3164 over UDP and TCP in, the journal's native protocol out, so the shipping path stays the one Vector already has. `pkg/syslog` and `pkg/journald` use the standard library only. `cmd/syslog-relay` adds first-party packages (`pkg/logsources`, `pkg/cmdline`, `pkg/metrics`) and the zerolog logger every service uses; no new module.
 
-**Listeners.** `--listen udp://10.10.20.1:514`, `--listen tcp://10.10.20.1:514`, later the LAN address (D7). There is no default listener, and a wildcard address (`0.0.0.0`, `::`) is refused. The only capability is `CAP_NET_BIND_SERVICE`.
+**Listeners.** `--listen udp://10.10.20.1:514`, `--listen tcp://10.10.20.1:514`, later the LAN address (D7). There is no default listener, and a wildcard address (`0.0.0.0`, `::`) is refused.
+
+**Socket activation (answer #18, 2026-11-09).** systemd binds 514 in `deploy/systemd/unheaded-syslog-relay.socket` and passes the sockets; the relay holds no capability (`CapabilityBoundingSet=` empty, `PrivateUsers=yes`, `SocketBindAllow=tcp:9599` only). It reads `LISTEN_PID`, `LISTEN_FDS` and `LISTEN_FDNAMES` itself (`cmd/syslog-relay/activation.go`, standard library only, no go-systemd). Each passed socket must be a UDP socket or a listening TCP socket bound to exactly one `--listen`, and each `--listen` must arrive; otherwise, or when `LISTEN_PID` names another process, the relay refuses to start rather than ignore the fds as `sd_listen_fds(3)` would. With no `LISTEN_*` set it binds `--listen` itself (tests, dev). The socket unit carries its own `IPAddressAllow`, since systemd applies the service's list only to sockets the service opens. The sockets outlive a relay restart, so datagrams queue in the kernel meanwhile. Exposure (`systemd-analyze security --offline=yes`): 1.0, was 1.3 with the capability; kev-poller is 1.2.
 
 **Output.** `/run/systemd/journal/socket`, one datagram per message, `KEY=value\n` pairs; a value holding a newline uses the binary length form.
 
@@ -31,6 +33,7 @@ A first-party receiver: RFC 5424 and RFC 3164 over UDP and TCP in, the journal's
 |---|---|---|
 | `REMOTE_ADDR` | the socket | as far as the transport is (below) |
 | `UNHEADED_SOURCE` | the `sources.yaml` row for the sender, or `unknown` | yes: the relay decides it |
+| `UNHEADED_SOURCE_HOST`, `UNHEADED_RETENTION` | that row's `host` and `retention`; `unknown` and `operational` with no row | yes: the relay decides them (2026-11-09) |
 | `MESSAGE` | the message | no |
 | `PRIORITY`, `SYSLOG_FACILITY` | PRI | no. `PRIORITY` never goes below 1: journald sends emerg entries to every login tty |
 | `UNHEADED_SEVERITY_CLAIMED` | PRI, only when the relay raised `PRIORITY` | no |
@@ -59,6 +62,8 @@ The relay never writes a field starting with `_`; those are journald's own, and 
 
 **Identity.** Own nologin account `unheaded-syslog-relay`, uid 16739, `pkg/uids` and `deploy/sysusers.d/unheaded.conf`; house systemd hardening.
 
+**Package.** The `unheaded-syslog-relay` .deb (`scripts/lib/deb-packages.sh`) ships the binary, the service and its socket, the account's sysusers line and `/etc/unheaded/log-sources.yaml` as a conffile. Like every package it enables nothing; removal stops the socket before the service.
+
 ## Alternatives
 
 - **rsyslog `imudp` on west.** Already installed, but it widens use of a third-party tool while its verdict is on hold (2026-10-29), and its rate limiting, allowlist and field mapping would be configuration we cannot test the way we test code.
@@ -74,10 +79,13 @@ The relay never writes a field starting with `_`; those are journald's own, and 
 
 ## Consequences
 
-Relayed entries reach `config/vector/vector.yaml` like any other. Three things in `journal_rows` and `journal_volume` then read differently. Phase 6 owns that file; none of it is built here.
+Relayed entries reach `config/vector/vector.yaml` like any other. Three things in `journal_rows` and `journal_volume` read differently for them. As written on 2026-11-04 they were left to Phase 6; Stevie's answer #18 of 2026-11-09 settled them, and all three are built (below each).
 
 1. **`unit` is the relay.** `_SYSTEMD_UNIT` is `unheaded-syslog-relay.service` for every relayed line, so the `unit` column will not hold `pihole-dns` as Step 160 expects. Vector should take `unit` from `UNHEADED_SOURCE` or `SYSLOG_IDENTIFIER` for this one unit. Taking the identifier means a sender names its own unit, so `UNHEADED_SOURCE` is the safer choice.
+   *Built:* for an entry whose `_SYSTEMD_UNIT` is the relay and whose `_TRANSPORT` is `journal` (journald's own fields, which no other process can set), `unit` is `UNHEADED_SOURCE`, so rows read `pihole/dns`. The relay's own log lines arrive on stdout and keep its unit.
 2. **`retention` follows a claimed facility.** `audit = facility == 4 || facility == 10`. A sender picks its PRI, so it can file a line under either class. The row's own `retention` in `sources.yaml` should decide for relayed lines.
+   *Built:* the relay stamps the row's class as `UNHEADED_RETENTION`, and Vector takes it for relayed lines; the claimed facility stays in `fields`. A missing or unknown stamp is `audit` (never shorten evidence on a bad field).
 3. **Auth-failure counting matches text.** `journal_volume` matches `^Failed password for` on every row, so a relayed line counts towards `AuthFailureBurst` on west. A device's failed logins are worth counting, but they should not read as west's, and an allowlisted sender can raise the alert at will. The SSH login events are already safe: they read the trusted fields, not `SYSLOG_IDENTIFIER`.
+   *Built:* a relayed line's `host` is the row's `host` (`UNHEADED_SOURCE_HOST`: `pihole`, `device:<ip>`), so its auth failures count under `host="device:..."`, `unit="<row id>"`, and `AuthFailureBurst` (`sum by (host, kind)`) never adds them to west's. The receiving host is kept as `fields.relay_host`. Tests: `config/vector/tests/relay.yaml`.
 
 **ADR-123.** No conflict. The relay writes journal fields, not the JSON log contract, and sets no `level` or `service` key; its own stdout follows the contract. Under ADR-123's `format` key these rows are `syslog`, and `level` keeps coming from `PRIORITY`, which here is the sender's claim. If ADR-123 lands, the relay's rows need no change.

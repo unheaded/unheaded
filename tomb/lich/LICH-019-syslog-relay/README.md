@@ -43,4 +43,4 @@ go test ./pkg/syslog/ -run '^$' -fuzz '^FuzzFrameRoundTrip$' -fuzztime 30s
 
 ## Not yet tried
 
-Against a running relay: spoofed UDP sources on lxdbr0, slow TCP senders at `--max-conns`, a SIGHUP during a flood, and journald stalled under load. Forged `Failed password` lines through Vector's auth counter are a known gap (ADR-124, Consequences).
+Against a running relay: spoofed UDP sources on lxdbr0, slow TCP senders at `--max-conns`, a SIGHUP during a flood, journald stalled under load, and hostile `LISTEN_*` environments. Forged `Failed password` lines through Vector's auth counter now count under the sender's own host, never west's (2026-11-09, `config/vector/tests/relay.yaml`).
