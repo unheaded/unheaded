@@ -1857,7 +1857,8 @@ findings:
     plan: >-
       Stevie 2026-11-09: narrow it, east first. Order: (1) the collector gets its own read-only account, since these
       probes run through the same rule; (2) list the exact commands automation needs from a week of sudo lines in
-      auth.log; (3) install the narrowed rule with visudo -cf and a second root shell open, attended
+      auth.log; (3) install the narrowed rule with visudo -cf and a second root shell open, attended. Steps 1 and 2
+      are drafted, nothing installed: deploy/sudoers.d/README.md (log counts, 23 exact rules, install order)
     decision: narrow (Stevie 2026-11-09); attended, east first, then west
   - source: "host-probe:east:sudo-password-required"
     severity: high

@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# DRAFT, NOT INSTALLED (2026-11-09). Read deploy/sudoers.d/README.md first.
+#
+# The commands the compliance pull (pkg/compliance/crosswalk/collect) runs as
+# root on a host, for a dedicated pull account instead of an operator with
+# NOPASSWD: ALL. Source: east's auth.log, 2026-11-01..09, every sudo command
+# seen on four or more days (the pull runs about nine times a day), plus the
+# three probes rewritten on 2026-11-09 to use a fixed command.
+#
+# sudo-rs (0.2.8 on both hosts) allows no wildcards in arguments: a command
+# here matches only if every argument is identical. The file name has a dot
+# on purpose: sudo skips such files in /etc/sudoers.d, so a stray copy of the
+# draft does nothing. Install it as 60-unheaded-pull.
+#
+# Syntax: `visudo -c -f` passes. Matching is NOT yet proved: nobody has run
+# these as the pull account. The README's test step does that while the
+# operator's own rule is still in place.
+
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/awk -F\: $1\=\="root"{print "status " (($2 ~ /^[!*]/) ? "L" \: ($2 \=\= "" ? "NP" \: "P"))} /etc/shadow
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/awk -F\: ($2 \=\= "") {print $1} /etc/shadow
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/bash -c env
+# 43 runs, 4 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c auditctl -l && echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c awk -F\: '($2~/^\\$/ && ($5\=\="" || $5>365)){print "user " $1}' /etc/shadow && echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c awk -F\: '($2~/^\\$/ && ($7\=\="" || $7>45 || $7<0)){print "user " $1}' /etc/shadow && echo @ok
+# 383 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c cat /etc/sudoers || exit; if [ -d /etc/sudoers.d ]; then ls /etc/sudoers.d >/dev/null || exit; for f in /etc/sudoers.d/*; do [ -e "$f" ] || continue; cat "$f" || exit; done; fi; echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c cd /root && { grep -Hs -E "^[[\:space\:]]*umask" /root/.bash_profile /root/.bashrc /root/.profile; echo @ok; }
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c find /var/log -type f -printf '%m %p\\n' 2>/dev/null && echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c for d in /var/log/journal /run/log/journal; do [ -e "$d" ] || continue; find "$d" \\( -type f -perm /0137 \\) -o \\( -type d -perm /0022 \\) 2>/dev/null || echo "unreadable $d"; done | head -20; echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c grep -E '^[[\:space\:]]*(set superusers|password_pbkdf2)' /boot/grub/grub.cfg; echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c if [ -e /var/lib/aide/aide.db ] || [ -e /var/lib/aide/aide.db.gz ]; then echo db\=present; else echo db\=absent; fi; echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c if [ -e /var/lib/unheaded/baseline/report.json ]; then head -c 4194304 /var/lib/unheaded/baseline/report.json; else echo @none; fi; echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c if [ -e /var/lib/unheaded/remediate/journal.jsonl ]; then cat /var/lib/unheaded/remediate/journal.jsonl; else echo @none; fi; echo @ok
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c read -r p; IFS\=\:; for d in $p; do [ -n "$d" ] || continue; if [ -d "$d" ]; then stat -Lc "dir %U %a %n" "$d"; else echo "missing $d"; fi; done
+# 85 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/sbin/aa-status --json
+# 86 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/sbin/ip6tables -S INPUT
+# 87 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/sbin/iptables -S INPUT
+# 86 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/sbin/nft list chain inet unheaded input
+# 689 runs, 9 days
+unheaded-pull ALL=(root) NOPASSWD: /usr/sbin/sshd -T
+# new fixed form of acct-noshell-locked
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/awk -F\: {print $1 " " (($2 ~ /^[!*]/) ? "L" \: ($2 \=\= "" ? "NP" \: "P"))} /etc/shadow
+# new fixed form of pw-change-past
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/awk -F\: ($3!\=""){print $1 " " $3} /etc/shadow
+# new fixed form of dot-files
+unheaded-pull ALL=(root) NOPASSWD: /usr/bin/sh -c while read -r u h; do [ -n "$u" ] || continue; [ -d "$h" ] || continue; find "$h" -maxdepth 1 -name ".*" -type f -printf "dot $u %u %m %p\\n" 2>/dev/null || echo "unreadable $u $h"; done
