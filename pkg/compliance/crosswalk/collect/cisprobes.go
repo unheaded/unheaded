@@ -856,7 +856,11 @@ func init() {
 	Probes["pw-inactive"] = defsProbe(`echo "defs=$(useradd -D | awk -F= '/^INACTIVE/{print $2}')"; `+
 		`$UH_PRIV sh -c "awk -F: '(`+hashed+` && (\$7==\"\" || \$7>45 || \$7<0)){print \"user \" \$1}' /etc/shadow && echo @ok"`,
 		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 0 && n <= 45 }, "INACTIVE 0-45")
-	Probes["pw-change-past"] = offenderProbe(`t=$(( $(date +%s) / 86400 )); $UH_PRIV sh -c "awk -F: -v t=$t '(\$3!=\"\" && \$3>t){print \$1}' /etc/shadow && echo @ok"`)
+	// The privileged command is fixed (name and last-change day, no hash);
+	// today's day number is compared outside it, so a sudoers rule can name
+	// the command exactly.
+	Probes["pw-change-past"] = offenderProbe(`t=$(( $(date +%s) / 86400 )); if x=$($UH_PRIV awk -F: '($3!=""){print $1 " " $3}' /etc/shadow); then ` +
+		`printf '%s\n' "$x" | awk -v t=$t '($2!="" && $2+0>t+0){print $1}'; echo @ok; fi`)
 	Probes["acct-root-only-uid0"] = offenderProbe(`awk -F: '($3==0 && $1!="root"){print $1}' /etc/passwd && echo @ok`)
 	Probes["acct-root-only-gid0"] = offenderProbe(`awk -F: '($4==0 && $1!="root"){print $1}' /etc/passwd && echo @ok`)
 	Probes["group-root-only-gid0"] = offenderProbe(`awk -F: '($3==0 && $1!="root"){print $1}' /etc/group && echo @ok`)
@@ -1428,8 +1432,14 @@ func init() {
 		judgeHomeDirs)
 	// A home find could not list (sudo refused, no CAP_DAC_READ_SEARCH)
 	// prints "unreadable": no dot files seen is not "none are loose".
-	Probes["dot-files"] = markerLinesProbe(forInteractiveUsers(`[ -d "$h" ] || continue; `+
-		`$UH_PRIV find "$h" -maxdepth 1 -name '.*' -type f -printf "dot $u %u %m %p\n" 2>/dev/null || echo "unreadable $u $h"`),
+	// One fixed privileged command reads the "user home" pairs on stdin
+	// (a find per home put the path in the command, which a narrowed
+	// sudoers rule cannot name). If it cannot run at all, every home is
+	// "unreadable".
+	Probes["dot-files"] = markerLinesProbe(`if users=$(`+interactiveUsers+`); then printf '%s\n' "$users" | `+
+		`$UH_PRIV sh -c 'while read -r u h; do [ -n "$u" ] || continue; [ -d "$h" ] || continue; `+
+		`find "$h" -maxdepth 1 -name ".*" -type f -printf "dot $u %u %m %p\n" 2>/dev/null || echo "unreadable $u $h"; done' || `+
+		`printf '%s\n' "$users" | while read -r u h; do [ -n "$u" ] && echo "unreadable $u $h"; done; echo @ok; fi`,
 		judgeDotFiles)
 }
 
