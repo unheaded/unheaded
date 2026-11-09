@@ -22,7 +22,7 @@ func TestNISTLevel_MLDSA(t *testing.T) {
 		{"ML-KEM-512", 0x04, 0x01, NISTLevel1},
 		{"ML-KEM-768", 0x04, 0x02, NISTLevel3},
 		{"ML-KEM-1024", 0x04, 0x03, NISTLevel5},
-		{"SLH-DSA-128", 0x01, 0x01, NISTLevel1},
+		{"SLH-DSA-SHA2-128s", 0x01, 0x10, NISTLevel1},
 		{"HQC-128", 0x05, 0x01, NISTLevel1},
 		{"unknown", 0xFF, 0x01, NISTLevel0},
 	}

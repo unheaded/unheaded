@@ -44,11 +44,28 @@ const (
 	algoHQC    uint8 = 0x05
 )
 
-// Parameter set constants.
+// Parameter set constants (ML-DSA, ML-KEM, HQC).
 const (
 	paramSet1 uint8 = 0x01
 	paramSet2 uint8 = 0x02
 	paramSet3 uint8 = 0x03
+)
+
+// SLH-DSA parameter set ids, copied from pkg/crypto/pqc (slh_dsa.go).
+// nist_level_slhdsa_test.go fails if the two tables drift apart.
+const (
+	slhdsaSHAKE128s uint8 = 0x07
+	slhdsaSHAKE128f uint8 = 0x08
+	slhdsaSHAKE192s uint8 = 0x09
+	slhdsaSHAKE192f uint8 = 0x0A
+	slhdsaSHAKE256s uint8 = 0x0B
+	slhdsaSHAKE256f uint8 = 0x0C
+	slhdsaSHA2128s  uint8 = 0x10
+	slhdsaSHA2128f  uint8 = 0x11
+	slhdsaSHA2192s  uint8 = 0x12
+	slhdsaSHA2192f  uint8 = 0x13
+	slhdsaSHA2256s  uint8 = 0x14
+	slhdsaSHA2256f  uint8 = 0x15
 )
 
 // NISTLevel returns the NIST security level for a given algorithm and
@@ -56,13 +73,16 @@ const (
 func NISTLevel(algoID, paramSet uint8) NISTSecurityLevel {
 	switch algoID {
 	case algoSLHDSA:
-		// SLH-DSA parameter sets map to levels 1, 3, 5.
+		// SLH-DSA ids are pkg/crypto/pqc's own (the ids it signs with):
+		// SHAKE sets 0x07-0x0C, SHA2 sets 0x10-0x15, each family in the
+		// order 128s, 128f, 192s, 192f, 256s, 256f. FIPS 205 puts n=16 at
+		// category 1, n=24 at 3, n=32 at 5. Any other id is unknown.
 		switch paramSet {
-		case paramSet1:
+		case slhdsaSHAKE128s, slhdsaSHAKE128f, slhdsaSHA2128s, slhdsaSHA2128f:
 			return NISTLevel1
-		case paramSet2:
+		case slhdsaSHAKE192s, slhdsaSHAKE192f, slhdsaSHA2192s, slhdsaSHA2192f:
 			return NISTLevel3
-		case paramSet3:
+		case slhdsaSHAKE256s, slhdsaSHAKE256f, slhdsaSHA2256s, slhdsaSHA2256f:
 			return NISTLevel5
 		}
 	case algoMLDSA:
