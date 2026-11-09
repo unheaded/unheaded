@@ -152,6 +152,8 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 
 **Hosts after S-HOST-TIDY (2026-11-04).** West's journal is capped at 4G/500M (`61-unheaded-west.conf` over `60-unheaded.conf`), east's at 1G/200M. East answers password and key on port 22 (the move to 7375 is attended, S-E1-LIVE); `PermitRootLogin no` on both (`05-unheaded-permitroot.conf`). fail2ban on east watches `sshd-session` on 22 and 7375 and ignores every address west can use, because a ban on one would close east's only door; west's own jail bans port 22 only until S-E1-LIVE Evening 8. East resolves through Pi-hole 10.10.20.252, then 1.1.1.1 and 8.8.8.8, via the `127.0.0.53` stub (`/etc/netplan/01-enp2s0.yaml`; never `netplan apply` on east, enp2s0 is its only link). `usb-storage` cannot load on either host. `su` needs root on both (empty `sugroup`). East's umask is 027; west's stays 0002 because its compose stacks read repo files through bind mounts. `unheaded-remediate` lives in `/usr/local/sbin` with its model at `/usr/share/unheaded/remediation/fixes.yaml`, root-owned as it requires. Never run `apt autoremove` on east without reading the list: removing `lxd-installer` also removed the `ubuntu-server` metapackage.
 
+**West's user slice is capped (2026-11-09).** After the 2026-11-04 fork storm (17,320 tasks froze west), `user-1000.slice` has `TasksMax=4096` and `MemoryMax=12G` (`/etc/systemd/system/user-1000.slice.d/50-unheaded-caps.conf`, copy in `deploy/systemd/user-1000.slice.d/`). A runaway in the login session is killed instead of freezing the host; system services are not under it. Not yet: `kernel.panic` auto-reboot and the hardware watchdog.
+
 ## Security Testing Infrastructure
 
 | Tool | Purpose | Where |

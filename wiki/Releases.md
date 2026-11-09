@@ -52,6 +52,8 @@ echo "deb [signed-by=/etc/apt/keyrings/unheaded.gpg] http://192.168.13.2:18888 u
 sudo apt-get update && sudo apt-get install unheaded-wotan
 ```
 
+nginx can start before `192.168.13.2` exists (the link to east comes up after `network-online.target`), and its bind then fails the boot. West carries `deploy/nginx/nginx.service.d/10-unheaded-retry.conf` in `/etc/systemd/system/nginx.service.d/`: `Restart=on-failure` every 5 s, up to 60 tries in 10 minutes (installed 2026-11-09).
+
 Compare the fingerprint of the downloaded key (`gpg --show-keys /etc/apt/keyrings/unheaded.gpg`) with the one recorded for the repository before trusting it: the first fetch is over plain HTTP. Publishing and rollback: `runbooks/deploy/apt-repo-publish.yaml`. `tests/apt/apt_repo_test.sh` proves the script with a throwaway key: apt accepts the repository with the exported key and refuses it with any other, and a Release edited after signing fails `check`.
 
 Not yet: the repository's signing key (who holds it, where: S-IRON-GATE E4), the repository live on west and east installing from it (E3), and the evidence build key (Phase 13).
