@@ -1,0 +1,44 @@
+.TH ZHEN\-UI\-FRONT 1 "2026-11-09" "unheaded 50a3c532" "Unheaded Kingdom"
+.SH NAME
+zhen\-ui\-front \- Terminate hybrid\-only TLS 1.3 for the Zhen web UI and proxy to its Unix socket (ADR\-138).
+.SH SYNOPSIS
+.B zhen\-ui\-front
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Terminate hybrid\-only TLS 1.3 for the Zhen web UI and proxy to its Unix socket (ADR\-138).
+.SH OPTIONS
+.TP
+.B \-\-listen \fIVALUE\fR
+IP:PORT to serve TLS on, repeatable; no wildcard address (default 127.0.0.1:20103)
+.TP
+.B \-\-max\-body \fIN\fR
+request body cap in bytes (default 4194304)
+.TP
+.B \-\-max\-conns \fIN\fR
+client connections at once, across every listener (default 256)
+.TP
+.B \-\-metrics \fISTRING\fR
+loopback IP:PORT for /metrics, /health and /ready, plain HTTP (default 127.0.0.1:20112)
+.TP
+.B \-\-socket \fISTRING\fR
+the app's Unix socket (default /run/unheaded\-zhen\-ui/app.sock)
+.TP
+.B \-\-timeout \fIDURATION\fR
+time the app has to start answering a request (default 8m0s)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+The certificate and key are the files UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE name; without both the
+front refuses to start. There is no plaintext mode, and UNHEADED_TLS_PROFILE is not read: key exchange is
+hybrid ML\-KEM only, so a client without it fails the handshake. The socket must not be open to other users.
+Forwarding headers from clients are dropped; the app gets the TCP peer in X\-Unheaded\-Client\-Addr.
+.SH EXAMPLES
+.EX
+zhen\-ui\-front \-\-listen 127.0.0.1:20103 \-\-socket /run/unheaded\-zhen\-ui/app.sock
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

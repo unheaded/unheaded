@@ -11,6 +11,7 @@ cmd/steel-echo/serve.go
 cmd/syslog-relay/main.go
 cmd/upc-cartridgectl/main_linux.go
 cmd/upc-tty-bridge/main.go
+cmd/zhen-ui-front/main.go
 deploy/sophia-eye/sophia-gateway/main.go
 pkg/httputil/pprof.go
 pkg/tls/server.go

@@ -121,6 +121,12 @@ const (
 	// SyslogRelay is cmd/syslog-relay (ADR-124): host unit
 	// unheaded-syslog-relay.service only (account unheaded-syslog-relay).
 	SyslogRelay = 16739
+	// ZhenUIFront is cmd/zhen-ui-front, the web UI's hybrid-only TLS front
+	// (ADR-138): host unit unheaded-zhen-ui-front.service only (account
+	// unheaded-zhen-ui-front). Its group is also the group of the app's
+	// socket, and it is the group's only member. 16740-16754 are the Armory
+	// tier's, so the next free Kingdom number is here.
+	ZhenUIFront = 16755
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -231,6 +237,7 @@ var Registry = map[string]int{
 	"buildkey":          BuildKey,
 	"vor":               Vor,
 	"syslog-relay":      SyslogRelay,
+	"zhen-ui-front":     ZhenUIFront,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

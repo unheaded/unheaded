@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# TLS front for the Zhen web UI (ADR-138). TLS 1.3 with hybrid ML-KEM key
+# exchange only: a client that offers only classical groups fails the
+# handshake. It proxies to the app's Unix socket and has no plaintext mode;
+# the app (raft/zhen_app.py) listens on that socket and nowhere else.
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header), by
+# hand or as the unheaded-zhen-ui-front .deb:
+#   sudo install -m 0755 zhen-ui-front /usr/local/bin/
+#   TLS material in /etc/unheaded/tls/zhen-ui-front/ (deploy/systemd/README.md#tls)
+#   the socket directory, deploy/systemd/README.md#zhen-ui-front: one
+#   tmpfiles.d line that names the account the app runs as
+#   sudo cp deploy/systemd/unheaded-zhen-ui-front.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now unheaded-zhen-ui-front.service
+#
+# A LAN listener is a host's drop-in: a second --listen with the interface's
+# address, its subnet in IPAddressAllow, and the firewall rule (Stevie's).
+# The port stays on SocketBindAllow as it is.
+
+[Unit]
+Description=Unheaded Zhen UI front: hybrid-only TLS 1.3 to the app's socket
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# No TLS flags: the certificate and key are the two files named below, and
+# there is no switch for the profile. The app may start later; until its
+# socket exists requests get 502 and /ready says 503.
+ExecStart=/usr/local/bin/zhen-ui-front --listen 127.0.0.1:20103 --socket /run/unheaded-zhen-ui/app.sock --metrics 127.0.0.1:20112
+Restart=always
+RestartSec=30s
+TimeoutStopSec=15s
+
+LimitNOFILE=1024
+MemoryMax=128M
+MemoryHigh=115M
+Environment=GOMEMLIMIT=115MiB
+
+# TLS (ADR-138, ADR-105; deploy/systemd/README.md#tls). ENABLED is for the
+# package's postinst, which reads it to find the files this unit needs; the
+# front itself ignores it and never serves without TLS. No CA and no mTLS:
+# the client is a browser and the app's login is the identity.
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CERT=/etc/unheaded/tls/zhen-ui-front/zhen-ui-front.pem
+Environment=UNHEADED_TLS_KEY_FILE=/etc/unheaded/tls/zhen-ui-front/zhen-ui-front-key.pem
+ReadOnlyPaths=-/etc/unheaded/tls/zhen-ui-front
+
+User=unheaded-zhen-ui-front
+Group=unheaded-zhen-ui-front
+UMask=0077
+
+# No capability: both ports are high.
+CapabilityBoundingSet=
+# Its own user namespace: no other uid is visible, and none of the host's
+# capabilities apply. The app's socket is reached through this account's own
+# group, which the namespace keeps.
+PrivateUsers=yes
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin. It
+# writes nothing: no state, no runtime directory, no socket of its own.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+DevicePolicy=closed
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+# Hides /proc/stat: process_start_time_seconds is simply absent.
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+# It binds its two ports and talks IP to nobody else; the app is a Unix
+# socket. Enforced in the kernel, in front of the front's own checks.
+SocketBindDeny=any
+SocketBindAllow=tcp:20103
+SocketBindAllow=tcp:20112
+IPAddressDeny=any
+IPAddressAllow=localhost
+
+[Install]
+WantedBy=multi-user.target
