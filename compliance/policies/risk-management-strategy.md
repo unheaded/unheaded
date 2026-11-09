@@ -15,7 +15,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - **Assessed** per finding (severity, lockout risk, remediation step) and per system (section 3).
 - **Responded to** in one of three ways: fix (default), accept with an end date (`accepted`, at most 90 days, still counted as open), or avoid (remove the component). No risk is transferred: there is no insurance and no contracted provider (decision in [decisions for Stevie](../../docs/compliance/privacy/decisions-for-stevie.md)).
 - **Monitored** continuously by the collectors and alert rules (`ComplianceNewSevereFinding`, `ComplianceAcceptanceExpired`, `ComplianceFindingsOverdue`).
-- **Reported** in the generated SSP (`docs/compliance/SSP-generated.md`) and the generated section of ADR-098.
+- **Reported** in the SSP and the findings table, both generated on the host from collected evidence (`var/compliance/SSP.md`, `var/compliance/findings.md`; never committed).
 
 ## 2. Risk appetite
 
@@ -56,7 +56,7 @@ Recovery and protection order, highest first (the contingency plan's recovery or
 
 ## 5. Statement of Applicability
 
-Generated, not written: the `## SoA` section of `docs/compliance/SSP-generated.md` (`go run ./cmd/compliance-evidence ssp -out docs/compliance/SSP-generated.md`). Every framework in `compliance/catalog/frameworks/` is listed with the publisher's full requirement count and how many requirements the controls evidence, fail, leave incomplete, or do not map. Requirements outside a single-operator lab (personnel, training, dual control) are excluded with reasons on the [single-operator posture](single-operator-posture.md) page, not dropped from the counts.
+Generated, not written: the `## SoA` section of the host's SSP (`go run ./cmd/compliance-evidence ssp -out var/compliance/SSP.md`). Every framework in `compliance/catalog/frameworks/` is listed with the publisher's full requirement count and how many requirements the controls evidence, fail, leave incomplete, or do not map. Requirements outside a single-operator lab (personnel, training, dual control) are excluded with reasons on the [single-operator posture](single-operator-posture.md) page, not dropped from the counts.
 
 ## 6. Review
 

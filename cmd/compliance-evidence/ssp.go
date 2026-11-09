@@ -34,7 +34,7 @@ func runSSP(args []string, stdout io.Writer) error {
 	frameworks := fl.String("frameworks", "compliance/catalog/frameworks", "framework files directory")
 	evidence := fl.String("evidence", "var/compliance/evidence.json", "evidence file (absent: every control NOT_ASSESSED)")
 	atFlag := fl.String("at", "", "evaluate at the end of this UTC day, YYYY-MM-DD (default: now)")
-	out := fl.String("out", "", "Markdown file to write (required)")
+	out := fl.String("out", "", "Markdown file to write (required): under var/ or outside the repository")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -43,6 +43,10 @@ func runSSP(args []string, stdout io.Writer) error {
 	}
 	if *out == "" {
 		return errors.New("-out is required")
+	}
+	path, err := hostOutPath(*repoDir, *out)
+	if err != nil {
+		return err
 	}
 	now := time.Now().UTC()
 	if *atFlag != "" {
@@ -73,9 +77,8 @@ func runSSP(args []string, stdout io.Writer) error {
 	}
 
 	doc, fails := renderSSP(cat, recs, now, *evidence)
-	path := *out
-	if !filepath.IsAbs(path) {
-		path = filepath.Join(*repoDir, path)
+	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+		return err
 	}
 	if err := writeFileAtomic(path, []byte(doc)); err != nil {
 		return err

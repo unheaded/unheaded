@@ -19,21 +19,30 @@ import (
 
 // The findings register (ADR-098): `compliance-evidence findings` joins the
 // catalog, the evidence file and compliance/findings/register.yaml. It
-// collects nothing; run the collector first for fresh evidence.
+// collects nothing; run the collector first for fresh evidence. The report is
+// collected data, so it goes to stdout and optionally a file on the host
+// (var/ or outside the repository), never into a tracked doc.
 
-const (
-	beginMarker  = "<!-- BEGIN GENERATED FINDINGS -->"
-	endMarker    = "<!-- END GENERATED FINDINGS -->"
-	registerPath = "compliance/findings/register.yaml"
-)
+const registerPath = "compliance/findings/register.yaml"
 
 func runFindings(args []string, stdout io.Writer) error {
 	fl := flag.NewFlagSet("findings", flag.ContinueOnError)
 	repoDir := fl.String("repo-dir", ".", "repository root")
 	evidence := fl.String("evidence", "var/compliance/evidence.json", "evidence file")
-	adr := fl.String("adr", "", "rewrite the generated section of this ADR (repo-relative)")
+	outFlag := fl.String("out", "", "also write the report here: under var/ or outside the repository")
 	if err := fl.Parse(args); err != nil {
 		return err
+	}
+	if fl.NArg() > 0 {
+		return fmt.Errorf("unexpected argument %q", fl.Arg(0))
+	}
+	var outPath string
+	if *outFlag != "" {
+		p, err := hostOutPath(*repoDir, *outFlag)
+		if err != nil {
+			return err
+		}
+		outPath = p
 	}
 	cat, err := crosswalk.LoadFS(os.DirFS(*repoDir), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
 	if err != nil {
@@ -66,45 +75,15 @@ func runFindings(args []string, stdout io.Writer) error {
 	if _, err := io.WriteString(stdout, out); err != nil {
 		return err
 	}
-	if *adr == "" {
+	if outPath == "" {
 		return nil
 	}
-	// The ADR must be inside the repository: os.Root refuses any path that
-	// leaves it (.., absolute, or a symlink out).
-	root, err := os.OpenRoot(*repoDir)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o750); err != nil {
 		return err
 	}
-	defer root.Close()
-	doc, err := root.ReadFile(*adr)
-	if err != nil {
-		return err
-	}
-	updated, err := replaceGenerated(string(doc), out)
-	if err != nil {
-		return fmt.Errorf("%s: %w", *adr, err)
-	}
-	return root.WriteFile(*adr, []byte(updated), 0o644) // #nosec G306 -- a doc in the repo, world-readable like every other
+	return writeFileAtomic(outPath, []byte(out))
 }
 
-// replaceGenerated swaps what lies between the markers, which must each
-// appear exactly once and in order.
-func replaceGenerated(doc, generated string) (string, error) {
-	if strings.Count(doc, beginMarker) != 1 || strings.Count(doc, endMarker) != 1 {
-		return "", errors.New("needs exactly one " + beginMarker + " and one " + endMarker)
-	}
-	if strings.Contains(generated, beginMarker) || strings.Contains(generated, endMarker) {
-		return "", errors.New("generated text contains a marker")
-	}
-	before, rest, _ := strings.Cut(doc, beginMarker)
-	if !strings.Contains(rest, endMarker) {
-		return "", errors.New(endMarker + " comes before " + beginMarker)
-	}
-	_, after, _ := strings.Cut(rest, endMarker)
-	return before + beginMarker + "\n" + generated + endMarker + after, nil
-}
-
-// cell makes text safe inside a markdown table cell.
 func cell(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
 	return strings.ReplaceAll(s, "|", `\|`)

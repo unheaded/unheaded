@@ -32,10 +32,10 @@ the key). Before Stevie pushes, re-sign exactly the unpushed commits.
   `test -z "$(git -C "$REPO" log --format=%G? "$BASE..$BRANCH" | grep -v '^G$')"`,
   and the tree did not change:
   `test "$(git -C "$REPO" rev-parse HEAD^{tree})" = "$(git -C "$REPO" rev-parse "refs/backup/$BRANCH-before-resign^{tree}")"`.
-- After re-signing, regenerate ADR-098's findings section, since its
+- After re-signing, regenerate the findings table on the host, since its
   git-signatures evidence reads commit signatures:
-  `go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md`
-  (a separate commit).
+  `go run ./cmd/compliance-evidence findings -out var/compliance/findings.md`
+  (nothing to commit: the table is collected data and stays on the host).
 - The push is Stevie's (manual, irreversible: true): `git -C "$REPO" push origin "$BRANCH"`.
 
 **Rollback:** before the push: `git -C "$REPO" update-ref "refs/heads/$BRANCH" "refs/backup/$BRANCH-before-resign"`

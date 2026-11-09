@@ -79,12 +79,11 @@ steps:
   - name: regenerate-findings
     action: manual
     command: |
-      # ADR-098's git-signatures evidence reads commit signatures. A separate commit:
+      # ADR-098's git-signatures evidence reads commit signatures. The table is
+      # collected data: it stays on the host, nothing is committed.
       cd "${REPO}"
-      go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md
-      git -C "${REPO}" diff --stat
-      git -C "${REPO}" commit -S -m "docs(adr): regenerate ADR-098 findings after re-signing" docs/adr/ADR-098-findings-register-and-baseline-modes.md
-    description: "MANUAL. Regenerate ADR-098's findings section and commit it signed (review the diff first)"
+      go run ./cmd/compliance-evidence findings -out var/compliance/findings.md
+    description: "MANUAL. Regenerate the findings table on the host (var/compliance/findings.md)"
 
   - name: push-commits
     action: manual

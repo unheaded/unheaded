@@ -13,39 +13,6 @@ import (
 	"unheaded/pkg/compliance/crosswalk"
 )
 
-func TestReplaceGenerated(t *testing.T) {
-	doc := "# ADR\n\ntext\n\n" + beginMarker + "\nold table\n" + endMarker + "\n\ntrailer\n"
-	got, err := replaceGenerated(doc, "new | table\n")
-	if err != nil {
-		t.Fatal(err)
-	}
-	want := "# ADR\n\ntext\n\n" + beginMarker + "\nnew | table\n" + endMarker + "\n\ntrailer\n"
-	if got != want {
-		t.Errorf("got\n%s\nwant\n%s", got, want)
-	}
-	again, err := replaceGenerated(got, "new | table\n")
-	if err != nil || again != got {
-		t.Errorf("not idempotent: %v\n%s", err, again)
-	}
-
-	for name, bad := range map[string]string{
-		"no markers":             "# ADR\n",
-		"only begin":             beginMarker + "\n",
-		"end before":             endMarker + "\n" + beginMarker + "\n",
-		"begin twice":            beginMarker + "\n" + beginMarker + "\n" + endMarker + "\n",
-		"end twice":              beginMarker + "\n" + endMarker + "\n" + endMarker + "\n",
-		"generated has a marker": beginMarker + "\n" + endMarker + "\n",
-	} {
-		body := "x\n"
-		if name == "generated has a marker" {
-			body = endMarker + "\n"
-		}
-		if _, err := replaceGenerated(bad, body); err == nil {
-			t.Errorf("%s: accepted", name)
-		}
-	}
-}
-
 func TestRenderFindings(t *testing.T) {
 	at := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
 	entry := &crosswalk.RegisterEntry{Severity: crosswalk.SeverityHigh, Class: "firewall", Opened: "2026-09-30",
@@ -84,12 +51,9 @@ func TestRenderFindings(t *testing.T) {
 			t.Errorf("render missing %q\n%s", want, out)
 		}
 	}
-	if strings.Contains(out, beginMarker) || strings.Contains(out, endMarker) {
-		t.Error("render contains a marker")
-	}
 }
 
-func TestRunFindings_WritesADR(t *testing.T) {
+func TestRunFindings_WritesOut(t *testing.T) {
 	root := t.TempDir()
 	write := func(rel, body string) {
 		t.Helper()
@@ -118,7 +82,6 @@ func TestRunFindings_WritesADR(t *testing.T) {
     lockout: none
     step: 3
 `)
-	write("docs/adr/ADR-X.md", "# X\n"+beginMarker+"\n"+endMarker+"\n")
 	f, err := os.Create(filepath.Join(root, "evidence.json"))
 	if err != nil {
 		t.Fatal(err)
@@ -133,16 +96,16 @@ func TestRunFindings_WritesADR(t *testing.T) {
 
 	var out strings.Builder
 	err = runFindings([]string{"-repo-dir", root, "-evidence", filepath.Join(root, "evidence.json"),
-		"-adr", "docs/adr/ADR-X.md"}, &out)
+		"-out", "var/compliance/findings.md"}, &out)
 	if err != nil {
 		t.Fatal(err)
 	}
-	adr, err := os.ReadFile(filepath.Join(root, "docs/adr/ADR-X.md"))
+	report, err := os.ReadFile(filepath.Join(root, "var/compliance/findings.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(adr), "east: auditd inactive") || !strings.Contains(string(adr), "**1 open**") {
-		t.Errorf("ADR not regenerated:\n%s", adr)
+	if !strings.Contains(string(report), "east: auditd inactive") || !strings.Contains(string(report), "**1 open**") {
+		t.Errorf("report not written:\n%s", report)
 	}
 	if !strings.Contains(out.String(), "**1 open**") {
 		t.Errorf("stdout:\n%s", out.String())
@@ -164,13 +127,13 @@ func TestRunFindings_WritesADR(t *testing.T) {
 	}
 }
 
-func TestRunFindings_ADROutsideRepoRefused(t *testing.T) {
-	root := t.TempDir()
-	repo := filepath.Join(root, "repo")
+func TestRunFindings_RepoPathRefused(t *testing.T) {
+	repo := t.TempDir()
 	for rel, body := range map[string]string{
 		"compliance/catalog/frameworks/fw.yaml": "frameworks:\n  - id: fw\n    name: FW\n    requirements: [{id: R1}]\n",
 		"compliance/catalog/controls.yaml":      "controls:\n  - id: UH-X-01\n    title: t\n    statement: s\n    freshness_days: 7\n    evidence: [{kind: github-job, ref: W/x}]\n    mappings: {fw: [R1]}\n",
 		"compliance/findings/register.yaml":     "findings: []\n",
+		"docs/adr/ADR-X.md":                     "# X\n",
 	} {
 		p := filepath.Join(repo, rel)
 		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
@@ -180,17 +143,14 @@ func TestRunFindings_ADROutsideRepoRefused(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	outside := filepath.Join(root, "outside.md")
-	if err := os.WriteFile(outside, []byte(beginMarker+"\n"+endMarker+"\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
 	var out strings.Builder
-	for _, adr := range []string{"../outside.md", outside} {
-		if err := runFindings([]string{"-repo-dir", repo, "-adr", adr}, &out); err == nil {
-			t.Errorf("-adr %s outside the repository was accepted", adr)
-		}
+	if err := runFindings([]string{"-repo-dir", repo, "-out", "docs/adr/ADR-X.md"}, &out); err == nil {
+		t.Error("findings wrote into the repository tree")
 	}
-	if b, _ := os.ReadFile(outside); strings.Contains(string(b), "open") {
-		t.Error("a file outside the repository was rewritten")
+	if b, _ := os.ReadFile(filepath.Join(repo, "docs/adr/ADR-X.md")); string(b) != "# X\n" {
+		t.Errorf("a tracked doc was rewritten:\n%s", b)
+	}
+	if err := runFindings([]string{"-repo-dir", repo, "-adr", "docs/adr/ADR-X.md"}, &out); err == nil {
+		t.Error("the removed -adr flag was accepted")
 	}
 }

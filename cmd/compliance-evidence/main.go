@@ -9,9 +9,9 @@
 //	go run ./cmd/compliance-evidence                # from the repo root
 //	go run ./cmd/compliance-evidence -skip-gates    # GitHub + git only
 //	go run ./cmd/compliance-evidence findings       # the findings register (ADR-098)
-//	go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md
+//	go run ./cmd/compliance-evidence findings -out var/compliance/findings.md
 //	go run ./cmd/compliance-evidence baseline       # regenerate compliance/baseline/baseline.yaml
-//	go run ./cmd/compliance-evidence ssp -out docs/compliance/SSP-generated.md  # system security plan (M-104)
+//	go run ./cmd/compliance-evidence ssp -out var/compliance/SSP.md  # system security plan (M-104), host only
 //	go run ./cmd/compliance-evidence well sync -dry-run  # mirror/seed The Well (ADR-099 amended)
 //	go run ./cmd/compliance-evidence profile set -host east -profile lab -reason "..." [-yes]
 //	go run ./cmd/compliance-evidence profile export     # The Well -> YAML fallback

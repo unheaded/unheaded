@@ -55,16 +55,14 @@ func TestRegister_TextStaysGeneral(t *testing.T) {
 		"passwordless", "nopasswd", "writable by", "without a token", "auth_enabled", "shared account",
 		"listeners on all addresses", "from the wire", "input accept", "i.e. root",
 	}
-	// ADR-098's generated section prints the register's text.
-	for _, rel := range []string{"compliance/findings/register.yaml", "docs/adr/ADR-098-findings-register-and-baseline-modes.md"} {
+	// The findings table that prints this text is built on the host, not
+	// committed (2026-11-09), so the register is the one file to read.
+	for _, rel := range []string{"compliance/findings/register.yaml"} {
 		raw, err := os.ReadFile("../../../" + rel)
 		if err != nil {
 			t.Fatal(err)
 		}
 		text := string(raw)
-		if _, gen, ok := strings.Cut(text, "<!-- BEGIN GENERATED FINDINGS -->"); ok {
-			text = gen
-		}
 		folded := strings.ToLower(strings.Join(strings.Fields(text), " "))
 		for _, b := range banned {
 			if strings.Contains(folded, b) {

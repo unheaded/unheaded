@@ -13,7 +13,7 @@ The written half of the compliance program (ADR-097/098): policies, plans, the g
 | Incident response plan v2 | `runbooks/security/ir-plan-v2-2026-10-27.md` (v1 kept, superseded) |
 | First tabletop (Wotan OOM replayed) | `docs/incidents/tabletop-2026-10-27.md` |
 | Host rebuild exercise (draft, not yet run) | `runbooks/infra/host-rebuild-exercise.yaml` |
-| System security plan, generated | `docs/compliance/SSP-generated.md` |
+| System security plan, generated on the host | `var/compliance/SSP.md` (not committed: collected data stays on the host) |
 | Crosswalk spot-check | `docs/compliance/crosswalk-review-2026-10-27.md` |
 | Privacy pack | `docs/compliance/privacy/` (PII inventory, notice, processing record, DPIA, processor template, suppliers) |
 | Open decisions with defaults | `docs/compliance/privacy/decisions-for-stevie.md` |
@@ -25,8 +25,10 @@ The May 2026 matrices under `docs/compliance/control-matrix/` are historical sna
 
 ```bash
 go run ./cmd/compliance-evidence                                   # collect evidence first (var/compliance/evidence.json)
-go run ./cmd/compliance-evidence ssp -out docs/compliance/SSP-generated.md
+go run ./cmd/compliance-evidence ssp -out var/compliance/SSP.md
 ```
+
+The SSP is built from collected evidence, so it stays on the host: the tool refuses an output path inside the repository except under the gitignored `var/` (2026-11-09).
 
 One section per control (status with the date that decided it, statement, rationale, evidence sources, mappings) and `## SoA`, the framework coverage table. It prints no record details or commits, so a regeneration diff shows only what changed. `-at YYYY-MM-DD` evaluates at the end of that UTC day.
 
