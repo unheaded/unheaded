@@ -16,7 +16,7 @@ What this platform stores about the people who operate it and about the traffic 
 
 ## About traffic
 
-eBPF programs read packet headers and flow metadata: addresses, ports, protocol, sizes, timings, and the Monad hop-by-hop option. They do not store packet payloads. Services never read adopters' application data. This is the platform's NIST 800-207 Zero Trust Architecture posture: infrastructure sees how traffic flows, not what it carries.
+eBPF programs read packet headers and flow metadata: addresses, ports, protocol, sizes, timings, and the Monad hop-by-hop option. They do not store packet payloads. One program looks at up to 16 bytes past the headers: the anomaly detector counts how many distinct byte values they hold, keeps only that count, and stores none of the bytes. Services never read adopters' application data. This is the platform's NIST 800-207 Zero Trust Architecture posture: infrastructure sees how traffic flows, not what it carries.
 
 ## Who else receives it
 

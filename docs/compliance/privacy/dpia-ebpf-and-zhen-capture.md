@@ -12,7 +12,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 **What:** XDP and tc programs (`ebpf/`, trace-collector, Heimdall hooks) mark, track and time packets. They read L2-L4 headers, the Monad hop-by-hop option and flow metadata (addresses, ports, protocol, sizes, timings) into maps and ring buffers; trace-collector forwards flow records to Wotan and metrics.
 **Necessity:** tracing and latency measurement are the platform's function; headers are the minimum that identifies a flow.
-**Not processed:** packet payloads (design rule of the platform's NIST 800-207 Zero Trust Architecture posture: infrastructure reads metadata only; also item 8 of every S-WELL-SPRING phase's definition of done). One exception by design: the UPC programs (`monad-cpu-ebpf`, the MBC cartridges) read the payload of Monad trigger packets, which are the platform's own protocol messages, not user traffic.
+**Not processed:** packet payloads (design rule of the platform's NIST 800-207 Zero Trust Architecture posture: infrastructure reads metadata only; also item 8 of every S-WELL-SPRING phase's definition of done). Two exceptions by design. `anomaly-ebpf` reads the 16 bytes that follow the Monad hop-by-hop option to estimate entropy: for TCP that is transport header only, for UDP the 8-byte header and the first 8 bytes of payload, for any other next header up to 16 bytes of payload. Only the count of distinct byte values (0 to 16) leaves the program, as one input to its anomaly score; the bytes are not stored, copied to a map or sent anywhere. And the UPC programs (`monad-cpu-ebpf`, the MBC cartridges) read the payload of Monad trigger packets, which are the platform's own protocol messages, not user traffic.
 
 | Risk | Likelihood | Impact | Mitigation | Residual |
 |---|---|---|---|---|
