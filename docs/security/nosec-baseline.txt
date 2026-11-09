@@ -17,7 +17,7 @@ cmd/alert-policy/well.go 1
 cmd/cert-gen/main.go 5
 cmd/chaos-controller/packetcmd.go 2
 cmd/compliance-evidence/ansible.go 2
-cmd/compliance-evidence/findings.go 2
+cmd/compliance-evidence/findings.go 1
 cmd/compliance-evidence/main.go 5
 cmd/compliance-evidence/snapshot.go 1
 cmd/compliance-evidence/ssp.go 2

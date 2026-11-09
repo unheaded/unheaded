@@ -76,7 +76,7 @@ func TestNoCollectedDataCommitted(t *testing.T) {
 			if err != nil || d.IsDir() || !strings.HasSuffix(p, ".md") {
 				return err
 			}
-			b, err := os.ReadFile(p) // #nosec G304 -- walking the repository's own docs
+			b, err := os.ReadFile(p)
 			if err != nil {
 				return err
 			}
