@@ -20,7 +20,7 @@ const (
 // directives reads KEY=value lines, every value per key, in order.
 func directives(t *testing.T, path string) map[string][]string {
 	t.Helper()
-	raw, err := os.ReadFile(path) // #nosec G304 -- a fixed repo path
+	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
