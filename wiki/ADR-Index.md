@@ -158,7 +158,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF | **Proposed** | 2026-11-05 |
 | [136](../docs/adr/ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down CA for lab names (YubiKey root, rotated working certificates) | **Proposed** (parked) | 2026-11-06 |
 | [137](../docs/adr/ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` | **Proposed** (parked) | 2026-11-06 |
-| [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Proposed** (parked) | 2026-11-09 |
+| [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Accepted** (built 2026-11-10, installed nowhere) | 2026-11-09 |
 
 ---
 
