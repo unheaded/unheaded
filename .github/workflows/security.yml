@@ -625,6 +625,11 @@ jobs:
       - name: Retention job, its role and its records
         run: ./scripts/well/test-retention.sh
 
+      # S-E1-LIVE Step 279: log_events (048), its partitions, and
+      # log_writer's insert-only grants.
+      - name: Log store table, its partitions and its role
+        run: ./scripts/well/test-log-events.sh --go
+
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh
 

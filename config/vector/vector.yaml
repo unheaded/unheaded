@@ -234,6 +234,21 @@ transforms:
         .message = m
       }
 
+  # What the well_logs sink may carry (the measured week, S-E1-LIVE Step
+  # 279): west's own rows only. A row the syslog relay filed for a device
+  # (Pi-hole DNS queries, LAN devices) names clients and what they looked
+  # up; config/logging/sources.yaml promises those reach ClickHouse and
+  # nowhere else, so they stop here. Such a row always carries relay_host
+  # in fields (journal_rows above). West only, like the sink: vector-east.yaml
+  # has neither. Tests: tests/well.yaml.
+  well_rows:
+    type: filter
+    inputs:
+      - redact_secrets
+    condition:
+      type: vrl
+      source: '!contains(string!(.fields), "\"relay_host\":")'
+
 sinks:
   clickhouse:
     type: clickhouse
@@ -259,6 +274,50 @@ sinks:
     request:
       timeout_secs: 10
       retry_max_duration_secs: 60
+
+  # The measured week (S-E1-LIVE Evening 16, Step 279; ADR-117): west's own
+  # rows (well_rows above), after the same redaction, also go to
+  # cmd/logstore-writer, which inserts them into The Well
+  # (unheaded_ops.log_events, 14 days). That copy is derived; ClickHouse
+  # above stays the record. So this sink, and this sink only, drops when it
+  # cannot keep up: a memory buffer of 5,000 rows, drop_newest, bounded
+  # retries, no acknowledgements. A stopped, refusing or silent writer costs
+  # rows in the Well copy and nothing else: the other sink still gets every
+  # row (scripts/test-vector-config.sh runs this block against a writer that
+  # never answers). West only: vector-east.yaml has no such sink. Off
+  # switch: delete this block and well_rows, `docker compose up -d vector`.
+  well_logs:
+    type: http
+    inputs:
+      - well_rows
+    uri: "https://logstore-writer:19140/ingest"
+    method: post
+    encoding:
+      codec: json
+    framing:
+      method: newline_delimited
+    auth:
+      strategy: "bearer"
+      token: "${LOGSTORE_INGEST_TOKEN}"   # from compose; no default credential
+    tls:
+      ca_file: /etc/vector/tls/ca.pem
+    healthcheck:
+      enabled: false
+    acknowledgements:
+      enabled: false
+    batch:
+      max_events: 500
+      max_bytes: 4194304
+      timeout_secs: 5
+    buffer:
+      type: memory
+      max_events: 5000
+      when_full: drop_newest
+    request:
+      concurrency: 1
+      timeout_secs: 10
+      retry_attempts: 3
+      retry_max_duration_secs: 10
 
   # Scraped by monitoring/prometheus as job vector. compose publishes it on
   # the docker0 gateway only (host.docker.internal), not on the LAN.

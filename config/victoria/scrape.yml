@@ -135,3 +135,16 @@ scrape_configs:
     tls_config:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: localhost
+
+  # logstore-writer (compose service, 19140; the measured week, S-E1-LIVE
+  # Step 279): rows inserted, refused and rejected. No host publish: it
+  # shares the observe network, so the target is the service name.
+  - job_name: "logstore-writer"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["logstore-writer:19140"]
+    metrics_path: /metrics
+    scheme: https
+    tls_config:
+      ca_file: /etc/victoria/tls/ca.pem
+      server_name: logstore-writer

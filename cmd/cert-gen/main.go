@@ -75,6 +75,7 @@ var defaultServices = []serviceSpec{
 	{Name: "cuirass", DNS: []string{"unheaded-daemon"}},
 	{Name: "auth", DNS: []string{"unheaded-auth"}},
 	{Name: "sword"},
+	{Name: "logstore-writer"},
 	{Name: "unheaded-cli"},
 }
 

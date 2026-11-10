@@ -17,6 +17,7 @@ From `pkg/ports/ports.go`:
 | Threat feeds | 19120 | kev-poller (ADR-055); 19110 is the loadbalancer's xdpsync (loopback only) |
 | Alerting | 19130 | alert-mailer (ADR-100), `127.0.0.1` in `monitoring/docker-compose.yml` |
 | Alerting | 19131 | alert-mailer `/heartbeat/{host}` only (dead-man switch); loopback until `HEARTBEAT_LISTEN` |
+| Log store | 19140 | logstore-writer: Vector's `well_logs` sink into the Well (S-E1-LIVE Evening 16); compose networks only, no published port |
 | Packages | 18888 | signed apt repo (reprepro) behind the `nginx` sysuser, `deploy/nginx/unheaded-apt.conf`: 127.0.0.1 and 192.168.13.2 only (S-IRON-GATE Phase 14; installs in E3) |
 | Applications | 20000-20099 | dashboard-backend 20000, kanban-app 20001, wiki-server 20002 |
 | AI | 20100-20106 | vLLM DeepSeek 20100, vLLM Qwen 20101, Qdrant 20102, Zhen web UI 20103 (TLS 1.3 hybrid-only, `zhen-ui-front`, ADR-138; `127.0.0.1` in the shipped unit, the app behind it is a Unix socket), BGE-M3 20104, Sophia-Eye 20105, AI web UI 20106 |
