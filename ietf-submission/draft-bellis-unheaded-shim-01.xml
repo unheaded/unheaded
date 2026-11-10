@@ -2,7 +2,7 @@
 
 <rfc xmlns:xi="http://www.w3.org/2001/XInclude"
      category="exp"
-     docName="draft-bellis-unheaded-shim-00"
+     docName="draft-bellis-unheaded-shim-01"
      ipr="trust200902"
      submissionType="independent"
      xml:lang="en"
@@ -14,7 +14,7 @@
   <front>
     <title>Shim Pipeline Specification for the Unheaded Protocol Computer</title>
 
-    <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-shim-00"/>
+    <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-shim-01"/>
     <author fullname="Stevie Bellis" initials="S." surname="Bellis">
       <organization>Unheaded</organization>
       <address>
@@ -22,7 +22,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="19"/>
+    <date/>
 
     <area>Applications</area>
     <workgroup>Unheaded Kingdom</workgroup>
@@ -883,6 +883,14 @@
         <seriesInfo name="RFC" value="9000"/>
       </reference>
     </references>
+
+    <section anchor="changes-from-00" numbered="true" toc="include">
+      <name>Changes from draft-bellis-unheaded-shim-00</name>
+      <t>This revision renews the expired -00 revision. The technical content is unchanged.</t>
+      <ul>
+        <li>The document date and name.</li>
+      </ul>
+    </section>
 
   </back>
 

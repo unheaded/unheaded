@@ -4,13 +4,13 @@
 
 **Author**: Stevie Bellis
 **Date**: March 15, 2026
-**Applicable Drafts** (all reset to `-00` for the first upload; sources in `ietf-submission/`):
-- draft-bellis-unheaded-protocol-foundation-00
-- draft-bellis-unheaded-sophia-dictionary-00
-- draft-bellis-unheaded-wotan-memory-00
-- draft-bellis-unheaded-mbc-isa-00
-- draft-bellis-unheaded-shim-00
-- draft-bellis-unheaded-pqc-authentication-00
+**Applicable Drafts** (sources in `ietf-submission/`; the first six were uploaded as `-00` on 2026-03-19, expired, and are at `-01` since 2026-11-10):
+- draft-bellis-unheaded-protocol-foundation-01
+- draft-bellis-unheaded-sophia-dictionary-01
+- draft-bellis-unheaded-wotan-memory-01
+- draft-bellis-unheaded-mbc-isa-01
+- draft-bellis-unheaded-shim-01
+- draft-bellis-unheaded-pqc-authentication-01
 - draft-bellis-unheaded-anamnesis-00 (event records; added 2026-10-27)
 - draft-bellis-unheaded-protocol-overview-00 (reader's map of the suite, Informational; added 2026-10-27)
 

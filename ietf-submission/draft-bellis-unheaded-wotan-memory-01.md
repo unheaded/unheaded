@@ -1,7 +1,7 @@
 ---
 title: "Wotan Memory Protocol for the Unheaded Protocol"
 abbrev: "Wotan Memory Protocol"
-docname: draft-bellis-unheaded-wotan-memory-00
+docname: draft-bellis-unheaded-wotan-memory-01
 category: exp
 ipr: trust200902
 submissionType: independent

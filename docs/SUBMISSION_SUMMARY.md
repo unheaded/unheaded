@@ -77,17 +77,17 @@ The following 16 findings were identified and resolved in earlier phases of the 
 
 ## Files Ready for Upload
 
-Since `4db0bbde` every draft is reset to `-00` for the first Datatracker submission and lives in `ietf-submission/` (`.md` source plus generated `.xml`); nothing has been submitted yet (2026-10-27):
+The drafts live in `ietf-submission/` (`.xml` upload source plus an `.md` comparison twin). Six were uploaded as `-00` on 2026-03-19 (the text at `4db0bbde`) and have expired; their `-01` revisions were prepared 2026-11-10 (desk report `docs/protocol/RFC-DESK-PASS-2026-11-10.md`) and wait on Stevie's rulings and upload. Anamnesis and the overview have never been uploaded and stay at `-00`:
 
 ```
-ietf-submission/draft-bellis-unheaded-protocol-foundation-00.md
-ietf-submission/draft-bellis-unheaded-sophia-dictionary-00.md
-ietf-submission/draft-bellis-unheaded-wotan-memory-00.md
-ietf-submission/draft-bellis-unheaded-mbc-isa-00.md
-ietf-submission/draft-bellis-unheaded-shim-00.md
-ietf-submission/draft-bellis-unheaded-pqc-authentication-00.md
-ietf-submission/draft-bellis-unheaded-anamnesis-00.md
-ietf-submission/draft-bellis-unheaded-protocol-overview-00.md
+ietf-submission/draft-bellis-unheaded-protocol-foundation-01.xml
+ietf-submission/draft-bellis-unheaded-sophia-dictionary-01.xml
+ietf-submission/draft-bellis-unheaded-wotan-memory-01.xml
+ietf-submission/draft-bellis-unheaded-mbc-isa-01.xml
+ietf-submission/draft-bellis-unheaded-shim-01.xml
+ietf-submission/draft-bellis-unheaded-pqc-authentication-01.xml
+ietf-submission/draft-bellis-unheaded-anamnesis-00.xml
+ietf-submission/draft-bellis-unheaded-protocol-overview-00.xml
 ```
 
 The `.xml` files are the upload sources and are maintained by hand: several carry fixes

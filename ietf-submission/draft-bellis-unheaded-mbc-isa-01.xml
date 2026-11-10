@@ -8,7 +8,7 @@
   <!ENTITY RFC9669 SYSTEM "https://www.rfc-editor.org/refs/bibxml/reference.RFC.9669.xml">
 ]>
 
-<rfc docName="draft-bellis-unheaded-mbc-isa-00" category="exp" ipr="trust200902" submissionType="independent">
+<rfc docName="draft-bellis-unheaded-mbc-isa-01" category="exp" ipr="trust200902" submissionType="independent">
 <front>
 <title>MBC Instruction Set Architecture for the Unheaded Protocol Computer</title>
 
@@ -22,7 +22,7 @@
   </address>
 </author>
 
-<date year="2026" month="March" day="19"/>
+<date/>
 
 <area>General</area>
 <workgroup>Independent Submission</workgroup>
@@ -81,7 +81,7 @@
 </section>
 
 <section anchor="keywords" title="Requirements Language">
-<t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/>.</t>
+<t>The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "SHOULD NOT", "RECOMMENDED", "NOT RECOMMENDED", "MAY", and "OPTIONAL" in this document are to be interpreted as described in BCP 14 <xref target="RFC2119"/> <xref target="RFC8174"/> when, and only when, they appear in all capitals, as shown here.</t>
 </section>
 
 <section anchor="encoding" title="Instruction Encoding">
@@ -1296,18 +1296,18 @@ Address | Vector | Purpose
 <front>
 <title>The Monad Protocol Foundation Specification</title>
 <author initials="S." surname="Bellis" fullname="Stevie Bellis"><organization>Unheaded</organization></author>
-<date year="2026" month="3"/>
+<date year="2026" month="November"/>
 </front>
-<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
+<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-01"/>
 </reference>
 
 <reference anchor="WOTAN" target="https://github.com/unheaded/wotan">
 <front>
 <title>Wotan: The Unheaded Message Bus Protocol</title>
 <author initials="S." surname="Bellis" fullname="Stevie Bellis"><organization>Unheaded</organization></author>
-<date year="2026" month="3"/>
+<date year="2026" month="November"/>
 </front>
-<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
+<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-01"/>
 </reference>
 
 </references>
@@ -1328,9 +1328,9 @@ Address | Vector | Purpose
 <front>
 <title>Sophia: The Unheaded Dictionary and Knowledge Graph Service</title>
 <author initials="S." surname="Bellis" fullname="Stevie Bellis"><organization>Unheaded</organization></author>
-<date year="2026" month="3"/>
+<date year="2026" month="November"/>
 </front>
-<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
+<seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-01"/>
 </reference>
 
 <reference anchor="UNHEADED-ADR067" target="https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md">
@@ -1349,6 +1349,20 @@ Address | Vector | Purpose
 </reference>
 
 </references>
+
+<section anchor="changes-from-00" title="Changes from draft-bellis-unheaded-mbc-isa-00">
+<t>This revision changes the following. The 20-octet Monad wire format (version 0x01) is unchanged.</t>
+<t><list style="symbols">
+<t>ISA v2 is added: five opcodes, FENCE (0x3F), MRET (0x47), SRET (0x48), LR.W (0x49) and SC.W (0x4A), the M, S and U privilege levels, and a Control and Status Register region in data memory, so that RV32 code can be translated to MBC.</t>
+<t>Opcode 0x00 is NOP. Revision -00 listed it as reserved.</t>
+<t>MOVI zero-extends its 16-bit immediate. Revision -00 said the immediate was sign-extended.</t>
+<t>LOAD_IMM32 replaces the upper 16 bits of the destination and keeps the lower 16 bits. Revision -00 described a 20-bit form built from the source field.</t>
+<t>MOV, MOVI and LOAD_IMM32 leave the flags unchanged.</t>
+<t>The opcode count is 56: NOP, the 50 base opcodes and the five ISA v2 opcodes.</t>
+<t>The Requirements Language section uses the BCP 14 text of RFC 8174.</t>
+<t>References to the companion documents name their -01 revisions.</t>
+</list></t>
+</section>
 
 </back>
 

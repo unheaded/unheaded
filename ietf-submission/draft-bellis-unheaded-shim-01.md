@@ -1,7 +1,7 @@
 ---
 title: Shim Pipeline Specification for the Unheaded Protocol Computer
 abbrev: UPC Shim Pipeline
-docname: draft-bellis-unheaded-shim-00
+docname: draft-bellis-unheaded-shim-01
 date: 2026-03-19
 category: exp
 ipr: trust200902
@@ -755,7 +755,7 @@ Programs that fail verification MUST NEVER be loaded. No exceptions.
 
 [foundation] Bellis, S., "Protocol Foundation for Unheaded: Monad Wire Format and IANA Registries", draft-bellis-unheaded-protocol-foundation-06, March 2026.
 
-[mbc-isa] Bellis, S., "MBC Instruction Set Architecture: A 4-Register, 32-Bit RISC ISA for Distributed Computation", draft-bellis-unheaded-mbc-isa-00, March 2026.
+[mbc-isa] Bellis, S., "MBC Instruction Set Architecture: A 4-Register, 32-Bit RISC ISA for Distributed Computation", draft-bellis-unheaded-mbc-isa-01, March 2026.
 
 [wotan-memory] Bellis, S., "Wotan Memory Model: BPF Map Design for Distributed State", draft-bellis-unheaded-wotan-memory-03, March 2026.
 

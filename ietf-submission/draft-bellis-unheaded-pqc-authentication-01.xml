@@ -2,7 +2,7 @@
 
 <rfc xmlns:xi="http://www.w3.org/2001/XInclude"
      category="exp"
-     docName="draft-bellis-unheaded-pqc-authentication-00"
+     docName="draft-bellis-unheaded-pqc-authentication-01"
      ipr="trust200902"
      submissionType="independent"
      xml:lang="en"
@@ -14,7 +14,7 @@
   <front>
     <title abbrev="Unheaded PQC Authentication">Post-Quantum Packet Authentication for the Unheaded Protocol</title>
 
-    <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-pqc-authentication-00"/>
+    <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-pqc-authentication-01"/>
     <author fullname="Stevie Bellis" initials="S." surname="Bellis">
       <organization>Unheaded</organization>
       <address>
@@ -22,7 +22,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="19"/>
+    <date/>
 
     <area>Applications</area>
     <workgroup>Unheaded Kingdom</workgroup>
@@ -263,7 +263,7 @@
       <t>Implementation status (2026-10-28): Phases 1-3 are not
       implemented.  The reference Shield (ebpf/shield-ebpf) never read
       SigRef or KeyRef; its cached-result map and fast-path check had no
-      caller and no writer and were removed (S-TRUE-WIRE Step 233).  No
+      caller and no writer and were removed.  No
       wire-level PQC verification exists until a key-management control
       plane is built.  Note also that this section's model, in which
       packets reach Shield ingress carrying a Monad that Shield verifies
@@ -1694,27 +1694,27 @@
           <front>
             <title>The Unheaded Protocol Foundation</title>
             <author initials="S." surname="Bellis" fullname="Stevie Bellis"/>
-            <date year="2026" month="March"/>
+            <date year="2026" month="November"/>
           </front>
-          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
+          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-01"/>
         </reference>
 
         <reference anchor="SOPHIA">
           <front>
             <title>Sophia Dictionary Specification for the Unheaded Protocol</title>
             <author initials="S." surname="Bellis" fullname="Stevie Bellis"/>
-            <date year="2026" month="March"/>
+            <date year="2026" month="November"/>
           </front>
-          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
+          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-01"/>
         </reference>
 
         <reference anchor="WOTAN">
           <front>
             <title>Wotan Memory Model for the Unheaded Protocol</title>
             <author initials="S." surname="Bellis" fullname="Stevie Bellis"/>
-            <date year="2026" month="March"/>
+            <date year="2026" month="November"/>
           </front>
-          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
+          <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-01"/>
         </reference>
 
         <reference anchor="RFC2119" target="https://www.rfc-editor.org/info/rfc2119">
@@ -1877,6 +1877,15 @@
       <t>(To be provided in a future revision with complete SLH-DSA
       signing and verification examples using the pseudo-header
       format defined in <xref target="pseudo-header"/>.)</t>
+    </section>
+
+    <section anchor="changes-from-00" numbered="true" toc="include">
+      <name>Changes from draft-bellis-unheaded-pqc-authentication-00</name>
+      <t>This revision changes the following. No algorithm identifier, field or procedure is changed.</t>
+      <ul>
+        <li>An implementation status paragraph is added: Phases 1-3 are not implemented, and no wire-level PQC verification exists in the reference implementation.</li>
+        <li>References to the companion documents name their -01 revisions.</li>
+      </ul>
     </section>
 
   </back>

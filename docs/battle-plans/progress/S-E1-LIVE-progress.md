@@ -164,3 +164,10 @@ print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 
 - **Backup rows: accepted for the week.** The nightly set and its copy on east carry the Well copy's rows; `scripts/db-backup.sh` is unchanged.
 - **Alert digest: `mailer.mode: dry-run`** in `observability/alerting/policy.yaml` until Steps 81-83 and 102-109 run with him. FND-001 carries the note. The outbox still records what would have gone (`curl -s localhost:19130/v1/outbox`).
 - **Evening 14: the six drafts already on datatracker are prepared as -01** (mbc-isa, pqc-authentication, protocol-foundation, shim, sophia-dictionary, wotan-memory). anamnesis and protocol-overview wait. The upload is his.
+
+## Evening 14: the drafts (2026-11-10)
+
+- Step 259 (desk pass): report at `docs/protocol/RFC-DESK-PASS-2026-11-10.md`. Changes to the frozen v0x01 format: none. Thirteen open items, each a ruling on public text: WH items 1-4 (DP-715's four), WH items 6-9, and four the pass found (stream against code points, a reference to a draft that was never uploaded, private revision labels, FIPS 206/207 citations).
+- Step 260 (new versions): the six moved `-00` to `-01` by `git mv`; `docName`, `seriesInfo`, companion references, `Makefile` `DRAFTS`. Each carries a "Changes from -00" appendix taken from `git diff 4db0bbde..HEAD`. `make -C ietf-submission validate`: Clean on all eight; `make all`: `=== Build complete ===`. `go test ./pkg/wotanerr/ ./services/wotan/internal/topicpattern/`: both `ok` (they read the wotan `.md` twin by name).
+- mbc-isa `-01` reads differently from the public `-00` on three instructions (opcode 0x00, MOVI, LOAD_IMM32); the tree is right, and the appendix says so.
+- Not done here: the thirteen rulings are not applied; Step 261 (upload, after 2026-11-14 23:59 PST when the tool reopens) and Step 263 are Stevie's.

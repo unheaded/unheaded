@@ -19,7 +19,7 @@ func TestDraftTopicRegistryReservationSemantics(t *testing.T) {
 	entry := regexp.MustCompile(`(?m)^  ([a-z][a-z0-9_.*-]*)\s{2,}\S`)
 	for _, p := range []string{
 		"../../../../docs/protocol/draft-bellis-unheaded-wotan-memory-03.md",
-		"../../../../ietf-submission/draft-bellis-unheaded-wotan-memory-00.md",
+		"../../../../ietf-submission/draft-bellis-unheaded-wotan-memory-01.md",
 	} {
 		b, err := os.ReadFile(p) // #nosec G304 -- fixed relative test path
 		if err != nil {
