@@ -155,8 +155,8 @@ steps:
         cd ~/tmp/unheaded/raft
         ./start-zhen.sh
       fi
-    verify: "curl -sf http://localhost:20103/health > /dev/null"
-    description: "Start Zhen web UI on :20103 (UI only; add -gated for mutation mode)"
+    verify: "curl -sf http://127.0.0.1:20112/ready > /dev/null"
+    description: "Start Zhen web UI: the app on its socket and zhen-ui-front on :20103, https only (UI only; add -gated for mutation mode)"
     on_fail: "tail -20 $(~/tmp/unheaded/scripts/lib/logpath.sh zhen zhen-webapp.log)"
 
   # ── Tier 6: Observability agents ───────────────────────────────────────────

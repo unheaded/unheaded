@@ -112,18 +112,18 @@ steps:
   - name: start-zhen
     action: shell
     command: |
+      # The app on its Unix socket, then zhen-ui-front on :20103 (ADR-138).
       cd ${PROJECT_ROOT}/raft
       source ~/.venv/zhen/bin/activate
-      nohup python3 zhen_app.py > "$(~/tmp/unheaded/scripts/lib/logpath.sh zhen zhen-webapp.log)" 2>&1 &
-      sleep 30
-    verify: "curl -sf http://localhost:20103/health"
+      ./start-zhen.sh
+    verify: "curl -sf http://127.0.0.1:20112/ready"
 
   # --- Phase 6: Verify ---
   - name: health-sweep
     action: shell
     command: |
       echo "=== Full Health Sweep ==="
-      for entry in wotan:18000 timeguru:19000 captain:19002 dashboard:20000 kanban:20001 zhen:20103 inference:20100; do
+      for entry in wotan:18000 timeguru:19000 captain:19002 dashboard:20000 kanban:20001 zhen-ui-front:20112 inference:20100; do
         NAME=$(echo $entry | cut -d: -f1)
         PORT=$(echo $entry | cut -d: -f2)
         curl -sf http://localhost:$PORT/health > /dev/null && echo "  $NAME: OK" || echo "  $NAME: FAIL"
@@ -132,7 +132,8 @@ steps:
   - name: test-zhen-query
     action: shell
     command: |
-      code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:20103/api/v1/query \
+      code=$(curl -s -o /dev/null -w '%{http_code}' --cacert "${ZHEN_UI_CA:-$HOME/tmp/unheaded/configs/certs/dev/ca.pem}" \
+        -X POST https://localhost:20103/api/v1/query \
         -H "Content-Type: application/json" \
         -d '{"question": "What is Unheaded?"}')
       echo "Zhen chat without a login: HTTP $code (want 401)"

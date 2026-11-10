@@ -19,7 +19,10 @@ kanban=kanban-app:20001
 # on the host) are fronted by a socat proxy on that same gateway, keeping them
 # off the LAN. Custom liveness paths are in health.go serviceHealthPaths.
 wiki=172.28.1.1:20002
-zhenai=172.28.1.1:20103
+# The Zhen web UI is https with hybrid key exchange only (ADR-138), so this is
+# zhen-ui-front's plain /ready (127.0.0.1:20112 on the host, 200 while the app
+# answers on its socket), reached through the same gateway proxy as vor.
+zhenai=172.28.1.1:20112
 # huginn binds named addresses (deploy/systemd/huginn.env.example): this is the
 # one the dashboard's host cards read, and it does not need the bridge up.
 huginn=192.168.13.2:9110

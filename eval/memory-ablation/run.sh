@@ -22,7 +22,7 @@
 # Pre-requisites:
 #   - vor on :20110
 #   - llama-server on :8081
-#   - raft/zhen_app.py running on :20103
+#   - the web UI (raft/start-zhen.sh) on https://localhost:20103
 #   - The Well reachable (PG) for memory persistence
 #   - A login: ZHEN_UI_USER, with the password in ZHEN_UI_PASSWORD_FILE
 #
@@ -39,10 +39,17 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 
-WEBUI_URL="${ZHEN_WEBUI_URL:-http://127.0.0.1:20103}"
+WEBUI_URL="${ZHEN_WEBUI_URL:-https://localhost:20103}"
 PROMPTS="eval/memory-ablation/prompts.jsonl"
 DATE="$(date +%Y-%m-%d)"
 OUT="eval/memory-ablation/results-${DATE}.md"
+
+# The UI is https only, hybrid key exchange only (ADR-138): curl needs
+# OpenSSL 3.5 or later, and checks the front's certificate against
+# CURL_CA_BUNDLE. Unset, the dev CA is used when it exists.
+if [[ -z "${CURL_CA_BUNDLE:-}" && -f "$REPO_ROOT/configs/certs/dev/ca.pem" ]]; then
+    export CURL_CA_BUNDLE="$REPO_ROOT/configs/certs/dev/ca.pem"
+fi
 
 # Chat takes a login.
 : "${ZHEN_UI_USER:?set ZHEN_UI_USER: chat on the web UI takes a login}"

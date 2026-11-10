@@ -905,12 +905,13 @@ var FirstParty = map[string]bool{
 
 // serviceHealthPaths overrides the default "/health" liveness path for services
 // whose liveness lives elsewhere (Grafana + vor at /api/health, Traefik's
-// dashboard at /dashboard). Keys must match the service name used in the
-// endpoint map / overrides file.
+// dashboard at /dashboard, the Zhen web UI at zhen-ui-front's /ready). Keys
+// must match the service name used in the endpoint map / overrides file.
 var serviceHealthPaths = map[string]string{
 	"grafana": "/api/health",
 	"vor":     "/api/health",
 	"gateway": "/dashboard",
+	"zhenai":  "/ready",
 }
 
 // RegisterKingdomServices registers the standard Kingdom services for monitoring.

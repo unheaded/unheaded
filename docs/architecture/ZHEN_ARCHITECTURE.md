@@ -23,7 +23,10 @@ The name comes from Chinese: "Zhen" -- meaning "true love" for the codebase.
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Zhen Web UI (Flask)         http://localhost:20103           │
+│  zhen-ui-front (Go)          https://localhost:20103          │
+│  TLS 1.3, hybrid ML-KEM key exchange only (ADR-138)          │
+├──────────────────────────────────────────────────────────────┤
+│  Zhen Web UI (Flask)         Unix socket, no TCP port         │
 │  zhen_app.py — routes, PostgreSQL logging, session mgmt      │
 ├──────────────────────────────────────────────────────────────┤
 │  RAG Pipeline (Python)       raft/scripts/zhen_rag.py        │
@@ -42,7 +45,7 @@ The name comes from Chinese: "Zhen" -- meaning "true love" for the codebase.
 | Component | Port | Protocol |
 |-----------|------|----------|
 | llama-server (inference) | 8081 (loopback) | HTTP (OpenAI-compatible `/v1/` API) |
-| Zhen Web UI + RAG API | 20103 | HTTP (Flask) |
+| Zhen Web UI + RAG API | 20103 | HTTPS, TLS 1.3 hybrid-only (`zhen-ui-front`); the Flask app behind it is a Unix socket |
 | PostgreSQL (The Well) | 5432 | PostgreSQL wire protocol |
 
 ### Technology Stack
@@ -115,7 +118,7 @@ Scripts in `raft/scripts/` (numbered for execution order):
 Claude Code agents query Zhen before starting tasks:
 
 ```bash
-curl -s http://localhost:20103/api/v1/context \
+curl -s -b "$COOKIES" --cacert configs/certs/dev/ca.pem https://localhost:20103/api/v1/context \
   -H "Content-Type: application/json" \
   -d '{"task": "describe your task here", "k": 10}'
 ```
