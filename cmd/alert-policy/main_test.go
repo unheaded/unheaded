@@ -84,6 +84,8 @@ func TestRefusals(t *testing.T) {
 		{"objective finer than the Well stores", replace("objective: 99.5", "objective: 99.555"), "", "at most two decimals"},
 		{"cap of zero", replace("max_per_day: 6", "max_per_day: 0"), "", "max_per_day 0"},
 		{"cap too big to mean anything", replace("max_per_day: 6", "max_per_day: 500"), "", "max_per_day 500"},
+		{"hourly cap of zero", replace("max_per_hour: 3", "max_per_hour: 0"), "", "max_per_hour 0"},
+		{"hourly cap above the daily one", replace("max_per_hour: 3", "max_per_hour: 7"), "", "max_per_hour 7"},
 		// The live mode changes (dry-run → send on 2026-10-27), so anchor on the
 		// mailer's mode line whatever it holds, not on one literal value.
 		{"unknown mode", func(s string) string {

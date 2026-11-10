@@ -31,6 +31,9 @@ mailer:
   # allowed mail says so; past it nothing is sent until midnight, and the
   # next digest counts what was held back.
   max_per_day: 6
+  # DP-710: outbound mail is closely watched. Past this in one hour, mail is
+  # held and counted, like the daily cap.
+  max_per_hour: 3
   digest_at: "09:00"
   timezone: America/Chicago
 
@@ -69,6 +72,10 @@ promote:
       service healthy. Rare by construction (operators log in from a few
       fixed LAN/P2P addresses), so a daily digest line costs nothing.
       Fires once per known source right after rollout (detection.yml).
+  - alert: AlertMailVolumeHigh
+    urgency: ticket
+    reason: >-
+      DP-710: outbound mail is watched. No SLO sees the mailer's own volume.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the

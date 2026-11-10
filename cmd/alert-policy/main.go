@@ -47,10 +47,11 @@ const (
 // Policy is observability/alerting/policy.yaml.
 type Policy struct {
 	Mailer struct {
-		Mode      string `yaml:"mode"`
-		MaxPerDay int    `yaml:"max_per_day"`
-		DigestAt  string `yaml:"digest_at"`
-		Timezone  string `yaml:"timezone"`
+		Mode       string `yaml:"mode"`
+		MaxPerDay  int    `yaml:"max_per_day"`
+		MaxPerHour int    `yaml:"max_per_hour"`
+		DigestAt   string `yaml:"digest_at"`
+		Timezone   string `yaml:"timezone"`
 	} `yaml:"mailer"`
 	Page struct {
 		GroupWait      string `yaml:"group_wait"`
@@ -133,6 +134,9 @@ func (p *Policy) validate() []error {
 	}
 	if p.Mailer.MaxPerDay < 1 || p.Mailer.MaxPerDay > 50 {
 		bad("mailer.max_per_day %d: want 1..50 (the point is a handful)", p.Mailer.MaxPerDay)
+	}
+	if p.Mailer.MaxPerHour < 1 || p.Mailer.MaxPerHour > p.Mailer.MaxPerDay {
+		bad("mailer.max_per_hour %d: want 1..max_per_day", p.Mailer.MaxPerHour)
 	}
 	if !clockRE.MatchString(p.Mailer.DigestAt) {
 		bad("mailer.digest_at %q: want HH:MM", p.Mailer.DigestAt)

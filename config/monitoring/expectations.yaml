@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# ADR-116 R2: what we expect to see, so its absence or excess is a finding.
+# Read by people and by monitoring/prometheus/rules/detection.yml until the
+# warden exists.
+expectations:
+  - signal: alert-mail-volume
+    source: unheaded_alert_mailer_messages_total{outcome="sent"}
+    expected: a handful a week; the daily cap is 6, the hourly cap 3
+    over: any hour at the cap, or any capped-hour outcome, is a finding
+    owner: stevie
+    decided: DP-710, 2026-11-04

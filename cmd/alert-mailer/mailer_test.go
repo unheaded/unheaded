@@ -355,3 +355,52 @@ func TestPromotedTicketInDigest(t *testing.T) {
 		t.Fatalf("digest misses the open or the resolved ticket:\n%s", body)
 	}
 }
+
+func TestHourCapHolds(t *testing.T) {
+	m, f, c, _ := newTest(t, "send", 6)
+	m.cfg.MaxPerHour = 2
+	send := func() string {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		o, err := m.deliver(Message{Urgency: "page", Subject: "s", Body: "b"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return o
+	}
+	if a, b := send(), send(); a != "sent" || b != "sent" {
+		t.Fatalf("first two: %s %s", a, b)
+	}
+	if got := send(); got != "capped-hour" {
+		t.Fatalf("third in the hour: %s", got)
+	}
+	if len(f.sent) != 2 {
+		t.Fatalf("sent %d, want 2", len(f.sent))
+	}
+	c.t = c.t.Add(time.Hour)
+	if got := send(); got != "sent" {
+		t.Fatalf("next hour: %s", got)
+	}
+}
+
+// A page held by the hourly cap must not count as delivered, or it is lost.
+func TestHourCappedPageResends(t *testing.T) {
+	m, f, c, _ := newTest(t, "send", 6)
+	m.cfg.MaxPerHour = 1
+	if err := page(m, alert("firing", "slo-a", "fast")); err != nil {
+		t.Fatal(err)
+	}
+	if err := page(m, alert("firing", "slo-a", "fast"), alert("firing", "slo-b", "fast")); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.sent) != 1 {
+		t.Fatalf("sent %d in the hour, want 1", len(f.sent))
+	}
+	c.t = c.t.Add(time.Hour)
+	if err := page(m, alert("firing", "slo-a", "fast"), alert("firing", "slo-b", "fast")); err != nil {
+		t.Fatal(err)
+	}
+	if len(f.sent) != 2 || !strings.Contains(f.sent[1].Subject, "slo-b") {
+		t.Fatalf("the held page was not re-sent: %d mails", len(f.sent))
+	}
+}

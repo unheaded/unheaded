@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/rs/zerolog/log"
 )
 
 // Alert is one alert in an Alertmanager webhook (payload version 4).
@@ -46,19 +48,20 @@ type Sender interface {
 
 // Settings is the mailer: block of observability/alerting/policy.yaml.
 type Settings struct {
-	Mode      string // dry-run or send
-	MaxPerDay int
-	Reminder  time.Duration // re-mail a page still burning after this long
-	DigestH   int
-	DigestM   int
-	Loc       *time.Location
+	Mode       string // dry-run or send
+	MaxPerDay  int
+	MaxPerHour int           // 0: no hourly cap
+	Reminder   time.Duration // re-mail a page still burning after this long
+	DigestH    int
+	DigestM    int
+	Loc        *time.Location
 }
 
 // OutboxEntry records what was mailed, or would have been, or was held back.
 type OutboxEntry struct {
 	Time    time.Time `json:"time"`
 	Urgency string    `json:"urgency"`
-	Outcome string    `json:"outcome"` // sent, dry-run, capped, failed, unchanged (not mailed: nothing new)
+	Outcome string    `json:"outcome"` // sent, dry-run, capped, capped-hour, failed, unchanged (not mailed: nothing new)
 	Subject string    `json:"subject"`
 	Body    string    `json:"body"`
 }
@@ -70,6 +73,8 @@ const outboxKeep = 50
 type state struct {
 	Day             string           `json:"day"`               // YYYY-MM-DD in Settings.Loc
 	Sent            int              `json:"sent"`              // mails counted against today's cap
+	Hour            string           `json:"hour"`              // YYYY-MM-DDTHH in Settings.Loc
+	HourSent        int              `json:"hour_sent"`         // mails counted against this hour's cap
 	Held            int              `json:"held"`              // mails the cap held back today
 	HeldSinceDigest int              `json:"held_since_digest"` // reported, then reset, by the digest
 	LastDigest      string           `json:"last_digest"`       // day the digest last ran
@@ -123,6 +128,16 @@ func (m *Mailer) rollDay() {
 	}
 }
 
+// rollHour resets the hourly count when the hour in Settings.Loc changes.
+func (m *Mailer) rollHour() {
+	if h := m.now().In(m.cfg.Loc).Format("2006-01-02T15"); h != m.st.Hour {
+		m.st.Hour, m.st.HourSent = h, 0
+	}
+}
+
+// held reports whether a cap kept the mail back.
+func held(o string) bool { return o == "capped" || o == "capped-hour" }
+
 func (m *Mailer) save() error {
 	data, err := json.MarshalIndent(m.st, "", "  ")
 	if err != nil {
@@ -136,6 +151,7 @@ func (m *Mailer) save() error {
 }
 
 func (m *Mailer) record(msg Message, outcome string) {
+	log.Info().Str("urgency", msg.Urgency).Str("outcome", outcome).Str("subject", msg.Subject).Msg("alert-mail")
 	m.st.Outbox = append(m.st.Outbox, OutboxEntry{Time: m.now().UTC(), Urgency: msg.Urgency, Outcome: outcome, Subject: msg.Subject, Body: msg.Body})
 	if n := len(m.st.Outbox); n > outboxKeep {
 		m.st.Outbox = m.st.Outbox[n-outboxKeep:]
@@ -148,6 +164,13 @@ func (m *Mailer) record(msg Message, outcome string) {
 // retries the webhook. Called with m.mu held.
 func (m *Mailer) deliver(msg Message) (string, error) {
 	m.rollDay()
+	m.rollHour()
+	if m.cfg.MaxPerHour > 0 && m.st.HourSent >= m.cfg.MaxPerHour {
+		m.st.Held++
+		m.st.HeldSinceDigest++
+		m.record(msg, "capped-hour")
+		return "capped-hour", m.save()
+	}
 	if m.st.Sent >= m.cfg.MaxPerDay {
 		m.st.Held++
 		m.st.HeldSinceDigest++
@@ -169,6 +192,7 @@ func (m *Mailer) deliver(msg Message) (string, error) {
 		outcome = "sent"
 	}
 	m.st.Sent = n
+	m.st.HourSent++
 	m.record(msg, outcome)
 	return outcome, m.save()
 }
@@ -228,7 +252,7 @@ func (m *Mailer) Page(w Webhook) error {
 	}
 	b.WriteString(footer)
 	outcome, err := m.deliver(Message{Urgency: "page", Subject: subject, Body: b.String()})
-	if err == nil && outcome != "capped" {
+	if err == nil && !held(outcome) {
 		m.st.PageFiring, m.st.PageMailedAt = names, now
 		err = m.save()
 	}
@@ -296,7 +320,7 @@ func (m *Mailer) Tick() error {
 	}
 	if h := m.st.HeldSinceDigest; h > 0 {
 		subject += fmt.Sprintf(", %d held back", h)
-		fmt.Fprintf(&b, "%d mail(s) were held back by the daily cap since the last digest; see /v1/outbox.\n\n", h)
+		fmt.Fprintf(&b, "%d mail(s) were held back by a cap since the last digest; see /v1/outbox.\n\n", h)
 	}
 	b.WriteString(footer)
 	outcome, err := m.deliver(Message{Urgency: "ticket", Subject: subject, Body: b.String()})
@@ -304,7 +328,7 @@ func (m *Mailer) Tick() error {
 		return err
 	}
 	// A capped digest keeps its news for the next one.
-	if outcome != "capped" {
+	if !held(outcome) {
 		m.st.Resolved = nil
 		m.st.HeldSinceDigest = 0
 	}

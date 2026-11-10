@@ -9,10 +9,11 @@
 #
 #   SSHLoginNewSource        unheaded_ssh_accepted_total (Vector, sshd as root)
 #   SSHAuthFailureBurst      unheaded_auth_failures_total{kind="ssh"} (Vector)
+#   AlertMailVolumeHigh      unheaded_alert_mailer_messages_total (alert-mailer)
 #   OutboundVolumeDeviation  node_network_transmit_bytes_total (node_exporter)
 #
-# All are urgency none (ADR-100); policy.yaml promotes SSHLoginNewSource to
-# a ticket. On the first evaluation after rollout every source already in
+# All are urgency none (ADR-100); policy.yaml promotes SSHLoginNewSource and
+# AlertMailVolumeHigh to a ticket. On the first evaluation after rollout every source already in
 # use is "new" once (Prometheus has no earlier samples of the series):
 # expect one ticket per operator source, then silence.
 #
@@ -59,6 +60,18 @@ groups:
           summary: "More than 12 SSH authentication failures a minute on {{ $labels.host }} for 5 minutes"
           description: "Password, publickey or invalid-user failures from sshd; the runbook lists the sources"
           runbook_url: "runbooks/security/ssh-login-new-source.yaml"
+
+      # DP-710, config/monitoring/expectations.yaml: the mailer's own volume.
+      # Three mails in an hour is the hourly cap (policy.yaml max_per_hour);
+      # a capped-hour outcome counts too, so a held mail is seen.
+      - alert: AlertMailVolumeHigh
+        expr: sum(increase(unheaded_alert_mailer_messages_total{outcome=~"sent|capped-hour"}[1h])) >= 3
+        labels:
+          urgency: none
+        annotations:
+          summary: "alert-mailer reached its hourly cap"
+          description: "DP-710: outbound mail is watched. Read /v1/outbox and the alert-mail log lines."
+          runbook_url: "runbooks/security/outbound-volume-deviation.yaml"
 
       # An uplink sending over three times its usual hourly rate (the median
       # of the last 7 days of hourly rates), and at least 256 KiB/s averaged
