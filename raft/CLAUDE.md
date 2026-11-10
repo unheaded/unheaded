@@ -1,8 +1,10 @@
 # Zhenai — Web UI for the Unheaded Kingdom
 
-Zhen runs at **http://localhost:20103** as the operator's browser-facing
-chat + runbook console. WAVE15 (commit `45d7aeb7`-era) retargeted its
-backends:
+Zhen runs at **https://localhost:20103** as the operator's browser-facing
+chat + runbook console. The port and its TLS belong to `cmd/zhen-ui-front`
+(ADR-138): TLS 1.3 with hybrid ML-KEM key exchange only, no plaintext mode.
+The app (`zhen_app.py`) listens on a Unix socket and nowhere else. WAVE15
+(commit `45d7aeb7`-era) retargeted its backends:
 
 - **Inference**: shared `llama-server` on `:8081` (Qwen-Coder-7B-Instruct
   q4_k_m on ROCm GPU). Same binary the Go agent stack uses.
@@ -28,7 +30,7 @@ server's `corpus_search`, or from a browser session: every route here but the
 page and `/health` takes a login.
 
 ```bash
-curl -s -b "$COOKIES" http://localhost:20103/api/v1/context \
+curl -s -b "$COOKIES" --cacert configs/certs/dev/ca.pem https://localhost:20103/api/v1/context \
   -H "Content-Type: application/json" \
   -d '{"task": "describe your task here", "k": 10}'
 ```
@@ -85,11 +87,18 @@ where defenses aren't fully closed today. Notable:
   issuer (`AUTH_ISSUER_URL`), and a route added later is closed until it
   is listed. Writes take an operator or admin login. Calls into
   zhen-agentd carry the person's token, so a held call binds to them and
-  they redeem it at `/api/v1/agent/confirm` here. A password travels over
-  TLS or on loopback: a UI bound past loopback serves its own TLS 1.3
-  from `UNHEADED_TLS_CERT` and `UNHEADED_TLS_KEY_FILE`. It reads no
-  forwarded headers, so a proxy in front does not count as TLS. It holds
-  no key into the daemon.
+  they redeem it at `/api/v1/agent/confirm` here. It holds no key into
+  the daemon.
+- **Listener** (`zhen_socket.py`, ADR-138): one Unix socket
+  (`ZHEN_UI_SOCKET`, default `/run/unheaded-zhen-ui/app.sock`), mode 0600,
+  or 0660 in a setgid directory whose group is the front's own. No TCP
+  port and no TLS code: `ZHEN_BIND_ADDR` is retired and stops the app when
+  set. Only the app's account and the front can open the socket, so the
+  app treats a request on it as https and takes the client address from
+  the front's `X-Unheaded-Client-Addr` (the front deletes a client's own
+  copy; the login failure budget is keyed on it). It reads no other
+  forwarding header. A client needs the hybrid group (`X25519MLKEM768`):
+  curl on OpenSSL 3.5 or later, a current browser.
 
 When adding new mutation endpoints, route through the daemon at
 `/api/v1/tool/exec` with a `direct-user` justification chain. That
@@ -105,9 +114,17 @@ Both forms require `llama-server :8081` and `vor :20110` already up.
 The script fails fast and prints the bring-up commands if either is
 missing. No more launching our own llama-server from this script.
 
+Both forms start the app on its socket and then `bin/zhen-ui-front` on
+`127.0.0.1:20103` (`make build-zhen-ui-front`), unless the installed
+`unheaded-zhen-ui-front.service` already runs. The front needs a
+certificate: `UNHEADED_TLS_CERT` and `UNHEADED_TLS_KEY_FILE`, or the dev
+pair from `scripts/gen-dev-certs.sh zhen-ui-front`. Without one the
+script stops and says so; there is no plaintext fallback.
+
 ## Stopping
 
 ```bash
 pkill -f zhen_app.py
+pkill -f bin/zhen-ui-front
 pkill -f bin/zhen-agentd
 ```

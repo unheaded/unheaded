@@ -29,6 +29,7 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-kanban.service`       | 20001         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
+| `unheaded-zhen-ui-front.service` | 20103, 20112 (loopback, /metrics) | TLS front of the Zhen web UI (ADR-138): hybrid-only TLS 1.3 to the app's Unix socket; see [zhen-ui-front](#zhen-ui-front) |
 | `unheaded-auth.service`         | 19020         | Built-in OIDC issuer (ADR-103, `wiki/Service-Auth.md`); needs its key, a users file and TLS (`UNHEADED_TLS_*` in `/etc/unheaded/auth.env`), see the unit's header |
 | `unheaded-anomaly.service`      | 19018 (loopback) | Anomaly service + cartridge bridge (`cmd/anomaly`), consumes `anomaly.scores` from Wotan; no capabilities. Reads only the `CART_EVENTS` pin (bind-mounted; `upc-cartridgectl -events-group unheaded-anomaly up`) |
 | `unheaded-heimdall.service`     | 19101 (loopback, /metrics) | Drift monitor (`cmd/heimdall-daemon`), alerts only, signed `drift.detected.<node>`; account `unheaded-heimdall` (uid 16736), CAP_DAC_READ_SEARCH only. Not started anywhere until S-IRON-GATE E2 (drift-key custody); steps in `runbooks/security/heimdall-enrol-drift-key.yaml` |
@@ -158,6 +159,10 @@ zhen-agentd) set `UNHEADED_TLS_ENABLED=true` and
 serves TLS once `chaos.env` also sets `UNHEADED_TLS_CERT` and
 `UNHEADED_TLS_KEY_FILE`; one without the other stops it.
 
+`unheaded-zhen-ui-front` is outside both lists: it has no profile and no
+switch, serves the hybrid group alone, and takes a certificate and key with
+no CA (its clients are browsers). See [zhen-ui-front](#zhen-ui-front).
+
 `scripts/gen-dev-certs.sh` is for the compose stack only. On a host, issue
 from the Kingdom CA (`runbooks/pki/generate-kingdom-certs.yaml`; rotation:
 `runbooks/pki/rotate-service-cert.yaml`). Each certificate must name what
@@ -183,6 +188,57 @@ unit picks up a new certificate. Turning TLS on is a host change: every
 unit that talks to Wotan must move in the same window (a plaintext client
 cannot reach a TLS port), and Prometheus jobs that scrape these units need
 `scheme: https` with the CA.
+
+## zhen-ui-front
+
+`unheaded-zhen-ui-front.service` (ADR-138) is the only way to the Zhen web
+UI from a browser: TLS 1.3 with hybrid ML-KEM key exchange only
+(`X25519MLKEM768`), no plaintext mode and no profile switch. It proxies to
+the app's Unix socket, `/run/unheaded-zhen-ui/app.sock`. The app
+(`raft/zhen_app.py`, started by `raft/start-zhen.sh`) has no unit and no
+account of its own yet: it runs as the account that starts it, binds that
+socket and no TCP port.
+
+The socket directory is the one step the unit cannot do, because it names
+the account the app runs as. One tmpfiles.d line, as root:
+
+```bash
+echo 'd /run/unheaded-zhen-ui 2750 <app account> unheaded-zhen-ui-front -' |
+  sudo tee /etc/tmpfiles.d/unheaded-zhen-ui.conf
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/unheaded-zhen-ui.conf
+```
+
+Owner: the app's account, the only one that can create the socket. Group:
+the front's own, with the setgid bit, so the socket is born in that group
+and the app gives it 0660. Mode 2750: no other account reaches the
+directory. The front is the group's only member and neither account joins
+the other's group. Without the setgid bit the socket is 0600 and only the
+app's account opens it, which is the dev layout of `raft/start-zhen.sh`
+(app and front as one account, directory under `$XDG_RUNTIME_DIR`). The
+front refuses a socket with any bit for others; the app refuses a directory
+its group or others can write.
+
+Certificate and key go in `/etc/unheaded/tls/zhen-ui-front/` as in TLS
+above, with no CA. The certificate names what a browser types: `localhost`,
+`127.0.0.1`, and the host's name or address once a LAN listener exists.
+
+The shipped unit listens on `127.0.0.1:20103`. A LAN listener is a host's
+drop-in: `ExecStart=` again with a second `--listen <address>:20103` (no
+wildcard address), the subnet in `IPAddressAllow=`, the firewall rule, and
+the name or address browsers use in `ZHEN_ALLOWED_HOSTS` in the app's
+environment (the app answers 403 to any other Host).
+
+`/metrics`, `/health` and `/ready` are plain HTTP on `127.0.0.1:20112`; the
+front refuses a non-loopback address for them. `/ready` is 200 while the app
+answers on its socket: `zhen-mcp`'s `service_health`, the dashboard's
+`zhenai` row and the runbooks probe it. Akira's `zhenai` target goes through
+the front instead (`https://localhost:20103/health`, the app's own answer,
+checked against the deployment CA). No Prometheus job scrapes 20112: the
+scrapers reach hosts over the overlay, and this listener is loopback only.
+
+A client must offer the hybrid group: a current browser, a Go client, curl
+on OpenSSL 3.5 or later. Any other handshake fails, counted in
+`unheaded_zhen_ui_front_tls_client_hellos_total{kex="classical"}`.
 
 ## Binary paths and unit names
 
@@ -210,7 +266,7 @@ when it already starts with `unheaded-`:
 | `unheaded-baseline` | `unheaded-baseline.service` + `.timer` + `.path` |
 | `unheaded-well-retention` | `unheaded-well-retention.service` + `.timer` |
 | `unheaded-syslog-relay` | `unheaded-syslog-relay.service` + `.socket` (binds 514, socket activation), with `/etc/unheaded/log-sources.yaml` as a conffile |
-| `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller) | `unheaded-<svc>.service` |
+| `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller, zhen-ui-front) | `unheaded-<svc>.service` |
 | `unheaded-keygen` | none: the key tool every key-holding package depends on |
 | `unheaded-configs` | none: runbooks + `run-runbook.py` under `/opt/unheaded` (Akira's cert-expiry check) |
 

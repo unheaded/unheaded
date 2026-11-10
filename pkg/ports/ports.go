@@ -83,6 +83,12 @@ const (
 	// ports (deploy/sophia-eye/docker-compose.yml); DP-712.
 	ZhenVor    = 20110 // vor serve: retrieval corpus
 	ZhenAgentd = 20111 // zhen-agentd HTTP API
+	// ZhenWebUI is the web UI's TLS listener, zhen-ui-front (ADR-138). The
+	// number is older than this block: the Flask app held it until the front
+	// took the listener and the app moved to a Unix socket.
+	ZhenWebUI = 20103
+	// ZhenUIFrontMetrics is zhen-ui-front's loopback /metrics and /health.
+	ZhenUIFrontMetrics = 20112
 
 	// Gateway (21000-21443)
 	GatewayHTTP  = 21000

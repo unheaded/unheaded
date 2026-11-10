@@ -856,6 +856,52 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "cmd/zhen-ui-front/main.go:244:tls-config",
+      "name": "TLS server config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "pkg/tls ApplyStrict (ADR-105)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,SecP256r1MLKEM768,SecP384r1MLKEM1024"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid-strict"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/zhen-ui-front/main.go:244"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "compliance/crypto/hosts/east.json:0:host-sshd",
       "name": "sshd on east",
       "cryptoProperties": {

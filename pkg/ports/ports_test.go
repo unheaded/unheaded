@@ -61,14 +61,16 @@ func allPorts(t *testing.T) map[string]int {
 		"KanbanApp":        KanbanApp,
 		"WikiServer":       WikiServer,
 		// AI Model Stack
-		"VLLMDeepSeek": VLLMDeepSeek,
-		"VLLMQwen":     VLLMQwen,
-		"Qdrant":       Qdrant,
-		"BGEM3":        BGEM3,
-		"SophiaEye":    SophiaEye,
-		"ZhenVor":      ZhenVor,
-		"ZhenAgentd":   ZhenAgentd,
-		"AIWebUI":      AIWebUI,
+		"VLLMDeepSeek":       VLLMDeepSeek,
+		"VLLMQwen":           VLLMQwen,
+		"Qdrant":             Qdrant,
+		"BGEM3":              BGEM3,
+		"SophiaEye":          SophiaEye,
+		"ZhenVor":            ZhenVor,
+		"ZhenAgentd":         ZhenAgentd,
+		"ZhenWebUI":          ZhenWebUI,
+		"ZhenUIFrontMetrics": ZhenUIFrontMetrics,
+		"AIWebUI":            AIWebUI,
 		// Gateway
 		"GatewayHTTP":  GatewayHTTP,
 		"GatewayHTTPS": GatewayHTTPS,
@@ -174,5 +176,10 @@ func TestPortOf(t *testing.T) {
 func TestZhenPorts(t *testing.T) {
 	if ZhenVor != 20110 || ZhenAgentd != 20111 {
 		t.Fatalf("got %d %d", ZhenVor, ZhenAgentd)
+	}
+	// ADR-138: the UI keeps the port its bookmarks have; the front's metrics
+	// take the next free Zhen port.
+	if ZhenWebUI != 20103 || ZhenUIFrontMetrics != 20112 {
+		t.Fatalf("got %d %d", ZhenWebUI, ZhenUIFrontMetrics)
 	}
 }

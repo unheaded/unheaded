@@ -11,9 +11,9 @@ import io
 import json
 import re
 import shutil
-import ssl
-import subprocess
+import socket
 import sys
+import tempfile
 import threading
 import time
 import types
@@ -21,7 +21,6 @@ import urllib.error
 from pathlib import Path
 
 import pytest
-from werkzeug.serving import make_server
 
 if 'sentence_transformers' not in sys.modules:
     _st = types.ModuleType('sentence_transformers')
@@ -35,6 +34,7 @@ sys.path.insert(0, str(RAFT))
 import zhen_app
 import zhen_login
 import zhen_rag
+import zhen_socket
 
 LOCAL = 'http://127.0.0.1:20103'
 SECRET = 'correct horse battery staple'  # nosec B105 - fixture password for a fake issuer
@@ -360,51 +360,70 @@ def test_the_ui_holds_no_daemon_key(monkeypatch):
     assert 'ZHEN_AGENTD_API_KEY' not in (RAFT / 'start-zhen.sh').read_text()
 
 
-def _tls_pair(tmp_path):
-    if not shutil.which('openssl'):
-        pytest.skip('no openssl to make a certificate with')
-    cert, key = tmp_path / 'ui.crt', tmp_path / 'ui.key'
-    subprocess.run(['openssl', 'req', '-x509', '-newkey', 'ec', '-pkeyopt', 'ec_paramgen_curve:prime256v1', '-nodes',
-                    '-keyout', str(key), '-out', str(cert), '-days', '1', '-subj', '/CN=zhen.test',
-                    '-addext', 'subjectAltName=DNS:zhen.test,IP:127.0.0.1'], check=True, capture_output=True)
-    return cert, key
+class _UnixConnection(http.client.HTTPConnection):
+    def __init__(self, path):
+        super().__init__('localhost', timeout=10)
+        self._path = path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(self._path)
 
 
-def _tls_env(cert, key):
-    return {'UNHEADED_TLS_CERT': str(cert), 'UNHEADED_TLS_KEY_FILE': str(key)}
-
-
-# A UI bound past loopback serves its own TLS: the only way off loopback that
-# keeps a password encrypted and the session cookie Secure, all the way through
-# a real listener with a Host that is not loopback.
-def test_a_login_past_loopback_works_over_the_uis_own_tls(world, tmp_path, monkeypatch):
-    cert, key = _tls_pair(tmp_path)
+@pytest.fixture
+def ui_socket(world, monkeypatch):
+    """The UI on a real Unix socket, as zhen-ui-front reaches it (ADR-138)."""
     monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
-    server = make_server('127.0.0.1', 0, zhen_app.app, threaded=True, ssl_context=zhen_app.tls_context(_tls_env(cert, key)))
+    d = Path(tempfile.mkdtemp(prefix='zl'))
+    path = str(d / 'app.sock')
+    server = zhen_socket.make(zhen_app.app, path)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield path
+    server.shutdown()
+    server.server_close()
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def _socket_login(path, client, password=SECRET, host='zhen.test'):
+    conn = _UnixConnection(path)
     try:
-        conn = http.client.HTTPSConnection('127.0.0.1', server.port, timeout=10,
-                                           context=ssl.create_default_context(cafile=str(cert)))
-        conn.connect()
-        assert conn.sock.version() == 'TLSv1.3'
-        conn.request('POST', '/auth/login', body=json.dumps({'username': 'stevie', 'password': SECRET}),
-                     headers={'Host': 'zhen.test', 'Content-Type': 'application/json'})
+        conn.request('POST', '/auth/login', body=json.dumps({'username': 'stevie', 'password': password}),
+                     headers={'Host': host, 'Content-Type': 'application/json', 'X-Unheaded-Client-Addr': client})
         r = conn.getresponse()
         r.read()
-        assert r.status == 200
-        session = [c for c in r.headers.get_all('Set-Cookie') if c.startswith(zhen_login.SECURE_COOKIE_NAME + '=')]
-        assert session and 'Secure' in session[0] and 'HttpOnly' in session[0]
+        return r
     finally:
-        server.shutdown()
-        server.server_close()
+        conn.close()
 
 
-def test_the_listener_takes_nothing_below_tls_13(tmp_path):
-    cert, key = _tls_pair(tmp_path)
-    assert zhen_app.tls_context(_tls_env(cert, key)).minimum_version == ssl.TLSVersion.TLSv1_3
+# The app has no TLS of its own. A login from another host arrives on the
+# socket, through the front, under a Host that is not loopback: the password
+# is taken and the session cookie is Secure with the __Host- prefix.
+def test_a_login_past_loopback_works_through_the_socket(ui_socket):
+    r = _socket_login(ui_socket, '203.0.113.9')
+    assert r.status == 200
+    cookies = r.headers.get_all('Set-Cookie')
+    session = [c for c in cookies if c.startswith(zhen_login.SECURE_COOKIE_NAME + '=')]
+    assert session and 'Secure' in session[0] and 'HttpOnly' in session[0] and 'SameSite=Strict' in session[0]
+    assert not [c for c in cookies if c.startswith(zhen_login.COOKIE_NAME + '=')]
 
 
-def test_without_tls_a_login_past_loopback_is_refused(client, world, monkeypatch):
+# The budget is per client address, and behind the front that address is the
+# front's header, never the socket's peer: five wrong passwords from one
+# address lock that address and nobody else.
+def test_one_address_cannot_spend_anothers_login_budget(ui_socket, world):
+    for _ in range(zhen_login.CLIENT_FAILURES):
+        assert _socket_login(ui_socket, '203.0.113.5', password='wrong').status == 401  # nosec B106 - the wrong password under test
+    locked = _socket_login(ui_socket, '203.0.113.5')
+    assert locked.status == 429 and int(locked.headers['Retry-After']) > 0
+    assert _socket_login(ui_socket, '203.0.113.6').status == 200
+    assert _socket_login(ui_socket, '127.0.0.1').status == 200
+
+
+# Served any other way, with no front to make it https, the app still refuses
+# a password that would cross the network in the clear.
+def test_without_the_front_a_login_past_loopback_is_refused(client, world, monkeypatch):
     monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', 'zhen.test')
     r = client.post('/auth/login', base_url='http://zhen.test', json={'username': 'stevie', 'password': SECRET})
     assert r.status_code == 403
@@ -412,19 +431,11 @@ def test_without_tls_a_login_past_loopback_is_refused(client, world, monkeypatch
     assert not [c for c in world.calls if c[0] == 'issuer']
 
 
-def test_no_tls_settings_mean_no_tls():
-    assert zhen_app.tls_context({}) is None
-
-
-def test_the_listener_is_given_its_tls():
-    assert 'ssl_context=tls_context()' in (RAFT / 'zhen_app.py').read_text()
-
-
-@pytest.mark.parametrize('env', [{'UNHEADED_TLS_CERT': '/x'}, {'UNHEADED_TLS_KEY_FILE': '/x'},
-                                 {'UNHEADED_TLS_CERT': '/no/such', 'UNHEADED_TLS_KEY_FILE': '/no/such'}])
-def test_a_tls_setting_that_cannot_work_stops_the_ui(env):
-    with pytest.raises(SystemExit):
-        zhen_app.tls_context(env)
+def test_tls_settings_in_the_environment_open_no_listener():
+    # The pair is the front's. The app has nothing left that reads it.
+    src = (RAFT / 'zhen_app.py').read_text() + (RAFT / 'zhen_socket.py').read_text()
+    assert 'UNHEADED_TLS_CERT' not in src and 'UNHEADED_TLS_KEY_FILE' not in src
+    assert not hasattr(zhen_app, 'tls_context')
 
 
 def test_the_token_does_not_outlive_the_request():

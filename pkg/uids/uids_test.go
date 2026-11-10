@@ -91,6 +91,8 @@ var hostOnly = map[string]string{
 	"syslog-relay": "unheaded-syslog-relay",
 	// The retrieval corpus server: deploy/systemd/unheaded-vor.service (DP-712).
 	"vor": "unheaded-vor",
+	// The web UI's TLS front: deploy/systemd/unheaded-zhen-ui-front.service (ADR-138).
+	"zhen-ui-front": "unheaded-zhen-ui-front",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

@@ -35,4 +35,5 @@ steps:
   - name: check-zhenai-stats
     action: shell
     command: |
-      curl -sf http://localhost:20103/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Zhenai not running"
+      # https with hybrid key exchange only (ADR-138): curl on OpenSSL 3.5+, and the CA that issued the front's certificate
+      curl -sf --cacert "${ZHEN_UI_CA:-$HOME/tmp/unheaded/configs/certs/dev/ca.pem}" https://localhost:20103/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "Zhenai not running"

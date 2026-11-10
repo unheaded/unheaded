@@ -76,7 +76,8 @@ SLH-DSA / ML-DSA-65 post-quantum crypto, deterministic Sealed Cask builds.
 ## Zhen
 
 `crates/zhend/` — knowledge store, single-node gRPC (DP-209). Training moved to `unheaded-forge`.
-Flask web UI on port 20103 over `vor` retrieval.
+Flask web UI over `vor` retrieval, on a Unix socket behind `cmd/zhen-ui-front`
+(port 20103, TLS 1.3 with hybrid ML-KEM key exchange only, ADR-138).
 
 ## Security
 

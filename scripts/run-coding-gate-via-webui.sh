@@ -12,7 +12,8 @@
 # Pre-requisites:
 #   - vor at $VOR_URL    (default 127.0.0.1:20110)
 #   - llama-server at $LLAMA_URL (default 127.0.0.1:8081)
-#   - raft/zhen_app.py running on $WEBUI_URL (default 127.0.0.1:20103)
+#   - the web UI (raft/start-zhen.sh) at $WEBUI_URL (default
+#     https://localhost:20103, zhen-ui-front)
 #
 # Usage:
 #   ./scripts/run-coding-gate-via-webui.sh
@@ -27,9 +28,16 @@ cd "$REPO_ROOT"
 
 PROMPTS="eval/coding-gate/prompts.jsonl"
 TEMPLATE="eval/coding-gate/RESULTS-TEMPLATE.md"
-WEBUI_URL="${WEBUI_URL:-http://127.0.0.1:20103}"
+WEBUI_URL="${WEBUI_URL:-https://localhost:20103}"
 DATE="$(date +%Y-%m-%d)"
 OUT="eval/coding-gate/results-via-webui-phase1-${DATE}.md"
+
+# The UI is https only, hybrid key exchange only (ADR-138): curl needs
+# OpenSSL 3.5 or later, and checks the front's certificate against
+# CURL_CA_BUNDLE. Unset, the dev CA is used when it exists.
+if [[ -z "${CURL_CA_BUNDLE:-}" && -f "$REPO_ROOT/configs/certs/dev/ca.pem" ]]; then
+    export CURL_CA_BUNDLE="$REPO_ROOT/configs/certs/dev/ca.pem"
+fi
 
 # Chat takes a login: ZHEN_UI_USER, with the password in ZHEN_UI_PASSWORD_FILE.
 : "${ZHEN_UI_USER:?set ZHEN_UI_USER: chat on the web UI takes a login}"

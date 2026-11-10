@@ -405,10 +405,14 @@ func (s *server) serviceHealth(ctx context.Context, args map[string]any) mcpserv
 	var wg sync.WaitGroup
 	for i, svc := range s.cfg.services {
 		wg.Add(1)
-		go func(i int, base string) {
+		path := svc.health
+		if path == "" {
+			path = "/health"
+		}
+		go func(i int, endpoint string) {
 			defer wg.Done()
-			ok[i] = probe(ctx, base+"/health")
-		}(i, svc.base)
+			ok[i] = probe(ctx, endpoint)
+		}(i, svc.base+path)
 	}
 	wg.Wait()
 	healthy := 0

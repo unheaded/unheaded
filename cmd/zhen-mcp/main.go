@@ -98,14 +98,15 @@ var gatedTools = map[string]string{
 }
 
 type service struct {
-	name string
-	base string // http://host:port
+	name   string
+	base   string // http://host:port
+	health string // path of the probe; empty is /health
 }
 
 // defaultServices are the /health probes of service_health.
 func defaultServices() []service {
 	local := func(name string, port int) service {
-		return service{name, "http://127.0.0.1:" + strconv.Itoa(port)}
+		return service{name: name, base: "http://127.0.0.1:" + strconv.Itoa(port)}
 	}
 	return []service{
 		local("wotan", ports.WotanHTTP),
@@ -117,7 +118,10 @@ func defaultServices() []service {
 		local("sophia", ports.Sophia),
 		local("dashboard", ports.DashboardBackend),
 		local("kanban", ports.KanbanApp),
-		local("zhen-web-ui", 20103), // not in pkg/ports (raft/zhen_app.py)
+		// The web UI is https with hybrid key exchange only (ADR-138): the
+		// probe is zhen-ui-front's loopback /ready, 200 while the app
+		// answers on its socket.
+		{name: "zhen-web-ui", base: "http://127.0.0.1:" + strconv.Itoa(ports.ZhenUIFrontMetrics), health: "/ready"},
 		local("llama-server", 8081), // local inference (scripts/switch-model.sh)
 	}
 }

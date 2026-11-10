@@ -178,6 +178,16 @@ sources:
     canary: http-get
     owner: developer
     status: "blocked:FND-001"
+  - id: west/unheaded-zhen-ui-front
+    host: west
+    kind: journal-unit
+    match: unheaded-zhen-ui-front.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: it logs on start, stop and faults (refused handshakes, the app not answering), at most a burst a minute"
+    owner: sentinel
+    status: gap
+    note: "ADR-138; built 2026-11-09, installed by S-E1-LIVE Step 244a"
   - id: west/nginx
     host: west
     kind: journal-unit

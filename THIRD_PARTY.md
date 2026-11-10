@@ -186,7 +186,7 @@ this entire surface. See `docs/security/python-deps-unscanned-2026-08-04.md`.
 
 | Package | Version | License | Purpose |
 |---------|---------|---------|---------|
-| Flask | 3.1.3 | BSD-3-Clause | Zhen web UI (`raft/zhen_app.py`, port 20103) |
+| Flask | 3.1.3 | BSD-3-Clause | Zhen web UI (`raft/zhen_app.py`, a Unix socket behind `cmd/zhen-ui-front` on port 20103) |
 | requests | 2.34.2 | Apache Software License | HTTP client |
 | Pygments | 2.21.0 | BSD-2-Clause | Syntax highlighting of code in Zhen answers, server-side (`raft/zhen_highlight.py`) |
 | psycopg2-binary | 2.9.11 | GNU Library or Lesser General Public License (LGPL) | The Well (PostgreSQL) client |

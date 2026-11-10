@@ -465,7 +465,7 @@ func TestServiceHealthProbesConfiguredServices(t *testing.T) {
 	}))
 	defer up.Close()
 	srv := testServer(t, testRoot(t), nil)
-	srv.cfg.services = []service{{"up", up.URL}, {"down", deadURL(t)}}
+	srv.cfg.services = []service{{name: "up", base: up.URL}, {name: "down", base: deadURL(t)}}
 	res := call(t, srv, "service_health", `{}`)
 	text := res.Content[0].Text
 	if res.IsError || !strings.HasPrefix(text, "Kingdom Service Health: 1/2 healthy") ||

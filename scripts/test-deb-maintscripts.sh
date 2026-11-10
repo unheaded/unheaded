@@ -278,6 +278,13 @@ systemctl daemon-reload
 systemctl try-restart unheaded-syslog-relay.service"
 expect "the relay's unit holds no capability: the socket binds 514" \
 	"$(grep -cE '^(AmbientCapabilities=|CapabilityBoundingSet=.+)' "$REPO_ROOT/deploy/systemd/unheaded-syslog-relay.service" || true)" "0"
+# The Zhen UI front (ADR-138): a certificate and key, no CA, no service key.
+expect "zhen-ui-front holds no service key" "$(deb_identity_for zhen-ui-front)" ""
+expect "zhen-ui-front's postinst requires its cert and key, and no CA" \
+	"$(deb_tls_files "$REPO_ROOT/deploy/systemd/unheaded-zhen-ui-front.service" | tr '\n' ' ')" \
+	"/etc/unheaded/tls/zhen-ui-front/zhen-ui-front.pem /etc/unheaded/tls/zhen-ui-front/zhen-ui-front-key.pem "
+expect "the front's unit holds no capability and names no CA or profile" \
+	"$(grep -cE '^(AmbientCapabilities=|CapabilityBoundingSet=.+|Environment=UNHEADED_TLS_(PROFILE|CA_CERT|MTLS_ENABLED)=)' "$REPO_ROOT/deploy/systemd/unheaded-zhen-ui-front.service" || true)" "0"
 expect "the Jenkinsfile packages through build-all-debs.sh (one copy)" \
 	"$(grep -c '^ *DEB_OUTPUT_DIR=build/deb \./scripts/build-all-debs\.sh ' "$REPO_ROOT/Jenkinsfile")" "1"
 expect "the Jenkinsfile writes no maintainer scripts of its own" \

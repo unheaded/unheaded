@@ -39,7 +39,7 @@ steps:
         dashboard-backend:20000
         kanban-app:20001
         zhen-inference:20100
-        zhen-web-ui:20103
+        zhen-ui-front:20112
         gateway-http:21000
       "
 
