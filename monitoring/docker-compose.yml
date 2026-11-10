@@ -182,7 +182,7 @@ services:
       - no-new-privileges:true
 
   victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.108.1@sha256:f6e5322b315795ae2fec494c1d1c94b2e0325b789fead60ef3a13fccdefcd81e
+    image: victoriametrics/victoria-metrics:v1.155.0@sha256:f60dc268b54ecf87f6e09d740c2b732838aa9193090cc741417c9f6386a130df
     container_name: unheaded-victoriametrics
     restart: unless-stopped
     user: "16703:16703"
