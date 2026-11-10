@@ -6,7 +6,8 @@
 //
 //   - mails pages at once, all pages firing together in one mail,
 //   - collects tickets and mails them as one digest a day,
-//   - never sends more than mailer.max_per_day mails a calendar day, and
+//   - never sends more than mailer.max_per_day mails a calendar day, nor
+//     more than mailer.max_per_hour in one clock hour, and
 //   - in mailer.mode dry-run sends nothing, and records what it would have.
 //
 // Settings come from the mailer: block of observability/alerting/policy.yaml;
@@ -57,10 +58,11 @@ func loadSettings(path string) (Settings, error) {
 	}
 	var doc struct {
 		Mailer struct {
-			Mode      string `yaml:"mode"`
-			MaxPerDay int    `yaml:"max_per_day"`
-			DigestAt  string `yaml:"digest_at"`
-			Timezone  string `yaml:"timezone"`
+			Mode       string `yaml:"mode"`
+			MaxPerDay  int    `yaml:"max_per_day"`
+			MaxPerHour int    `yaml:"max_per_hour"`
+			DigestAt   string `yaml:"digest_at"`
+			Timezone   string `yaml:"timezone"`
 		} `yaml:"mailer"`
 		Page struct {
 			RepeatInterval string `yaml:"repeat_interval"`
@@ -70,12 +72,15 @@ func loadSettings(path string) (Settings, error) {
 		return Settings{}, fmt.Errorf("%s: %w", path, err)
 	}
 	p := doc.Mailer
-	s := Settings{Mode: p.Mode, MaxPerDay: p.MaxPerDay}
+	s := Settings{Mode: p.Mode, MaxPerDay: p.MaxPerDay, MaxPerHour: p.MaxPerHour}
 	if s.Mode != "dry-run" && s.Mode != "send" {
 		return s, fmt.Errorf("mailer.mode %q: want dry-run or send", s.Mode)
 	}
 	if s.MaxPerDay < 1 || s.MaxPerDay > 50 {
 		return s, fmt.Errorf("mailer.max_per_day %d: want 1..50", s.MaxPerDay)
+	}
+	if s.MaxPerHour < 1 || s.MaxPerHour > s.MaxPerDay {
+		return s, fmt.Errorf("mailer.max_per_hour %d: want 1..max_per_day", s.MaxPerHour)
 	}
 	t, err := time.Parse("15:04", p.DigestAt)
 	if err != nil {
@@ -137,7 +142,7 @@ func main() {
 
 	reg := metrics.NewRegistry()
 	msgs := metrics.NewCounterVec("unheaded_alert_mailer_messages_total",
-		"Mails by urgency and outcome: sent, dry-run, capped (held back by max_per_day), failed (relay refused; Alertmanager retries)",
+		"Mails by urgency and outcome: sent, dry-run, capped (held back by max_per_day), capped-hour (by max_per_hour), failed (relay refused; Alertmanager retries)",
 		nil, []string{"urgency", "outcome"})
 	reg.MustRegister(msgs)
 	m.count = func(u, o string) { msgs.WithLabels(metrics.Labels{"urgency": u, "outcome": o}).Inc() }

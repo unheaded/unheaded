@@ -1,15 +1,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Stevie Bellis.
 """Dry-run test for runbooks/security/build-key-ceremony.yaml (S-IRON-GATE
-Step 339). No key is generated and no host is touched: the runbook is
-dry-run and its text is checked. The ceremony waits on E1."""
+Step 339; custody per DP-06, S-E1-LIVE Step 13). No key is generated and
+no host is touched: the runbook is dry-run and its text is checked. The
+ceremony is Stevie's, with both tokens, and the runbook stays a draft until
+he approves it."""
 import re
 
 import harness
 
 RB = "runbooks/security/build-key-ceremony.yaml"
-ORDER = ["generate-build-key", "audit-watch", "print-public-key", "publish-public-key",
-         "sign-a-test-cask", "rotate-quarterly", "revoke"]
+ORDER = ["generate-build-key", "print-public-key", "publish-public-key", "sign-a-test-cask",
+         "close-and-prove-second-token", "audit-watch", "copy-encrypted-file-to-backup-host",
+         "rotate-quarterly", "revoke"]
+VOLUME = "/var/lib/unheaded/custody/buildkey.luks"
+MOUNT = "/run/unheaded-buildkey"
 
 
 def test_dry_run_lists_every_step_in_order():
@@ -22,7 +27,8 @@ def test_draft_until_stevie_approves():
     meta = harness.load(RB)["metadata"]
     assert meta["status"] == "draft" and meta["approved_by"] == ""
     assert meta["risk"] == "critical"
-    assert "E1" in harness.load(RB)["notes"]
+    notes = harness.load(RB)["notes"]
+    assert "DP-06" in notes and "WAITS ON" not in notes
 
 
 def test_every_host_changing_step_is_manual():
@@ -48,7 +54,7 @@ def test_shell_steps_only_read_and_never_read_the_seed():
 
 def test_key_is_mldsa65_owned_by_the_custody_account():
     gen = harness.step(harness.load(RB), "generate-build-key")["command"]
-    assert "unheaded-keygen -algo mldsa65 -owner unheaded-buildkey ${KEY_NAME}" in gen
+    assert f"unheaded-keygen -algo mldsa65 -dir {MOUNT} -owner unheaded-buildkey ${{KEY_NAME}}" in gen
 
 
 def test_only_the_public_key_travels():
@@ -70,13 +76,70 @@ def test_publish_is_a_signed_commit_recorded_in_security_md():
 def test_test_cask_signs_through_the_custody_account_and_refuses_tamper():
     s = harness.step(harness.load(RB), "sign-a-test-cask")["command"]
     assert "UNHEADED_BUILD_SIGN_AS=unheaded-buildkey" in s
-    assert "cask-verify verify" in s and "printf 'x' >>" in s
+    assert f"UNHEADED_BUILD_KEY={MOUNT}/${{KEY_NAME}}.key" in s
+    assert "cask-verify verify" in s and "printf x >>" in s and "tamper_rc" in s
     assert "mktemp -d" in s and 'rm -rf "$D"' in s
 
 
 def test_rotation_keeps_one_quarter_of_overlap():
     rot = harness.step(harness.load(RB), "rotate-quarterly")["command"]
     assert "build-previous.pubkey" in rot and "--pubkey twice" in rot
+
+
+def _code(text):
+    """A step's command lines without its comments."""
+    return [ln for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith("#")]
+
+
+def test_seed_lives_only_inside_the_custody_volume():
+    # DP-06: no seed path on a plain disk anywhere in the runbook.
+    text = (harness.REPO / RB).read_text()
+    assert "/etc/unheaded/keys" not in text
+    paths = set(re.findall(r"[^\s=]+\.key\b", text))
+    assert f"{MOUNT}/${{KEY_NAME}}.key" in paths
+    for path in paths:
+        if path.endswith("name>.key"):  # "<old name>.key", in the mounted volume too
+            continue
+        assert path.startswith(MOUNT + "/"), path
+    assert VOLUME in harness.load(RB)["notes"]
+
+
+def test_format_refuses_an_existing_volume():
+    # luksFormat and mkfs destroy a seed: only in the first ceremony, and
+    # the format line itself refuses when the file is there.
+    rb = harness.load(RB)
+    for s in harness.steps(rb):
+        for ln in _code(s["command"]):
+            if "luksFormat" in ln or "mkfs" in ln:
+                assert s["name"] == "generate-build-key", s["name"]
+            if "luksFormat" in ln:
+                assert ln.lstrip().startswith(f"sudo test ! -e {VOLUME} && "), ln
+    rot = "\n".join(_code(harness.step(rb, "rotate-quarterly")["command"]))
+    assert "systemd-cryptsetup attach unheaded-buildkey" in rot and "unheaded-keygen" in rot
+
+
+def test_password_slot_goes_only_after_each_token_opened_the_volume():
+    gen = harness.step(harness.load(RB), "generate-build-key")["command"]
+    assert gen.count("--fido2-device=auto --fido2-with-client-pin=yes --fido2-with-user-presence=yes") == 2
+    assert gen.index("echo TOKEN_OPENS") < gen.index("--wipe-slot=password") < gen.index("unheaded-keygen")
+    assert "shred -u /run/custody.tmpkey" in gen
+
+
+def test_volume_is_closed_after_the_ceremony_and_checked():
+    rb = harness.load(RB)
+    close = harness.step(rb, "close-and-prove-second-token")["command"]
+    assert "echo CLOSED" in close and "SECOND_TOKEN_READS" in close
+    assert close.rstrip().splitlines()[-2].count("systemd-cryptsetup detach unheaded-buildkey") == 1
+    assert harness.index(rb, "sign-a-test-cask") < harness.index(rb, "close-and-prove-second-token")
+    check = next(v for v in rb["verification"] if v.get("action", "shell") == "shell")["command"]
+    assert "test ! -e /dev/mapper/unheaded-buildkey" in check
+
+
+def test_audit_watch_and_backup_copy_are_of_the_encrypted_file():
+    rb = harness.load(RB)
+    assert f"-w {VOLUME} -p rwa -k unheaded-buildkey" in harness.step(rb, "audit-watch")["command"]
+    copy = "\n".join(_code(harness.step(rb, "copy-encrypted-file-to-backup-host")["command"]))
+    assert VOLUME in copy and MOUNT not in copy and "ssh ${BACKUP_HOST}" in copy
 
 
 def test_uid_matches_registry_and_sysusers():

@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: build-key-ceremony
-  description: Generate the ML-DSA-65 evidence build key on its custody host, publish build.pubkey by signed commit, prove a signed Sealed Cask verifies, and rotate or revoke it
+  description: Generate the ML-DSA-65 evidence build key inside a FIDO2-unlocked LUKS2 file on its custody host, publish build.pubkey by signed commit, prove a signed Sealed Cask verifies, and rotate or revoke it
   owner: moatghost
   estimated_duration: 30m
   risk: critical
@@ -15,139 +15,188 @@ metadata:
 
 notes: |
   S-IRON-GATE Phase 13 (M-061, FND-018; ADR-010, ADR-043 #4, ADR-105
-  decision 7). The build key is the one ML-DSA-65 seed every release's
-  evidence trust reduces to: it seals each Sealed Cask's Binding Rune
-  (BINDING_RUNE.sig, purpose sealed-cask-v1, `yggdrasil-evidence cask
-  sign`) and each Yggdrasil evidence pack (manifest, iso-sha256,
-  custody-entry purposes). Verifiers hold only build.pubkey:
+  decision 7); custody per DP-06 (S-E1-LIVE Evening 10, Steps 181-188).
+  The build key is the one ML-DSA-65 seed every release's evidence trust
+  reduces to: it seals each Sealed Cask's Binding Rune (BINDING_RUNE.sig,
+  purpose sealed-cask-v1, `yggdrasil-evidence cask sign`) and each
+  Yggdrasil evidence pack (manifest, iso-sha256, custody-entry purposes).
+  Verifiers hold only build.pubkey:
   `cask-verify verify --cask <cask> --pubkey compliance/keys/build.pubkey`.
+  FND-018 stays open until sign-a-test-cask passes on a real pack.
 
-  WAITS ON S-IRON-GATE E1 (Stevie): where the seed lives (west under
-  unheaded-buildkey 0400 with an auditd watch, as written here; a
-  TPM-sealed file; or an offline machine), who may run `cask sign`, and
-  publishing build.pubkey by signed commit. Until E1 is answered, do not
-  run this. FND-018 stays open until the verification below passes on a
-  real pack.
-
-  Custody, as drafted:
-    - The seed is generated ON the custody host and never leaves it: no
-      copy, no backup to the Well or east, never in a repository, never in
-      GitHub secrets (keyless cosign covers GitHub-built artefacts; casks
-      are signed on the custody host and attached). Losing it means a new
-      key and a revocation entry, not a restore.
-    - Account unheaded-buildkey (uid 16737, deploy/sysusers.d), nologin,
-      owns the 0400 seed; nothing else can read it. Signing runs as that
-      account through sudo: build-sealed-cask.sh with
-      UNHEADED_BUILD_SIGN_AS=unheaded-buildkey hands it the rune on stdin.
-    - An auditd watch records every open of the seed (key unheaded-buildkey).
+  Custody (DP-06):
+    - The seed lives inside /var/lib/unheaded/custody/buildkey.luks, a
+      LUKS2 file with two FIDO2 slots and no password slot (DP-06); it is
+      opened only for a ceremony and closed after. The encrypted file is
+      copied to east; it is useless without a token. Losing both tokens
+      means a new key and a revocation entry.
+    - The seed itself is never copied out of the volume, never in a
+      repository, never in GitHub secrets (keyless cosign covers
+      GitHub-built artefacts; casks are signed on the custody host and
+      attached).
+    - Opened, the volume is mounted on /run/unheaded-buildkey (nodev,
+      nosuid, noexec). Account unheaded-buildkey (uid 16737,
+      deploy/sysusers.d), nologin, owns the 0400 seed; nothing else can
+      read it. Signing runs as that account through sudo:
+      build-sealed-cask.sh with UNHEADED_BUILD_SIGN_AS=unheaded-buildkey
+      hands it the rune on stdin.
+    - An auditd watch records every open of the encrypted file (key
+      unheaded-buildkey).
     - build.pubkey is published as compliance/keys/build.pubkey in the repo:
       it is public, and the repo is the trusted channel because Stevie's
       commits are GPG-signed. SECURITY.md records its sha256, key id and
       the ceremony date.
 
+  One token is plugged in at a time: fido2-device=auto refuses two.
+  Rehearse on a throwaway file first (S-E1-LIVE Step 179).
+
   Rotation is quarterly with a one-quarter overlap: the new key gets a new
   name (unheaded-keygen never replaces a signing key), the old public key
   moves to compliance/keys/build-previous.pubkey, verifiers pass both
   (--pubkey twice) for one quarter, then the old public key is removed
-  from the repo and its seed shredded. Revocation (seed exposed or lost):
-  remove the public key from compliance/keys/ at once, record it in
-  SECURITY.md, run this ceremony for a new key and re-sign the current
-  release's cask with it.
+  from the repo and its seed shredded. A rotation opens the volume that
+  exists; it never formats it. Revocation (seed exposed or lost): remove
+  the public key from compliance/keys/ at once, record it in SECURITY.md,
+  run this ceremony for a new key and re-sign the current release's cask
+  with it.
 
 parameters:
   - name: CUSTODY_HOST
     default: "west"
-    description: the host that holds the seed (E1); run the host steps there
+    description: the host that holds the encrypted file (DP-06); run the host steps there
+  - name: BACKUP_HOST
+    default: "east"
+    description: the host that holds a copy of the encrypted file, never of the seed
   - name: KEY_NAME
     default: "build-evidence-2026q4"
-    description: the key's file name under /etc/unheaded/keys (one per quarter; never reused)
+    description: the key's file name inside the custody volume (one per quarter; never reused, so a failed run takes a suffix such as build-evidence-2026q4b)
   - name: REPO
     default: "/home/govan/tmp/unheaded"
-    description: a checkout of the repo (public key and SECURITY.md go here); the verification reads it on the custody host
+    description: a checkout of the repo on the custody host (bin/release, the public key and SECURITY.md)
 
 preconditions:
   - check: "getent passwd unheaded-buildkey >/dev/null"
     description: the unheaded-buildkey account exists (deploy/sysusers.d/unheaded.conf, uid 16737)
-  - check: "command -v unheaded-keygen >/dev/null || test -x /opt/unheaded/bin/unheaded-keygen"
-    description: unheaded-keygen is installed on the custody host
-  - check: "command -v yggdrasil-evidence >/dev/null && command -v cask-verify >/dev/null"
-    description: the signer and verifier are installed (scripts/build-binaries.sh or go build ./cmd/yggdrasil-evidence ./cmd/cask-verify)
-  - check: "test ! -e /etc/unheaded/keys/${KEY_NAME}.key"
-    description: no key under this name yet (a signing key is never replaced)
+  - check: "test -x /usr/bin/systemd-cryptsetup && test -x /usr/bin/systemd-cryptenroll && test -x /usr/sbin/cryptsetup"
+    description: the LUKS2 and FIDO2 tools are on the custody host (no new package)
+  - check: "test -x ${REPO}/bin/release/unheaded-keygen && test -x ${REPO}/bin/release/cask-verify"
+    description: unheaded-keygen and cask-verify are built (scripts/build-binaries.sh --out bin/release)
+  - check: "command -v yggdrasil-evidence >/dev/null"
+    description: the signer is installed (UNHEADED_BUILD_SIGN_AS needs it on PATH)
+  - check: "test ! -e /dev/mapper/unheaded-buildkey"
+    description: the custody volume is closed (no ceremony half done)
 
 steps:
   - name: generate-build-key
     action: manual
     irreversible: true
     command: |
-      # On ${CUSTODY_HOST}, as root (E1). Writes the 32-byte seed 0400
-      # owned by unheaded-buildkey and the packed public key 0444; refuses
-      # if the key exists. The seed is never printed.
-      sudo unheaded-keygen -algo mldsa65 -owner unheaded-buildkey ${KEY_NAME}
-    description: "MANUAL (E1). Create the ML-DSA-65 build key on the custody host. The seed never leaves it."
-
-  - name: audit-watch
-    action: manual
-    command: |
-      # On ${CUSTODY_HOST}. Every read of the seed lands in the audit log.
-      echo "-w /etc/unheaded/keys/${KEY_NAME}.key -p rwa -k unheaded-buildkey" \
-        | sudo tee /etc/audit/rules.d/unheaded-buildkey.rules
-      sudo augenrules --load
-      sudo auditctl -l | grep unheaded-buildkey
-    description: "MANUAL (E1). auditd watch on the seed, persistent across reboots."
+      # On ${CUSTODY_HOST}, Stevie present with both tokens (S-E1-LIVE
+      # Steps 181 and 183). FIRST CEREMONY ONLY: luksFormat destroys what
+      # the file holds, so the line refuses when the file exists. A
+      # rotation is rotate-quarterly.
+      sudo install -d -m 0700 /var/lib/unheaded/custody
+      # The real file; enrol key 1.
+      sudo test ! -e /var/lib/unheaded/custody/buildkey.luks && sudo truncate -s 32M /var/lib/unheaded/custody/buildkey.luks && sudo sh -c 'umask 077; head -c 48 /dev/urandom | base64 -w0 > /run/custody.tmpkey' && sudo cryptsetup luksFormat --batch-mode --type luks2 --key-file /run/custody.tmpkey /var/lib/unheaded/custody/buildkey.luks && L=$(sudo losetup --find --show /var/lib/unheaded/custody/buildkey.luks) && sudo systemd-cryptenroll --unlock-key-file=/run/custody.tmpkey --fido2-device=auto --fido2-with-client-pin=yes --fido2-with-user-presence=yes "$L"
+      # Swap keys, the same enrol line again for key 2.
+      sudo systemd-cryptenroll --unlock-key-file=/run/custody.tmpkey --fido2-device=auto --fido2-with-client-pin=yes --fido2-with-user-presence=yes "$L"
+      # Before the password slot goes, open the real file with each token,
+      # alone. Key 2 is in now; run this, swap to key 1, run it again.
+      # Expect TOKEN_OPENS for each. Else: do not wipe; enrol that token
+      # again with the temporary key.
+      L=$(sudo losetup -j /var/lib/unheaded/custody/buildkey.luks | cut -d: -f1); sudo /usr/bin/systemd-cryptsetup attach unheaded-buildkey "$L" none fido2-device=auto && ls /dev/mapper/unheaded-buildkey && sudo /usr/bin/systemd-cryptsetup detach unheaded-buildkey && echo TOKEN_OPENS
+      # Only then: wipe the password slot, shred the temporary key.
+      # Expect 2 and 2 (two key slots, both FIDO2).
+      L=$(sudo losetup -j /var/lib/unheaded/custody/buildkey.luks | cut -d: -f1); sudo systemd-cryptenroll --wipe-slot=password "$L"; sudo shred -u /run/custody.tmpkey; sudo cryptsetup luksDump "$L" | grep -cE '^\s+[0-9]+: luks2'; sudo cryptsetup luksDump "$L" | grep -c 'systemd-fido2'
+      # Open, make the filesystem, make the key inside it. The seed is
+      # never on a plain disk and never printed. Expect: 400 unheaded-buildkey.
+      cd ${REPO} && L=$(sudo losetup -j /var/lib/unheaded/custody/buildkey.luks | cut -d: -f1) && sudo /usr/bin/systemd-cryptsetup attach unheaded-buildkey "$L" none fido2-device=auto && sudo mkfs.ext4 -q -L buildkey /dev/mapper/unheaded-buildkey && sudo install -d -m 0750 -o root -g unheaded-buildkey /run/unheaded-buildkey && sudo mount -o nodev,nosuid,noexec /dev/mapper/unheaded-buildkey /run/unheaded-buildkey && sudo bin/release/unheaded-keygen -algo mldsa65 -dir /run/unheaded-buildkey -owner unheaded-buildkey ${KEY_NAME} 2>&1 | tail -2 | cut -c1-90; sudo stat -c '%a %U' /run/unheaded-buildkey/${KEY_NAME}.key
+    description: "MANUAL (DP-06). Make the LUKS2 file, enrol both tokens, prove each opens it, wipe the password slot, then create the ML-DSA-65 build key inside it. Rollback, only before a seed exists: sudo losetup -d \"$L\"; sudo rm -f /var/lib/unheaded/custody/buildkey.luks"
 
   - name: print-public-key
     action: shell
     host: ${CUSTODY_HOST}
     command: |
       set -euo pipefail
-      KG=$(command -v unheaded-keygen || echo /opt/unheaded/bin/unheaded-keygen)
-      "$KG" -algo mldsa65 -print-kid ${KEY_NAME}
-      sha256sum /etc/unheaded/keys/${KEY_NAME}.pub
-      stat -c '%a %U %n' /etc/unheaded/keys/${KEY_NAME}.key /etc/unheaded/keys/${KEY_NAME}.pub
-    description: Key id, public key sha256, and the modes (want 400 unheaded-buildkey and 444 root). Reads the .pub and stats the seed; never reads the seed.
+      KG=$(command -v unheaded-keygen || echo ${REPO}/bin/release/unheaded-keygen)
+      "$KG" -algo mldsa65 -dir /run/unheaded-buildkey -print-kid ${KEY_NAME}
+      sha256sum /run/unheaded-buildkey/${KEY_NAME}.pub
+      stat -c '%a %U %n' /run/unheaded-buildkey/${KEY_NAME}.key /run/unheaded-buildkey/${KEY_NAME}.pub
+    description: While the volume is open. Key id, public key sha256, and the modes (want 400 unheaded-buildkey and 444 root). Reads the .pub and stats the seed; never reads the seed.
 
   - name: publish-public-key
     action: manual
     command: |
-      # On the operator's machine. Only the PUBLIC key travels.
-      scp ${CUSTODY_HOST}:/etc/unheaded/keys/${KEY_NAME}.pub ${REPO}/compliance/keys/build.pubkey
-      sha256sum ${REPO}/compliance/keys/build.pubkey   # must equal print-public-key's line
+      # On ${CUSTODY_HOST}, while the volume is open (S-E1-LIVE Step 184).
+      # Only the PUBLIC half leaves the volume.
+      cd ${REPO} && install -d compliance/keys && sudo cat /run/unheaded-buildkey/${KEY_NAME}.pub > compliance/keys/build.pubkey && sha256sum compliance/keys/build.pubkey   # must equal print-public-key's line
       # SECURITY.md, "Verifying releases": build key id, the sha256 above,
       # the ceremony date and ${CUSTODY_HOST}. Then a GPG-signed commit by
       # Stevie: the signed commit is what makes the repo a trusted channel.
       git -C ${REPO} add compliance/keys/build.pubkey SECURITY.md
-      git -C ${REPO} commit -S -m "security: publish evidence build key ${KEY_NAME} (S-IRON-GATE E1)"
+      git -C ${REPO} commit -S -m "custody: publish build.pubkey ${KEY_NAME} (DP-06)"
     description: "MANUAL. Publish build.pubkey by signed commit and record its sha256 in SECURITY.md."
 
   - name: sign-a-test-cask
     action: manual
     command: |
-      # On ${CUSTODY_HOST}, from a checkout, as the operator. The seed is
-      # read only by unheaded-buildkey, through sudo; the rune goes over stdin.
-      set -euo pipefail
-      D=$(mktemp -d)
-      UNHEADED_BUILD_KEY=/etc/unheaded/keys/${KEY_NAME}.key UNHEADED_BUILD_SIGN_AS=unheaded-buildkey \
-        scripts/build-sealed-cask.sh --no-build --no-encrypt --output "$D/cask.tar.gz"
-      cask-verify verify --cask "$D/cask.tar.gz" --pubkey compliance/keys/build.pubkey
-      printf 'x' >> "$D/cask.tar.gz"
-      if cask-verify verify --cask "$D/cask.tar.gz" --pubkey compliance/keys/build.pubkey; then echo "TAMPER ACCEPTED"; exit 1; fi
-      rm -rf "$D"
-      sudo ausearch -k unheaded-buildkey --start recent | tail -5
-    description: "MANUAL. A cask signed with the new key VERIFIES against the published pubkey; one appended byte is refused; the audit log shows the read."
+      # On ${CUSTODY_HOST}, as the operator, while the volume is open
+      # (S-E1-LIVE Step 185). The seed is read only by unheaded-buildkey,
+      # through sudo; the rune goes over stdin. Expect: a verify pass,
+      # then tamper_rc not 0.
+      cd ${REPO} && D=$(mktemp -d) && UNHEADED_BUILD_KEY=/run/unheaded-buildkey/${KEY_NAME}.key UNHEADED_BUILD_SIGN_AS=unheaded-buildkey scripts/build-sealed-cask.sh --no-build --no-encrypt --output "$D/cask.tar.gz" 2>&1 | tail -1 | cut -c1-80; bin/release/cask-verify verify --cask "$D/cask.tar.gz" --pubkey compliance/keys/build.pubkey | tail -1 | cut -c1-70; printf x >> "$D/cask.tar.gz"; bin/release/cask-verify verify --cask "$D/cask.tar.gz" --pubkey compliance/keys/build.pubkey >/dev/null 2>&1; echo tamper_rc=$?; rm -rf "$D"
+    description: "MANUAL. A cask signed with the new key VERIFIES against the published pubkey (so the committed build.pubkey is this key's); one appended byte is refused."
+
+  - name: close-and-prove-second-token
+    action: manual
+    command: |
+      # On ${CUSTODY_HOST} (S-E1-LIVE Step 186). Close it. Expect: CLOSED.
+      L=$(sudo losetup -j /var/lib/unheaded/custody/buildkey.luks | cut -d: -f1); sudo umount /run/unheaded-buildkey && sudo /usr/bin/systemd-cryptsetup detach unheaded-buildkey && echo CLOSED
+      # Swap to the OTHER token, then prove it still opens the volume now
+      # the seed exists, and close again. Expect: SECOND_TOKEN_READS, 0.
+      L=$(sudo losetup -j /var/lib/unheaded/custody/buildkey.luks | cut -d: -f1); sudo /usr/bin/systemd-cryptsetup attach unheaded-buildkey "$L" none fido2-device=auto && sudo mount -o ro,nodev,nosuid,noexec /dev/mapper/unheaded-buildkey /run/unheaded-buildkey && sudo test -s /run/unheaded-buildkey/${KEY_NAME}.key && echo SECOND_TOKEN_READS; sudo umount /run/unheaded-buildkey; sudo /usr/bin/systemd-cryptsetup detach unheaded-buildkey; sudo losetup -d "$L"; ls /dev/mapper | grep -c unheaded-buildkey
+      # Unplug both tokens and keep them apart.
+    description: "MANUAL. Close the volume, then open it read-only with the other token and close it again. With the tokens out, nothing on the host can read the seed."
+
+  - name: audit-watch
+    action: manual
+    command: |
+      # On ${CUSTODY_HOST}. Every open of the encrypted file lands in the
+      # audit log; the seed is reachable only through it. Expect: 1.
+      echo '-w /var/lib/unheaded/custody/buildkey.luks -p rwa -k unheaded-buildkey' | sudo tee /etc/audit/rules.d/unheaded-buildkey.rules >/dev/null; sudo augenrules --load 2>&1 | tail -1 | cut -c1-50; sudo auditctl -l | grep -c unheaded-buildkey
+    description: "MANUAL. auditd watch on the encrypted file, persistent across reboots."
+
+  - name: copy-encrypted-file-to-backup-host
+    action: manual
+    command: |
+      # On ${CUSTODY_HOST}, volume closed (S-E1-LIVE Step 188). A lost disk
+      # must not lose the key: the ENCRYPTED file goes to ${BACKUP_HOST},
+      # useless without a token. Expect: two equal strings.
+      sudo sha256sum /var/lib/unheaded/custody/buildkey.luks | cut -c1-16; sudo cat /var/lib/unheaded/custody/buildkey.luks | ssh ${BACKUP_HOST} 'sudo install -d -m 0700 /var/backups/unheaded-custody && sudo install -m 0400 /dev/stdin /var/backups/unheaded-custody/buildkey.luks && sudo sha256sum /var/backups/unheaded-custody/buildkey.luks | cut -c1-16'
+    description: "MANUAL. Copy the encrypted file to the backup host and compare hashes. Repeat after every change to the volume (a rotation, a shredded old seed)."
 
   - name: rotate-quarterly
     action: manual
     command: |
-      # Next quarter. Run generate-build-key, audit-watch and print-public-key
-      # with KEY_NAME=<next quarter's name>, then on the operator's machine:
+      # Next quarter, on ${CUSTODY_HOST}, one token in. NOT
+      # generate-build-key: the volume exists and is never formatted again.
+      # Open it (no luksFormat, no mkfs):
+      L=$(sudo losetup --find --show /var/lib/unheaded/custody/buildkey.luks) && sudo /usr/bin/systemd-cryptsetup attach unheaded-buildkey "$L" none fido2-device=auto && sudo install -d -m 0750 -o root -g unheaded-buildkey /run/unheaded-buildkey && sudo mount -o nodev,nosuid,noexec /dev/mapper/unheaded-buildkey /run/unheaded-buildkey
+      # The new key beside the old one, under a new name:
+      cd ${REPO} && sudo bin/release/unheaded-keygen -algo mldsa65 -dir /run/unheaded-buildkey -owner unheaded-buildkey <new name>
+      # print-public-key with KEY_NAME=<new name>, then:
       git -C ${REPO} mv compliance/keys/build.pubkey compliance/keys/build-previous.pubkey
-      scp ${CUSTODY_HOST}:/etc/unheaded/keys/<new name>.pub ${REPO}/compliance/keys/build.pubkey
-      # SECURITY.md: both key ids and sha256s, the overlap end date. Verifiers
-      # pass --pubkey twice (cask-verify, verify-binding-rune.sh) until then.
+      sudo cat /run/unheaded-buildkey/<new name>.pub > ${REPO}/compliance/keys/build.pubkey
+      # SECURITY.md: both key ids and sha256s, the overlap end date; signed
+      # commit by Stevie. Verifiers pass --pubkey twice (cask-verify,
+      # verify-binding-rune.sh) until then.
+      # Then sign-a-test-cask and close-and-prove-second-token with the new
+      # name, and copy-encrypted-file-to-backup-host: the copy must hold the
+      # new seed.
       # At the end of the overlap: git rm compliance/keys/build-previous.pubkey
-      # and, on ${CUSTODY_HOST}: sudo shred -u /etc/unheaded/keys/<old name>.key
-    description: "MANUAL. Quarterly rotation, both public keys valid for one quarter."
+      # and, with the volume open: sudo shred -u /run/unheaded-buildkey/<old name>.key
+      # then close, and copy-encrypted-file-to-backup-host once more.
+    description: "MANUAL. Quarterly rotation inside the same volume, both public keys valid for one quarter."
 
   - name: revoke
     action: manual
@@ -156,21 +205,36 @@ steps:
       # Only if the seed is exposed or lost. On the operator's machine:
       git -C ${REPO} rm compliance/keys/build.pubkey
       # SECURITY.md: revoked key id, date, reason. Signed commit by Stevie.
-      # Then this whole runbook for a new KEY_NAME, and re-sign the current
-      # release's cask with the new key (build-sealed-cask.sh as in
-      # sign-a-test-cask, without --no-build), and attach it to the release.
-      # On ${CUSTODY_HOST}, if the seed still exists: sudo shred -u /etc/unheaded/keys/${KEY_NAME}.key
+      # Then a new key under a new KEY_NAME (rotate-quarterly's open and
+      # keygen lines; no overlap for a revoked key), re-sign the current
+      # release's cask with it (build-sealed-cask.sh as in sign-a-test-cask,
+      # without --no-build), and attach it to the release.
+      # If the seed still exists, with the volume open:
+      #   sudo shred -u /run/unheaded-buildkey/${KEY_NAME}.key
+      # then close, and copy-encrypted-file-to-backup-host. Both tokens
+      # lost: the volume cannot be opened again by anyone; generate-build-key
+      # starts over under a new file once the old one is set aside.
     description: "MANUAL. Revocation: the public key leaves the repo first; casks signed with it stop verifying."
 
 verification:
-  - name: seed-owner-only-and-published-key-matches
+  - name: volume-closed-and-public-key-published
     action: shell
     host: ${CUSTODY_HOST}
     command: |
       set -euo pipefail
-      test "$(stat -c '%a %U' /etc/unheaded/keys/${KEY_NAME}.key)" = "400 unheaded-buildkey"
-      grep -q 'unheaded-buildkey' /etc/audit/rules.d/unheaded-buildkey.rules
-      PUB=$(sha256sum < /etc/unheaded/keys/${KEY_NAME}.pub | cut -d' ' -f1)
-      REPO_PUB=$(sha256sum < "${REPO}/compliance/keys/build.pubkey" | cut -d' ' -f1)
-      test "$PUB" = "$REPO_PUB"
-    description: The seed is 0400 to unheaded-buildkey, the audit rule is installed, and the committed build.pubkey is this key's.
+      test ! -e /dev/mapper/unheaded-buildkey
+      if mountpoint -q /run/unheaded-buildkey; then echo "custody volume still mounted"; exit 1; fi
+      test -s "${REPO}/compliance/keys/build.pubkey"
+      git -C "${REPO}" log -1 --format=%G? -- compliance/keys/build.pubkey | grep -qE '^[GU]$'
+    description: The volume is closed, so nothing on the host can read the seed, and build.pubkey is in the repo by a signed commit.
+
+  - name: two-tokens-no-password-and-audit-watch
+    action: manual
+    command: |
+      # On ${CUSTODY_HOST}; these need root. Expect: 2, 2, 1, then audit
+      # lines for the copy to the backup host.
+      sudo cryptsetup luksDump /var/lib/unheaded/custody/buildkey.luks | grep -cE '^\s+[0-9]+: luks2'
+      sudo cryptsetup luksDump /var/lib/unheaded/custody/buildkey.luks | grep -c 'systemd-fido2'
+      sudo auditctl -l | grep -c unheaded-buildkey
+      sudo ausearch -k unheaded-buildkey --start today | tail -3
+    description: "MANUAL. Two key slots, both FIDO2, no password slot; the audit watch is loaded and has recorded an open."

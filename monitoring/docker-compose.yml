@@ -74,6 +74,9 @@ services:
     volumes:
       - ./prometheus:/etc/prometheus:ro
       - prometheus_data:/prometheus
+      # The dev CA, for the https scrape targets (west's TLS services). Not
+      # under /etc/prometheus: that mount is read-only.
+      - ../configs/certs/dev/ca.pem:/etc/prometheus-tls/ca.pem:ro
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'

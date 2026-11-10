@@ -28,9 +28,10 @@ scrape_configs:
   # were :9090 on both, which is this Prometheus on west and nothing on east.
   - job_name: unheaded-daemon
     metrics_path: /metrics
+    tls_config: {ca_file: /etc/prometheus-tls/ca.pem, server_name: localhost}
     static_configs:
       - targets: ['[fd00:dead:beef::1]:19006']
-        labels: {host: west}
+        labels: {host: west, __scheme__: https}
       - targets: ['[fd00:dead:beef::2]:17000']
         labels: {host: east}
 
@@ -187,21 +188,20 @@ scrape_configs:
   # Dashboard backend, one per host (host metrics + service metrics). The
   # dashboard SLO (observability/alerting/policy.yaml) is up on both.
   - job_name: dashboard-backend
+    tls_config: {ca_file: /etc/prometheus-tls/ca.pem, server_name: localhost}
     static_configs:
-      - targets:
-          - '[fd00:dead:beef::1]:20000'
-          - '[fd00:dead:beef::2]:20000'
-        labels:
-          service: "dashboard-backend"
+      - targets: ['[fd00:dead:beef::1]:20000']
+        labels: {service: "dashboard-backend", __scheme__: https}
+      - targets: ['[fd00:dead:beef::2]:20000']
+        labels: {service: "dashboard-backend"}
 
-  # Wotan, one per host; the wotan SLO is up on both.
+  # Wotan: west only until east's debs are upgraded (Evening 10B); east's
+  # 1.0.0 unit crash-loops on a flag, which would burn this SLO from day one.
   - job_name: wotan
+    tls_config: {ca_file: /etc/prometheus-tls/ca.pem, server_name: localhost}
     static_configs:
-      - targets:
-          - '[fd00:dead:beef::1]:18000'
-          - '[fd00:dead:beef::2]:18000'
-        labels:
-          service: "wotan"
+      - targets: ['[fd00:dead:beef::1]:18000']
+        labels: {service: "wotan", __scheme__: https}
 
   # zhen-agentd on west: its API stays on 127.0.0.1:20111; -metrics-addr
   # (env ZHEN_METRICS_ADDR) serves /metrics alone on the WireGuard address,
