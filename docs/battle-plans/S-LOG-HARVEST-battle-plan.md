@@ -450,6 +450,13 @@ This plan builds on what already exists. It doesn't reinvent it.
   - one `input(type="imfile" File="/var/log/pihole/pihole.log" Tag="pihole-dns" Severity="info" Facility="local5")` per file: pihole.log → `pihole-dns`, FTL.log → `pihole-ftl`, webserver.log → `pihole-web`;
   - `*.* action(type="omfwd" Target="10.10.20.1" Port="514" Protocol="tcp" TCP_Framing="octet-counted" Template="RSYSLOG_SyslogProtocol23Format" queue.type="LinkedList" queue.filename="unheaded-fwd" queue.maxDiskSpace="64m" queue.saveOnShutdown="on" action.resumeRetryCount="-1")`.
   The disk queue holds logs while the host relay restarts. That's rsyslog core functionality, **not a new package**.
+  **Written 2026-11-10, and it departs from the line above** (tested with rsyslogd 8.2504.0 on made-up lines, network off; the reasons are in the file's comments):
+  - The queue as specified (disk-assisted, default size) held a share of the lines back until shutdown once it passed its high watermark, and lost lines at shutdown in two runs (178 of 1505, 60 of 1545). The file lines now have their own ruleset with a 5000-line memory queue that makes imfile wait at 4500, so the log file is the buffer. The disk part is kept for shutdown only.
+  - The relay drops above 200 lines a second per sender (burst 1000). `pihole.log.1` peaked at 802 lines in a second and 14,577 in a minute, so the queue sends 150 a second.
+  - `rsyslog.conf` in the container has `$RepeatedMsgReduction on`, which folded 500 identical lines into one "message repeated". It is off for the two forward actions; `/var/log/syslog` keeps it.
+  - File lines go to the relay only, not also into the container's `/var/log/syslog` (the DNS log is personal data). The container's own syslog has a separate memory queue that drops when full, so local logging never waits on the relay.
+  - Results on the file as committed: burst 1505 of 1505, relay down 12 s 8050 of 8050, relay restart 2000 of 2000, rsyslog restart 3000 of 3000, rsyslog stopped while the relay is down 998 of 1000 (the batch in hand). Never more than 150 a second.
+  - Not done: `rsyslogd -N1` on the container's 8.2312.0 (Step 153). rsyslogd is AppArmor-confined on west and in the container, so the tests ran the host binary in a container with no network.
 - [ ] **Step 151** [B] ~2m: Check that rsyslog in the container has imfile (it's part of the rsyslog package; check, don't install).
   ```bash
   sudo -n /snap/bin/lxc exec pihole -- sh -c 'ls /usr/lib/x86_64-linux-gnu/rsyslog/ | grep -E "imfile|omfwd" ; rsyslogd -v | head -1'
@@ -475,8 +482,40 @@ This plan builds on what already exists. It doesn't reinvent it.
 - [ ] **Step 160** [V] ~1m: A `pihole/dns` row (unit = the relay's `UNHEADED_SOURCE`, host `pihole`) with the query, `retention=operational` from the row, not the facility.
 - [ ] **Step 161** [B] ~3m: Durability. Stop the relay for 60 s, send a canary, start the relay → the canary arrives (rsyslog's disk queue held it).
 - [ ] **Step 162** [V] ~1m: It arrived exactly once.
+  Note 2026-11-10: the canary waits in rsyslog's memory queue or in the log file, not on disk (Step 150). TCP has no acknowledgement, so a line written to the socket as the relay stops can be lost and a batch can arrive twice; Step 164d fills a loss.
 - [ ] **Step 163** [V] ~1m: **PHASE 6 EXIT GATE.** All four Pi-hole sources have rows, the DNS canary works end to end, and the queue survives a relay restart.
 - [ ] **Step 164** [C] ~1m: Commit `[PLAN S-LOG-HARVEST] Steps 141-164: Pi-hole ships`.
+
+### The old history (Steps 164a–164f, added 2026-11-10, lettered so the numbering holds)
+
+Stevie, 2026-11-09 (#33): export the old Pi-hole history into the relay's format, lose nothing, then delete the retired rows. `scripts/pihole-history.sh` does it; `scripts/test-pihole-history.sh` proves it on made-up data. The staging directory holds personal data (every LAN client and every name it looked up): it is 0700, outside the repo, and the last stage removes it. Needs Steps 141–163 passed, so the relay's own `pihole/dns` rows exist.
+
+- [ ] **Step 164a** [STEVIE][S] ~5m: Export. Read-only in the container; FTL's session table is not exported. Root only makes the directory; the tool runs as you (lxc and docker need no sudo on west).
+  ```bash
+  cd /home/govan/tmp/unheaded && sudo install -d -m 0700 -o "$(id -un)" -g "$(id -gn)" /var/lib/unheaded/pihole-history && scripts/pihole-history.sh export 2>&1 | tail -3 | cut -c1-120; stat -c '%a %U' /var/lib/unheaded/pihole-history; du -sh /var/lib/unheaded/pihole-history/in | cut -c1-60
+  ```
+  Expect: `exported to ...: N log files, M stored queries (zone ...)`, `700 govan`, a size. Else: the message names the file it could not read.
+- [ ] **Step 164b** [B] ~10m: Transform (`clickhouse local`, no network).
+  ```bash
+  cd /home/govan/tmp/unheaded && scripts/pihole-history.sh transform 2>&1 | tail -8 | cut -c1-120
+  ```
+  Expect: rows per unit, rows rebuilt from FTL's table (older than the oldest file line), rows past 90 days counted and not written. Else: "no time at all" names a file with no timestamp in it: stop, and read that file's head.
+- [ ] **Step 164c** [B] ~10m: Load. It refuses until the relay's rows match staged lines, so the two meet without a gap.
+  ```bash
+  cd /home/govan/tmp/unheaded && scripts/pihole-history.sh load 2>&1 | tail -8 | cut -c1-120
+  ```
+  Expect: rows loaded per unit, and the count left to the relay's own copy. Else: "no relay rows" → Phase 6 is not live yet; "match nothing" → the relay's rows and the files disagree: STOP, do not pass `--allow-no-overlap` without reading both.
+- [ ] **Step 164d** [V] ~3m: Verify. A rerun of `load` adds nothing; a rerun after a relay gap loads only what the relay did not ship.
+  ```bash
+  cd /home/govan/tmp/unheaded && scripts/pihole-history.sh verify 2>&1 | tail -4 | cut -c1-120
+  ```
+  Expect: every staged row is in the table or left to the relay's copy, exit 0. Else: do not clean; the staging is the only copy outside the container.
+- [ ] **Step 164e** [S] ~1m: Clean (refuses without a passed verify).
+  ```bash
+  cd /home/govan/tmp/unheaded && scripts/pihole-history.sh clean 2>&1 | tail -2 | cut -c1-100; sudo rmdir /var/lib/unheaded/pihole-history 2>/dev/null; test ! -e /var/lib/unheaded/pihole-history && echo GONE
+  ```
+  Expect: `staging removed`, then `GONE` (the tool empties the directory; root removes the empty directory it made).
+- [ ] **Step 164f** [W][C] ~10m: Delete the retired rows `pihole/pihole-log`, `pihole/ftl-log`, `pihole/webserver-log` from `config/logging/sources.yaml` (keep `lan/dns-queries`), rerun `scripts/check-log-sources.sh` and the gap map, commit. Imported rows carry `source = 'import'`.
 
 ---
 

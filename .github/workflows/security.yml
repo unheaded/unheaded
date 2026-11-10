@@ -696,6 +696,12 @@ jobs:
       - name: Vector config and its tests
         run: ./scripts/test-vector-config.sh
 
+      # S-LOG-HARVEST Steps 164a-164f: the Pi-hole history import loses no
+      # line and loads none twice, on made-up data, in containers with the
+      # network off.
+      - name: Pi-hole history import
+        run: ./scripts/test-pihole-history.sh
+
       # ADR-100 / FND-001: Prometheus -> Alertmanager -> alert-mailer -> SMTP
       # sink on throwaway containers; urgency none mails no one; the cap holds.
       - name: Alert path end to end

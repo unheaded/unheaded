@@ -781,6 +781,16 @@ provoke_vector_config() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_pihole_history() {
+    # Contract (S-LOG-HARVEST Step 164c): a line the relay already shipped is
+    # not imported again. Drop the relay's count from the load's condition.
+    local f="scripts/pihole-history/load-lines.sql"
+    backup "${f}"
+    sed -i 's|i.msg_ordinal + l.shipped <= i.msg_total|i.msg_ordinal <= i.msg_total|' "${REPO_ROOT}/${f}"
+    grep -q 'i.from_db = 0 AND i.msg_ordinal <= i.msg_total' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_lich_cargo_fuzz() {
     # Contract (ADR-062): a Rust libFuzzer target that crashes fails the run.
     # Make fuzz_mbc_decode panic on every input.
@@ -1328,6 +1338,7 @@ check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, lo
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
 test-vector-config|provoke_vector_config|slow|the sudo auth-failure pattern in config/vector/vector.yaml edited so its test no longer matches (needs docker)
+test-pihole-history|provoke_pihole_history|slow|pihole-history's load no longer skipping the lines the relay already holds (needs docker)
 lich-cargo-fuzz|provoke_lich_cargo_fuzz|slow|fuzz_mbc_decode panicking on every input (nightly Rust; LICH_FUZZ_SECONDS=5 shortens it)
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 wireguard/test-rotate-psk|provoke_rotate_psk|fast|the rollback branch of rotate-psk.sh made a no-op
