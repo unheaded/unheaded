@@ -39,15 +39,24 @@ table inet unheaded {
 		# LXD containers: DHCP and DNS from lxdbr0's dnsmasq.
 		iifname "lxdbr0" udp dport { 53, 67 } accept
 		iifname "lxdbr0" tcp dport 53 accept
+		# Syslog relay (ADR-124): the Pi-hole container forwards its logs here.
+		iifname "lxdbr0" tcp dport 514 accept
+		iifname "lxdbr0" udp dport 514 accept
 
-		# Docker bridges: the monitoring stack scrapes host ports.
-		iifname "docker0" tcp dport { 9100, 9110, 9323, 16666-26666 } accept
-		iifname "br-*" tcp dport { 9100, 9110, 9323, 16666-26666 } accept
+		# Docker bridges: the monitoring stack scrapes host ports, and
+		# Prometheus remote-writes to VictoriaMetrics (8428) over the host.
+		iifname "docker0" tcp dport { 8428, 9100, 9110, 9323, 16666-26666 } accept
+		iifname "br-*" tcp dport { 8428, 9100, 9110, 9323, 16666-26666 } accept
 
-		# Home LAN: ssh and the haproxy edge. Nothing else (lxd 8443,
-		# node_exporter, huginn, dockerd metrics, BGP) is offered to the LAN,
+		# Home LAN (Stevie 2026-11-03): ssh, the haproxy edge, the apt repo
+		# (plain HTTP on 18888), and the web UIs on their direct ports. DNS
+		# rides the wlp17s0 DNAT to Pi-hole, so it never reaches this chain.
+		# Docker-published ports are not filtered here either: they DNAT in
+		# Docker's chains. LXD's 8443 is the laptop only. Nothing else
+		# (node_exporter, huginn, dockerd metrics, BGP) is offered to the LAN,
 		# and nothing at all to the ISP IPv6 prefix except ssh over link-local.
-		iifname "wlp17s0" ip saddr 192.168.69.128/25 tcp dport { 7375, 80, 443 } accept
+		iifname "wlp17s0" ip saddr 192.168.69.128/25 tcp dport { 7375, 80, 443, 18888, 16666, 20000, 20001, 20002, 20103 } accept
+		iifname "wlp17s0" ip saddr 192.168.69.132 tcp dport 8443 accept comment "LXD: Stevie's laptop only"
 		iifname "wlp17s0" ip6 saddr fe80::/10 tcp dport 7375 accept
 
 		limit rate 5/minute log prefix "unheaded-drop: " level info
@@ -70,6 +79,13 @@ table inet unheaded {
 
 		ct state established,related accept
 		ct state invalid drop
+
+		# Docker-published ports (2026-11-04 review): DNAT skips input, so scope
+		# them here. Nothing published reaches the ISP IPv6 prefix; the LAN gets
+		# only the agreed UIs and Pi-hole's DNS; everything else is dropped.
+		iifname "wlp17s0" ct status dnat meta nfproto ipv6 counter drop comment "no published port on the ISP prefix"
+		iifname "wlp17s0" ct status dnat ip saddr 192.168.69.128/25 meta l4proto { tcp, udp } ct original proto-dst { 53, 3000, 3001, 16666, 20000, 20001, 20002, 20103 } accept
+		iifname "wlp17s0" ct status dnat counter drop comment "published ports stay off the LAN unless agreed"
 
 		iifname "lxdbr0" oifname { "enp16s0", "wg0" } jump container_to_east
 		iifname "docker0" oifname { "enp16s0", "wg0" } jump container_to_east

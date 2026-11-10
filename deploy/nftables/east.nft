@@ -26,7 +26,7 @@ table inet unheaded {
 		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
 		icmp type echo-request limit rate 10/second accept
 
-		iifname "enp2s0" tcp dport 22 accept comment "ssh from anywhere on the P2P link (lockout guard)"
+		iifname "enp2s0" tcp dport 7375 accept comment "ssh from anywhere on the P2P link (lockout guard)"
 		iifname "enp2s0" ip saddr 192.168.13.2 accept comment "west: BGP, BFD, WireGuard, services, scrapes"
 		iifname "enp2s0" ip6 saddr fe80::/10 accept
 		iifname "wg0" accept
