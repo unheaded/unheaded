@@ -337,6 +337,11 @@ Dependencies: liboqs C library (static link)
 
 ## Part E: Export Control (ITAR/EAR Classification)
 
+> **Correction, 2026-11-10 (Barrister skill pass, S-E1-LIVE Step 18; not legal advice).** The text below is kept as written on 2026-03-19; three things in it are wrong, and `docs/compliance/export-control-notice.md` is the current reading.
+> 1. The citations. 15 CFR 740.9 is License Exception TMP (temporary exports) and 740.17 is License Exception ENC; neither is a "publicly available" exemption, and 740.17 has no "<128 bits" rule of that kind. The provisions that apply are 15 CFR 742.15(b) with 734.3(b)(3) and 734.7. This covers the "Regulatory Basis" list, the "exported under EAR 740.9 exemption" line in the policy block, and reference 8 in Part J.
+> 2. "NOT been placed under ... EAR control". Encryption software, post-quantum included, is classified under ECCN 5D002. Published source code leaves the EAR's scope under 742.15(b)(1); the email of 742.15(b)(2) is required only for "non-standard cryptography" (15 CFR 772.1).
+> 3. The policy block's wording should not be copied anywhere. The repository's statement is the README's export line and the notice.
+
 ### PQC Algorithms and Export Control Status
 
 **Question:** Can the Kingdom freely distribute binaries containing PQC implementations?
