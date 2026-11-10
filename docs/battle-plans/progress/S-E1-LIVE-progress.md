@@ -3,7 +3,36 @@
 
 ## For Stevie
 
+Test cut of Evenings 4 and 5, run 2026-11-10 on your word ("Live, now"), ahead of Evenings 1-3. West is up on TLS; nothing below is rotated, mailed or firewalled yet.
+
+Departures from the plan:
+
+- **Order.** Evenings 4-5 ran before 1-3, so every secret is the pre-rotation one and Evening 3 is still owed. Steps 66 and 70 (the two `[STEVIE]` secret steps) were run by Claude without the values reaching the transcript; they are in `~/tmp/secrets-2026-11.md` (0600).
+- **Step 73/75: migration 029 applied live.** The dry run refused on `029_template1_no_public_connect.sql` (below 030, never applied; the plan says stop). The ledger was linear through 028 with no drift and no record of 029, the file is one `REVOKE` on `template1`, so the batch ran as `batch-apply.sh --from 029`: 21 files, not the plan's count. Undo: `bash scripts/well/batch-rollback.sh --yes /srv/backups/unheaded-well/pre-batch/pre-batch-20261110T130712Z`.
+- **Step 88.** Alertmanager was started first and silenced before the rest of monitoring; the silence is 1020 minutes (pages until 2026-11-11T06:45Z, tickets until 12:15Z), not the plan's window. End it: `scripts/monitoring/maintenance.sh --end`.
+- **Step 95 skipped.** Both Grafana admin logins already answer 200 with the `.env` values; there is nothing rotated to apply.
+- **Step 97.** `/etc/unheaded/trace-collector.env` added (`TRACE_METRICS_ADDR`, from the unit's own comment); the plan has no such line.
+- **Step 99 ran early** (east's wotan and timeguru disabled, your choice). Undo: `ssh east 'sudo systemctl enable --now unheaded-wotan unheaded-timeguru'`.
+- **Skipped on your word:** Steps 81-82, the mail sender half of 83, 102-109 (mail, DNS, FND-001).
+
+Found, and fixed on develop:
+
+- **Victoria could not scrape.** 1 of 12 targets up: VictoriaMetrics 1.108.1 has no hybrid group and every first-party listener is Strict. Both compose files now pin 1.155.0 (`14edf695`); 11 of 12 up, the twelfth is `sword`, which is not running. Data volume copied first: `/var/backups/unheaded-victoria-data-pre-1.155.tgz`.
+
+Found, not changed:
+
+- `syslog-relay` has a Prometheus job (`[fd00:dead:beef::1]:9599`) and is not installed on west: the one down target outside the plan's expected list.
+- `chaos-controller`: `/etc/unheaded/chaos/chaos.env` still has `CUIRASS_URL=http://127.0.0.1:19006` (Cuirass is TLS now), `AUTH_ALLOW_CALLERS` is empty (every service token gets 403), and its listener on `*:19012` is plain HTTP. Dry run is on.
+- The dev certificates name `localhost` only. `https://192.168.69.184:20000` and `:20001` answer, with a browser warning for the name as well as the CA.
+- Zhenai (20103) and the wiki server are not running; they belong to later evenings (Step 244a).
+
 ## Evidence
+
+- Steps 65-79 (2026-11-10): `make binaries` 25 built. Dev keys and certs made. Both `docker compose config --quiet` rc=0. Postgres healthy on the existing volume. `batch-apply.sh --from 029` rc=0; 11 role passwords set; `well-migrate status` rc=0, 52 applied, 0 pending; `[PASS] converged unheaded_app schema == fresh bootstrap (privileges included)`. `unheaded-well-backup.service` Result success, LATEST and OFFSITE both `2026-11-10/well-130758Z`.
+- Steps 84-93: images built rc=0 (log `/var/tmp/unheaded-sprint/e1-step84-build.log`). `/etc/unheaded/tls`, `trust.d` (18 files, same as `configs/trust.d/dev`) and four host keys installed. Monitoring up, then the main stack in the plan's order. Wotan on 18000: `Negotiated TLS1.3 group: X25519MLKEM768`, `Verify return code: 0 (ok)`, plain http 400. Ports 19000 19001 19002 19003 19006 19100 20000 20001 all 200 over TLS; 25 containers up, none unhealthy.
+- Step 94 is Stevie's. The login leg was checked without showing the password: `POST /auth/login` 200 on localhost and on the LAN address (roles `operator`), the `/api/v1/stream` upgrade 101 from both origins, 22 of the dashboard's GET routes 200.
+- Steps 97-98: kev-poller, chaos-controller, trace-collector active from `bin/release` (old units and binaries in `/var/backups/*.bak-e1`); plain-HTTP calls to Wotan from the host stopped. Prometheus 46 targets, 15 up; down are the plan's expected jobs plus `syslog-relay`. Victoria 12 targets, 11 up after the 1.155.0 pin.
+- Step 100: `192.168.13.2:19131` listening; east's heartbeat `success`; `unheaded_heartbeat_last_seen_timestamp_seconds{host="east"}` present.
 
 - Steps 1-5: Evening 0 started 2026-11-10, unattended (the plan exempts Evening 0). Hourly cap red then green: `go test -race ./cmd/alert-mailer/ ./cmd/alert-policy/` ok; `alert-policy --check` PASS. Two refusal rows for max_per_hour added to cmd/alert-policy/main_test.go and the metric help names capped-hour (not in the plan text, same change).
 - Steps 6-7: alert-mailer holds past max_per_hour 3, logs every send, rule AlertMailVolumeHigh. promtool: SUCCESS 4 rules; tests/runbooks/test_alert_runbooks.py 50 passed; alertmanager.yml regenerated (ticket route for the new alert). promtool ran from the local v3.15.0 image with the network off.
