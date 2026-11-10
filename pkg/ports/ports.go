@@ -66,6 +66,9 @@ const (
 	AlertMailer          = 19130 // alert-mailer: Alertmanager webhook to capped email (ADR-100)
 	AlertMailerHeartbeat = 19131 // alert-mailer: dead-man's switch heartbeats from the other host only (ADR-100)
 
+	// Log store (19140-19149)
+	LogstoreWriter = 19140 // logstore-writer: Vector's second sink, journal rows into the Well (S-E1-LIVE Evening 16)
+
 	// Applications (20000-20999)
 	DashboardBackend = 20000
 	KanbanApp        = 20001

@@ -370,6 +370,15 @@ sources:
     canary: http-get
     owner: developer
     status: "blocked:FND-001"
+  - id: west/compose-logstore-writer
+    host: west
+    kind: journal-container
+    match: unheaded-logstore-writer
+    retention: operational
+    max_silence: 7d
+    canary: "none: logs its start, refusals and maintenance failures only; it logs no request"
+    owner: developer
+    status: "blocked:FND-001"
   - id: west/compose-captain
     host: west
     kind: journal-container

@@ -31,6 +31,7 @@ func TestConfig_NoCredentialDefaults(t *testing.T) {
 		"ops writer": {OpsWriterConfig(), "ops_writer"},
 		"kanban":     {AppKanbanConfig(), "app_kanban"},
 		"auth":       {AppAuthConfig(), "app_auth"},
+		"log writer": {LogWriterConfig(), "log_writer"},
 	} {
 		if c.cfg.User != c.user {
 			t.Errorf("%s: default user %q, want scoped role %q", name, c.cfg.User, c.user)

@@ -158,6 +158,22 @@ func AppAuthConfig() Config {
 	}
 }
 
+// LogWriterConfig returns the database config for cmd/logstore-writer: the
+// scoped role log_writer on unheaded_ops, which may INSERT into log_events
+// and call log_events_maintain() and nothing else (migration 048). There is
+// no default password.
+func LogWriterConfig() Config {
+	return Config{
+		Host:        getEnv("WELL_HOST", "localhost"),
+		Port:        getEnv("WELL_PORT", "5432"),
+		User:        getEnv("WELL_USER", "log_writer"),
+		Password:    os.Getenv("WELL_PASSWORD"),
+		DBName:      getEnv("WELL_DB", "unheaded_ops"),
+		SSLMode:     getEnv("WELL_SSLMODE", "require"),
+		SSLRootCert: os.Getenv("WELL_SSLROOTCERT"),
+	}
+}
+
 func getEnv(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v

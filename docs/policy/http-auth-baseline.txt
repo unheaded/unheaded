@@ -6,6 +6,7 @@
 cmd/alert-mailer/main.go
 cmd/heimdall-daemon/metrics.go
 cmd/huginn/main.go
+cmd/logstore-writer/main.go
 cmd/routing-health/main.go
 cmd/steel-echo/serve.go
 cmd/syslog-relay/main.go

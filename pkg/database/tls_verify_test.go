@@ -240,7 +240,7 @@ func TestDSN_SSLRootCert(t *testing.T) {
 }
 
 func TestConfigs_ReadWellSSLRootCert(t *testing.T) {
-	builders := map[string]func() Config{"ops": OpsWriterConfig, "kanban": AppKanbanConfig, "auth": AppAuthConfig}
+	builders := map[string]func() Config{"ops": OpsWriterConfig, "kanban": AppKanbanConfig, "auth": AppAuthConfig, "log": LogWriterConfig}
 	t.Setenv("WELL_SSLROOTCERT", "x")
 	unsetenv(t, "WELL_SSLROOTCERT")
 	for name, build := range builders {

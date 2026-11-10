@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Stevie Bellis.
+#
+# Unit tests for well_rows, what the well_logs sink may carry (S-E1-LIVE
+# Step 279): west's own journal rows, redacted; never a row the syslog relay
+# filed for a device (config/logging/sources.yaml, Privacy).
+# Run: scripts/test-vector-config.sh
+tests:
+  - name: a west journal row goes to the Well copy, redacted
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "connecting with password=hunter2hunter2"
+          host: west
+          _SYSTEMD_UNIT: unheaded-wotan.service
+          PRIORITY: "6"
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "1"
+    outputs:
+      - extract_from: well_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "west")
+              assert_eq!(.unit, "unheaded-wotan.service")
+              assert_eq!(.message, "connecting with password=[REDACTED]")
+
+  - name: a Pi-hole query the relay filed never goes to the Well copy
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "query[A] example.org from 10.10.20.1"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          PRIORITY: "6"
+          SYSLOG_IDENTIFIER: pihole-dns
+          UNHEADED_SOURCE: pihole/dns
+          UNHEADED_SOURCE_HOST: pihole
+          UNHEADED_RETENTION: operational
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "2"
+    no_outputs_from:
+      - well_rows
+
+  - name: a relayed line with no stamps (host unknown) does not go either
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "anything"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: journal
+          PRIORITY: "6"
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "3"
+    no_outputs_from:
+      - well_rows
+
+  - name: the relay's own log lines (stdout) are west's and go
+    inputs:
+      - insert_at: journal_rows
+        type: log
+        log_fields:
+          message: "listening on 514"
+          host: west
+          _SYSTEMD_UNIT: unheaded-syslog-relay.service
+          _TRANSPORT: stdout
+          PRIORITY: "6"
+          _BOOT_ID: b1
+          __MONOTONIC_TIMESTAMP: "4"
+    outputs:
+      - extract_from: well_rows
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.unit, "unheaded-syslog-relay.service")

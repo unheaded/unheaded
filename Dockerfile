@@ -75,6 +75,9 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/unheaded-auth ./cmd/unheaded-auth && \
     CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
+    -o /build/bin/logstore-writer ./cmd/logstore-writer && \
+    CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/healthprobe ./cmd/healthprobe
 
 # ============================================================================
@@ -441,6 +444,30 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD ["/usr/local/bin/healthprobe", "19020"]
 
 ENTRYPOINT ["/app/unheaded-auth"]
+
+# ============================================================================
+# LOGSTORE-WRITER: journal rows from Vector into the Well's log_events, for
+# the measured week (S-E1-LIVE Evening 16, migration 048). No volume: it
+# keeps nothing on disk.
+# ============================================================================
+FROM runtime AS logstore-writer
+
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16756 logstore-writer && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16756 -G logstore-writer logstore-writer
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/logstore-writer /app/logstore-writer
+
+USER 16756:16756
+
+EXPOSE 19140
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/healthprobe", "19140"]
+
+ENTRYPOINT ["/app/logstore-writer"]
 
 # ============================================================================
 # DEFAULT: ALL-IN-ONE (for development)

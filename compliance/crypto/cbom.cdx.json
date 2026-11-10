@@ -3834,7 +3834,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "scripts/wireguard/test-rotate-psk.sh:109:wireguard",
+      "bom-ref": "scripts/wireguard/test-rotate-psk.sh:111:wireguard",
       "name": "WireGuard peer",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -3869,7 +3869,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "scripts/wireguard/test-rotate-psk.sh:109"
+          "value": "scripts/wireguard/test-rotate-psk.sh:111"
         }
       ]
     },

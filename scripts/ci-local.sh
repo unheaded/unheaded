@@ -201,6 +201,14 @@ else
     skip_step "retention job (throwaway Well)" "docker not available"
 fi
 
+# 11b-2. Log store table (S-E1-LIVE Step 279): migration 048 on a throwaway
+#      server; never the live Well.
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+    run_step "log store table (throwaway Well)" scripts/well/test-log-events.sh --go
+else
+    skip_step "log store table (throwaway Well)" "docker not available"
+fi
+
 # 11c. eBPF verifier-instruction ratchet (ADR-012; S-TRUE-WIRE Phase 7):
 #      loads every program (root) and compares the kernel's verified counts
 #      with docs/policy/ebpf-insns-baseline.tsv. Its baseline is west's

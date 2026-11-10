@@ -93,5 +93,6 @@ set_password config_reader  CONFIG_READER_PASSWORD
 set_password huginn_reader  HUGINN_READER_PASSWORD
 set_password well_backup    WELL_BACKUP_PASSWORD
 set_password retention_runner RETENTION_RUNNER_PASSWORD
+set_password log_writer     LOG_WRITER_PASSWORD
 
 echo "=== The Well — Ready ==="

@@ -85,6 +85,8 @@ for f in "${FILES[@]}"; do
 	while read -r role; do
 		[[ "$role" =~ ^[a-z_][a-z0-9_]*$ ]] || continue
 		grep -qE "^CREATE ROLE \"?$role\"?;" "$SET/globals.sql" && continue
+		# A file the MANIFEST lists for two databases names its role twice.
+		[[ " ${ROLES[*]} " == *" $role "* ]] && continue
 		ROLES+=("$role")
 	done < <(grep -oiE 'CREATE ROLE +[a-z_][a-z0-9_]*' "$DIR/$f" | awk '{print tolower($3)}' | sort -u)
 done

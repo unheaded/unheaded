@@ -120,13 +120,13 @@ run 2 "rollback refuses a set whose checksums fail" rollback --yes "$TMP/corrupt
 rm -rf -- "$TMP/corrupt"
 before="$(ledger_max)"
 WELL_MIGRATIONS_DIR="$TMP/broken/migrations" run 0 "rollback without --yes prints the plan" rollback "$PRE1"
-grep -q "roles to drop: app_auth retention_runner" "$TMP/out" && pass "the plan names the roles the batch created" || fail "plan: $(grep roles "$TMP/out")"
+grep -q "roles to drop: app_auth retention_runner log_writer\$" "$TMP/out" && pass "the plan names the roles the batch created" || fail "plan: $(grep roles "$TMP/out")"
 [[ "$(ledger_max)" == "$before" ]] && pass "the plan changed nothing" || fail "plan-only run changed a ledger"
 WELL_MIGRATIONS_DIR="$TMP/broken/migrations" run 0 "A1: rollback --yes" rollback --yes "$PRE1"
 [[ "$(ledger_max)" == "$AT029" ]] && pass "A1: every ledger back at 029" || fail "A1: ledgers $(ledger_max), want $AT029"
 [[ "$(sq unheaded_ops "SELECT to_regclass('llm_requests') IS NULL")$(sq unheaded_app "SELECT to_regclass('api_keys') IS NULL")$(sq unheaded_ops "SELECT to_regclass('slo_definitions') IS NULL")$(sq unheaded_ops "SELECT to_regclass('retention_runs') IS NULL")" == tttt ]] &&
 	pass "A1: the batch's tables are gone" || fail "A1: batch tables survived"
-[[ "$(sq postgres "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_auth', 'retention_runner')")" == 0 ]] && pass "A1: the batch's roles are gone" || fail "A1: app_auth or retention_runner survived"
+[[ "$(sq postgres "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_auth', 'retention_runner', 'log_writer')")" == 0 ]] && pass "A1: the batch's roles are gone" || fail "A1: app_auth, retention_runner or log_writer survived"
 [[ "$(sq unheaded_app "SELECT count(*) FROM kanban_tasks WHERE id = 'pre-batch-card'")" == 1 ]] && pass "A1: rows written before the batch kept" || fail "A1: pre-batch row lost"
 [[ "$(sq unheaded_app "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'kanban_tasks'::regclass")" == well_app_owner ]] &&
 	pass "A1: owners restored (kanban_tasks is well_app_owner's)" || fail "A1: kanban_tasks owner"

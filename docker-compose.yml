@@ -400,6 +400,7 @@ services:
       CONFIG_READER_PASSWORD: ${CONFIG_READER_PASSWORD:-}
       HUGINN_READER_PASSWORD: ${HUGINN_READER_PASSWORD:-}
       RETENTION_RUNNER_PASSWORD: ${RETENTION_RUNNER_PASSWORD:-}
+      LOG_WRITER_PASSWORD: ${LOG_WRITER_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"   # loopback only — host clients use localhost, containers use docker DNS; keeps The Well off the LAN
     volumes:
@@ -547,9 +548,12 @@ services:
       - ALL
     environment:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env - credentials are not stored in this repo}
+      # The well_logs sink's bearer token for logstore-writer (the measured week).
+      LOGSTORE_INGEST_TOKEN: ${LOGSTORE_INGEST_TOKEN:?set LOGSTORE_INGEST_TOKEN in .env - credentials are not stored in this repo}
     restart: unless-stopped
     volumes:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - ./configs/certs/dev/ca.pem:/etc/vector/tls/ca.pem:ro   # the dev CA, to verify logstore-writer
       - /var/log/journal:/var/log/journal:ro
       - vector-data:/var/lib/unheaded-vector
     # Vector's metrics for monitoring/prometheus (job vector, rules/logs.yml).
@@ -1559,6 +1563,75 @@ services:
         limits:
           # argon2id: 64 MiB per login, at most two at once.
           memory: 256M
+          cpus: "0.5"
+
+  # logstore-writer, the measured week's second copy of the host journal rows
+  # (S-E1-LIVE Evening 16, Steps 279 and 281; ADR-117). Vector posts the rows
+  # it already ships to ClickHouse, after the same redaction, to /ingest;
+  # this inserts them into unheaded_ops.log_events as log_writer (INSERT and
+  # one function, migration 048). ClickHouse stays the record. No host port:
+  # Vector and VictoriaMetrics reach it on the observe network, it reaches
+  # The Well on data. Off switch: remove Vector's well_logs sink, then
+  # `docker compose stop logstore-writer`.
+  logstore-writer:
+    logging: *journald-logging
+    build:
+      context: .
+      target: logstore-writer
+    container_name: unheaded-logstore-writer
+    user: "16756:16756"   # pkg/uids
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      # TLS 1.3 with the dev CA, like every listener. Preferred, not Strict:
+      # the pinned Vector links OpenSSL 3.0, which has no X25519MLKEM768, so
+      # a Strict listener would refuse the one client this has. Strict comes
+      # back with a Vector built on OpenSSL 3.5 or later.
+      UNHEADED_TLS_ENABLED: "true"
+      UNHEADED_TLS_PROFILE: "preferred"
+      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
+      UNHEADED_TLS_CERT: /etc/unheaded/tls/logstore-writer.pem
+      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/logstore-writer-key.pem
+      UNHEADED_TLS_MTLS_ENABLED: "false"
+      # What Vector must present as a bearer token; at least 32 bytes, or the
+      # writer refuses to start.
+      LOGSTORE_INGEST_TOKEN: "${LOGSTORE_INGEST_TOKEN:?set LOGSTORE_INGEST_TOKEN in .env (credentials are not stored in this repo)}"
+      WELL_HOST: "postgres"
+      WELL_PORT: "5432"
+      WELL_USER: "log_writer"
+      WELL_PASSWORD: "${LOG_WRITER_PASSWORD:?set LOG_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
+      WELL_DB: "unheaded_ops"
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
+      # Under the 192M limit, so the GC works harder before the kernel kills.
+      # Two batches of at most 8 MiB are in memory at once.
+      GOMEMLIMIT: "150MiB"
+    volumes:
+      - ./configs/certs/dev/logstore-writer:/etc/unheaded/tls:ro   # this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
+    networks:
+      - data
+      - observe
+    depends_on:
+      postgres:
+        condition: service_healthy
+    labels:
+      kingdom.armor: "vambraces"
+      kingdom.role: "log-store-writer"
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/healthprobe", "19140"]   # https with the CA (cmd/healthprobe)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 192M
           cpus: "0.5"
 
   # Sword, the deploy service (S-REAL-STEEL Phase 8, D-09). Off by default

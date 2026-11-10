@@ -127,6 +127,9 @@ const (
 	// socket, and it is the group's only member. 16740-16754 are the Armory
 	// tier's, so the next free Kingdom number is here.
 	ZhenUIFront = 16755
+	// LogstoreWriter is cmd/logstore-writer (S-E1-LIVE Evening 16): compose
+	// service logstore-writer only. Next free: 16757.
+	LogstoreWriter = 16756
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -238,6 +241,7 @@ var Registry = map[string]int{
 	"vor":               Vor,
 	"syslog-relay":      SyslogRelay,
 	"zhen-ui-front":     ZhenUIFront,
+	"logstore-writer":   LogstoreWriter,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

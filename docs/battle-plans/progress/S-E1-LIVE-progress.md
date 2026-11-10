@@ -64,3 +64,75 @@ Step 244a (Zhen web UI front), run 2026-11-10 without you (your answer: Step 244
 - Steps 16-17: Evening 0 exit gate passed on d9cc6d81 (gofmt, vet, gosec ratchet rc=0, clean tree; also go build, go test -race -shuffle=on 226 ok 0 fail, pytest tests 460 passed 4 skipped, golangci-lint 0 issues, runbook-manifest --check and eleven check scripts rc=0). develop had not moved; merged to local develop as e8978bbf (signed, tree equal to the tested branch). Not pushed. Evening 1 onward is attended: stopped here.
 - Steps 18-19 (2026-11-10): Barrister and Librarian skill passes. Sections read from the eCFR versioner API at 2026-11-05 (title 15 up to date as of 2026-11-06): 742.15(b), 772.1, 734.3, 734.7, 740.13 ((e) "[Reserved]"), 740.9 (TMP), 740.17 (ENC). Tree: pkg/tls, crates/zhend, pkg/secrets/encryption, scripts/wireguard exist; pkg/waf, crates/waf, cmd/waf do not. check-spdx rc=0. Nothing sent.
 - Step 244a (2026-11-10): `id -u unheaded-zhen-ui-front` 16755; `Generated 1 service certificates`; key `640 root unheaded-zhen-ui-front`; `/run/unheaded-zhen-ui` `2750 govan unheaded-zhen-ui-front`; unit `active`, listeners 127.0.0.1:20103 and :20112, `/ready` 503 before the app. After `raft/start-zhen.sh`: socket `660 govan unheaded-zhen-ui-front`, `/ready` 200, `https://localhost:20103/health` 200, `--curves X25519` 000, `client_hellos_total` hybrid 1 classical 1. llama-server: first start aborted (`MUL_MAT failed`, `ROCm error: invalid device function`, two devices); pinned to device 0 it loaded 29/29 layers, `/health` 200 in about a minute, one completion at 119 tokens/s, 5.7 GiB VRAM, 7.7 GiB host memory available afterwards. vor `/api/health` 200. `POST /auth/login` 503 (no issuer).
+
+## Evening 16: log store, the measured week (2026-11-10)
+
+### Step 277: Erda pass (Schema Proposal)
+
+- **Class/vessel:** Kenoma, derived and rebuildable; ClickHouse stays the record. For the week a second copy goes into the existing Well, `unheaded_ops.log_events`. A separate database was the runner-up and loses: a second ledger, backup entry and role set for a seven-day copy, and the point of the week is to measure what this load does to the Well and its backup.
+- **Measured before the design (ClickHouse, read-only, 7 days):** 477,477 rows, all `west journald`, 121 units; 54k to 81k rows a day (53,438 on the sample day); about 1.4 kB a row; busiest minute 11,313 rows, p99.9 minute 968; about 10% of rows `audit`. Postgres 16.15, `max_connections` 50.
+- **Sizing:** about 76 MB a day in Postgres, 1.1 GB at 14 days; ClickHouse holds the same day in about 4 MB. On disk Postgres is near 20x, so it fails the Step 278 starting bar (2x) on arithmetic alone, before the week starts. Step 278 is still Stevie's.
+- **Access paths (one day of real rows on a throwaway server):** last hour by host, primary key backward, 5.5 ms; count by unit over 7 days, partition scans, 17 ms a day; text match over 24 h, one partition sequential, 565 ms.
+- **Shape:** daily RANGE partitions on `ts`; primary key `(host, ts, entry)` so a batch sent twice inserts once; no other index; no default partition; `fields` kept as the JSON text ClickHouse holds.
+- **Lifecycle:** 14 days, whole partitions dropped by `log_events_maintain()` (SECURITY DEFINER, `lock_timeout` 2s), called by the writer at start and every five minutes. No row is updated or deleted.
+- **Ownership:** owner `well_ops_owner`; `log_writer` INSERT plus EXECUTE on the one function, no SELECT, connection limit 4; `ops_reader` SELECT.
+- **Lock plan:** new role, new empty table, new function: no lock on anything that exists.
+- **Proof:** `scripts/well/test-log-events.sh --go` on a throwaway server, 51 PASS (grants refuse SELECT/UPDATE/DELETE/TRUNCATE for `log_writer`, partitions made and dropped, duplicate batch inserts once, the writer's own store tests against real Postgres).
+
+### Step 279: migration 048, `cmd/logstore-writer`, the `well_logs` sink
+
+- **Evidence:** `go build ./...` rc=0; `go test -race` ok on `cmd/logstore-writer`, `pkg/uids`, `pkg/ports`, `pkg/database`, `cmd/cert-gen`, `pkg/cmdline`; golangci-lint 0 issues; gitleaks no leaks; `test-vector-config.sh` rc=0 (5 test files, isolation proof: all 20,000 rows reach the record sink while the writer never answers; with `when_full: block` in its place the same run stalls at 11,662); `test-batch-apply.sh` 38 PASS with 048 in the batch; `check-well-lint`, `check-well-migrations`, `check-http-auth`, `check-log-sources`, `check-scrape-publish`, `check-compose-hardening`, `check-compose-log-caps`, `check-http-timeouts`, `check-image-digests`, `check-spdx`, `check-pq-kex`, `check-compose-publish-bind`, `check-json-responses`, `check-hadolint`, `check-secrets-baseline`, `check-unit-ceilings`, `check-usage-errors`, `check-version-flag` (61 binaries), `gen-man.sh` all rc=0.
+- **Departures from the plan text.**
+  - One `INSERT ... SELECT FROM unnest(...) ON CONFLICT DO NOTHING` a batch, not `COPY`: `COPY` cannot skip a row Vector sends twice.
+  - The service sits on `data` and `observe`, not `data` alone: Vector and the scraper reach it over `observe`. No published port.
+  - `/ingest` takes a static bearer token (`LOGSTORE_INGEST_TOKEN`, 32 bytes or more, constant-time compare), not `pkg/auth`: one caller, no identity to map. `docs/policy/http-auth-baseline.txt` gained its row.
+  - The writer's listener runs `UNHEADED_TLS_PROFILE=preferred`: Vector 0.43.1 links OpenSSL 3.0, which has no ML-KEM group. Deployment CA, TLS 1.3. Moving it to Strict needs a Vector bump, a third-party version decision.
+  - 048 is listed for two databases (`postgres` for the role, `unheaded_ops` for the table), as 042 is. `batch-rollback.sh` now names such a role once.
+  - Row cap 6000 a minute, below the busiest measured minute (11,313): a burst that size is dropped at this sink only and counted (`429`); ClickHouse still receives every row.
+  - Rows the syslog relay filed for another device (Pi-hole queries, nginx access lines: personal data under the retention policy) stop at a `well_rows` filter and never reach the Well copy. None exist today (every relayed source is `gap` or `blocked:D7`). The comparison in Step 282 therefore counts west's own journal rows on both sides.
+- **Not touched:** the ClickHouse sink and its `when_full: block`; `vector-east.yaml`.
+
+### Step 278: what counts as "close" (Archimedes reckoning; Stevie decides)
+
+A recommendation, not a decision. Nothing below moves the starting bar; it reports what arithmetic already says against it and names the one choice that is Stevie's.
+
+- **Answer.** Under the starting bar as written, two of the four tests are decided before the week starts, both against Postgres:
+  - **Disk per day:** Postgres holds the same rows in **7x to 26x** the bytes ClickHouse does (bar: 2x). ClickHouse stores a row in 60 to 69 bytes on disk (16x compression, its own `system.parts`); the row's payload alone is 665 to 1,130 bytes, and Postgres would need 137 bytes a row or less to meet 2x. No row store without compression gets there.
+  - **Backup time:** the nightly backup starts and finishes inside one second today (the Well is 36 MB across four databases; 14 sets total 4.1 MB). With the copy inside it the Well grows 11x to 34x at 14 days, a backup set grows from 0.3 MB to 43 to 174 MB, and the dump takes 9 to 44 s. The first night alone adds 0.6 to 3 s. "Under 10%" fails on the first night.
+  - **Still open, and what the week is for:** p95 on the three queries within 2x of ClickHouse; the Well's own p95 moving under 10%; zero stalls on Vector's audit sink.
+- **Fermi check.** 55,000 rows a day at about 1 kB is about 60 MB a day in a row store; ClickHouse at 16x is about 4 MB. Ratio near 15x. Agrees.
+- **Method.** Rows, bytes on disk and uncompressed bytes per partition from ClickHouse `system.parts`; rows and payload bytes per day for 13 full days (10-28 to 11-09); Postgres row size bounded below by 60% of the payload plus 68 bytes of tuple overhead and above by payload plus overhead plus 30% (page fill, the primary key). Database sizes from `pg_database_size`; backup timing from the unit's journal.
+- **Assumptions.**
+  1. The last 13 days stand for the week. Sensitivity: low for the ratio (it is per row), high for absolute size: 10-28 had 301,748 rows, 5.5 times the median day (55,087); fourteen such days would be 2.0 to 6.6 GB, past the writer's 4 GiB ceiling, which then answers 503 and drops at this sink only.
+  2. `pg_dump -Fc` compresses journal text 5x to 12x and runs 20 to 60 MB/s. Not measured here; the first night's backup measures it.
+  3. Postgres 16 with no table compression beyond TOAST. Sensitivity: this is the whole disk result.
+- **Verification (independent path).** Step 277 loaded one real day into a throwaway Postgres and measured about 1.4 kB a row, 76 MB a day, against about 4 MB in ClickHouse: near 20x, inside the 7x to 26x reached here from ClickHouse's own byte counts without touching Postgres.
+- **The lever.** Whether "close" on disk and backup means a **ratio to ClickHouse** or an **absolute cost on this host**. As a ratio the answer is already ClickHouse and the week can only confirm it. As an absolute cost the numbers are small: 0.4 to 1.2 GB of Well at 14 days and a 43 to 174 MB backup set, on a host with 1.1 TB free on `/var` and 53 GB free on `/` (where the 14 sets live: 0.6 to 2.4 GB of them).
+- **Two bars, both written before the data; the choice between them does not depend on anything the week will show.**
+  - **(A) As written.** 2x disk, 2x query p95, under 10% Well p95 and backup time, zero stalls. Verdict today: ClickHouse stays. The week is optional.
+  - **(B) Absolute budgets for the two decided tests, the other three unchanged.** Disk: the Well copy stays at or under 1.5 GB at 14 days and never reaches the 4 GiB ceiling. Backup: the nightly set finishes inside 60 s and stays at or under 250 MB. Query p95 within 2x, Well p95 under 10%, zero audit-sink stalls, as written. This loosens the bar in Postgres's favour on two points, and it should be chosen only if the question is "can a small shop drop a second store", not "which store is cheaper per row".
+- **Recommendation.** (B), stated as the loosening it is. The copy's reason to exist is one store fewer to run; the per-row ratio measures ClickHouse's compression, which nobody doubted. If the per-row ratio is what matters, pick (A) and stop the week (the off switch in Step 281).
+- **For the daily reading (Step 282).** One timing a day for seven days gives a p95 that is just the worst of seven. Each reading runs every query 20 times on each side and records the median and the 19th of 20, so the week's p95 rests on 140 runs a query.
+- **What starting the week sets in motion, for the answer.** The nightly backup set and its copy on east carry the Well copy's rows from the first night (west's own journal rows, secrets masked by Vector; relayed devices' rows never enter). 14 sets are kept on west; east prunes its own and west cannot delete there. To keep them out instead, `pg_dump --exclude-table-data` for `log_events*` in `scripts/db-backup.sh` (and its row counts), which is a change to the live backup path and so waits for Stevie.
+- **Code.** Inputs and arithmetic in the block below; Python 3 standard library.
+
+```python
+parts = {"202610": (3428148, 205595222, 3181937189), "202611": (574373, 39475919, 631310883)}  # rows, disk, raw
+ch = [d / r for r, d, _ in parts.values()]                 # 60.0, 68.7 bytes a row on disk
+pay_lo, pay_med, pay_hi = 665, 1102, 1130                  # payload bytes a row, 13 full days
+pg_lo, pg_hi = 68 + 0.6 * pay_lo, (68 + pay_hi) * 1.30     # 467, 1557
+print(pg_lo / max(ch), pg_hi / min(ch))                    # 6.8, 26.0
+med = 55087                                                # rows on the median day
+print(14 * med * pg_lo / 1e9, 14 * med * pg_hi / 1e9)      # 0.36, 1.20 GB
+print(14 * med * pay_lo / 12 / 1e6, 14 * med * pay_hi / 5 / 1e6)   # backup set, 43 to 174 MB
+print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 44 s
+```
+
+### Step 282: the daily reading (`scripts/logstore-measure.sh`)
+
+- Written before the merge, out of plan order, so a baseline exists from before the Well copy started.
+- One block of `reading_utc<TAB>metric<TAB>value` lines a run. Numbers only: no row, message or unit name is written, and every timed query's result goes to `/dev/null`. Read-only on both stores. A value that cannot be read is `NA` and the run exits 1.
+- **Departure:** the plan names `docs/battle-plans/progress/S-E1-LIVE-logstore.tsv`. Readings are collected data, and collected data lives on the host (Stevie, 2026-11-09), so the default is `~/.local/state/unheaded/S-E1-LIVE-logstore.tsv`; a path argument or `LOGSTORE_TSV` overrides it. Step 283's `git add` therefore carries the script and this file only.
+- Each timed query runs 20 times a side; the file keeps the median and the 19th of 20 (Step 278).
+- Both sides are filtered to `host = 'west'`, the row set the Well copy holds.
+- The Well's own latency is read two ways: one Kanban read timed 20 times, and `pg_stat_statements` totals for every statement that does not touch `log_events` (cumulative; a day is the difference of two readings).

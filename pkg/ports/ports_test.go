@@ -84,6 +84,7 @@ func allPorts(t *testing.T) map[string]int {
 		"KEVPoller":            KEVPoller,
 		"AlertMailer":          AlertMailer,
 		"AlertMailerHeartbeat": AlertMailerHeartbeat,
+		"LogstoreWriter":       LogstoreWriter,
 		"HeimdallMetrics":      HeimdallMetrics,
 	}
 }

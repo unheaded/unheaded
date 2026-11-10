@@ -1,0 +1,32 @@
+.TH LOGSTORE\-WRITER 1 "2026-11-10" "unheaded 6ce98954" "Unheaded Kingdom"
+.SH NAME
+logstore\-writer \- Insert the journal rows Vector posts into the Well's log_events table, capped (S\-E1\-LIVE Evening 16).
+.SH SYNOPSIS
+.B logstore\-writer
+[\fIOPTION\fR]...
+.SH DESCRIPTION
+Insert the journal rows Vector posts into the Well's log_events table, capped (S\-E1\-LIVE Evening 16).
+.SH OPTIONS
+.TP
+.B \-\-addr \fISTRING\fR
+listen address (default :19140)
+.TP
+.B \-\-max\-bytes \fIN\fR
+ceiling on what log_events may hold, in bytes; over it /ingest answers 503 (default 4294967296)
+.TP
+.B \-\-max\-rows\-per\-minute \fIN\fR
+rows accepted in one clock minute; past it /ingest answers 429 (default 6000)
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+The Well login comes from WELL_HOST, WELL_USER, WELL_PASSWORD, WELL_DB, WELL_SSLMODE, WELL_SSLROOTCERT; the ingest token from LOGSTORE_INGEST_TOKEN.
+.SH EXAMPLES
+.EX
+logstore\-writer \-\-max\-rows\-per\-minute 6000 \-\-max\-bytes 4294967296
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

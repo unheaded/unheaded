@@ -67,6 +67,8 @@ unheaded_ops     044_ops_llm_requests_energy.sql
 unheaded_app     045_app_zhen_conversations_client.sql
 unheaded_app     046_app_zhen_confirm_teach_write.sql
 unheaded_app     047_app_zhen_actions_gate_status.sql
+postgres         048_ops_log_events.sql
+unheaded_ops     048_ops_log_events.sql
 unheaded_app     049_app_kanban_zhen_optin.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
