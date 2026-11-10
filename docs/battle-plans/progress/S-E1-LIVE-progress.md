@@ -157,3 +157,10 @@ print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 
   - The daily reading has no timer; a session runs it once a day until he asks for one.
 - Found while checking the silence: the mailer sent one mail today at 15:01:03Z, `[digest] 9 open`. The silences stop Alertmanager from notifying; they do not empty the mailer's own list of open tickets, and the 09:00 America/Chicago digest mails that list. The next one is due 2026-11-11 15:00Z. Question 27 in `~/tmp/next.md` (mailer to `dry-run` until the mail steps run) is the fix and is Stevie's: `observability/alerting/policy.yaml` is policy. Not changed here.
 - Steps 281-283: Route chosen by Stevie; second sink on with drop_newest; close defined before the data.
+
+### Stevie's answers, 2026-11-10 (after the week started)
+
+- **Step 278: (A), the bar as written, and keep measuring.** 2x disk, 2x query p95, under 10% on the Well's p95 and backup time, zero stalls. Disk and backup time are already against Postgres by arithmetic, so the week confirms and supplies the query and Well numbers for Step 284. Bar (B) is not in force.
+- **Backup rows: accepted for the week.** The nightly set and its copy on east carry the Well copy's rows; `scripts/db-backup.sh` is unchanged.
+- **Alert digest: `mailer.mode: dry-run`** in `observability/alerting/policy.yaml` until Steps 81-83 and 102-109 run with him. FND-001 carries the note. The outbox still records what would have gone (`curl -s localhost:19130/v1/outbox`).
+- **Evening 14: the six drafts already on datatracker are prepared as -01** (mbc-isa, pqc-authentication, protocol-foundation, shim, sophia-dictionary, wotan-memory). anamnesis and protocol-overview wait. The upload is his.

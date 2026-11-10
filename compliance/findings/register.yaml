@@ -49,7 +49,9 @@ findings:
       synthetic page sent through smtp.gmail.com:587 (outbox outcome sent, HTTP 204), policy.yaml mailer.mode=send,
       monitoring stack up on west. 2026-11-05: the whole stack has been stopped since 2026-10-28 23:10 UTC, so nothing
       alerts today and east's heartbeat has never succeeded (host-probe:west:alert-route, step E1). Left: the first
-      real SLO page closes this entry; alert-route proves the chain is up, not that a page arrived
+      real SLO page closes this entry; alert-route proves the chain is up, not that a page arrived. 2026-11-10: the
+      stack is up on west as a test cut; the daily digest mailed once through an Alertmanager silence (15:01 UTC), so
+      mailer.mode is dry-run again at Stevie's word until S-E1-LIVE Steps 81-83 and 102-109 run with him
     decision: 'SMTP relay: personal Gmail (Stevie 2026-10-27, short-term; Workspace account later). Left dry-run 2026-10-27'
 
   - id: FND-004
