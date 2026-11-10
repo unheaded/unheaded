@@ -127,3 +127,12 @@ print(14 * med * pg_lo / 1e9, 14 * med * pg_hi / 1e9)      # 0.36, 1.20 GB
 print(14 * med * pay_lo / 12 / 1e6, 14 * med * pay_hi / 5 / 1e6)   # backup set, 43 to 174 MB
 print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 44 s
 ```
+
+### Step 282: the daily reading (`scripts/logstore-measure.sh`)
+
+- Written before the merge, out of plan order, so a baseline exists from before the Well copy started.
+- One block of `reading_utc<TAB>metric<TAB>value` lines a run. Numbers only: no row, message or unit name is written, and every timed query's result goes to `/dev/null`. Read-only on both stores. A value that cannot be read is `NA` and the run exits 1.
+- **Departure:** the plan names `docs/battle-plans/progress/S-E1-LIVE-logstore.tsv`. Readings are collected data, and collected data lives on the host (Stevie, 2026-11-09), so the default is `~/.local/state/unheaded/S-E1-LIVE-logstore.tsv`; a path argument or `LOGSTORE_TSV` overrides it. Step 283's `git add` therefore carries the script and this file only.
+- Each timed query runs 20 times a side; the file keeps the median and the 19th of 20 (Step 278).
+- Both sides are filtered to `host = 'west'`, the row set the Well copy holds.
+- The Well's own latency is read two ways: one Kanban read timed 20 times, and `pg_stat_statements` totals for every statement that does not touch `log_events` (cumulative; a day is the difference of two readings).
