@@ -9,7 +9,7 @@ not what runs; it is in git history.
 
 ```
 root docker-compose.yml (kingdom stack)
-├── victoria (VictoriaMetrics v1.108.1)  :8428   30-day retention, scrapes /etc/victoria/scrape.yml
+├── victoria (VictoriaMetrics v1.155.0)  :8428   30-day retention, scrapes /etc/victoria/scrape.yml
 ├── clickhouse (24.12)                   127.0.0.1:8123 / 127.0.0.1:9000   log store (unheaded_logs.logs)
 └── vector                                journald → ClickHouse; log-volume and auth-failure SLIs
                                           as Prometheus metrics (config/vector/vector.yaml)
@@ -21,7 +21,7 @@ monitoring/docker-compose.yml (monitoring stack, network "monitoring")
 ├── alert-mailer               127.0.0.1:19130  the only thing that sends alert mail (ADR-100)
 ├── grafana (10.4.0)           :3000
 ├── loki (3.0.1)               :3100
-└── victoriametrics (v1.108.1) no host port; 12-month retention inside the monitoring network
+└── victoriametrics (v1.155.0) no host port; 12-month retention inside the monitoring network
 ```
 
 Every container runs as its own uid from `pkg/uids` (Prometheus 16700, Grafana
