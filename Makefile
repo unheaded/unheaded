@@ -112,6 +112,11 @@ build-zhen-mcp: ## Build zhen-mcp (Zhen's MCP server for Claude Code; scripts/zh
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-mcp && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-mcp
 
+build-zhen-ui-front: ## Build zhen-ui-front (hybrid-only TLS 1.3 front for the Zhen web UI, ADR-138; raft/start-zhen.sh runs it)
+	@echo "Building zhen-ui-front..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/zhen-ui-front && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-ui-front
+
 build-zhen-codeindex: ## Build zhen-codeindex (Zhen's source shard, refreshed by scripts/git-hooks/post-commit)
 	@echo "Building zhen-codeindex..."
 	@mkdir -p $(BINARY_DIR)

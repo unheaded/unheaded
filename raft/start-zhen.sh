@@ -15,7 +15,18 @@
 # launch vor either; same fail-fast posture.
 #
 # What this script DOES launch:
-#   • raft/zhen_app.py on :20103 (the Python web UI)
+#   • raft/zhen_app.py on a Unix socket (the Python web UI; no TCP port, no TLS)
+#   • bin/zhen-ui-front on :20103 (ADR-138): TLS 1.3 with hybrid ML-KEM key
+#     exchange only, proxying to that socket. Left alone when the installed
+#     unheaded-zhen-ui-front.service already runs.
+#
+# The socket: ZHEN_UI_SOCKET, else /run/unheaded-zhen-ui/app.sock when the host
+# has made that directory (deploy/systemd/README.md#zhen-ui-front), else
+# $XDG_RUNTIME_DIR/unheaded-zhen-ui/app.sock, mode 0600 in a 0700 directory.
+# The front's certificate: UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE, else the
+# dev pair from `scripts/gen-dev-certs.sh zhen-ui-front`. There is no plaintext
+# mode, in dev too. ZHEN_UI_LISTEN (default 127.0.0.1:20103) is the front's
+# address; a name or address past loopback also goes in ZHEN_ALLOWED_HOSTS.
 #
 # Optional: also start cmd/zhen-agentd if -gated is passed. The chat path
 # goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
@@ -39,7 +50,7 @@ CONTEXT_SIZE="${ZHEN_CONTEXT_SIZE:-16384}"
 LOGPATH="$HOME/tmp/unheaded/scripts/lib/logpath.sh"
 
 # 1. Pre-flight: backends MUST already be up.
-echo "[1/3] Pre-flight backend checks..."
+echo "[1/4] Pre-flight backend checks..."
 
 if ! curl -sf --max-time 3 http://127.0.0.1:8081/health > /dev/null; then
     echo "  ✗ llama-server :8081 not reachable"
@@ -75,7 +86,7 @@ echo "  ✓ vor :20110"
 GATED_FLAG="${1:-}"
 if [[ "$GATED_FLAG" == "-gated" ]]; then
     if ! ss -lnt | awk '$4 ~ /:20111$/ {f=1} END {exit !f}'; then
-        echo "[2/3] Starting cmd/zhen-agentd on :20111 (mutation gating)..."
+        echo "[2/4] Starting cmd/zhen-agentd on :20111 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
         AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
         # zhen-agentd exits 2 without auth (M-019). With a key or an issuer in
@@ -111,17 +122,34 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
             exit 1
         fi
     else
-        echo "[2/3] zhen-agentd already running on :20111 — leaving alone"
+        echo "[2/4] zhen-agentd already running on :20111 — leaving alone"
     fi
 else
-    echo "[2/3] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20111 ('-gated' starts it)"
+    echo "[2/4] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20111 ('-gated' starts it)"
 fi
 
-# 3. Start the Python web UI.
-if ss -lnt 2>/dev/null | awk '$4 ~ /:20103$/ {f=1} END {exit !f}'; then
-    echo "[3/3] Web UI already bound on :20103 — leaving alone (use 'pkill -f zhen_app.py' to restart)"
+# 3. Start the Python web UI on its Unix socket.
+REPO="$HOME/tmp/unheaded"
+if [[ -z "${ZHEN_UI_SOCKET:-}" ]]; then
+    if [[ -d /run/unheaded-zhen-ui && -w /run/unheaded-zhen-ui ]]; then
+        ZHEN_UI_SOCKET=/run/unheaded-zhen-ui/app.sock
+    else
+        ZHEN_UI_SOCKET="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/unheaded-zhen-ui/app.sock"
+        install -d -m 0700 "$(dirname "$ZHEN_UI_SOCKET")"
+    fi
+fi
+export ZHEN_UI_SOCKET
+# The app refuses to start with the retired TCP setting in its environment.
+unset ZHEN_BIND_ADDR
+
+app_answers() {
+    curl -s -o /dev/null --max-time 3 --unix-socket "$ZHEN_UI_SOCKET" http://localhost/health
+}
+
+if app_answers; then
+    echo "[3/4] Web UI already listening on $ZHEN_UI_SOCKET — leaving alone (use 'pkill -f zhen_app.py' to restart)"
 else
-    echo "[3/3] Starting Zhen Web UI on :20103..."
+    echo "[3/4] Starting Zhen Web UI on $ZHEN_UI_SOCKET..."
     source "$HOME/.venv/zhen/bin/activate" 2>/dev/null || true
     export ZHEN_LOCAL_MAX_TOKENS="$CONTEXT_SIZE"
 
@@ -155,13 +183,6 @@ else
     fi
     export ZHEN_DB_HOST="${ZHEN_DB_HOST:-localhost}"
     export ZHEN_DB_PORT="${ZHEN_DB_PORT:-5432}"
-    # Listen address (bandit B104, S-TRUE-WIRE Step 360): loopback unless set. Reaching the
-    # UI from another host is an explicit choice, e.g. ZHEN_BIND_ADDR=10.10.20.1 (west's lxdbr0).
-    # A login from another host needs the UI's own TLS: UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE.
-    # The UI answers only to loopback and that address; any other name goes in ZHEN_ALLOWED_HOSTS.
-    export ZHEN_BIND_ADDR="${ZHEN_BIND_ADDR:-127.0.0.1}"
-    echo "  web UI listen address: ${ZHEN_BIND_ADDR}:20103"
-
     WEBAPP_LOG="$("$LOGPATH" zhen zhen-webapp.log)"
     cd "$HOME/tmp/unheaded/raft"
     nohup python3 zhen_app.py &> "$WEBAPP_LOG" &
@@ -169,22 +190,59 @@ else
     echo "  webapp PID: $WEBAPP_PID"
 fi
 
+# 4. The TLS front on :20103. Nothing else reaches the app from a browser.
+UI_LISTEN="${ZHEN_UI_LISTEN:-127.0.0.1:20103}"
+if systemctl is-active --quiet unheaded-zhen-ui-front.service 2>/dev/null; then
+    echo "[4/4] unheaded-zhen-ui-front.service is running — leaving alone"
+    if [[ "$ZHEN_UI_SOCKET" != /run/unheaded-zhen-ui/app.sock ]]; then
+        echo "  ! the unit proxies to /run/unheaded-zhen-ui/app.sock, but the app is on $ZHEN_UI_SOCKET"
+    fi
+elif ss -lnt 2>/dev/null | awk '$4 ~ /:20103$/ {f=1} END {exit !f}'; then
+    echo "[4/4] :20103 already bound — leaving alone (use 'pkill -f bin/zhen-ui-front' to restart the front)"
+else
+    echo "[4/4] Starting zhen-ui-front on $UI_LISTEN (hybrid-only TLS 1.3)..."
+    FRONT="$REPO/bin/zhen-ui-front"
+    if [[ ! -x "$FRONT" ]]; then
+        echo "  ✗ $FRONT missing: cd $REPO && make build-zhen-ui-front"
+        exit 1
+    fi
+    FRONT_CERT="${UNHEADED_TLS_CERT:-$REPO/configs/certs/dev/zhen-ui-front/zhen-ui-front.pem}"
+    FRONT_KEY="${UNHEADED_TLS_KEY_FILE:-$REPO/configs/certs/dev/zhen-ui-front/zhen-ui-front-key.pem}"
+    if [[ ! -r "$FRONT_CERT" || ! -r "$FRONT_KEY" ]]; then
+        echo "  ✗ no certificate for the front ($FRONT_CERT)"
+        echo "    Make the dev pair, as yourself:  cd $REPO && scripts/gen-dev-certs.sh zhen-ui-front"
+        echo "    or set UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE. The front has no plaintext mode."
+        exit 1
+    fi
+    FRONT_LOG="$("$LOGPATH" zhen zhen-ui-front.log)"
+    UNHEADED_TLS_CERT="$FRONT_CERT" UNHEADED_TLS_KEY_FILE="$FRONT_KEY" nohup "$FRONT" \
+        --listen "$UI_LISTEN" \
+        --socket "$ZHEN_UI_SOCKET" \
+        --metrics 127.0.0.1:20112 \
+        &> "$FRONT_LOG" &
+    echo "  front PID: $!"
+fi
+
 sleep 3
 echo ""
 echo "=== Zhenai Status ==="
-# The UI serves TLS when it holds a pair; -k because this probes its own /health
-# by a name the certificate need not carry.
-UI_URL="http://localhost:20103"
-[[ -n "${UNHEADED_TLS_CERT:-}" ]] && UI_URL="https://localhost:20103"
+# The app is probed on its socket and the front on its loopback ops listener:
+# neither needs a client that speaks the hybrid groups.
+UI_URL="https://localhost:20103"
 curl -s http://localhost:8081/v1/models 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Inference: {d[\"models\"][0][\"name\"]}')" \
     2>/dev/null || echo "Inference: NOT READY"
 curl -s http://localhost:20110/api/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Retrieval: vor — {d[\"sheets\"]} sheets, {d[\"categories\"]} categories')" \
     2>/dev/null || echo "Retrieval: NOT READY"
-curl -sk "$UI_URL/health" 2>/dev/null \
+curl -s --max-time 5 --unix-socket "$ZHEN_UI_SOCKET" http://localhost/health 2>/dev/null \
     | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Web UI:    {d[\"status\"]} (ready={d[\"rag_ready\"]}, well_connected={d[\"well_connected\"]})')" \
     2>/dev/null || echo "Web UI: NOT READY"
+if curl -sf --max-time 5 http://127.0.0.1:20112/ready > /dev/null 2>&1; then
+    echo "TLS front: ready (hybrid ML-KEM only; reaches the app's socket)"
+else
+    echo "TLS front: NOT READY (http://127.0.0.1:20112/ready)"
+fi
 if ss -lnt 2>/dev/null | awk '$4 ~ /:20111$/ {f=1} END {exit !f}'; then
     curl -s http://localhost:20111/health 2>/dev/null \
         | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'Daemon:    {d[\"status\"]} (mutation gating ON)')" \
@@ -193,10 +251,10 @@ else
     echo "Daemon:    not running (mutation gating OFF; run with '-gated' to enable)"
 fi
 echo ""
-echo "Browse:        $UI_URL"
+echo "Browse:        $UI_URL  (the client must offer X25519MLKEM768: OpenSSL 3.5+, a current Firefox or Chrome)"
 echo "Login:         POST $UI_URL/auth/login (everything below takes the session it gives)"
 echo "Chat API:      POST $UI_URL/api/v1/query"
 echo "Runbooks API:  POST $UI_URL/api/v1/runbooks/<n>/execute  (operator login)"
 echo "Daemon API:    POST http://localhost:20111/api/v1/tool/exec  (when -gated)"
 echo ""
-echo "Stop:  pkill -f zhen_app.py; pkill -f bin/zhen-agentd"
+echo "Stop:  pkill -f zhen_app.py; pkill -f bin/zhen-ui-front; pkill -f bin/zhen-agentd"

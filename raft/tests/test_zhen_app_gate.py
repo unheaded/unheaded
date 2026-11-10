@@ -405,14 +405,16 @@ def test_loopback_hosts_are_on_the_list(client, host):
     assert client.get('/health', headers={'Host': host}).status_code == 200
 
 
-def test_the_bind_address_is_on_the_list(client, monkeypatch):
-    monkeypatch.setenv('ZHEN_BIND_ADDR', '10.10.20.1')
+def test_an_address_the_front_listens_on_is_served_once_it_is_listed(client, monkeypatch):
+    # The app binds nothing (ADR-138), so no address is on the list by itself.
+    assert client.get('/health', headers={'Host': '10.10.20.1:20103'}).status_code == 403
+    monkeypatch.setenv('ZHEN_ALLOWED_HOSTS', '10.10.20.1')
     assert client.get('/health', headers={'Host': '10.10.20.1:20103'}).status_code == 200
 
 
-def test_a_wildcard_bind_is_not_a_host(client, monkeypatch):
-    monkeypatch.setenv('ZHEN_BIND_ADDR', '0.0.0.0')  # nosec B104 - test data: the wildcard is what must be refused
-    assert client.get('/health', headers={'Host': '0.0.0.0:20103'}).status_code == 403
+def test_the_retired_bind_setting_adds_no_host(client, monkeypatch):
+    monkeypatch.setenv('ZHEN_BIND_ADDR', '10.10.20.1')
+    assert client.get('/health', headers={'Host': '10.10.20.1:20103'}).status_code == 403
 
 
 # ── /api/v1/champion/read judges the real path (M21) ────────────────────

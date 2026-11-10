@@ -3,7 +3,8 @@
 # Copyright (c) 2024-2026 Stevie Bellis.
 """
 Zhen Web App — RAG UI for Unheaded Infrastructure
-Port: 20103 (zhen-ui in Doom Range)
+Listens on a Unix socket only (zhen_socket.py). The browser's port, 20103, and
+its TLS belong to cmd/zhen-ui-front (ADR-138).
 
 WAVE15 REWIRE (2026-05-02): backends retargeted from Mistral-7B / FAISS
 to qwen-coder-7b / vor. The 1.76M-vector FAISS pipeline is retired;
@@ -40,7 +41,6 @@ import json
 import logging
 import os
 import secrets
-import ssl
 import sys
 import time
 import uuid
@@ -56,6 +56,7 @@ import zhen_highlight
 import zhen_login
 import zhen_redact
 import zhen_scheduler_client
+import zhen_socket
 from zhen_rag import (
     AgentdGateUnavailable,
     RAGPipeline,
@@ -115,11 +116,10 @@ _SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight', '/auth/login
 
 
 def _allowed_hosts():
-    """Loopback, the address the UI binds, and ZHEN_ALLOWED_HOSTS (comma list)."""
+    """Loopback and ZHEN_ALLOWED_HOSTS (comma list). The app binds no address
+    (ADR-138): a name or address zhen-ui-front listens on past loopback goes on
+    that list."""
     hosts = {'localhost', '127.0.0.1', '::1'}
-    bind = os.environ.get('ZHEN_BIND_ADDR', '').strip().lower()
-    if bind and bind not in ('0.0.0.0', '::'):  # nosec B104 - compared, never bound: a wildcard is no Host value
-        hosts.add(bind)
     hosts.update(h.strip().lower() for h in os.environ.get('ZHEN_ALLOWED_HOSTS', '').split(',') if h.strip())
     return hosts
 
@@ -266,8 +266,9 @@ def _set_session_cookie(resp, sid, max_age):
 @app.route('/auth/login', methods=['POST'])
 def auth_login():
     """Log in at the issuer. The browser gets a session cookie and no token."""
-    # A password over plain http stays on this host. A UI bound past loopback
-    # takes logins over its own TLS (tls_context).
+    # Behind zhen-ui-front every request is https (zhen_socket.Fronted), so
+    # this never fires there. It is what refuses a password if the app is ever
+    # served some other way: plain http stays on this host.
     if not request.is_secure and not LOGIN.dev_plaintext and not _client_on_loopback():
         return jsonify({'error': 'login_needs_https'}), 403
     request.max_content_length = zhen_login.MAX_LOGIN_BODY
@@ -2779,45 +2780,9 @@ def kanban_create():
         }), 503
 
 
-def bind_address():
-    """The address the UI listens on: ZHEN_BIND_ADDR, loopback when unset or empty.
-
-    Binding beyond the host is an explicit choice (bandit B104, S-TRUE-WIRE Step 360): 0.0.0.0
-    is never the default, and a login off loopback is refused without tls_context or
-    AUTH_BFF_DEV_PLAINTEXT. A value that is not an IP address exits rather than guessing."""
-    raw = os.environ.get('ZHEN_BIND_ADDR', '')
-    if raw == '':
-        return '127.0.0.1'
-    try:
-        return str(ipaddress.ip_address(raw))
-    except ValueError:
-        sys.exit(f"ZHEN_BIND_ADDR={raw!r} is not an IP address (unset it for 127.0.0.1)")
-
-
-def tls_context(environ=None):
-    """The listener's TLS, from UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE (pkg/tls's names);
-    None with neither set. Half a pair, or one that does not load, exits rather than serving
-    logins in the clear. TLS 1.3 with OpenSSL's default groups, hybrid ML-KEM first: Python's
-    ssl cannot refuse the classical ones, so this is ADR-105's preferred profile, not strict."""
-    env = os.environ if environ is None else environ
-    cert = env.get('UNHEADED_TLS_CERT', '').strip()
-    key = env.get('UNHEADED_TLS_KEY_FILE', '').strip()
-    if not cert and not key:
-        return None
-    if not cert or not key:
-        sys.exit('set both UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE, or neither')
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    context.minimum_version = ssl.TLSVersion.TLSv1_3
-    try:
-        context.load_cert_chain(cert, key)
-    except (OSError, ssl.SSLError) as exc:
-        sys.exit(f'TLS pair {cert}: {exc}')
-    return context
-
-
 if __name__ == '__main__':
-    host = bind_address()
-    print(f"Zhen Web UI starting on {host}:20103...")
+    print("Zhen Web UI starting...")
     print(f"RAG status: {'ready' if rag else 'NOT READY — ' + str(startup_error)}")
     print(f"Local context window: {rag.local_max_tokens if rag else 'N/A'} tokens")
-    app.run(host=host, port=20103, debug=False, ssl_context=tls_context())
+    # A Unix socket and nothing else: no TCP port, no TLS of its own (ADR-138).
+    zhen_socket.serve(app)
