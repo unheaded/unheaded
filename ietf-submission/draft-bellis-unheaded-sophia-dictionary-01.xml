@@ -12,7 +12,7 @@
 ]>
 
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-sophia-dictionary-00" category="exp" submissionType="independent">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-sophia-dictionary-01" category="exp" submissionType="independent">
   <front>
     <title abbrev="Sophia Dictionary Format">Sophia Dictionary Format for the Unheaded Protocol</title>
 
@@ -26,7 +26,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="19"/>
+    <date/>
 
     <area>Internet</area>
     <workgroup>Independent Submission</workgroup>
@@ -1152,9 +1152,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-01"/>
 </reference>
 <reference anchor="WOTAN" >
   <front>
@@ -1162,9 +1162,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-01"/>
 </reference>
 
 
@@ -1260,6 +1260,19 @@ Email: stevie@bellis.tech</t>
 
 
 <?line 906?>
+
+<section anchor="changes-from-00"><name>Changes from draft-bellis-unheaded-sophia-dictionary-00</name>
+
+<t>This revision changes the following.</t>
+
+<ul>
+  <li>Root key 0x15 ("cartridge", COMPOSITE) is assigned to the MBC cartridge registry.</li>
+  <li>The UPC opcode dictionary moves to root key 0x16 ("code", BRANCH). Revision -00 placed it at 0x10, which the initial entries assign to "routing"; 0x10 stays "routing".</li>
+  <li>A section "Cartridge and Opcode Dictionary Root Keys" and an informative reference to ADR-108 are added.</li>
+  <li>References to the companion documents name their -01 revisions.</li>
+</ul>
+
+</section>
 
 <section anchor="changes-from-draft-bellis-unheaded-sophia-dictionary-02"><name>Changes from draft-bellis-unheaded-sophia-dictionary-02</name>
 

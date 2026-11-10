@@ -1,13 +1,13 @@
 # Unheaded Internet-Draft Build System
-# Usage: make all | make clean | make draft-bellis-unheaded-protocol-foundation-00
+# Usage: make all | make clean | make draft-bellis-unheaded-protocol-foundation-01
 
 DRAFTS = \
-	draft-bellis-unheaded-protocol-foundation-00 \
-	draft-bellis-unheaded-sophia-dictionary-00 \
-	draft-bellis-unheaded-wotan-memory-00 \
-	draft-bellis-unheaded-mbc-isa-00 \
-	draft-bellis-unheaded-shim-00 \
-	draft-bellis-unheaded-pqc-authentication-00 \
+	draft-bellis-unheaded-protocol-foundation-01 \
+	draft-bellis-unheaded-sophia-dictionary-01 \
+	draft-bellis-unheaded-wotan-memory-01 \
+	draft-bellis-unheaded-mbc-isa-01 \
+	draft-bellis-unheaded-shim-01 \
+	draft-bellis-unheaded-pqc-authentication-01 \
 	draft-bellis-unheaded-anamnesis-00 \
 	draft-bellis-unheaded-protocol-overview-00
 

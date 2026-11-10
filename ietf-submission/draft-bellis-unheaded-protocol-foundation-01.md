@@ -1,7 +1,7 @@
 ---
 title: "Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options"
 abbrev: "Unheaded Protocol"
-docname: draft-bellis-unheaded-protocol-foundation-00
+docname: draft-bellis-unheaded-protocol-foundation-01
 category: exp
 ipr: trust200902
 submissionType: independent
@@ -60,7 +60,7 @@ informative:
       - ins: S. Bellis
     date: 2026-03
     seriesinfo:
-      Internet-Draft: draft-bellis-unheaded-mbc-isa-00
+      Internet-Draft: draft-bellis-unheaded-mbc-isa-01
   UNHEADED-ADR108:
     title: "ADR-108: MBC Cartridges"
     author:

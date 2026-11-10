@@ -18,7 +18,7 @@ import (
 // neither drifts from the code.
 var draftPaths = []string{
 	"../../docs/protocol/draft-bellis-unheaded-wotan-memory-03.md",
-	"../../ietf-submission/draft-bellis-unheaded-wotan-memory-00.md",
+	"../../ietf-submission/draft-bellis-unheaded-wotan-memory-01.md",
 }
 
 func readDraft(t *testing.T, path string) string {

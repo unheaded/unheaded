@@ -14,7 +14,7 @@
 <?rfc compact="yes"?>
 <?rfc subcompact="no"?>
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-protocol-foundation-00" category="exp" submissionType="independent" tocInclude="true" sortRefs="true" symRefs="true">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-protocol-foundation-01" category="exp" submissionType="independent" tocInclude="true" sortRefs="true" symRefs="true">
   <front>
     <title abbrev="Unheaded Protocol">Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options</title>
 
@@ -28,7 +28,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="19"/>
+    <date/>
 
     <area>Internet</area>
     <workgroup>Independent Submission</workgroup>
@@ -1955,9 +1955,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-mbc-isa-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-mbc-isa-01"/>
 </reference>
 
 <reference anchor="UNHEADED-ADR108" target="https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md">
@@ -2287,9 +2287,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-01"/>
 </reference>
 <reference anchor="WOTAN" >
   <front>
@@ -2297,9 +2297,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-01"/>
 </reference>
 
 
@@ -2309,6 +2309,19 @@ Email: stevie@bellis.tech</t>
 
 
 <?line 1755?>
+
+<section anchor="changes-from-00"><name>Changes from draft-bellis-unheaded-protocol-foundation-00</name>
+
+<t>This revision changes the following. The 20-octet Monad wire format (version 0x01) is unchanged.</t>
+
+<ul>
+  <li>A registry "Unheaded Anamnesis EVENT_COMPUTED Sub-kinds" is requested, with one initial entry, 0x43 (CARTRIDGE_TRACE).</li>
+  <li>The request for a registry "UPC MBC Opcode Numbers" is withdrawn, and the opcode table is removed. One registry governs the opcode space; it is created by <xref target="UNHEADED-MBC-ISA"></xref>.</li>
+  <li>Informative references to the MBC ISA document and to ADR-108 are added.</li>
+  <li>References to the companion documents name their -01 revisions.</li>
+</ul>
+
+</section>
 
 <section anchor="changes-from-draft-bellis-unheaded-protocol-foundation-05"><name>Changes from draft-bellis-unheaded-protocol-foundation-05</name>
 

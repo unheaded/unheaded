@@ -1,7 +1,7 @@
 ---
 title: MBC Instruction Set Architecture for the Unheaded Protocol Computer
 abbrev: MBC ISA
-docname: draft-bellis-unheaded-mbc-isa-00
+docname: draft-bellis-unheaded-mbc-isa-01
 category: exp
 ipr: trust200902
 submissionType: independent

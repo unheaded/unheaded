@@ -12,7 +12,7 @@
 ]>
 
 
-<rfc ipr="trust200902" docName="draft-bellis-unheaded-wotan-memory-00" category="exp" submissionType="independent">
+<rfc ipr="trust200902" docName="draft-bellis-unheaded-wotan-memory-01" category="exp" submissionType="independent">
   <front>
     <title abbrev="Wotan Memory Protocol">Wotan Memory Protocol for the Unheaded Protocol</title>
 
@@ -26,7 +26,7 @@
       </address>
     </author>
 
-    <date year="2026" month="March" day="19"/>
+    <date/>
 
     <area>Internet</area>
     <workgroup>Independent Submission</workgroup>
@@ -1217,9 +1217,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-protocol-foundation-01"/>
 </reference>
 <reference anchor="UNHEADED-SOPHIA" >
   <front>
@@ -1227,9 +1227,9 @@ Email: stevie@bellis.tech</t>
     <author initials="S." surname="Bellis">
       <organization></organization>
     </author>
-    <date year="2026" month="March"/>
+    <date year="2026" month="November"/>
   </front>
-  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-00"/>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-sophia-dictionary-01"/>
 </reference>
 
 
@@ -1255,6 +1255,20 @@ Email: stevie@bellis.tech</t>
 
 
 <?line 1039?>
+
+<section anchor="changes-from-00"><name>Changes from draft-bellis-unheaded-wotan-memory-00</name>
+
+<t>This revision changes the following.</t>
+
+<ul>
+  <li>A registry "Wotan Topic Namespace" is requested (Expert Review), with initial entries compute.tty.*, anomaly.scores and upc.cart.*. Revision -00 only said that IANA might create one.</li>
+  <li>An implementation note records where the reference implementation carries the 32-bit error code: the X-Wotan-Error header and the x-wotan-error trailer.</li>
+  <li>The count of initial error category entries is corrected from 16 to 13.</li>
+  <li>An informative reference to ADR-108 is added.</li>
+  <li>References to the companion documents name their -01 revisions.</li>
+</ul>
+
+</section>
 
 <section anchor="changes-from-draft-bellis-unheaded-wotan-memory-02"><name>Changes from draft-bellis-unheaded-wotan-memory-02</name>
 
