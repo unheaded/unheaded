@@ -114,7 +114,7 @@ steps:
   - name: freeze-writers
     action: manual
     command: |
-      cd ${REPO} && sudo docker compose stop dashboard-backend kanban-app
+      cd ${REPO} && sudo docker compose stop dashboard-backend kanban-app timeguru auth
       # Anything else with a Well login (another compose file, a host service):
       sudo docker exec unheaded-postgres psql -X -At -U unheaded -d postgres \
         -c "SELECT usename, application_name, client_addr FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()"
@@ -221,8 +221,8 @@ steps:
   - name: thaw
     action: manual
     command: |
-      cd ${REPO} && sudo docker compose up -d dashboard-backend kanban-app
-      curl -fsS http://127.0.0.1:20000/health && curl -fsS http://127.0.0.1:20001/health
+      cd ${REPO} && sudo docker compose up -d dashboard-backend kanban-app timeguru auth
+      curl -fsS --cacert configs/certs/dev/ca.pem https://localhost:20000/health && curl -fsS --cacert configs/certs/dev/ca.pem https://localhost:20001/health
       scripts/monitoring/maintenance.sh --end
     verify: "both healthy; writers reconnect (pg_stat_activity shows them)"
     description: "Last point where rollback loses nothing"
@@ -250,7 +250,7 @@ rollback:
     command: |
       cd ${REPO} && sudo docker compose stop postgres
       git revert <config-commit>      # image 16.15-alpine, postgres-data mount, no include
-      sudo docker compose up -d postgres dashboard-backend kanban-app
+      sudo docker compose up -d postgres dashboard-backend kanban-app timeguru auth
       scripts/monitoring/maintenance.sh --end
       # ${OLD_VOLUME} was never written: the Well is as it was at freeze-writers,
       # passwords included. Keep ${NEW_VOLUME} for diagnosis; remove it later.

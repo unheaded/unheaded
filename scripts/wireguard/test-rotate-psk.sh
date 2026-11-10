@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Stevie Bellis.
 #
-# Checks scripts/wireguard/rotate-psk.sh against stub wg/ssh/sudo/logger/ping
+# Checks scripts/wireguard/rotate-psk.sh (and, at the end, psk-gate.sh, east's
+# forced command for the rotation key) against stub wg/ssh/sudo/logger/ping
 # on PATH, with two temporary directories standing in for west's and east's
 # /etc/wireguard. No root, no network, no real keys: every key is a
 # throwaway made here. The stubs record every call, and the run fails if any
@@ -68,6 +69,7 @@ cat >"$T/bin/ssh" <<'EOF'
 #!/usr/bin/env bash
 # ssh stub: -vv reports the KEX; otherwise run the remote command as east.
 printf 'ssh %s\n' "$*" >>"$STUB_ROOT/calls"
+printf '%s\n' "${!#}" >>"$STUB_ROOT/remote-cmds" # the remote command alone, for the psk-gate cases
 for a in "$@"; do
 	if [ "$a" = -vv ]; then
 		printf 'debug1: kex: algorithm: %s\r\n' "${STUB_KEX:-mlkem768x25519-sha256}" >&2 # CR LF, as real ssh -vv writes
@@ -221,6 +223,108 @@ setup
 rotate STUB_FAIL_SET=west -- --apply
 if [ "$RC" -ne 0 ] && runtime_is "$OLD" && untouched; then pass "a failure after east switched rolls east back"
 else fail "mid-apply failure: rc=$RC; $(tail -n 1 <<<"$OUT")"; fi
+
+# --- psk-gate.sh: east's forced command for the rotation key (DP-05) --------
+# Its sudo is a stub that records the call and swallows stdin: nothing here
+# runs as root or touches /etc/wireguard.
+GATE="$R/scripts/wireguard/psk-gate.sh"
+mkdir -p "$T/gbin"
+cat >"$T/gbin/sudo" <<'EOF'
+#!/usr/bin/env bash
+printf 'gate sudo %s\n' "$*" >>"$STUB_ROOT/gate-calls"
+cat >/dev/null
+EOF
+cp "$T/bin/logger" "$T/gbin/logger"
+chmod +x "$T/gbin/"*
+# The side script exactly as rotate-psk.sh sends it; the same awk the install
+# step uses to make side.sha256.
+awk "/^\tcat <<'SIDE'\$/{f=1;next} /^SIDE\$/{f=0} f" "$ROT" >"$T/side.sh"
+sha256sum <"$T/side.sh" | cut -d' ' -f1 >"$T/side.sha256"
+gate() { # command stdin-file [env...]: rc in $RC, stderr in $OUT, stub calls in $T/gate-calls
+	local cmd="$1" in="$2"
+	shift 2
+	: >"$T/gate-calls"
+	set +e
+	# -u: this test may itself run in an ssh session, where the gate would
+	# rightly ignore PSK_GATE_SIDE_SHA.
+	OUT="$(env -u SSH_CONNECTION PATH="$T/gbin:$PATH" STUB_ROOT="$T" PSK_GATE_SIDE_SHA="$T/side.sha256" \
+		SSH_ORIGINAL_COMMAND="$cmd" "$@" bash "$GATE" <"$in" 2>&1 >/dev/null)"
+	RC=$?
+	set -e
+}
+uncalled() { [ ! -s "$T/gate-calls" ]; }
+
+# shellcheck disable=SC2016 # a literal $action is what the side script holds
+if [ -s "$T/side.sh" ] && grep -q '^case "\$action" in$' "$T/side.sh"; then pass "the side script can be read out of rotate-psk.sh"
+else fail "could not read the side script out of rotate-psk.sh"; fi
+
+gate id /dev/null
+if [ "$RC" -eq 3 ] && [[ "$OUT" == *"psk-gate: refused"* ]] && uncalled; then pass "psk-gate refuses a command rotate-psk.sh never sends"
+else fail "psk-gate id: rc=$RC; $OUT"; fi
+
+gate true /dev/null
+if [ "$RC" -eq 0 ] && uncalled; then pass "psk-gate answers true (the KEX probe) without sudo"
+else fail "psk-gate true: rc=$RC; $OUT"; fi
+
+gate "sudo -n sh -s -- check wg0 /etc/wireguard $WEST_PUB" "$T/side.sh"
+if [ "$RC" -eq 0 ] && grep -qxF "gate sudo -n sh -s -- check wg0 /etc/wireguard $WEST_PUB" "$T/gate-calls"; then
+	pass "psk-gate runs the pinned side script"
+else fail "psk-gate pinned side script: rc=$RC; $OUT"; fi
+
+printf 'id\n' >"$T/side.sh.changed"
+cat "$T/side.sh" >>"$T/side.sh.changed"
+gate "sudo -n sh -s -- check wg0 /etc/wireguard $WEST_PUB" "$T/side.sh.changed"
+if [ "$RC" -eq 3 ] && [[ "$OUT" == *"hash mismatch"* ]] && uncalled; then pass "psk-gate refuses a changed side script"
+else fail "psk-gate changed side script: rc=$RC; $OUT"; fi
+
+# One missing final newline is a different script.
+head -c -1 "$T/side.sh" >"$T/side.sh.short"
+gate "sudo -n sh -s -- check wg0 /etc/wireguard $WEST_PUB" "$T/side.sh.short"
+if [ "$RC" -eq 3 ] && uncalled; then pass "psk-gate hashes the side script to the last byte"
+else fail "psk-gate short side script: rc=$RC; $OUT"; fi
+
+# Extra words, another interface, another directory, a shell metacharacter.
+bad=0
+for c in "sudo -n sh -s -- check wg0 /etc/wireguard $WEST_PUB; id" \
+	"sudo -n sh -s -- check wg1 /etc/wireguard $WEST_PUB" \
+	"sudo -n sh -s -- check wg0 /tmp $WEST_PUB" \
+	"sudo -n sh -s -- shell wg0 /etc/wireguard $WEST_PUB" \
+	"sudo -n sh -s -- check wg0 /etc/wireguard \$(id)" \
+	"sudo -n sh -s" \
+	"sudo -n wg show wg0 private-key" \
+	"sudo -n sh -c 'umask 077; cat >/etc/wireguard/wg0.conf'" \
+	"true; id" ""; do
+	gate "$c" "$T/side.sh"
+	if [ "$RC" -ne 3 ] || ! uncalled; then
+		bad=$((bad + 1))
+		echo "  accepted: $c"
+	fi
+done
+if [ "$bad" -eq 0 ]; then pass "psk-gate refuses ten near misses"; else fail "psk-gate accepted $bad near miss(es)"; fi
+
+# Under sshd (SSH_CONNECTION set) the pin cannot be moved by a variable: a
+# script whose hash sits in the file PSK_GATE_SIDE_SHA names is still refused.
+printf 'id\n' >"$T/other.sh"
+sha256sum <"$T/other.sh" | cut -d' ' -f1 >"$T/other.sha256"
+gate "sudo -n sh -s -- check wg0 /etc/wireguard $WEST_PUB" "$T/other.sh" \
+	PSK_GATE_SIDE_SHA="$T/other.sha256" SSH_CONNECTION="192.0.2.1 50000 192.0.2.2 7375"
+if [ "$RC" -eq 3 ] && uncalled; then pass "psk-gate ignores PSK_GATE_SIDE_SHA in an ssh session"
+else fail "psk-gate took its pin from the environment in an ssh session: rc=$RC"; fi
+
+# Every command the runs above sent to east, with the test directory put back
+# to /etc/wireguard, is one the gate lets through.
+sed "s|$C/east|/etc/wireguard|g" "$T/remote-cmds" | sort -u >"$T/remote-shapes"
+bad=0
+while IFS= read -r c; do
+	gate "$c" "$T/side.sh"
+	if [ "$RC" -ne 0 ]; then
+		bad=$((bad + 1))
+		echo "  refused: ${c:0:60}"
+	fi
+done <"$T/remote-shapes"
+kinds="$(sed -E 's/ [A-Za-z0-9+\/]{43}=$//' "$T/remote-shapes" | sort -u | wc -l)"
+if [ "$bad" -eq 0 ] && [ "$kinds" -ge 9 ]; then pass "psk-gate allows every command rotate-psk.sh sent ($kinds kinds)"
+else fail "psk-gate refused $bad of rotate-psk.sh's own commands ($kinds kinds seen, want 9 or more)"; fi
 
 # Secrecy: no key on any stub's command line or in any output.
 grep -v '^$' "$T/secrets" >"$T/secret-patterns"
