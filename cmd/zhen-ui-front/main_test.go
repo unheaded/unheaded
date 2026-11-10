@@ -13,6 +13,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -751,6 +752,10 @@ func TestOpsHandler(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newFront(config{socket: tc.socket, timeout: time.Second, maxBody: defaultMaxBody, maxConns: defaultMaxConns}, zerolog.Nop())
 			f.m.hellos.WithLabelValues(kexHybrid).Add(0)
+			// The middleware's series exist once the TLS handler has answered
+			// something. A refused method is answered without the app, so the
+			// count below stays zero and no other test has to run first.
+			f.handler().ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodTrace, "/", nil))
 			srv := newLocalServer(t, f.opsHandler())
 			req, err := http.NewRequest(tc.method, srv+tc.path, nil)
 			if err != nil {
