@@ -136,3 +136,24 @@ print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 
 - Each timed query runs 20 times a side; the file keeps the median and the 19th of 20 (Step 278).
 - Both sides are filtered to `host = 'west'`, the row set the Well copy holds.
 - The Well's own latency is read two ways: one Kanban read timed 20 times, and `pg_stat_statements` totals for every statement that does not touch `log_events` (cumulative; a day is the difference of two readings).
+
+### Step 281: live (2026-11-10, the week starts 18:34Z)
+
+- Baseline reading before anything changed, 18:28:23Z (exit 1 by design: the Postgres side is `NA`, the table did not exist): ClickHouse 53,438 rows yesterday; p95 11, 13 and 14 ms on the three queries; the Well's Kanban read p95 0.178 ms; last backup 1.467 s, 349,350 bytes.
+- `scripts/well/batch-apply.sh`: dry run listed `048_ops_log_events.sql` pending in `postgres` and `unheaded_ops`; apply rc=0 (113 ms and 151 ms) behind pre-batch backup `/srv/backups/unheaded-well/pre-batch/pre-batch-20261110T182955Z`; ledger clean. `set-role-passwords.sh` set `log_writer`. Logs: `/var/tmp/unheaded-sprint/e16-step281-{dry,apply,roles,build,up}.log`.
+- Two new values in `.env` on the host (`LOG_WRITER_PASSWORD`, `LOGSTORE_INGEST_TOKEN`), made by `openssl rand -hex 32` and never printed. Dev certificate for the writer under `configs/certs/dev/logstore-writer/` (gitignored).
+- `sudo docker compose up -d logstore-writer vector` at 18:33Z.
+- **Not in the plan: the Well restarted.** The compose file gives the `postgres` service `LOG_WRITER_PASSWORD` (the role-password script reads it there), so `up` recreated `unheaded-postgres` along with Vector. The Well was away about 2 s and healthy again within 17 s. The dashboard logged 14 `health persistence: report not stored` warnings at 18:33:52-53Z (connection refused, then `57P03` starting up) and none since; no other service logged an error; Kanban reads its tasks; `huginn_reader`, `ops_writer` and `log_writer` hold connections again; no unit failed. Any later change to that service's environment block restarts the Well the same way: add role passwords at a planned moment, not as a side effect.
+- **My slip:** before appending the two values I copied `.env` to `.env.bak-20261110T182839Z` in the repository directory. That name is not gitignored. Deleted at once, never staged. Backups of `.env` belong outside the checkout.
+- Expectations, each read:
+  - Count rising: `log_events` held 320 rows at 18:34:26Z and 780 at 18:37Z. Minute 18:34 has 259 rows in the Well and 259 in ClickHouse.
+  - ClickHouse's rate unchanged: 44 to 265 rows a minute across 18:29-18:34, the same range as before the start.
+  - No audit-sink stalls: Vector 0.43.1, both sinks answering 200, the record sink's disk buffer at 0 to 7 events, 0 sends over 1 s, 0 rows dropped at the Well sink, no warning or error line in `docker logs unheaded-vector`.
+- First full reading 18:37:28Z, exit 0. The Postgres timings in it (under 1.3 ms) are over 780 rows and say nothing yet; the comparison starts once the copy holds full days.
+- Off switch, unchanged from the plan: remove the `well_logs` sink (and `well_rows`) through the worktree, merge, `sudo docker compose up -d vector`, `sudo docker compose stop logstore-writer`; `DROP TABLE` after the week. Stopping the writer alone is also safe: the sink drops, the record sink is unaffected (`scripts/test-vector-config.sh` proves it).
+- Open for Stevie, none decided here:
+  - Step 278: bar (A) or (B). Until he says, (A) as written is the bar.
+  - The nightly backup (03:37 UTC) and its copy on east carry the Well copy's rows from tonight. `pg_dump --exclude-table-data` for `log_events*` is the alternative; it changes the live backup path.
+  - The daily reading has no timer; a session runs it once a day until he asks for one.
+- Found while checking the silence: the mailer sent one mail today at 15:01:03Z, `[digest] 9 open`. The silences stop Alertmanager from notifying; they do not empty the mailer's own list of open tickets, and the 09:00 America/Chicago digest mails that list. The next one is due 2026-11-11 15:00Z. Question 27 in `~/tmp/next.md` (mailer to `dry-run` until the mail steps run) is the fix and is Stevie's: `observability/alerting/policy.yaml` is policy. Not changed here.
+- Steps 281-283: Route chosen by Stevie; second sink on with drop_newest; close defined before the data.
