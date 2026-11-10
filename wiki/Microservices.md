@@ -17,7 +17,6 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `protocol-api` | Monad encode/decode/validate, Sophia dictionary listing, Anamnesis events | [[Protocol-Specs]] |
 | `unheaded-daemon` | Control plane: drift detection + reconciliation | [[Architecture]] |
 | `shield` | Shield WAF / Zero-Trust gateway daemon (Go) | [[Security]] |
-| `waf` | Shield command-line entry point (Rust) | [[Security]] |
 | `heimdall-daemon` | Userspace control for Mímir's Law / Gleipnir Phase 0 | [[Mimirs-Law]] |
 | `routing-health` | Health endpoint for BIRD + established BGP sessions | [[Load-Balancers]] |
 | `zhen-agentd` | Zhen agent daemon (ReAct loop + Champion gate) | [[Zhen-AI]] |

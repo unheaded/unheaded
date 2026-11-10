@@ -867,6 +867,7 @@ Shipped and dropped from this list 2026-10-27: WireGuard IPv6 overlay, Foundatio
 - **Doom**: moved to `unheaded-doom` 2026-11-04 (DP-305); lowest-priority track.
 - **Kubernetes**: a lab component in `unheaded-k8s` (DP-17); not a product target. `pkg/iac` still renders manifests for users.
 - **Forge**: `zhenai-forge` and all training work moved to `unheaded-forge` 2026-11-04 (round 4): unworkable on west, back burner until a machine with enough GPU. The WAVE and Learning Gate paragraphs in this file are history; serving is llama-server.
+- **WAF**: `pkg/waf` and the Rust `cmd/waf` were deleted 2026-11-04 (DP-401.1) and are archived with their history in `unheaded-waf` since 2026-11-10; never ran. A future WAF is ADR-121 (parked, lowest priority). The Go `cmd/shield` stays and is not a WAF.
 - **SBOM**: Run ScanCode + FOSSology + ORT against codebase. Must complete before going public.
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
 - **Inverse Mask**: Deep exploration session required (BlackMage + Developer + Architect + Scientist).

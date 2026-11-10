@@ -36,7 +36,7 @@
 SET max_threads = 1;                       -- file order is line order
 SET engine_file_truncate_on_insert = 1;
 
-CREATE TABLE raw (unit String, file String, n UInt64, line String) ENGINE = Memory;
+CREATE TABLE raw (unit String, file String, n UInt64, line String) ENGINE = Memory;  -- well:ignore mysql-syntax,no-primary-key ClickHouse scratch table, not Well DDL: ENGINE = Memory is its syntax and a Memory table has no key
 INSERT INTO raw SELECT 'pihole/dns', _file, rowNumberInAllBlocks(), line
 FROM file('/in/logs/pihole.log*', 'LineAsString', 'line String');
 INSERT INTO raw SELECT 'pihole/ftl', _file, rowNumberInAllBlocks(), line
@@ -46,6 +46,7 @@ FROM file('/in/logs/webserver.log*', 'LineAsString', 'line String');
 
 -- Each line's own time. NULL when the line has no stamp.
 CREATE TABLE stamped ENGINE = Memory AS
+-- well:ignore mysql-syntax,no-primary-key ClickHouse scratch table, not Well DDL: ENGINE = Memory and DateTime64 are its syntax and a Memory table has no key
 WITH
     toDateTime({ref:String}, 'UTC') AS ref,
     extractGroups(line, '^([A-Z][a-z]{2}) ([ 0-9][0-9]) ([0-9]{2}):([0-9]{2}):([0-9]{2}) ') AS g,
@@ -71,6 +72,7 @@ FROM raw;
 -- A line without a stamp takes the last stamp above it in its file, else the
 -- first one below it. A file with no stamp at all stops the run (see the end).
 CREATE TABLE lines ENGINE = Memory AS
+-- well:ignore mysql-syntax,no-primary-key ClickHouse scratch table, not Well DDL: ENGINE = Memory and DateTime64 are its syntax and a Memory table has no key
 SELECT
     unit, file, rotation, line,
     n - min(n) OVER (PARTITION BY unit, file) + 1 AS lineno,
@@ -89,6 +91,7 @@ FROM stamped;
 -- number within one instant plus a hash of the line, so loading the same
 -- export twice, or a later export of the same files, adds nothing.
 CREATE TABLE rows_out
+-- well:ignore mysql-syntax,no-primary-key ClickHouse scratch table, not Well DDL: ENGINE = Memory and DateTime64 are its syntax and a Memory table has no key
 (
     timestamp DateTime64(3, 'UTC'), host String, source String, unit String, level String,
     retention String, message String, entry String, fields String,
@@ -148,6 +151,7 @@ WHERE oldest_line IS NULL OR t < oldest_line;
 -- Operational rows live 90 days (the table's TTL); older ones would be
 -- deleted at the next merge, so they are counted and left out.
 CREATE TABLE kept ENGINE = Memory AS
+-- well:ignore mysql-syntax,no-primary-key ClickHouse scratch table, not Well DDL: ENGINE = Memory and DateTime64 are its syntax and a Memory table has no key
 SELECT * FROM rows_out
 WHERE retention = 'audit' OR timestamp >= toDateTime({ref:String}, 'UTC') - INTERVAL 90 DAY;
 

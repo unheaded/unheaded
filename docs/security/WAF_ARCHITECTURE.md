@@ -1,6 +1,8 @@
 # WAF Architecture: Two-Tier Go Reference + Rust Acceleration
 
 > **History (2026-11-04).** `pkg/waf` and the Rust `cmd/waf` described here were deleted by S-CLEAN-CUT (DP-401, round 4). A future WAF is parked as ADR-121.
+>
+> **2026-11-10.** The deleted code and its history are kept in the `unheaded-waf` repository, with a copy of this document.
 
 ## Overview
 

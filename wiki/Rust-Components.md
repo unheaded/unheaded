@@ -38,7 +38,7 @@ Every program is loaded through the kernel verifier in CI (`cmd/ebpf-load-check`
 
 ## Rust binaries under `cmd/`
 
-`ebpf-collector`, `ebpf-loader`, `ebpf-load-check`, `upc-bootctl`, `waf`.
+`ebpf-collector`, `ebpf-loader`, `ebpf-load-check`, `upc-bootctl`. The Rust `waf` was deleted 2026-11-04 and is archived in `unheaded-waf`.
 
 ---
 
