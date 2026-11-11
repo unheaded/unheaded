@@ -43,6 +43,19 @@ One page, reached from all three applications, for an `admin`:
 - **Done the same day:** the Kanban review button "Request changes" moves the card back to In Progress and appends `[Changes requested <date>]` to its description, keeping earlier text. Its message no longer claims anyone is notified (`cmd/kanban-app/static/js/app.js`).
 - **Waits on this ADR:** contacting the owner. A card's `owner` is free text typed into the form, with no user account or email behind it. The page above gives each user an email; a card then records its owner as a user, and Request changes mails that user through the same mail settings.
 - **Questions:** (1) a card created by Zhen (`zhen-agentd`) has no human owner: does Request changes send it to To Do, where the worker picks cards up, with the reviewer's note as its next instruction, instead of In Progress, where the worker never looks? (2) Who else hears: the reviewer, a watcher list? (3) Mail only, or also a notice inside the apps?
+- **Facts for (1), read 2026-11-11:** the Backlog column is status `todo` in the Well (the page names it Backlog), so "To Do" above means Backlog. Zhen has made or worked no card yet: `zhen_agent_runs` 0 rows, `kanban_zhen_optin` 0 rows, no card with a Zhen owner or type, and the only `zhen-agentd` on west is the login test's, with no Well and no scheduler.
+
+## Addendum 2 (Stevie, 2026-11-11): review before Done, and owners as teams
+
+> admin/owner needs to review before anything is marked done
+
+> maybe owner could be a team if we implmented rbac like that
+
+- **Rule:** no card reaches Done without a review by an admin or by the card's owner. Done is reached only from Review, by Approve.
+- **Owner as a team:** the RBAC behind this page gets teams (groups of users). A card's owner is a user or a team; any member of the owning team, or an admin, can approve it; Request changes reaches every member (mail per the settings above).
+- **What is there today:** any logged-in writer can drag a card from any column to Done, or create it as Done; the review column's Approve is only one of those paths. Writes go through `PUT /api/v1/tasks/<id>` (`handleUpdateTaskByID`) and `handleUpdateTask` in `cmd/kanban-app/main.go`; the session carries the user's roles (`auth.IdentityFromContext`, as `zhenoptin.go`'s `humanOperator` reads them). Cards made from `references/timeline.md` by the timeline sync (`cmd/kanban-app/timeline.go`) are Done when their milestone is completed there; whether those count as reviewed (the timeline is Stevie's own record) is a question.
+- **Could come first, without teams:** the server refuses a change to Done unless the card is in Review and the request is a human with the admin role. Owner and team approval join when this page gives cards real owners.
+- **More questions:** (4) a team's members: managed on this page only, or also from the host CLI? (5) Can a card have several owning teams? (6) Do timeline-sync cards skip the review rule?
 
 ## Decision
 
