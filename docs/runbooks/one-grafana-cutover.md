@@ -136,7 +136,7 @@ Check:
 curl -fsS http://127.0.0.1:9090/api/v1/targets | python3 -c 'import json,sys; t=json.load(sys.stdin)["data"]["activeTargets"]; print(len(t), "targets")'
 curl -fsS 'http://127.0.0.1:8428/api/v1/query?query=count(slo:error_ratio:5m)'
 curl -fsS 'http://127.0.0.1:8428/api/v1/query?query=count(ALERTS)'
-curl -fsS 'http://127.0.0.1:9090/api/v1/query?query=rate(prometheus_remote_storage_samples_failed_total[5m])'
+curl -fsS -g 'http://127.0.0.1:9090/api/v1/query?query=rate(prometheus_remote_storage_samples_failed_total[5m])'
 ```
 
 Expect 19 targets (was 46), both counts non-empty, and a failure rate of 0.
