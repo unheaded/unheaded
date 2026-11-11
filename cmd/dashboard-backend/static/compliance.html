@@ -45,6 +45,14 @@
         .sev-critical, .sev-high { color: var(--status-unhealthy); }
         .sev-medium, .sev-untriaged { color: var(--status-degraded); }
         .sev-low { color: var(--text-secondary); }
+        /* One spinner until the first load has every part; compliance.js lifts cx-loading. */
+        .cx-wait { display: none; align-items: center; gap: var(--spacing-md); }
+        .cx-loading > section { display: none; }
+        .cx-loading > .cx-wait { display: flex; }
+        .cx-spin { width: 18px; height: 18px; flex: none; border: 2px solid var(--border-color); border-top-color: var(--gold); border-radius: 50%; animation: cx-spin 0.8s linear infinite; }
+        .cx-failed .cx-spin { display: none; }
+        @keyframes cx-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .cx-spin { animation-duration: 3s; } }
     </style>
 </head>
 <body>
@@ -77,7 +85,11 @@
             </div>
         </header>
 
-        <main class="cx-page">
+        <main class="cx-page cx-loading">
+            <section class="cx-card cx-wait" id="cx-wait" role="status" aria-live="polite">
+                <span class="cx-spin" aria-hidden="true"></span>
+                <p class="cx-note" id="cx-wait-text">Loading compliance data</p>
+            </section>
             <section class="cx-card cx-banner" id="cx-source" hidden>
                 <p class="cx-note" id="cx-source-text"></p>
             </section>
