@@ -25,7 +25,7 @@
     <date/>
 
     <area>Applications</area>
-    <workgroup>Unheaded Kingdom</workgroup>
+    <workgroup>Independent Submission</workgroup>
 
     <abstract>
       <t>This document specifies the Shim pipeline for the Unheaded Protocol Computer (UPC). The Shim translates MBC (Monad Bytecode) programs into eBPF execution contexts, defines the per-hop processing model, and specifies the tick packet protocol that drives distributed computation across IPv6 network hops. The pipeline implements a four-stage architecture: Assembly, Verification, Loading, and Execution, with integrated support for memory-mapped I/O, framebuffer rendering, and CRC validation.</t>
@@ -395,7 +395,7 @@
           <li>RAM_MAP: Memory contents persist across ticks</li>
           <li>SCREEN_MAP: Framebuffer contents persist across ticks</li>
         </ul>
-        <t>State is keyed by flow tuple (source IP, destination IP, flow label). Different flows maintain independent execution contexts.</t>
+        <t>State is keyed by flow tuple (source IP, destination IP, flow label). Different flows maintain independent execution contexts. This keying relies on the Flow Label being the same in every packet of a flow <xref target="RFC6437"/>, as the Protocol Foundation specification states.</t>
       </section>
     </section>
 
@@ -443,6 +443,7 @@
   │ Application-specific data       │
   └─────────────────────────────────┘
         ]]></artwork>
+        <t>Option Type 0x3E is an experimental Hop-by-Hop option type <xref target="RFC4727"/>. The Unheaded Protocol uses it inside a limited domain <xref target="RFC8799"/>, as the Protocol Foundation specification describes. This document requests no option type assignment.</t>
       </section>
 
       <section numbered="true" toc="include">
@@ -703,7 +704,7 @@
 
     <section numbered="true" toc="include">
       <name>IANA Considerations</name>
-      <t>This specification requests creation of three IANA registries to support interoperability and future standardization.</t>
+      <t>This specification requests creation of three IANA registries to support interoperability and future standardization. The registration policy for each is Specification Required <xref target="RFC8126"/>.</t>
 
       <section numbered="true" toc="include">
         <name>Shim Pipeline Stage Registry</name>
@@ -882,12 +883,44 @@
         </front>
         <seriesInfo name="RFC" value="9000"/>
       </reference>
+      <reference anchor="RFC4727" target="https://www.rfc-editor.org/info/rfc4727">
+        <front>
+          <title>Experimental Values In IPv4, IPv6, ICMPv4, ICMPv6, UDP, and TCP Headers</title>
+          <author initials="B." surname="Fenner"/>
+          <date year="2006" month="November"/>
+        </front>
+        <seriesInfo name="RFC" value="4727"/>
+      </reference>
+      <reference anchor="RFC6437" target="https://www.rfc-editor.org/info/rfc6437">
+        <front>
+          <title>IPv6 Flow Label Specification</title>
+          <author initials="S." surname="Amante"/>
+          <author initials="B." surname="Carpenter"/>
+          <author initials="S." surname="Jiang"/>
+          <author initials="J." surname="Rajahalme"/>
+          <date year="2011" month="November"/>
+        </front>
+        <seriesInfo name="RFC" value="6437"/>
+      </reference>
+      <reference anchor="RFC8799" target="https://www.rfc-editor.org/info/rfc8799">
+        <front>
+          <title>Limited Domains and Internet Protocols</title>
+          <author initials="B." surname="Carpenter"/>
+          <author initials="B." surname="Liu"/>
+          <date year="2020" month="July"/>
+        </front>
+        <seriesInfo name="RFC" value="8799"/>
+      </reference>
     </references>
 
     <section anchor="changes-from-00" numbered="true" toc="include">
       <name>Changes from draft-bellis-unheaded-shim-00</name>
-      <t>This revision renews the expired -00 revision. The technical content is unchanged.</t>
+      <t>This revision renews the expired -00 revision and changes the following. The 20-octet Monad wire format (version 0x01) is unchanged, and so are the pipeline stages, the verification rules and the per-hop processing.</t>
       <ul>
+        <li>Option Type 0x3E is stated to be an experimental Hop-by-Hop option type (RFC 4727) used inside a limited domain (RFC 8799). No option type assignment is requested. Informative references to RFC 4727 and RFC 8799 are added.</li>
+        <li>The three registries in the IANA Considerations section have the registration policy Specification Required. Revision -00 gave no policy.</li>
+        <li>The execution-state section states that keying by flow tuple relies on a Flow Label that is the same in every packet of a flow, with an informative reference to RFC 6437.</li>
+        <li>The document is marked as an Independent Submission.</li>
         <li>The document date and name.</li>
       </ul>
     </section>

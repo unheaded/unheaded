@@ -68,7 +68,7 @@
 </list>
 </t>
 
-<t>MBC is part of the Foundation (Monad wire format specification), which defines the Monad packet header structure and flow semantics. The Monad wire format provides a 20-byte fixed header with 12 IANA-registered extensions, frozen at version 0x01. MBC executes on packets carrying Monad headers, allowing per-packet computation to be distributed across the network infrastructure.</t>
+<t>MBC is part of the Foundation (Monad wire format specification), which defines the Monad packet header structure and flow semantics. The Monad wire format provides a 20-byte fixed header, frozen at version 0x01; the Foundation also defines the registries for its fields. MBC executes on packets carrying Monad headers, allowing per-packet computation to be distributed across the network infrastructure.</t>
 
 <t>Complementary to MBC are two other Unheaded specifications:
 <list style="symbols">
@@ -1121,7 +1121,7 @@ Address | Vector | Purpose
 
 <t>Registry Range: 0x00 - 0xFF (256 values)</t>
 
-<t>Registration Procedure: Standards Action [RFC8126]</t>
+<t>Registration Procedure: Specification Required [RFC8126]</t>
 
 <t>Initial Assignments:
 <list style="symbols">
@@ -1191,7 +1191,7 @@ Address | Vector | Purpose
 </list>
 </t>
 
-<t>Unassigned values are available for assignment by Standards Action. 0xFE is Reserved and is not available for assignment. Earlier text of this document listed 0x11-0x1B as reserved while assigning 0x17, 0x18, 0x1A and 0x1B, and omitted NOP and the ISA v2 opcodes; the table above lists what every implementation decodes.</t>
+<t>Unassigned values are available for assignment under the Specification Required policy. 0xFE is Reserved and is not available for assignment. Earlier text of this document listed 0x11-0x1B as reserved while assigning 0x17, 0x18, 0x1A and 0x1B, and omitted NOP and the ISA v2 opcodes; the table above lists what every implementation decodes.</t>
 </section>
 
 </section>
@@ -1361,6 +1361,8 @@ Address | Vector | Purpose
 <t>The opcode count is 56: NOP, the 50 base opcodes and the five ISA v2 opcodes.</t>
 <t>The Requirements Language section uses the BCP 14 text of RFC 8174.</t>
 <t>References to the companion documents name their -01 revisions.</t>
+<t>The registration policy of the MBC opcode registry is Specification Required. Revision -00 said Standards Action.</t>
+<t>The Introduction no longer says that the Monad header has "12 IANA-registered extensions". No IANA registration exists; the Foundation defines the registries.</t>
 </list></t>
 </section>
 
