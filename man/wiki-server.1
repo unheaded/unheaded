@@ -1,4 +1,4 @@
-.TH WIKI\-SERVER 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH WIKI\-SERVER 1 "2026-11-11" "unheaded 83d02fca" "Unheaded Kingdom"
 .SH NAME
 wiki\-server \- Serve the Kingdom wiki as rendered HTML.
 .SH SYNOPSIS
@@ -10,6 +10,9 @@ Serve the Kingdom wiki as rendered HTML.
 .TP
 .B \-\-port \fIN\fR
 HTTP server port (default 20002)
+.TP
+.B \-\-vor\-url \fISTRING\fR
+vor base URL, such as http://127.0.0.1:20110: adds the search box, /search, /sheets and /sheet/ (unset: none of them)
 .TP
 .B \-\-wiki\-dir \fISTRING\fR
 Path to wiki markdown directory (default ./wiki)
@@ -23,6 +26,7 @@ output version information and exit
 .EX
 wiki\-server
 wiki\-server \-\-port 20002 \-\-wiki\-dir ./wiki
+wiki\-server \-\-vor\-url http://127.0.0.1:20110
 .EE
 .SH SEE ALSO
 .BR unheaded (1)

@@ -22,7 +22,7 @@ func TestWikiCSP_AllowsExactlyTheRenderedInlineBlocks(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Test\n\n<script>alert(1)</script>\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	h, err := buildHandler(dir)
+	h, err := buildHandler(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}
