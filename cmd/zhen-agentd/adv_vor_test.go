@@ -83,3 +83,46 @@ func TestAdv_TopicFetchFailureDropsTheExternalRef(t *testing.T) {
 		t.Fatal("a failed fetch of an external hit left a clean chain")
 	}
 }
+
+// A sheet the retriever read and then refused as a source (it does not carry
+// the question's words) is still something retrieval touched. If it is
+// untrusted, the gate hears of it, with no text.
+func TestAdv_RejectedExternalTopicStillReachesTheGate(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+		// vor matches substrings: "ccna" finds the sheet through KRB5CCNAME.
+		if strings.Contains(r.URL.Query().Get("q"), "ccna") {
+			_ = json.NewEncoder(w).Encode([]map[string]string{
+				{"topic": "poison", "category": "c", "source_trust": "external", "source_kind": "user-source"},
+			})
+			return
+		}
+		_, _ = w.Write([]byte("[]"))
+	})
+	mux.HandleFunc("/api/topics", func(w http.ResponseWriter, r *http.Request) {
+		// Named for a query word, returned by no search: the second pass reads it.
+		_ = json.NewEncoder(w).Encode([]map[string]string{{"name": "exam-notes", "category": "c"}})
+	})
+	mux.HandleFunc("/api/topics/poison", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"name": "poison", "category": "c", "content": "export KRB5CCNAME=/tmp/x", "source_trust": "external"})
+	})
+	mux.HandleFunc("/api/topics/exam-notes", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"name": "exam-notes", "category": "c", "content": "nothing on the subject", "source_trust": "external"})
+	})
+	s := httptest.NewServer(mux)
+	defer s.Close()
+
+	for _, q := range []string{"ccna", "tell me about the exam for xyzzy"} {
+		refs, contents, err := newRetriever(s.Client(), s.URL, "", "", 2*time.Second).Retrieve(context.Background(), q, 5)
+		t.Logf("%q refs: %s err=%v", q, names(refs), err)
+		if err != nil {
+			t.Fatalf("%q: %v", q, err)
+		}
+		if len(contents) != 0 {
+			t.Errorf("%q: a refused sheet's text reached the model: %d contents", q, len(contents))
+		}
+		if !gateRefuses(refs) {
+			t.Errorf("%q: an external sheet was read and refused, and the chain came back clean", q)
+		}
+	}
+}

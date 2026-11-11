@@ -38,6 +38,7 @@ kill -TERM <pid>      # or just ^C in foreground
 | Field | Type | Default | Notes |
 |-------|------|---------|-------|
 | `goal` | string | (required) | the user goal |
+| `question` | string | "" | optional: what the person typed, when `goal` wraps it in history or system state. Seeds retrieval in place of `goal` and changes nothing else |
 | `project_root` | string | "" | optional — must equal the daemon's bound `-project-root` if set |
 | `session_id` | string | auto-generated | for audit-log correlation |
 | `k` | int | 5 | top-K topics for seed retrieval |

@@ -856,7 +856,7 @@ func TestRetrieve_VorScoreIsRankAndItsTailHasNoText(t *testing.T) {
 	mux.HandleFunc("/api/topics", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("[]")) })
 	for _, name := range []string{"one", "two"} {
 		mux.HandleFunc("/api/topics/"+name, func(w http.ResponseWriter, _ *http.Request) {
-			_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "category": "c", "content": "x", "source_trust": "canonical"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "category": "c", "content": "q x", "source_trust": "canonical"})
 		})
 	}
 	vor := httptest.NewServer(mux)

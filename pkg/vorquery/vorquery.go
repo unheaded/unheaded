@@ -17,6 +17,22 @@
 //     lines, so the topics named for the subject (Service-Wotan,
 //     Wotan-Memory-Model) never come back. Order interleaves the topics whose
 //     name carries every query term with vor's hits.
+//
+// Two more, from the 2026-11-11 test ("getting the ccna" answered from the
+// Kerberos sheet; a JNCIA question found nothing though vor has the sheets):
+//
+//   - A substring is not a word: "ccna" sits inside KRB5CCNAME. Covers counts
+//     the query words a topic's text carries at the start of a word, and a
+//     topic that does not carry every one is not a hit.
+//   - An AND of every word of a long question matches no sheet. When the full
+//     query yields nothing, Select searches word by word and keeps only topics
+//     that a query word names (a token of the name or category) and that carry
+//     two of the words. Counting words alone is not enough: for a JNCIA
+//     question the JNCIA sheets carried two of five words and unrelated docs
+//     carried three.
+//
+// A question with no topic that passes has no source. That is the answer:
+// the model is then told nothing, and the page says so.
 package vorquery
 
 import (
@@ -30,6 +46,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
 // stopWords are dropped from a question before it goes to vor. Words that
@@ -85,6 +103,101 @@ func SearchTerms(q string) []string {
 		return words
 	}
 	return kept
+}
+
+// Words returns the distinct words of terms the way vor splits them: on
+// anything that is not a letter or a digit, so "jncia-junos" is "jncia" and
+// "junos". Order is kept.
+func Words(terms []string) []string {
+	var out []string
+	seen := make(map[string]struct{})
+	for _, term := range terms {
+		for _, w := range strings.FieldsFunc(strings.ToLower(term), notWordRune) {
+			if _, dup := seen[w]; dup {
+				continue
+			}
+			seen[w] = struct{}{}
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+func notWordRune(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }
+
+// StartsWord reports whether word occurs in text at the start of a word:
+// "kube" starts a word of "kubernetes", "ccna" does not in "krb5ccname".
+// Both are expected in lower case.
+func StartsWord(text, word string) bool {
+	if word == "" {
+		return false
+	}
+	for from := 0; ; {
+		i := strings.Index(text[from:], word)
+		if i < 0 {
+			return false
+		}
+		i += from
+		if i == 0 {
+			return true
+		}
+		if r, _ := utf8.DecodeLastRuneInString(text[:i]); notWordRune(r) {
+			return true
+		}
+		from = i + 1
+	}
+}
+
+// Covers returns how many of words start a word of text (any case).
+func Covers(text string, words []string) int {
+	text = strings.ToLower(text)
+	n := 0
+	for _, w := range words {
+		if StartsWord(text, w) {
+			n++
+		}
+	}
+	return n
+}
+
+// MinFallbackWords is the fewest query words for which a word-by-word
+// search is tried after the full query found nothing.
+const MinFallbackWords = 2
+
+// MaxFallbackWords caps the searches one question can cost.
+const MaxFallbackWords = 8
+
+// MinFallbackCover is how many query words a topic found word by word must
+// carry at a word start. One shared word is a coincidence.
+const MinFallbackCover = 2
+
+// MaxFetches caps the topics fetched and checked in each of the two passes.
+const MaxFetches = 12
+
+// Candidates orders the topics of word-by-word searches: perWord[i] is the
+// hits for one query word, in vor's order. Topics hit by more words come
+// first, then the order they were first seen. Worktree copies are dropped.
+func Candidates(perWord [][]Topic) []string {
+	count := make(map[string]int)
+	var first []string
+	for _, hits := range perWord {
+		inThis := make(map[string]struct{})
+		for _, h := range hits {
+			if h.Name == "" || IsWorktreeCopy(h.Category) {
+				continue
+			}
+			if _, dup := inThis[h.Name]; dup {
+				continue
+			}
+			inThis[h.Name] = struct{}{}
+			if count[h.Name] == 0 {
+				first = append(first, h.Name)
+			}
+			count[h.Name]++
+		}
+	}
+	sort.SliceStable(first, func(i, j int) bool { return count[first[i]] > count[first[j]] })
+	return first
 }
 
 // NameTokens splits a vor topic name the way its words read: Service-Wotan,
@@ -247,4 +360,168 @@ func (x *Index) Order(ctx context.Context, terms []string, hits []Topic) ([]stri
 	}
 	named, err := x.Named(ctx, terms)
 	return Interleave(named, searched), err
+}
+
+var anchorTokenRE = regexp.MustCompile(`[-_.\s/]+`)
+
+// Anchored finds the topics a query word names: a word equal to a token of
+// the topic's name or category ("junos" names junos-interfaces, and every
+// sheet filed under a junos category). It returns how many words name each
+// topic and the names in listing order. Worktree copies are skipped.
+func Anchored(topics []Topic, words []string) (map[string]int, []string) {
+	want := make(map[string]struct{}, len(words))
+	for _, w := range words {
+		want[w] = struct{}{}
+	}
+	count := make(map[string]int)
+	var names []string
+	for _, tp := range topics {
+		if tp.Name == "" || IsWorktreeCopy(tp.Category) {
+			continue
+		}
+		hit := make(map[string]struct{})
+		for _, t := range anchorTokenRE.Split(strings.ToLower(tp.Name+" "+tp.Category), -1) {
+			if _, ok := want[t]; ok {
+				hit[t] = struct{}{}
+			}
+		}
+		if len(hit) == 0 {
+			continue
+		}
+		if _, dup := count[tp.Name]; !dup {
+			names = append(names, tp.Name)
+		}
+		if len(hit) > count[tp.Name] {
+			count[tp.Name] = len(hit)
+		}
+	}
+	return count, names
+}
+
+// Text is what Covers is run over for a fetched topic.
+func Text(name, category, title, content string) string {
+	return name + " " + category + " " + title + " " + content
+}
+
+// SearchFunc runs one vor /api/search and returns its hits in vor's order.
+type SearchFunc func(ctx context.Context, q string) ([]Topic, error)
+
+// FetchFunc fetches one topic and returns its Text; ok is false when the
+// fetch failed.
+type FetchFunc func(ctx context.Context, name string) (text string, ok bool)
+
+// Select returns the names of at most k topics that answer terms, best
+// first. It may return none.
+//
+// First pass: one search for all the terms, the hits interleaved with the
+// topics named for them (Order), and a topic is kept only when its text
+// carries every query word at a word start. Second pass, when the first kept
+// nothing and there are at least MinFallbackWords words: one search per word,
+// then only topics a query word names (Anchored), hit by more words first,
+// then named topics no search returned; a topic is kept when it carries
+// MinFallbackCover of the words, most words first.
+//
+// Each pass fetches at most MaxFetches topics; no topic is fetched twice. A
+// failed first search is the error. A failed word search skips the word. A
+// failed topic listing is returned as warn for the caller to log: the first
+// pass then runs on vor's order alone and the second keeps nothing.
+//
+// Select makes every search through the caller's search, so the caller sees
+// every hit of every search and can hand the untrusted ones to its gate.
+func (x *Index) Select(ctx context.Context, terms []string, k int, search SearchFunc, fetch FetchFunc) (names []string, warn, err error) {
+	hits, err := search(ctx, strings.Join(terms, " "))
+	if err != nil {
+		return nil, nil, err
+	}
+	order, warn := x.Order(ctx, terms, hits)
+	words := Words(terms)
+
+	type fetched struct {
+		text string
+		ok   bool
+	}
+	memo := make(map[string]fetched)
+	get := func(name string) (string, bool) {
+		f, done := memo[name]
+		if !done {
+			f.text, f.ok = fetch(ctx, name)
+			memo[name] = f
+		}
+		return f.text, f.ok
+	}
+
+	seen := make(map[string]struct{})
+	for _, name := range order {
+		if _, dup := seen[name]; dup || name == "" {
+			continue
+		}
+		if len(seen) == MaxFetches {
+			break
+		}
+		seen[name] = struct{}{}
+		text, ok := get(name)
+		if !ok || Covers(text, words) < len(words) {
+			continue
+		}
+		names = append(names, name)
+		if len(names) >= k {
+			return names, warn, nil
+		}
+	}
+	if len(names) > 0 || len(words) < MinFallbackWords {
+		return names, warn, nil
+	}
+
+	if len(words) > MaxFallbackWords {
+		words = words[:MaxFallbackWords]
+	}
+	var perWord [][]Topic
+	for _, w := range words {
+		h, err := search(ctx, w)
+		if err != nil {
+			continue
+		}
+		perWord = append(perWord, h)
+	}
+	topics, err := x.listing(ctx)
+	if err != nil {
+		return nil, err, nil
+	}
+	anchors, listed := Anchored(topics, words)
+	var cand []string
+	searched := make(map[string]struct{})
+	for _, name := range Candidates(perWord) {
+		searched[name] = struct{}{}
+		if anchors[name] > 0 {
+			cand = append(cand, name)
+		}
+	}
+	var rest []string
+	for _, name := range listed {
+		if _, was := searched[name]; !was {
+			rest = append(rest, name)
+		}
+	}
+	sort.SliceStable(rest, func(i, j int) bool { return anchors[rest[i]] > anchors[rest[j]] })
+	cand = append(cand, rest...)
+	if len(cand) > MaxFetches {
+		cand = cand[:MaxFetches]
+	}
+
+	cover := make(map[string]int)
+	for _, name := range cand {
+		text, ok := get(name)
+		if !ok {
+			continue
+		}
+		if c := Covers(text, words); c >= MinFallbackCover {
+			cover[name] = c
+			names = append(names, name)
+		}
+	}
+	sort.SliceStable(names, func(i, j int) bool { return cover[names[i]] > cover[names[j]] })
+	if len(names) > k {
+		names = names[:k]
+	}
+	return names, warn, nil
 }

@@ -65,6 +65,13 @@ type Config struct {
 	// set by the serving layer. Every tool call carries it, so a pending
 	// confirmation token is bound to it (RT-03).
 	Principal string
+	// RetrieveQuery, when set, seeds retrieval in place of the goal. A
+	// serving layer that wraps the person's question in a preamble (prior
+	// conversation, live state, a file) passes the question alone here, so
+	// the preamble's words do not choose the sources. It narrows what is
+	// retrieved and nothing else: the goal the model sees, the references
+	// the gate sees and every later retrieval are unchanged.
+	RetrieveQuery string
 }
 
 func (c *Config) defaulted() Config {
@@ -204,7 +211,11 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 	defer cancel()
 
 	// 1. Seed retrieval.
-	refs, contents, err := a.retriever.Retrieve(ctx, goal, a.cfg.RetrieveK)
+	seed := goal
+	if q := strings.TrimSpace(a.cfg.RetrieveQuery); q != "" {
+		seed = q
+	}
+	refs, contents, err := a.retriever.Retrieve(ctx, seed, a.cfg.RetrieveK)
 	if err != nil {
 		return nil, fmt.Errorf("seed retrieve: %w", err)
 	}

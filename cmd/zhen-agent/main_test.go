@@ -20,7 +20,7 @@ import (
 func TestVorRetriever_HidesNoUntrustedHit(t *testing.T) {
 	sheet := func(name, category, trust string) func(http.ResponseWriter, *http.Request) {
 		return func(w http.ResponseWriter, _ *http.Request) {
-			_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "category": category, "content": "x", "source_trust": trust})
+			_ = json.NewEncoder(w).Encode(map[string]string{"name": name, "category": category, "content": "poison x", "source_trust": trust})
 		}
 	}
 	mux := http.NewServeMux()

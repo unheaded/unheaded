@@ -39,6 +39,7 @@
         "required": ["goal"],
         "properties": {
           "goal": {"type": "string", "description": "User goal for the agent"},
+          "question": {"type": "string", "description": "The person's question alone, when goal wraps it in a preamble; it seeds the first retrieval in place of goal. Optional"},
           "project_root": {"type": "string", "description": "Project root the request targets; must be in the daemon's allow-list"},
           "session_id": {"type": "string", "description": "Audit-log correlation id; auto-generated if omitted"},
           "k": {"type": "integer", "description": "Top-K retrieval count", "minimum": 1, "default": 5},

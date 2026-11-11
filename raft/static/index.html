@@ -217,6 +217,9 @@
             color: var(--text-dim);
             margin-top: 4px;
         }
+        .msg .sources.unsourced {
+            color: var(--warn, #d9a441);
+        }
         .msg .sources a {
             color: var(--accent);
             text-decoration: none;
@@ -1903,8 +1906,13 @@ async function ask(preset) {
                 actionsDiv.appendChild(inlineActions);
             }
 
+            // No sheet reached the model: say so, so the answer is not
+            // read as grounded. Commands and recalled answers are not
+            // model answers and carry no such line.
+            const unsourced = !sources && model !== 'command' && !data.from_memory;
             const metaHtml = `${badge} ${data.elapsed_seconds}s | ${data.tokens_used} tok` +
-                (sources ? `<div class="sources">Sources: ${sources}</div>` : '');
+                (sources ? `<div class="sources">Sources: ${sources}</div>` : '') +
+                (unsourced ? '<div class="sources unsourced">No source: no sheet matched this question. The answer is the model\'s own and is unchecked.</div>' : '');
 
             addMsg(data.answer, 'zhen' + extraCls, metaHtml, actionsDiv);
             updateStats(data.elapsed_seconds);

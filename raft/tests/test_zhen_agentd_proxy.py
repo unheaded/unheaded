@@ -102,6 +102,22 @@ def test_proxy_posts_ask_with_api_key(clean_env):
     assert url == AGENTD + '/api/v1/agent/ask'
     assert kw['headers']['X-API-Key'] == 'k-test'
     assert kw['json']['goal'] == 'what is wotan'
+    assert kw['json']['question'] == 'what is wotan'
+
+
+def test_proxy_sends_the_question_apart_from_the_wrapped_goal(clean_env):
+    # The goal carries a preamble; retrieval is seeded by the question.
+    clean_env.setenv('ZHEN_AGENTD_API_KEY', 'k-test')
+    rec = _Recorder(_Resp(200, {'answer': 'a', 'turns_used': 1}))
+    clean_env.setattr(zhen_rag.requests, 'post', rec)
+    _pipe().generate(
+        'what is wotan', [],
+        history=[{'role': 'user', 'content': 'tell me about kerberos'},
+                 {'role': 'assistant', 'content': 'a ticket system'}])
+    _, kw = rec.calls[0]
+    assert kw['json']['goal'].startswith('Prior conversation:')
+    assert 'kerberos' in kw['json']['goal']
+    assert kw['json']['question'] == 'what is wotan'
 
 
 def test_proxy_no_auth_dev_mode_sends_no_key(clean_env):

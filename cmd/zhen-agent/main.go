@@ -168,53 +168,63 @@ type vorRetriever struct {
 
 func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
 	terms := vorquery.SearchTerms(query)
-	hits, err := r.search(ctx, strings.Join(terms, " "))
-	if err != nil {
-		return nil, nil, fmt.Errorf("vor search: %w", err)
-	}
-	searched := make([]vorquery.Topic, len(hits))
-	for i, h := range hits {
-		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
-	}
-	order, err := r.index.Order(ctx, terms, searched)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "zhen-agent: topic listing: %v\n", err)
-	}
 
-	seen := make(map[string]struct{})
-	fetched := make(map[string]string) // Name|Category to the trust vor answered with
-	var refs []champion.Reference
-	var contents []agent.TopicContent
-	for _, name := range order {
-		if _, dup := seen[name]; dup {
-			continue
+	// Select (pkg/vorquery) decides which topics answer the question. It
+	// searches and fetches through these two closures, so every hit of every
+	// search it makes and every topic it reads is seen here.
+	var hits []vorSearchHit
+	search := func(ctx context.Context, q string) ([]vorquery.Topic, error) {
+		h, err := r.search(ctx, q)
+		if err != nil {
+			return nil, err
 		}
-		seen[name] = struct{}{}
+		hits = append(hits, h...)
+		out := make([]vorquery.Topic, len(h))
+		for i := range h {
+			out[i] = vorquery.Topic{Name: h[i].Topic, Category: h[i].Category}
+		}
+		return out, nil
+	}
+	read := make(map[string]*vorTopic)
+	var readOrder []string
+	fetch := func(ctx context.Context, name string) (string, bool) {
 		t, err := r.topic(ctx, name)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "zhen-agent: skip topic %q: %v\n", name, err)
-			continue
+			return "", false
 		}
+		read[name] = t
+		readOrder = append(readOrder, name)
+		return vorquery.Text(t.Name, t.Category, t.Title, t.Content), true
+	}
+	names, warn, err := r.index.Select(ctx, terms, k, search, fetch)
+	if err != nil {
+		return nil, nil, fmt.Errorf("vor search: %w", err)
+	}
+	if warn != nil {
+		fmt.Fprintf(os.Stderr, "zhen-agent: topic listing: %v\n", warn)
+	}
+
+	fetched := make(map[string]string) // Name|Category to the trust vor answered with
+	var refs []champion.Reference
+	var contents []agent.TopicContent
+	for _, name := range names {
+		t := read[name]
 		fetched[t.Name+"|"+t.Category] = t.SourceTrust
 		ref := champion.Reference{
-			Topic:       t.Name,
-			Category:    t.Category,
-			SourceKind:  t.SourceKind,
-			SourceTrust: t.SourceTrust,
-			SourcePath:  t.SourcePath,
-			SourceLabel: t.SourceLabel,
+			Topic: t.Name, Category: t.Category,
+			SourceKind: t.SourceKind, SourceTrust: t.SourceTrust,
+			SourcePath: t.SourcePath, SourceLabel: t.SourceLabel,
 		}
 		refs = append(refs, ref)
-		contents = append(contents, agent.TopicContent{
-			Ref:     ref,
-			Content: clipContent(t.Content, r.maxChars),
-		})
-		if len(refs) >= k {
-			break
-		}
+		contents = append(contents, agent.TopicContent{Ref: ref, Content: clipContent(t.Content, r.maxChars)})
 	}
-	// Every untrusted hit reaches the gate, without text, whether it fell past
-	// k, its fetch failed, or a same-named sheet answered for it.
+	// Fail closed: everything untrusted that retrieval touched reaches the
+	// gate, without text. That is every untrusted hit of every search made
+	// (past k, fetch failed, rejected for not carrying the question's words,
+	// or masked by a same-named sheet) and every untrusted topic that was
+	// read and not kept. Dropping a source from the answer never drops it
+	// from the gate.
 	for _, h := range hits {
 		key := h.Topic + "|" + h.Category
 		if champion.TrustedSourceLabels[h.SourceTrust] {
@@ -228,6 +238,22 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 			Topic: h.Topic, Category: h.Category,
 			SourceKind: h.SourceKind, SourceTrust: h.SourceTrust,
 			SourcePath: h.SourcePath, SourceLabel: h.SourceLabel,
+		})
+	}
+	for _, name := range readOrder {
+		t := read[name]
+		key := t.Name + "|" + t.Category
+		if champion.TrustedSourceLabels[t.SourceTrust] {
+			continue
+		}
+		if trust, ok := fetched[key]; ok && trust == t.SourceTrust {
+			continue
+		}
+		fetched[key] = t.SourceTrust
+		refs = append(refs, champion.Reference{
+			Topic: t.Name, Category: t.Category,
+			SourceKind: t.SourceKind, SourceTrust: t.SourceTrust,
+			SourcePath: t.SourcePath, SourceLabel: t.SourceLabel,
 		})
 	}
 	return refs, contents, nil
