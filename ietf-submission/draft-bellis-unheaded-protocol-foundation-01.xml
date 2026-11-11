@@ -269,7 +269,7 @@ extension header:</t>
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|  Type = TBD   |   Len = 20+   |                               |
+|  Type = 0x3E  |   Len = 20+   |                               |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+                               |
 |                     Monad (20 bytes)                          |
 |                                                               |
@@ -284,10 +284,13 @@ extension header:</t>
 <dl>
   <dt>Type:</dt>
   <dd>
-    <t>To be assigned by IANA. The high-order two bits MUST be 00 (skip on
-unrecognized). The third bit MUST be 1 (option data may change
-en-route), as the Monad is modified by per-hop processing. The
-resulting format is 001xxxxx. Suggested value: 0x3E.</t>
+    <t>0x3E, an experimental Hop-by-Hop option type <xref target="RFC4727"></xref>
+used inside a limited domain <xref target="RFC8799"></xref>. No option
+type assignment is requested by this document (see
+<xref target="ipv6-hop-by-hop-option-type"></xref>). The high-order two bits
+are 00 (skip on unrecognized) and the third bit is 1 (option data may
+change en-route), as the Monad is modified by per-hop processing; the
+format 001xxxxx is satisfied by 0x3E.</t>
   </dd>
   <dt>Len:</dt>
   <dd>
@@ -308,7 +311,7 @@ Offset  Size  Field               Type        Description
 0x00    1     version             raw uint8   Protocol version (current: 0x01)
 0x01    1     src_service_id      exponent    Source service (Sophia lookup)
 0x02    1     dst_service_id      exponent    Destination service (Sophia)
-0x03    1     hop_count           raw uint8   Decremented at each hop (TTL-like)
+0x03    1     hop_count           raw uint8   Decremented at each hop; limit 64 (policy)
 0x04    1     qos_class           exponent    QoS classification
 0x05    1     flow_action         exponent    Action directive
 0x06    1     circuit_state       exponent    Circuit breaker state
@@ -361,16 +364,19 @@ Semantics are defined by Sophia dictionary lookup <xref target="SOPHIA"></xref>.
   </dd>
   <dt>hop_count:</dt>
   <dd>
-    <t>An unsigned 8-bit counter, initially set to a deployment-defined
-hop limit (default 64) at Shield ingress. Each hop MUST check
-whether hop_count equals 0; if so, the packet MUST be dropped and
-an EVENT_ANOMALY MUST be emitted. Otherwise, the hop MUST
+    <t>An unsigned 8-bit counter, initially set to the hop limit at
+Shield ingress. The hop limit is a single policy value (one policy
+key), default 64. Each hop MUST check whether hop_count equals 0; if
+so, the packet has travelled past the limit and MUST be dropped by
+default, and an EVENT_ANOMALY MUST be emitted. Otherwise, the hop MUST
 decrement hop_count by 1 before forwarding.</t>
   </dd>
   <dt>trace_id:</dt>
   <dd>
-    <t>Flow trace correlation is derived from the IPv6 Flow Label (RFC 6437).
-The 20-bit Flow Label set by Shield at ingress serves as the trace
+    <t>Flow trace correlation is derived from the IPv6 Flow Label
+<xref target="RFC6437"></xref>. The Flow Label is per flow, not per packet:
+Shield sets the 20-bit Flow Label at ingress from a hash of the 5-tuple,
+and it is the same in every packet of the flow. It serves as the trace
 correlation identifier.  Shim programs MUST NOT modify the Flow Label.</t>
   </dd>
   <dt>qos_class:</dt>
@@ -446,7 +452,8 @@ compute capacity, formalized as a separate option with its own type
 code.  This approach derives from the inverted subnet mask (wildcard
 mask) formalism established in <xref target="RFC0950"/>.</t>
 
-<t>The Extended Register Option is defined in <xref target="MONAD-EXT-REG"/>.  Nodes
+<t>The Extended Register Option is specified in <xref target="MONAD-EXT-REG"/>,
+a document not yet published (work in progress).  Nodes
 that do not recognize the extended option MUST skip it per <xref target="RFC8200"/>
 option type processing rules (act=00).  The primary Monad option format
 is unchanged; the extended option is purely additive.</t>
@@ -784,10 +791,11 @@ Protocol Parameters registry group.</t>
 
 <section anchor="overview-1"><name>Overview</name>
 
-<t>The Unheaded Protocol defines 12 IANA registries (see <xref target="iana-considerations"></xref>).
+<t>The Unheaded Protocol defines its IANA registries in <xref target="iana-considerations"></xref>.
 New allocations within these registries follow the registration
-procedures specified for each registry (Standards Action, Specification
-Required, Expert Review, or First Come First Served per RFC 8126).</t>
+procedures specified for each registry (Specification Required,
+Expert Review, or First Come First Served per RFC 8126). No registry
+of this document uses Standards Action; it is an Independent Submission.</t>
 
 </section>
 <section anchor="step-by-step-registration-guide"><name>Step-by-Step Registration Guide</name>
@@ -796,17 +804,15 @@ Required, Expert Review, or First Come First Served per RFC 8126).</t>
 
 <section anchor="step-1-identify-the-target-registry"><name>Step 1: Identify the Target Registry</name>
 
-<t>Determine which of the 12 registries your allocation falls under:</t>
+<t>Determine which of the registries your allocation falls under:</t>
 
 <figure><artwork><![CDATA[
 Registry                              Policy
 ------------------------------------  -------------------------
-Monad Protocol Version Numbers        Standards Action
+Monad Protocol Version Numbers        Specification Required
 Monad Flags                           Specification Required
 Monad Flow Actions                    Expert Review
-Kingdom Mode Values                   Standards Action
-IPv6 Hop-by-Hop Option Type           IETF Review
-IPv6 Next Header Type                 Standards Action
+Kingdom Mode Values                   Specification Required
 Sophia Dictionary Namespace           First Come First Served
 Anamnesis Event Types                 Specification Required
 Anamnesis EVENT_COMPUTED Sub-kinds    Specification Required
@@ -815,6 +821,14 @@ TLV Type Allocations                  Specification Required
 PQC Algorithm Identifiers             Specification Required
 Wotan Topic Namespace                 Expert Review
 ]]></artwork></figure>
+
+<t>The "PQC Algorithm Identifiers" registry is the family identifier
+table of <xref target="pqc-algorithm-identifiers"></xref>; parameter-set
+identifiers under those families are registered by
+<xref target="UNHEADED-PQC"></xref>. The IPv6 Hop-by-Hop option type and the
+IPv6 Next Header value that this protocol uses are experimental values
+(<xref target="RFC4727"></xref>) and are not registries of this document;
+no code point is requested for either.</t>
 
 </section>
 <section anchor="step-2-prepare-the-registration-request"><name>Step 2: Prepare the Registration Request</name>
@@ -1094,15 +1108,12 @@ intermediate nodes MUST use one of:</t>
 <t>(a) IPsec ESP (RFC 4303) to protect the entire packet including
       extension headers.</t>
 
-<t>(b) The optional HMAC field (not defined in this document) appended
-      to the Monad, using a pre-shared key distributed via Sophia
-      <xref target="SOPHIA"></xref>.</t>
-
-<t>(c) ML-DSA-65 (FIPS 204) signatures at Shield boundaries for
+<t>(b) ML-DSA-65 (FIPS 204) signatures at Shield boundaries for
       post-quantum integrity.</t>
 
 <t>The choice of integrity mechanism is a deployment decision outside the
-scope of this specification.</t>
+scope of this specification. A third mechanism, an HMAC field, is
+future work (<xref target="future-work"></xref>).</t>
 
 </section>
 <section anchor="trust-boundary"><name>Trust Boundary</name>
@@ -1147,55 +1158,15 @@ behavior.</t>
 Mode packets from outside the domain.</t>
 
 </section>
-</section>
-<section anchor="backwards-compatibility-statement-draft-05-to-draft-06"><name>Backwards Compatibility Statement (draft-05 to draft-06)</name>
+<section anchor="future-work"><name>Future Work</name>
 
-<t>This section formally documents that the transition from draft-05 to
-draft-06 is non-breaking.</t>
-
-<section anchor="wire-format-1"><name>Wire Format</name>
-
-<t>The Monad wire format (20 bytes, version 0x01) is UNCHANGED between
-draft-05 and draft-06. All field offsets, sizes, types, and the total
-size remain identical. Implementations conforming to draft-05 will
-correctly parse and process packets conforming to draft-06, and vice
-versa.</t>
-
-</section>
-<section anchor="registry-additions"><name>Registry Additions</name>
-
-<t>Draft-06 adds the UNHEADED_METRIC_V1 example registration (Type 0x2A,
-52 bytes in a separate HbH option TLV). This is a purely additive
-extension. Implementations that do not recognize Type 0x2A will skip
-the option per RFC 8200 processing rules. No existing registry entries
-are modified or removed.</t>
-
-</section>
-<section anchor="new-sections"><name>New Sections</name>
-
-<t>The following sections are new in draft-06 and do not modify any
-existing protocol behavior:</t>
-
-<t><list style="numbers" type="1">
-  <t>IANA Registration Procedures (Section 9): Informational guidance
-for new registrations.</t>
-  <t>Security Considerations — Wire Format Immutability Threat Model
-(Section 10.1): Documents threats and mitigations for the frozen
-wire format.</t>
-  <t>Cross-References to Sophia draft-03 <xref target="SOPHIA"></xref> and Wotan draft-03
-<xref target="WOTAN"></xref>.</t>
-  <t>This backwards compatibility statement.</t>
-</list></t>
-
-</section>
-<section anchor="interoperability"><name>Interoperability</name>
-
-<t>A deployment running a mix of draft-05 and draft-06 implementations
-will operate correctly. Draft-06 implementations produce identical
-wire-format packets to draft-05 implementations. The only difference
-is that draft-06 implementations MAY additionally produce
-UNHEADED_METRIC_V1 options, which draft-05 implementations will skip
-per standard HbH option processing.</t>
+<t>An optional HMAC field appended to the Monad within the option
+payload, using a pre-shared key distributed via Sophia
+<xref target="SOPHIA"></xref>, is a candidate integrity mechanism against
+compromised intermediate nodes (<xref target="integrity"></xref>). It is
+not defined in this revision. Any such field would be carried beyond
+the 20 frozen octets of the Monad and would not change the version
+0x01 wire format.</t>
 
 </section>
 </section>
@@ -1208,18 +1179,22 @@ for <xref target="RFC9000"></xref>).</t>
 
 <section anchor="ipv6-hop-by-hop-option-type"><name>IPv6 Hop-by-Hop Option Type</name>
 
-<t>A new IPv6 Hop-by-Hop option type is requested:</t>
+<t>No IPv6 Hop-by-Hop option type assignment is requested. The Unheaded
+Monad Option uses Option Type 0x3E, an experimental Hop-by-Hop option
+type <xref target="RFC4727"></xref>, inside a limited domain
+<xref target="RFC8799"></xref>. A real assignment waits for a later
+IETF-stream document.</t>
 
 <figure><artwork><![CDATA[
-Type:               TBD (suggested: 0x3E)
+Type:               0x3E (experimental, RFC 4727; no assignment requested)
 Name:               Unheaded Monad Option
-Change Controller:  IESG
+Scope:              Limited domain (RFC 8799)
 Reference:          This document
 ]]></artwork></figure>
 
-<t>The high-order two bits MUST be 00 (skip on unrecognized) and the third
-bit MUST be 1 (option data may change en-route). This yields the format
-001xxxxx.</t>
+<t>The high-order two bits of the type are 00 (skip on unrecognized) and
+the third bit is 1 (option data may change en-route). 0x3E has the
+format 001xxxxx.</t>
 
 </section>
 <section anchor="monad-protocol-version-registry"><name>Monad Protocol Version Registry</name>
@@ -1227,7 +1202,7 @@ bit MUST be 1 (option data may change en-route). This yields the format
 <t>IANA is requested to create a new registry entitled "Monad Protocol
 Version Numbers" in the "Unheaded Protocol Parameters" registry group.</t>
 
-<t>Registration Policy: Standards Action <xref target="RFC8126"></xref></t>
+<t>Registration Policy: Specification Required <xref target="RFC8126"></xref></t>
 
 <figure><artwork><![CDATA[
 Value       Description                     Reference
@@ -1303,7 +1278,7 @@ Value       Name              Description                       Reference
 <t>IANA is requested to create a new registry entitled "Kingdom Mode
 Values" in the "Unheaded Protocol Parameters" registry group.</t>
 
-<t>Registration Policy: Standards Action <xref target="RFC8126"></xref></t>
+<t>Registration Policy: Specification Required <xref target="RFC8126"></xref></t>
 
 <figure><artwork><![CDATA[
 Value   Name            Description                             Reference
@@ -1315,23 +1290,30 @@ Value   Name            Description                             Reference
 ]]></artwork></figure>
 
 </section>
-<section anchor="ipv6-next-header-type-allocation"><name>IPv6 Next Header Type Allocation</name>
+<section anchor="ipv6-next-header-type-allocation"><name>IPv6 Next Header Value 254</name>
 
 <figure><artwork><![CDATA[
-Next Header:    0xFE (254)
+Next Header:    0xFE (254), experimental use (RFC 3692, RFC 4727)
 Name:           Unheaded Monad Protocol
-Change Controller: IESG
+Scope:          Limited domain (RFC 8799); no IANA allocation requested
 Reference:      This document
 ]]></artwork></figure>
 
-<t>Note: This allocation is reserved for future use and is not required by
-the normative protocol path, which uses IPv6 Hop-by-Hop options.</t>
+<t>Next Header value 254 is an experimental-use value under
+<xref target="RFC3692"></xref> and <xref target="RFC4727"></xref>. The Unheaded
+Protocol uses it only inside the limited domain, and no IANA
+allocation is requested. It is not required by the normative protocol
+path, which uses IPv6 Hop-by-Hop options.</t>
 
 </section>
 <section anchor="ipv6-flow-label-per-rfc-6437"><name>IPv6 Flow Label Per RFC 6437</name>
 
-<t>Monad packets MUST use the IPv6 Flow Label field as a packet trace
-identifier per RFC 6437.</t>
+<t>Monad packets MUST use the IPv6 Flow Label field as a per-flow
+identifier per <xref target="RFC6437"></xref>. Shield sets the Flow Label at
+ingress from a hash of the 5-tuple; it is the same in every packet of
+a flow and is not a per-packet value. It is the trace correlation
+identifier of <xref target="monad-register-file"></xref>. This document
+requests nothing of IANA for the Flow Label.</t>
 
 </section>
 <section anchor="sophia-dictionary-namespace-registry"><name>Sophia Dictionary Namespace Registry</name>
@@ -1437,22 +1419,7 @@ Initial entries:
 ]]></artwork></figure>
 
 </section>
-<section anchor="pqc-algorithm-registry"><name>PQC Algorithm Registry</name>
-
-<figure><artwork><![CDATA[
-Registry Name:  Unheaded PQC Algorithm Identifiers
-Policy:         Specification Required
-
-Initial entries:
-  ML-KEM-768 (0x01, 1184, FIPS 203)
-  ML-KEM-1024 (0x02, 1568, FIPS 203)
-  ML-DSA-65 (0x03, 1952, FIPS 204)
-  ML-DSA-87 (0x04, 2592, FIPS 204)
-  SLH-DSA-SHA2-128s (0x05, 32, FIPS 205)
-]]></artwork></figure>
-
-</section>
-<section anchor="mbc-opcode-numbers-new-in-draft-06-update"><name>MBC Opcode Numbers (NEW in draft-06 update)</name>
+<section anchor="mbc-opcode-numbers"><name>MBC Opcode Numbers</name>
 
 <t>The MBC opcode registry, "MBC Instruction Set Architecture Opcode Values", is created by <xref target="UNHEADED-MBC-ISA"></xref>, which specifies every opcode and lists every assignment.  Earlier revisions of this document also requested a registry "UPC MBC Opcode Numbers" for the same 8-bit values under a different policy.  That request is withdrawn: one registry governs the opcode space, and this document makes no opcode assignment of its own.</t>
 
@@ -1477,7 +1444,7 @@ bit 0 = Zero (Z), bit 1 = Negative (N), bit 2 = Carry (C).</t>
 
 </section>
 </section>
-<section anchor="mbc-syscall-numbers-new-in-draft-06-update"><name>MBC Syscall Numbers (NEW in draft-06 update)</name>
+<section anchor="mbc-syscall-numbers"><name>MBC Syscall Numbers</name>
 
 <t>IANA is requested to create a new registry entitled "UPC MBC Syscall
 Numbers" in the "Unheaded Protocol Parameters" registry group.</t>
@@ -1531,7 +1498,7 @@ Value   Name              Description                             Reference
 
 </section>
 </section>
-<section anchor="upc-memory-region-types-new-in-draft-06-update"><name>UPC Memory Region Types (NEW in draft-06 update)</name>
+<section anchor="upc-memory-region-types"><name>UPC Memory Region Types</name>
 
 <t>IANA is requested to create a new registry entitled "UPC Memory
 Region Types" in the "Unheaded Protocol Parameters" registry group.</t>
@@ -1585,7 +1552,7 @@ Maximum concurrent processes: 4 (Level 4c scheduler).</t>
 
 </section>
 </section>
-<section anchor="upc-event-types-new-in-draft-06-update"><name>UPC Event Types (NEW in draft-06 update)</name>
+<section anchor="upc-event-types"><name>UPC Event Types</name>
 
 <t>IANA is requested to create a new registry entitled "UPC Event Types"
 in the "Unheaded Protocol Parameters" registry group.</t>
@@ -1613,9 +1580,11 @@ Value   Name                  Description                       Reference
 </section>
 <section anchor="pqc-authentication-value-format"><name>PQC Authentication Value Format</name>
 
-<t>The PQC authentication value is a 12-byte structure carried in the
-Monad scratch bytes (offsets 0x0E-0x13) when both the SAMPLED (bit 3)
-and CUSTOM (bit 1) flags are set in the Monad flags field.</t>
+<t>The version 0x01 Monad carries one PQC field: a 32-bit SigRef
+(unsigned, big-endian, 0 reserved) in the Monad scratch octets
+(offsets 0x0E-0x11), present when both the S (0x08, SAMPLED) and
+CUSTOM (0x02) flags are set in the Monad flags field. The 20-octet
+wire format is unchanged; no field, offset, size or flag bit is added.</t>
 
 <figure><artwork><![CDATA[
  0                   1                   2                   3
@@ -1623,47 +1592,46 @@ and CUSTOM (bit 1) flags are set in the Monad flags field.</t>
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 |                       SigRef (32 bits)                        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|     KeyRef (16 bits)          |       HashPfx[0:1]            |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|       HashPfx[2:3]            |       SeqNum (16 bits)        |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 ]]></artwork></figure>
 
-<t>Fields:</t>
+<t>Field:</t>
 
 <dl>
   <dt>SigRef:</dt>
   <dd>
-    <t>32-bit index into the Sophia PQC_SIG_MAP BPF map.  References the
-full post-quantum signature (which may be kilobytes in size).</t>
-  </dd>
-  <dt>KeyRef:</dt>
-  <dd>
-    <t>16-bit index into the Sophia PQC_KEY_MAP BPF map.  References the
-corresponding public key.</t>
-  </dd>
-  <dt>HashPfx:</dt>
-  <dd>
-    <t>4-byte prefix of SHA-256(signature).  Enables fast signature
-identification without full map lookup.</t>
-  </dd>
-  <dt>SeqNum:</dt>
-  <dd>
-    <t>16-bit per-flow sequence number for replay protection.  MUST be
-monotonically increasing within each flow.</t>
+    <t>32-bit index into the Sophia sophia_pqc_sigs BPF map.  References
+the Sophia PQC signature entry, which holds the full post-quantum
+signature (which may be kilobytes in size). Value 0 is reserved.</t>
   </dd>
 </dl>
 
+<t>KeyRef (32 bits, the index into sophia_pqc_keys), HashPfx (16 bits,
+SHA-256(signature)[0:2]) and SeqNum (32 bits, the per-flow sequence
+number for replay protection) are fields of the Sophia PQC signature
+entry (struct sophia_pqc_sig_entry in <xref target="SOPHIA"></xref> and
+<xref target="UNHEADED-PQC"></xref>). No packet carries them. The verification
+procedure is specified in <xref target="UNHEADED-PQC"></xref>.</t>
+
 <section anchor="pqc-algorithm-identifiers"><name>PQC Algorithm Identifiers</name>
+
+<t>IANA is requested to create a new registry entitled "Unheaded PQC
+Algorithm Identifiers" in the "Unheaded Protocol Parameters" registry
+group. This registry holds the algorithm family identifiers.
+Parameter-set identifiers within each family are registered by
+<xref target="UNHEADED-PQC"></xref> under these family identifiers.</t>
+
+<t>Registration Policy: Specification Required <xref target="RFC8126"></xref></t>
 
 <figure><artwork><![CDATA[
 Value   Algorithm         Key Size    Standard      Reference
 -----   --------          ---------   ----------    ---------
+0x00    Reserved          -           -             [this document]
 0x01    SLH-DSA           variable    FIPS 205      [this document]
 0x02    ML-DSA            variable    FIPS 204      [this document]
-0x03    FN-DSA            variable    FIPS 206      [this document]
+0x03    Reserved          -           -             Never reassigned
 0x04    ML-KEM            variable    FIPS 203      [this document]
 0x05    HQC               variable    FIPS 207      [this document]
+0x06-0xFF  Unassigned
 ]]></artwork></figure>
 
 </section>
@@ -1680,15 +1648,21 @@ Value   Status           Description                          Reference
 ]]></artwork></figure>
 
 </section>
-<section anchor="compliance-tiers-kingdom-mode-k1k0"><name>Compliance Tiers (Kingdom Mode K1|K0)</name>
+<section anchor="pqc-compliance-tiers"><name>PQC Compliance Tiers (Sophia Policy)</name>
+
+<t>The PQC compliance tier is a per-service policy value held in a
+Sophia dictionary and read by the verifier. No packet carries it: the
+Monad flags carry no tier, and the Kingdom Mode values of
+<xref target="kingdom-mode-registry"></xref> are unrelated to it. The tiers
+are defined in <xref target="UNHEADED-PQC"></xref>; the policy levels are:</t>
 
 <figure><artwork><![CDATA[
-Value   Tier              Description                         Reference
+Level   Tier              Description                         Reference
 -----   --------          -----------------------------------  ---------
-0x00    None              No PQC required                     [this document]
-0x01    Standard          At least one PQC signature          [this document]
-0x02    Enhanced          PQC + specific algorithm reqs       [this document]
-0x03    Sovereign         2-of-3 cross-algorithm multi-sig    [this document]
+0       None              No PQC required                     [UNHEADED-PQC]
+1       Standard          At least one PQC signature          [UNHEADED-PQC]
+2       Enhanced          PQC + specific algorithm reqs       [UNHEADED-PQC]
+3       Sovereign         Both signature families verify      [UNHEADED-PQC]
 ]]></artwork></figure>
 
 </section>
@@ -1960,6 +1934,36 @@ Email: stevie@bellis.tech</t>
   <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-mbc-isa-01"/>
 </reference>
 
+<reference anchor="UNHEADED-PQC" >
+  <front>
+    <title>Post-Quantum Packet Authentication for the Unheaded Protocol</title>
+    <author initials="S." surname="Bellis">
+      <organization></organization>
+    </author>
+    <date year="2026" month="November"/>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-pqc-authentication-01"/>
+</reference>
+
+<reference anchor="RFC3692" target="https://www.rfc-editor.org/info/rfc3692">
+  <front>
+    <title>Assigning Experimental and Testing Numbers Considered Useful</title>
+    <author initials="T." surname="Narten"/>
+    <date year="2004" month="January"/>
+  </front>
+  <seriesInfo name="BCP" value="82"/>
+  <seriesInfo name="RFC" value="3692"/>
+</reference>
+
+<reference anchor="RFC4727" target="https://www.rfc-editor.org/info/rfc4727">
+  <front>
+    <title>Experimental Values In IPv4, IPv6, ICMPv4, ICMPv6, UDP, and TCP Headers</title>
+    <author initials="B." surname="Fenner"/>
+    <date year="2006" month="November"/>
+  </front>
+  <seriesInfo name="RFC" value="4727"/>
+</reference>
+
 <reference anchor="UNHEADED-ADR108" target="https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-108-mbc-cartridges.md">
   <front>
     <title>ADR-108: MBC Cartridges</title>
@@ -2227,7 +2231,7 @@ Email: stevie@bellis.tech</t>
   <seriesInfo name="DOI" value="10.17487/RFC9631"/>
 </reference>
 
-<reference anchor="MONAD-EXT-REG" target="draft-bellis-unheaded-monad-extended-register-00">
+<reference anchor="MONAD-EXT-REG">
   <front>
     <title>Monad Extended Register Option for the Unheaded Protocol</title>
     <author initials="S." surname="Bellis" fullname="Stevie Bellis">
@@ -2236,6 +2240,7 @@ Email: stevie@bellis.tech</t>
     <date year="2026" month="February"/>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-monad-extended-register-00"/>
+  <refcontent>Work in Progress</refcontent>
 </reference>
 
 
@@ -2312,85 +2317,27 @@ Email: stevie@bellis.tech</t>
 
 <section anchor="changes-from-00"><name>Changes from draft-bellis-unheaded-protocol-foundation-00</name>
 
-<t>This revision changes the following. The 20-octet Monad wire format (version 0x01) is unchanged.</t>
+<t>This revision changes the following. The 20-octet Monad wire format (version 0x01) is unchanged: no field, offset, size or flag bit changes.</t>
 
 <ul>
+  <li>Option Type 0x3E is stated to be an experimental Hop-by-Hop option type (RFC 4727) used inside a limited domain (RFC 8799). No option type assignment is requested; a real assignment waits for a later IETF-stream document. Revision -00 asked IANA for a type ("TBD, suggested 0x3E").</li>
+  <li>Next Header value 254 is kept and stated to be an experimental-use value (RFC 3692, RFC 4727) used inside the limited domain. No IANA allocation is requested; revision -00 requested one. The "IPv6 Next Header Type" and "IPv6 Hop-by-Hop Option Type" rows leave the registration-procedure list, which names only registries of this document.</li>
+  <li>The registration policy of the "Monad Protocol Version Numbers" and "Kingdom Mode Values" registries is Specification Required. Revision -00 said Standards Action, which an Independent Submission cannot use. The registration-procedure overview says so.</li>
+  <li>hop_count: the hop limit is one policy value (default 64); a packet past it is dropped by default with an EVENT_ANOMALY. The decrement rule is unchanged.</li>
+  <li>The Flow Label is stated to be per flow (RFC 6437), set by Shield at ingress from a hash of the 5-tuple and the same in every packet of the flow, in the trace_id field text and in the Flow Label section of the IANA Considerations.</li>
+  <li>The PQC Authentication Value Format carries one field: a 32-bit SigRef in the scratch octets 0x0E-0x11, present when S (0x08) and CUSTOM (0x02) are both set. Revision -00 described a 12-byte value (SigRef u32, KeyRef u16, HashPfx 4 octets, SeqNum u16) over 0x0E-0x13, which overran the four scratch octets. KeyRef, HashPfx and SeqNum are fields of the Sophia PQC signature entry; no packet carries them.</li>
+  <li>The PQC compliance tier is a per-service Sophia policy value read by the verifier. The Monad has no tier bits; the section "Compliance Tiers (Kingdom Mode K1|K0)" is renamed "PQC Compliance Tiers (Sophia Policy)" and the table lists policy levels 0-3.</li>
+  <li>FN-DSA is withdrawn. Algorithm family identifier 0x03 is Reserved and is never reassigned (revision -00: FN-DSA, FIPS 206). Tier Sovereign is two signature families.</li>
+  <li>The "PQC Algorithm Identifiers" section is the registry of algorithm family identifiers (Specification Required), with 0x00 Reserved and 0x06-0xFF Unassigned added; parameter-set identifiers are registered by the PQC authentication document under those families. The separate "PQC Algorithm Registry" section of revision -00, whose entries disagreed with it, is removed, and the registration-procedure list points to the family table. An informative reference to the PQC authentication document is added.</li>
+  <li>The HMAC integrity option ("not defined in this document") moves from the Integrity section to a new "Future Work" subsection at the end of the Security Considerations, which says it is not defined in this revision. The ESP and ML-DSA-65 options stay.</li>
+  <li>The reference to the Monad Extended Register Option document is kept and marked Work in Progress; the body says the option is specified in a document not yet published.</li>
+  <li>Private revision labels are removed: the "Backwards Compatibility Statement (draft-05 to draft-06)" section and the "Changes from draft-bellis-unheaded-protocol-foundation-05" appendix are deleted, and "(NEW in draft-06 update)" leaves four section titles and anchors. No format or processing rule changes with them.</li>
+  <li>Informative references to RFC 3692 and RFC 4727 are added.</li>
   <li>A registry "Unheaded Anamnesis EVENT_COMPUTED Sub-kinds" is requested, with one initial entry, 0x43 (CARTRIDGE_TRACE).</li>
   <li>The request for a registry "UPC MBC Opcode Numbers" is withdrawn, and the opcode table is removed. One registry governs the opcode space; it is created by <xref target="UNHEADED-MBC-ISA"></xref>.</li>
   <li>Informative references to the MBC ISA document and to ADR-108 are added.</li>
   <li>References to the companion documents name their -01 revisions.</li>
 </ul>
-
-</section>
-
-<section anchor="changes-from-draft-bellis-unheaded-protocol-foundation-05"><name>Changes from draft-bellis-unheaded-protocol-foundation-05</name>
-
-<t>The following changes are made in draft-06:</t>
-
-<t><list style="numbers" type="1">
-  <t><strong>IANA Registration Procedures (NEW)</strong>: Added Section 9 with a
-step-by-step guide for registering new metric types and protocol
-extensions within the Unheaded Protocol Parameters registry group.
-Includes guidance on identifying the target registry, preparing the
-registration request, and verifying non-conflict with existing
-allocations.</t>
-  <t><strong>UNHEADED_METRIC_V1 Example Registration (NEW)</strong>: Added a complete
-example registration for UNHEADED_METRIC_V1 (Type 0x2A, 52 bytes)
-as a separate HbH extension header option. This serves as a
-reference implementation for future IANA registrations. The 20-byte
-Monad wire format is NOT modified.</t>
-  <t><strong>Cross-References to Companion Specifications (NEW)</strong>: Added
-explicit cross-references to Sophia draft-03 <xref target="SOPHIA"></xref> and Wotan
-draft-03 <xref target="WOTAN"></xref> throughout the document. Section 1.2 introduces
-the specification family structure. Sophia and Wotan references
-are updated from draft-02 to draft-03.</t>
-  <t><strong>Security Considerations — Wire Format Immutability (NEW)</strong>: Added
-Section 10.1 documenting the threat model for wire format
-immutability, including parser divergence attacks, wire format
-modification via extension, and verification procedures.</t>
-  <t><strong>Backwards Compatibility Statement (NEW)</strong>: Added Section 11
-formally documenting that the transition from draft-05 to draft-06
-is non-breaking. Wire format, registry entries, and interoperability
-are all preserved.</t>
-  <t><strong>Wire Format FROZEN Statement (ENHANCED)</strong>: Added explicit
-"WIRE FORMAT FROZEN" statement in Section 5.1 clarifying that no
-changes to byte offsets, field sizes, field ordering, or total size
-are permitted in version 0x01.</t>
-  <t><strong>TLV Type Registry Updated</strong>: Added UNHEADED_METRIC_V1 (0x2A) to
-the TLV Type Registry initial entries.</t>
-  <t><strong>UPC MBC ISA Opcode Registry (NEW)</strong>: Added IANA registry for MBC
-opcode numbers (0x00-0xFF) with 48 initial entries covering
-arithmetic, logical, stack, branch, memory, atomic, interrupt,
-and system operations.  Includes 32-bit instruction encoding format.</t>
-  <t><strong>UPC MBC Syscall Number Registry (NEW)</strong>: Added IANA registry for
-MBC syscall numbers with two classes: native MBC syscalls (4 entries,
-0x01-0x04) and Linux-compatible syscalls via INT 0x80 (20 entries,
-following i386 ABI numbering).</t>
-  <t><strong>UPC Memory Region Types Registry (NEW)</strong>: Added IANA registry
-defining the UPC 32-bit flat address space layout with 8 memory
-regions (RAM, KBD_IO, SCREEN, DEBUG, WAD, HEAP, STACK, RAMDISK).
-Includes memory hierarchy (L0-L4) and interrupt vector table.</t>
-  <t><strong>UPC Event Types Registry (NEW)</strong>: Added IANA registry for UPC
-compute engine event types (0x10-0x19) emitted to Anamnesis ring
-buffers, covering instruction execution, cache operations, screen
-I/O, TTY writes, and scheduler context switches.</t>
-  <t><strong>PQC Authentication Value Format (NEW)</strong>: Added specification for
-the 12-byte PQC value carried in Monad scratch bytes (SigRef u32,
-KeyRef u16, HashPfx [u8;4], SeqNum u16).  Includes algorithm IDs,
-verification status codes, and compliance tiers.</t>
-  <t><strong>UPCFlat Binary Format (NEW)</strong>: Added specification for the UPC
-executable format with 24-byte header (magic 0x55504346, entry
-point, text/data/BSS/stack sizes) and flat memory image layout.</t>
-  <t><strong>UNFS Filesystem Specification (NEW)</strong>: Added specification for
-the Unheaded Network Filesystem with superblock format, 32-byte
-directory entries, contiguous allocation, and 512-byte blocks on
-4 MiB ramdisk.</t>
-  <t><strong>Updated Date</strong>: Changed date from 2026-03-05 to 2026-03-15.</t>
-</list></t>
-
-<t>All changes in draft-06 are purely additive. No existing wire format,
-registry entry, processing rule, or normative requirement from draft-05
-is modified or removed.</t>
 
 </section>
 <section anchor="acknowledgments"><name>Acknowledgments</name>

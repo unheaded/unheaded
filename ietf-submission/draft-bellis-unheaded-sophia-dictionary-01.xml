@@ -48,7 +48,7 @@ the BPF map representation for in-kernel storage, the atomic update protocol
 for cluster-wide distribution via the Wotan memory bus, and the minimum
 required dictionary entries for any conformant Unheaded deployment.</t>
 
-<t>Draft-03 introduces sub-dictionary type systems for hierarchical knowledge
+<t>This memo also defines a sub-dictionary type system for hierarchical knowledge
 representation and QPACK compression headers for efficient dictionary entry
 encoding over the wire.</t>
 
@@ -92,8 +92,8 @@ the field position and active dictionary version.</t>
   <t>How they are distributed to all nodes atomically via Wotan <xref target="WOTAN"></xref></t>
   <t>The minimum dictionary entries that all implementations MUST support</t>
   <t>Version negotiation and backward-compatibility rules</t>
-  <t>Sub-dictionary type systems for hierarchical knowledge representation (NEW in draft-03)</t>
-  <t>QPACK compression headers for efficient dictionary encoding (NEW in draft-03)</t>
+  <t>Sub-dictionary type systems for hierarchical knowledge representation</t>
+  <t>QPACK compression headers for efficient dictionary encoding</t>
 </list></t>
 
 </section>
@@ -137,7 +137,7 @@ when, and only when, they appear in all capitals, as shown here.</t>
   <dd>
     <t>A sub-dictionary that itself contains references to further sub-
 dictionaries, enabling hierarchical (tree-structured) knowledge
-representation. (NEW in draft-03)</t>
+representation.</t>
   </dd>
   <dt>Sophia Lookup:</dt>
   <dd>
@@ -168,7 +168,7 @@ This memo uses "BPF" not "eBPF" per RFC 9669 conventions.</t>
   <dt>QPACK:</dt>
   <dd>
     <t>Header compression format defined in RFC 9204, adapted in this
-specification for Sophia dictionary entry compression. (NEW in draft-03)</t>
+specification for Sophia dictionary entry compression.</t>
   </dd>
   <dt>Anamnesis:</dt>
   <dd>
@@ -210,14 +210,14 @@ The SAME byte 0x03 means:
 with K key positions, using only 2*K bytes on the wire (K bytes per lookup).</t>
 
 </section>
-<section anchor="sub-dictionary-type-system-new-in-draft-03"><name>Sub-Dictionary Type System (NEW in draft-03)</name>
+<section anchor="sub-dictionary-type-system"><name>Sub-Dictionary Type System</name>
 
 <section anchor="overview"><name>Overview</name>
 
-<t>Sub-dictionaries in draft-02 were flat: each sub-dictionary entry
-contained leaf metadata (name, endpoint, key material, etc.).  Draft-03
-introduces typed sub-dictionaries that MAY themselves contain references
-to nested sub-dictionaries, enabling hierarchical knowledge graphs.</t>
+<t>A flat sub-dictionary entry contains leaf metadata only (name,
+endpoint, key material, etc.).  Typed sub-dictionary entries MAY
+themselves contain references to nested sub-dictionaries, enabling
+hierarchical knowledge graphs.</t>
 
 </section>
 <section anchor="sub-dictionary-types"><name>Sub-Dictionary Types</name>
@@ -228,7 +228,7 @@ structure:</t>
 <figure><artwork><![CDATA[
 Sub-Dictionary Type Codes:
 
-  0x00  LEAF        Leaf node: contains metadata only (draft-02 behavior)
+  0x00  LEAF        Leaf node: contains metadata only (flat entry)
   0x01  BRANCH      Branch node: contains a reference to a nested
                     sub-dictionary
   0x02  COMPOSITE   Contains both metadata AND a nested sub-dictionary
@@ -382,7 +382,7 @@ and nested dictionaries.</t>
 
 <t><list style="symbols">
   <t>0x00: Reserved (MUST NOT be used by any implementation)</t>
-  <t>0x01-0x0F: Standard categories (see Section 8)</t>
+  <t>0x01-0x0F: Standard categories (see <xref target="sophia-root-key-registry"></xref>)</t>
   <t>0x10-0xFE: Available for operator assignment</t>
   <t>0xFF: Reserved (Yaldabaoth chaos injection)</t>
 </list></t>
@@ -434,7 +434,7 @@ prevent denial-of-service attacks via unbounded memory exhaustion.</t>
 </section>
 </section>
 </section>
-<section anchor="qpack-compression-headers-for-dictionary-entries-new-in-draft-03"><name>QPACK Compression Headers for Dictionary Entries (NEW in draft-03)</name>
+<section anchor="qpack-compression-headers-for-dictionary-entries"><name>QPACK Compression Headers for Dictionary Entries</name>
 
 <section anchor="motivation"><name>Motivation</name>
 
@@ -581,7 +581,7 @@ metadata fields (names, types, endpoints).</t>
 <t>To prevent decompression bomb attacks:</t>
 
 <t><list style="numbers" type="1">
-  <t>Maximum decompressed entry size: 1 MB (per Section 3.3)</t>
+  <t>Maximum decompressed entry size: 1 MB (per <xref target="per-flow-dictionary-capacity"></xref>)</t>
   <t>Maximum decompression time: 10 milliseconds</t>
   <t>Maximum dynamic table size: 4096 bytes (prevents memory exhaustion)</t>
   <t>Decompression MUST fail-safe: on error, reject entry with
@@ -592,17 +592,17 @@ SOPHIA_EVT_DECOMP_FAIL and emit EVENT_ANOMALY</t>
 <section anchor="backward-compatibility"><name>Backward Compatibility</name>
 
 <t>QPACK compression is OPTIONAL. Dictionary entries with Compression
-Flags bit 7 = 0 are raw CBOR and are processed identically to
-draft-02 entries. Implementations that do not support QPACK MUST:</t>
+Flags bit 7 = 0 are raw CBOR and are processed as uncompressed
+entries. Implementations that do not support QPACK MUST:</t>
 
 <t><list style="numbers" type="1">
   <t>Check Compression Flags bit 7</t>
   <t>If bit 7 = 1: reject entry with error SOPHIA_EVT_DECOMP_FAIL</t>
-  <t>If bit 7 = 0: process as raw CBOR (draft-02 compatible)</t>
+  <t>If bit 7 = 0: process as raw CBOR</t>
 </list></t>
 
-<t>This ensures that draft-02 and draft-03 implementations can coexist
-during rolling upgrades.</t>
+<t>This ensures that implementations with and without QPACK support
+can coexist during rolling upgrades.</t>
 
 </section>
 </section>
@@ -627,7 +627,7 @@ Each topic publication contains:
   2. Version number (repeated for idempotence)
   3. Timestamp (ISO 8601)
   4. Signature (ML-DSA-65, optional for integrity)
-  5. Compression Flags (indicating whether QPACK is used) (NEW in draft-03)
+  5. Compression Flags (indicating whether QPACK is used)
 ]]></artwork></figure>
 
 </section>
@@ -700,7 +700,7 @@ DoS via deeply nested dictionaries).</t>
 </section>
 <section anchor="circular-reference-prevention"><name>Circular Reference Prevention</name>
 
-<t>Circular reference detection (Section 3.2.5) MUST be performed on every
+<t>Circular reference detection (<xref target="circular-reference-detection"></xref>) MUST be performed on every
 nested lookup. Circular references in dictionary data could cause
 infinite loops in BPF programs, leading to verifier timeouts or
 denial of service.</t>
@@ -719,8 +719,8 @@ as nested dictionaries, causing semantic confusion.</t>
 
 <section anchor="decompression-bomb-mitigation"><name>Decompression Bomb Mitigation</name>
 
-<t>QPACK-compressed dictionary entries are subject to the same
-decompression limits as draft-02 compressed entries:</t>
+<t>QPACK-compressed dictionary entries are subject to the
+decompression limits of <xref target="decompression-limits"></xref>:</t>
 
 <t><list style="numbers" type="1">
   <t>Maximum decompressed output: 1 MB</t>
@@ -757,54 +757,66 @@ memory access, and WAL tampering detection.</t>
 
 </section>
 </section>
-<section anchor="pqc-key-dictionary-integration-new-in-draft-03-update"><name>PQC Key Dictionary Integration (NEW in draft-03 update)</name>
+<section anchor="pqc-key-dictionary-integration"><name>PQC Key Dictionary Integration</name>
 
 <section anchor="overview-1"><name>Overview</name>
 
 <t>Sophia provides the key management layer for the post-quantum
 cryptographic (PQC) authentication system defined in
-<xref target="UNHEADED-FOUNDATION"></xref>.  Full PQC signatures and public keys are
-stored in Sophia BPF maps, while the Monad wire format carries only
-12-byte references (see <xref target="UNHEADED-FOUNDATION"></xref> PQC Authentication
-Value Format).</t>
+<xref target="UNHEADED-FOUNDATION"></xref> and <xref target="UNHEADED-PQC"></xref>.  Full PQC signatures and
+public keys are stored in Sophia BPF maps.  The version 0x01 Monad
+carries one PQC field: a 32-bit SigRef (unsigned, big-endian, 0
+reserved) in its scratch octets at offsets 0x0E-0x11, present when the
+S (0x08) and CUSTOM (0x02) flags are both set.  KeyRef, HashPfx and
+SeqNum are fields of the Sophia PQC signature entry; no packet carries
+them.</t>
+
+<t>The PQC compliance tier is a per-service policy value held in Sophia
+and read by the verifier.  No packet carries it, and the Monad has no
+tier bits.</t>
 
 </section>
-<section anchor="pqc-signature-map-pqcsigmap"><name>PQC Signature Map (PQC_SIG_MAP)</name>
+<section anchor="pqc-signature-map"><name>PQC Signature Map (sophia_pqc_sigs)</name>
 
-<t>The PQC_SIG_MAP is a BPF hash map keyed by the 32-bit SigRef value
-from the PQC authentication value.</t>
+<t>The sophia_pqc_sigs map is a BPF hash map keyed by the 32-bit SigRef
+value carried in the Monad.  Its entry is the Sophia PQC signature
+entry of <xref target="UNHEADED-PQC"></xref>.</t>
 
 <figure><artwork><![CDATA[
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 65536);
-    __type(key, u32);        // SigRef from PQC value
-    __type(value, struct pqc_sig_entry);
-} pqc_sig_map SEC(".maps");
+    __type(key, u32);        // SigRef from the Monad
+    __type(value, struct sophia_pqc_sig_entry);
+} sophia_pqc_sigs SEC(".maps");
 
-struct pqc_sig_entry {
-    u8   algo_id;            // PQC algorithm (0x01-0x05)
-    u8   status;             // Verification status
-    u16  key_ref;            // Cross-reference to PQC_KEY_MAP
-    u32  sig_len;            // Signature length in bytes
-    u8   hash_pfx[4];        // SHA-256(signature)[0:4]
-    u8   signature[];        // Variable-length signature data
+struct sophia_pqc_sig_entry {
+    uint8_t  algo_id;           // PQC algorithm identifier
+    uint8_t  verified;          // Verification status
+    uint16_t sig_len;           // Signature length in bytes
+    uint32_t flow_label;        // Owning flow label
+    uint32_t key_ref;           // KeyRef: key into sophia_pqc_keys
+    uint32_t seq_num;           // SeqNum
+    uint16_t hash_pfx;          // HashPfx: SHA-256(signature)[0:2]
+    uint16_t reserved;
+    uint64_t verify_timestamp;  // Time of verification
+    uint8_t  signature[];       // Variable-length signature data
 };
 ]]></artwork></figure>
 
 </section>
-<section anchor="pqc-key-map-pqckeymap"><name>PQC Key Map (PQC_KEY_MAP)</name>
+<section anchor="pqc-key-map"><name>PQC Key Map (sophia_pqc_keys)</name>
 
-<t>The PQC_KEY_MAP stores public keys indexed by the 16-bit KeyRef
-value.</t>
+<t>The sophia_pqc_keys map stores public keys indexed by the 32-bit
+KeyRef value held in the signature entry.</t>
 
 <figure><artwork><![CDATA[
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 4096);
-    __type(key, u16);        // KeyRef from PQC value
+    __type(key, u32);        // KeyRef from the signature entry
     __type(value, struct pqc_key_entry);
-} pqc_key_map SEC(".maps");
+} sophia_pqc_keys SEC(".maps");
 
 struct pqc_key_entry {
     u8   algo_id;            // PQC algorithm identifier
@@ -822,13 +834,13 @@ struct pqc_key_entry {
 
 <section anchor="signature-lookup"><name>Signature Lookup</name>
 
-<t>When a BPF program verifies a PQC authentication value:</t>
+<t>When a BPF program verifies the PQC authentication of a packet:</t>
 
 <figure><artwork><![CDATA[
 1. Extract SigRef (u32) from Monad scratch bytes [0x0E..0x11]
-2. Look up SigRef in pqc_sig_map
-3. Compare hash_pfx with SHA-256(sig_entry.signature)[0:4]
-4. If match: use cached verification status
+2. Look up SigRef in sophia_pqc_sigs
+3. Compare sig_entry.hash_pfx with SHA-256(sig_entry.signature)[0:2]
+4. If match: use cached verification status (sig_entry.verified)
 5. If miss or mismatch: emit EVENT_ANOMALY, use default policy
 ]]></artwork></figure>
 
@@ -839,22 +851,28 @@ struct pqc_key_entry {
 
 <figure><artwork><![CDATA[
 1. New key published to sophia.pqc.keys.v{N+1} Wotan topic
-2. Subscribers create new pqc_key_map entries with epoch+1
+2. Subscribers create new sophia_pqc_keys entries with epoch+1
 3. Old keys retained for grace_period (default: 300 seconds)
 4. After grace_period: old key entries deleted
-5. Signatures referencing expired keys receive status=Expired (0x03)
+5. Signatures referencing expired keys get verified=Expired (0x03)
 ]]></artwork></figure>
 
 </section>
 </section>
 <section anchor="pqc-algorithm-support-matrix"><name>PQC Algorithm Support Matrix</name>
 
+<t>The algorithm family identifiers are assigned in the "PQC Algorithm
+Identifiers" section of <xref target="UNHEADED-FOUNDATION"></xref>; parameter-set
+identifiers are assigned in <xref target="UNHEADED-PQC"></xref>.  The table below repeats
+the family identifiers for the reader, with typical sizes, and assigns
+nothing.</t>
+
 <figure><artwork><![CDATA[
 Algo ID   Algorithm    Key Size    Sig Size     Use Case
 -------   ---------    --------    ---------    --------------------------
 0x01      SLH-DSA      32-64 B     7856-49856 B Hash-based (conservative)
 0x02      ML-DSA       1312-2592 B 2420-4627 B  Lattice-based (standard)
-0x03      FN-DSA       897-1793 B  666-1280 B   Lattice-based (compact)
+0x03      Reserved     -           -            Never reassigned
 0x04      ML-KEM       800-1568 B  768-1568 B   Key encapsulation
 0x05      HQC          2249-7245 B 4497-14469 B Code-based (conservative)
 ]]></artwork></figure>
@@ -864,7 +882,7 @@ support SLH-DSA (0x01) for defense-in-depth.</t>
 
 </section>
 </section>
-<section anchor="upc-opcode-dictionary-for-sophia-driven-instruction-decode-new-in-draft-03-update"><name>UPC Opcode Dictionary for Sophia-Driven Instruction Decode (NEW in draft-03 update)</name>
+<section anchor="upc-opcode-dictionary-for-sophia-driven-instruction-decode"><name>UPC Opcode Dictionary for Sophia-Driven Instruction Decode</name>
 
 <section anchor="overview-2"><name>Overview</name>
 
@@ -1001,7 +1019,7 @@ dictionary takes the next value after the cartridge registry.</t>
 </section>
 
 </section>
-<section anchor="sophia-sub-dictionary-type-registry-new-in-draft-03"><name>Sophia Sub-Dictionary Type Registry (NEW in draft-03)</name>
+<section anchor="sophia-sub-dictionary-type-registry"><name>Sophia Sub-Dictionary Type Registry</name>
 
 <t>IANA SHOULD establish a new registry:</t>
 
@@ -1020,7 +1038,7 @@ Initial entries:
 ]]></artwork></figure>
 
 </section>
-<section anchor="sophia-qpack-static-table-registry-new-in-draft-03"><name>Sophia QPACK Static Table Registry (NEW in draft-03)</name>
+<section anchor="sophia-qpack-static-table-registry"><name>Sophia QPACK Static Table Registry</name>
 
 <figure><artwork><![CDATA[
 Registry Name:  Unheaded Sophia QPACK Static Table Entries
@@ -1166,6 +1184,16 @@ Email: stevie@bellis.tech</t>
   </front>
   <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-wotan-memory-01"/>
 </reference>
+<reference anchor="UNHEADED-PQC" >
+  <front>
+    <title>Post-Quantum Packet Authentication for the Unheaded Protocol</title>
+    <author initials="S." surname="Bellis">
+      <organization></organization>
+    </author>
+    <date year="2026" month="November"/>
+  </front>
+  <seriesInfo name="Internet-Draft" value="draft-bellis-unheaded-pqc-authentication-01"/>
+</reference>
 
 
     </references>
@@ -1263,62 +1291,24 @@ Email: stevie@bellis.tech</t>
 
 <section anchor="changes-from-00"><name>Changes from draft-bellis-unheaded-sophia-dictionary-00</name>
 
-<t>This revision changes the following.</t>
+<t>This revision changes the following. The 20-octet Monad wire format (version 0x01) is unchanged.</t>
 
 <ul>
   <li>Root key 0x15 ("cartridge", COMPOSITE) is assigned to the MBC cartridge registry.</li>
   <li>The UPC opcode dictionary moves to root key 0x16 ("code", BRANCH). Revision -00 placed it at 0x10, which the initial entries assign to "routing"; 0x10 stays "routing".</li>
   <li>A section "Cartridge and Opcode Dictionary Root Keys" and an informative reference to ADR-108 are added.</li>
   <li>References to the companion documents name their -01 revisions.</li>
+  <li>The Monad carries one PQC field, a 32-bit SigRef. Revision -00 said it carried 12-byte references. KeyRef, HashPfx and SeqNum are fields of the Sophia PQC signature entry.</li>
+  <li>The PQC signature map is named sophia_pqc_sigs and its entry is struct sophia_pqc_sig_entry, as in the PQC authentication document, to which a normative reference is added. Revision -00 gave a different entry layout under the name pqc_sig_entry. HashPfx is 16 bits (revision -00: 32) and the signature length field is 16 bits (revision -00: 32).</li>
+  <li>The PQC key map is named sophia_pqc_keys and is keyed by a 32-bit KeyRef. Revision -00 keyed it by a 16-bit KeyRef. Its entry layout is as in revision -00.</li>
+  <li>The PQC compliance tier is stated to be a per-service policy value held in Sophia; no packet carries it.</li>
+  <li>FN-DSA is withdrawn. Algorithm family identifier 0x03 is Reserved and is never reassigned.</li>
+  <li>The PQC Algorithm Support Matrix cites the documents that assign algorithm identifiers and assigns none itself.</li>
+  <li>Labels and comparisons that named earlier unpublished revisions of this document are removed from headings and text, with the appendix that listed changes against one of them. No format or processing rule changes with them.</li>
 </ul>
 
 </section>
 
-<section anchor="changes-from-draft-bellis-unheaded-sophia-dictionary-02"><name>Changes from draft-bellis-unheaded-sophia-dictionary-02</name>
-
-<t>The following changes are made in draft-03:</t>
-
-<t><list style="numbers" type="1">
-  <t><strong>Sub-Dictionary Type System (NEW)</strong>: Added Section 3.2 defining
-typed sub-dictionary entries (LEAF, BRANCH, COMPOSITE, ALIAS) for
-hierarchical knowledge representation. Includes nested lookup
-chains, maximum nesting depth (8 levels), circular reference
-detection, BPF map representation, CBOR encoding, and use cases.</t>
-  <t><strong>QPACK Compression Headers (NEW)</strong>: Added Section 5 defining
-QPACK-based compression for dictionary entries. Includes static
-table (24 entries), dynamic table management, encoding format,
-compression ratios, decompression limits, and backward
-compatibility with draft-02 raw CBOR entries.</t>
-  <t><strong>Cross-References to Foundation draft-06 (UPDATED)</strong>: Updated
-UNHEADED-FOUNDATION reference from draft-04 to draft-06. Added
-Section 1.1 documenting the specification family structure. Added
-cross-references to Wotan draft-03 throughout.</t>
-  <t><strong>Sophia Sub-Dictionary Type Registry (NEW IANA)</strong>: Added IANA
-registry for sub-dictionary type codes (0x00-0xFF).</t>
-  <t><strong>Sophia QPACK Static Table Registry (NEW IANA)</strong>: Added IANA
-registry for QPACK static table entries.</t>
-  <t><strong>Nested Dictionary Security (NEW)</strong>: Added security considerations
-for depth limit enforcement, circular reference prevention,
-namespace partitioning, QPACK decompression bomb mitigation, and
-dynamic table poisoning.</t>
-  <t><strong>PQC Key Dictionary Integration (NEW)</strong>: Added PQC_SIG_MAP and
-PQC_KEY_MAP BPF map definitions for storing full post-quantum
-signatures and public keys.  Defines signature lookup, key rotation
-protocol, and algorithm support matrix covering SLH-DSA, ML-DSA,
-FN-DSA, ML-KEM, and HQC.</t>
-  <t><strong>UPC Opcode Dictionary (NEW)</strong>: Added Sophia-driven instruction
-decode for the MBC ISA.  Defines opcode dictionary structure
-(root key 0x16, "code" category), 10 instruction class types,
-32-byte BPF map entry format, and Sophia-driven decode use cases
-(tracing, dynamic dispatch, profiling, validation).</t>
-  <t><strong>Updated Date</strong>: Changed date from 2026-03-05 to 2026-03-15.</t>
-</list></t>
-
-<t>All changes in draft-03 are purely additive. No existing dictionary
-format, wire encoding, or processing rule from draft-02 is modified
-or removed. Draft-02 CBOR entries remain valid in draft-03.</t>
-
-</section>
 <section anchor="acknowledgments"><name>Acknowledgments</name>
 
 <t>The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann,

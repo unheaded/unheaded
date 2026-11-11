@@ -25,23 +25,23 @@
     <date/>
 
     <area>Applications</area>
-    <workgroup>Unheaded Kingdom</workgroup>
+    <workgroup>Independent Submission</workgroup>
 
     <abstract>
       <t>This document specifies a post-quantum cryptographic (PQC)
       authentication mechanism for the Unheaded Protocol Foundation.
       It defines a multi-algorithm, dual-layer, tiered authentication
-      architecture integrating three NIST PQC digital signature
-      standards -- FIPS 205 (SLH-DSA), FIPS 204 (ML-DSA), and FIPS
-      206 (FN-DSA) -- plus two NIST PQC key-encapsulation mechanisms
-      -- FIPS 203 (ML-KEM) and FIPS 207 (HQC) -- with the Monad wire
-      format, Sophia BPF map dictionaries, and Wotan per-flow memory
-      model.</t>
+      architecture integrating two NIST PQC digital signature
+      standards -- FIPS 205 (SLH-DSA) and FIPS 204 (ML-DSA) -- plus
+      two NIST PQC key-encapsulation mechanisms -- FIPS 203 (ML-KEM)
+      and FIPS 207 (HQC) -- with the Monad wire format, Sophia BPF map
+      dictionaries, and Wotan per-flow memory model.</t>
 
       <t>Layer 1 (Wire-Level, REQUIRED): Full PQC signatures are
       stored in Sophia BPF maps via a "signature-by-reference" scheme.
-      The Monad register carries compact 12-byte references (SigRef,
-      KeyRef, SeqNum, HashPfx).  Shield verifies signatures at the
+      The version 0x01 Monad register carries one PQC field, a 32-bit
+      SigRef; KeyRef, HashPfx and SeqNum are fields of the Sophia
+      signature entry.  Shield verifies signatures at the
       network perimeter and strips Monad Hop-by-Hop headers at
       ingress -- internal kingdom traffic never carries PQC wire
       overhead.</t>
@@ -53,8 +53,8 @@
       against its own policy.</t>
 
       <t>Four PQC compliance tiers -- NONE, STANDARD, ENHANCED, and
-      SOVEREIGN -- are signaled via Kingdom Mode bits in the Monad
-      flags byte.</t>
+      SOVEREIGN -- are per-service policy values held in Sophia and
+      read by the verifier.  No packet carries the tier.</t>
     </abstract>
 
     <note removeInRFC="false">
@@ -85,20 +85,21 @@
 
       <t>As quantum computing advances threaten existing cryptographic
       assumptions, infrastructure systems MUST prepare for post-quantum
-      cryptographic migration.  NIST has finalized five PQC standards:
-      three digital signature algorithms -- FIPS 205 (SLH-DSA) <xref target="FIPS205"/>,
-      FIPS 204 (ML-DSA) <xref target="FIPS204"/>, and FIPS 206 (FN-DSA) <xref target="FIPS206"/> -- and
+      cryptographic migration.  This document uses four NIST PQC
+      standards: two digital signature algorithms -- FIPS 205 (SLH-DSA)
+      <xref target="FIPS205"/> and FIPS 204 (ML-DSA) <xref target="FIPS204"/> -- and
       two key-encapsulation mechanisms -- FIPS 203 (ML-KEM) <xref target="FIPS203"/> and
       FIPS 207 (HQC) <xref target="FIPS207"/>.</t>
 
-      <t>PQC signature sizes range from 666 bytes (FN-DSA-512) to 49,856
-      bytes (SLH-DSA-SHAKE-256f), all far exceeding the Monad register's
-      12-byte value field.  This document defines a "signature-by-reference"
-      scheme that stores full PQC signatures and public keys in Sophia BPF
-      maps while carrying compact references in the Monad register.  Sophia
+      <t>PQC signature sizes range from 2,420 bytes (ML-DSA-44) to 49,856
+      bytes (SLH-DSA-SHAKE-256f), all far exceeding the four scratch
+      octets of the Monad register.  This document defines a
+      "signature-by-reference" scheme that stores full PQC signatures and
+      public keys in Sophia BPF maps while carrying one compact reference,
+      the 32-bit SigRef, in the Monad register.  Sophia
       <xref target="SOPHIA"/> dictionaries provide the BPF map structures for
       signature and key storage.  The scheme is algorithm-agnostic -- the
-      same 12-byte wire layout supports all three signature standards.</t>
+      same SigRef supports every signature standard.</t>
 
       <t>This approach provides:</t>
 
@@ -115,7 +116,7 @@
         ingress, so internal kingdom traffic carries zero PQC wire
         overhead.  Wire-level PQC is exclusively a perimeter concern.</li>
         <li>Algorithm agility -- the algo_id field and signature-by-reference
-        design support all five NIST PQC standards with zero wire format
+        design support all four NIST PQC standards with zero wire format
         changes.  New algorithms require only a registry entry and a
         verifier implementation.</li>
         <li>Tiered compliance -- four PQC compliance tiers (NONE, STANDARD,
@@ -148,14 +149,6 @@
         defined in FIPS 204 <xref target="FIPS204"/>.  Formerly known as CRYSTALS-Dilithium.
         Lattice-based construction.  eBPF-native (integer NTT modular arithmetic).</dd>
 
-        <dt>FN-DSA:</dt>
-        <dd>FFT over NTRU-Lattice-Based Digital Signature Algorithm,
-        as defined in FIPS 206 <xref target="FIPS206"/>.  Formerly known as FALCON.
-        Lattice-based construction.  NOT eBPF-native: signing requires
-        IEEE-754 binary64 floating-point arithmetic (FFT, LDL tree
-        decomposition, discrete Gaussian sampling).  Verification is
-        integer-only and MAY be performed in eBPF.</dd>
-
         <dt>ML-KEM:</dt>
         <dd>Module-Lattice-Based Key-Encapsulation Mechanism, as
         defined in FIPS 203 <xref target="FIPS203"/>.  Formerly known as CRYSTALS-Kyber.
@@ -168,9 +161,10 @@
 
         <dt>Compliance Tier:</dt>
         <dd>One of four PQC enforcement levels (NONE, STANDARD, ENHANCED,
-        SOVEREIGN) signaled via Kingdom Mode bits K1|K0 in the Monad flags
-        byte.  Tiers govern Shield verification behavior, algorithm selection,
-        and Layer 2 enforcement policy.</dd>
+        SOVEREIGN).  The tier is a per-service policy value held in a
+        Sophia dictionary and read by the verifier; no packet carries it,
+        and the Monad has no tier bits.  Tiers govern Shield verification
+        behavior, algorithm selection, and Layer 2 enforcement policy.</dd>
 
         <dt>Signature-by-Reference:</dt>
         <dd>A scheme where a compact reference (index) is carried in
@@ -178,20 +172,24 @@
         stored in a kernel-resident data structure (Sophia BPF map).</dd>
 
         <dt>SigRef:</dt>
-        <dd>A 24-bit unsigned integer indexing into the Sophia PQC
-        Signature Map.</dd>
+        <dd>A 32-bit unsigned integer indexing into the Sophia PQC
+        Signature Map.  The only PQC field carried in the version 0x01
+        Monad.</dd>
 
         <dt>KeyRef:</dt>
-        <dd>A 24-bit unsigned integer indexing into the Sophia PQC
-        Public Key Map.</dd>
+        <dd>A 32-bit unsigned integer indexing into the Sophia PQC
+        Public Key Map.  A field of the Sophia PQC signature entry; no
+        packet carries it.</dd>
 
         <dt>SeqNum:</dt>
         <dd>A 32-bit per-flow sequence number providing replay
-        resistance.  Monotonically increasing within a flow lifetime.</dd>
+        resistance.  Monotonically increasing within a flow lifetime.
+        A field of the Sophia PQC signature entry; no packet carries it.</dd>
 
         <dt>HashPfx:</dt>
         <dd>A 16-bit integrity tag derived from SHA-256 of the
-        full SLH-DSA signature, truncated to 2 bytes.</dd>
+        full signature, truncated to 2 bytes.  A field of the Sophia PQC
+        signature entry; no packet carries it.</dd>
 
         <dt>Pseudo-Header:</dt>
         <dd>The set of immutable packet fields over which
@@ -238,16 +236,18 @@
 
       <t>Phase 2 - Packet Marking:</t>
       <t>When a packet enters the Unheaded network at Shield ingress,
-      the Monad register's value field is populated with the SigRef,
-      KeyRef, SeqNum, and HashPfx corresponding to the flow's
-      authentication context.  The S (Signed) flag in byte 0x01 is
-      set to 1.</t>
+      the Monad register's scratch octets (0x0E-0x11) are populated with
+      the SigRef of the flow's authentication context, and the S (0x08)
+      and CUSTOM (0x02) flags in the flags byte are both set.  KeyRef,
+      SeqNum and HashPfx are held in the Sophia signature entry that the
+      SigRef names.</t>
 
       <t>Phase 3 - Wire-Level Verification (Layer 1):</t>
       <t>At the Shield ingress from an untrusted network, the eBPF
-      program at XDP reads the SigRef and KeyRef from the Monad
-      register, retrieves the full signature and public key from
-      Sophia maps, and either:</t>
+      program at XDP reads the SigRef from the Monad register,
+      retrieves the signature entry (with its KeyRef, SeqNum and
+      HashPfx), the full signature and the public key from Sophia
+      maps, and either:</t>
       <ol type="(%c)" spacing="normal">
         <li>Checks a cached verification result (fast path), or</li>
         <li>Submits the signature to the userspace verifier via ring
@@ -262,7 +262,7 @@
 
       <t>Implementation status (2026-10-28): Phases 1-3 are not
       implemented.  The reference Shield (ebpf/shield-ebpf) never read
-      SigRef or KeyRef; its cached-result map and fast-path check had no
+      the SigRef; its cached-result map and fast-path check had no
       caller and no writer and were removed.  No
       wire-level PQC verification exists until a key-management control
       plane is built.  Note also that this section's model, in which
@@ -288,55 +288,60 @@
 
     <section anchor="monad-value-layout" numbered="true" toc="include">
       <name>Monad Value Layout for PQC Authentication</name>
-      <t>When the S (Signed) flag is set in the Monad flags byte, the
-      12-byte value region of the Monad register (bytes specific to
-      the flow action and QoS fields as defined in <xref target="MONAD"/>) SHALL be
-      interpreted as follows:</t>
+      <t>The version 0x01 Monad carries one PQC field: a 32-bit SigRef
+      in its scratch octets at offsets 0x0E-0x11 (<xref target="MONAD"/>).
+      The SigRef is present when the S (0x08) and CUSTOM (0x02) flags
+      are both set in the Monad flags byte.  The 20-octet Monad wire
+      format is unchanged; no field, offset, size or flag bit is added.</t>
 
       <artwork type="ascii-art"><![CDATA[
  0                   1                   2                   3
  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                    SigRef (24 bits)           | KeyRef[23:16] |
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|         KeyRef[15:0] (16 bits)                |HashPfx(16 bits)|
-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-|                       SeqNum (32 bits)                        |
+|                       SigRef (32 bits)                        |
 +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
       ]]></artwork>
 
-      <t>Field definitions:</t>
+      <t>Field definition:</t>
 
       <dl>
-        <dt>SigRef (3 octets, unsigned, big-endian):</dt>
-        <dd>Index into the Sophia PQC Signature Map.  Range: 0 to 16,777,215.
-        Value 0 is reserved (indicates "no signature").  Implementations MUST
-        reject packets where S flag is set but SigRef is 0.</dd>
-
-        <dt>KeyRef (3 octets, unsigned, big-endian):</dt>
-        <dd>Index into the Sophia PQC Public Key Map.  Range: 0 to 16,777,215.
-        Value 0 is reserved.  Implementations MUST reject packets where S flag
-        is set but KeyRef is 0.</dd>
-
-        <dt>HashPfx (2 octets, unsigned, big-endian):</dt>
-        <dd>First two bytes of SHA-256(signature_blob).  Provides a fast
-        integrity check binding the SigRef to a specific signature.  Collision
-        probability: 1/65,536 per SigRef pair (see Security Considerations).</dd>
-
-        <dt>SeqNum (4 octets, unsigned, big-endian):</dt>
-        <dd>Per-flow sequence number.  MUST be monotonically increasing within
-        a flow lifetime.  Provides replay resistance (see <xref target="pseudo-header"/>).
-        The signed pseudo-header includes SeqNum; therefore replayed packets
-        with stale sequence numbers will fail verification.</dd>
+        <dt>SigRef (4 octets, unsigned, big-endian, Monad offsets 0x0E-0x11):</dt>
+        <dd>Index into the Sophia PQC Signature Map (sophia_pqc_sigs).
+        Range: 1 to 4,294,967,295.  Value 0 is reserved (indicates "no
+        signature").  Implementations MUST reject packets where the S and
+        CUSTOM flags are both set but SigRef is 0.</dd>
       </dl>
 
-      <t>Note: When PQC compliance tiers are active (K1|K0 != 00), the
-      S flag (bit 3 of the flags byte) is repurposed from its SAMPLED
-      semantics defined in <xref target="MONAD"/> to indicate Signed
-      status.  This dual-use is signaled by the Kingdom Mode bits;
-      implementations MUST check the K1|K0 field before interpreting
-      the S flag.  The Monad Flags Registry update for this extended
-      semantics is specified in <xref target="monad-flags-update"/>.</t>
+      <t>KeyRef, HashPfx and SeqNum are fields of the Sophia PQC
+      signature entry that the SigRef names (<xref target="sophia-pqc-maps"/>).
+      No packet carries them.</t>
+
+      <dl>
+        <dt>KeyRef (32 bits, in the signature entry):</dt>
+        <dd>Index into the Sophia PQC Public Key Map (sophia_pqc_keys).
+        Value 0 is reserved.  A signature entry whose KeyRef is 0 MUST be
+        treated as invalid.</dd>
+
+        <dt>HashPfx (16 bits, in the signature entry):</dt>
+        <dd>First two bytes of SHA-256(signature_blob).  Provides a fast
+        integrity check binding the entry to its signature.  Collision
+        probability: 1/65,536 per SigRef pair (see Security Considerations).</dd>
+
+        <dt>SeqNum (32 bits, in the signature entry):</dt>
+        <dd>Per-flow sequence number.  MUST be monotonically increasing within
+        a flow lifetime.  Provides replay resistance (see <xref target="pseudo-header"/>).
+        The signed pseudo-header includes SeqNum; therefore a replayed
+        signature with a stale sequence number will fail verification.</dd>
+      </dl>
+
+      <t>Note: <xref target="MONAD"/> defines the S flag (bit 3 of the
+      flags byte) as SAMPLED.  When CUSTOM is also set, the scratch
+      octets carry the SigRef and S indicates Signed status.
+      Implementations MUST check both flags before interpreting the
+      scratch octets as a SigRef.  The Monad has no tier bits: the PQC
+      compliance tier is a Sophia policy value (<xref target="compliance-tiers"/>).
+      The Monad Flags Registry note for this S-flag semantics is in
+      <xref target="monad-flags-update"/>.</t>
     </section>
 
     <section anchor="sophia-pqc-maps" numbered="true" toc="include">
@@ -349,7 +354,7 @@
 
         <artwork type="ascii-art"><![CDATA[
    Map name:      sophia_pqc_sigs
-   Key type:      uint32 (SigRef, zero-extended from 24 bits)
+   Key type:      uint32 (SigRef, from the Monad scratch octets)
    Value type:    struct sophia_pqc_sig_entry
    Max entries:   Configurable (RECOMMENDED: 1,048,576)
    Flags:         BPF_F_RDONLY_PROG (data plane read-only)
@@ -360,17 +365,22 @@
 
         <sourcecode type="c"><![CDATA[
    struct sophia_pqc_sig_entry {
-       uint8_t  algo_id;           /* SLH-DSA parameter set ID    */
+       uint8_t  algo_id;           /* Parameter set identifier     */
        uint8_t  verified;          /* 0=pending, 1=valid, 2=invalid */
        uint16_t sig_len;           /* Signature length in bytes    */
        uint32_t flow_label;        /* Owning flow label            */
+       uint32_t key_ref;           /* KeyRef: key into sophia_pqc_keys */
+       uint32_t seq_num;           /* SeqNum: per-flow sequence number */
+       uint16_t hash_pfx;          /* HashPfx: SHA-256(signature)[0:2] */
+       uint16_t reserved;          /* MUST be zero                 */
        uint64_t verify_timestamp;  /* Nanosecond timestamp of verification */
-       uint8_t  signature[];       /* Variable-length SLH-DSA signature */
+       uint8_t  signature[];       /* Variable-length signature    */
    };
         ]]></sourcecode>
 
-        <t>The algo_id field SHALL use values from the PQC Algorithm
-        Registry (<xref target="iana-considerations"/>):</t>
+        <t>KeyRef, SeqNum and HashPfx live in this entry and in no
+        packet.  The algo_id field SHALL use the parameter-set
+        identifiers registered in <xref target="iana-considerations"/>:</t>
 
         <t>SLH-DSA Parameter Sets (FIPS 205 -- hash-based, eBPF-native):</t>
 
@@ -408,23 +418,17 @@
           </tbody>
         </table>
 
-        <t>FN-DSA Parameter Sets (FIPS 206 -- lattice-based, userspace verify):</t>
+        <t>Reserved Signature Identifiers:</t>
 
         <table>
           <thead>
             <tr><th>Value</th><th>Parameter Set</th><th>Sig Size</th><th>Security</th><th>eBPF?</th></tr>
           </thead>
           <tbody>
-            <tr><td>0x20</td><td>FN-DSA-512</td><td>666 B</td><td>Level 1</td><td>NO*</td></tr>
-            <tr><td>0x21</td><td>FN-DSA-1024</td><td>1,280 B</td><td>Level 5</td><td>NO*</td></tr>
+            <tr><td>0x20</td><td>Reserved (never reassigned)</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>
+            <tr><td>0x21</td><td>Reserved (never reassigned)</td><td>N/A</td><td>N/A</td><td>N/A</td></tr>
           </tbody>
         </table>
-
-        <t>*FN-DSA verification uses integer NTT and MAY be implemented in
-        eBPF.  However, FN-DSA signing requires IEEE-754 binary64
-        floating-point (FFT, LDL tree, Gaussian sampling) and MUST NOT
-        execute in eBPF.  See <xref target="multi-algorithm-considerations"/>
-        (Multi-Algorithm Considerations).</t>
 
         <t>KEM Algorithm Identifiers (key establishment only, not per-packet):</t>
 
@@ -470,7 +474,7 @@
 
         <artwork type="ascii-art"><![CDATA[
    Map name:      sophia_pqc_keys
-   Key type:      uint32 (KeyRef, zero-extended from 24 bits)
+   Key type:      uint32 (KeyRef, from the signature entry)
    Value type:    struct sophia_pqc_key_entry
    Max entries:   Configurable (RECOMMENDED: 65,536)
    Flags:         BPF_F_RDONLY_PROG
@@ -538,8 +542,10 @@
         <dd>Copied from the IPv6 header.  MUST NOT change in transit.</dd>
 
         <dt>IPv6 Flow Label (20 bits):</dt>
-        <dd>Copied from the IPv6 header.  The remaining 12 bits of this
-        4-byte field MUST be set to zero.</dd>
+        <dd>Copied from the IPv6 header.  The Flow Label is per flow
+        <xref target="RFC6437"/>: Shield sets it at ingress from a hash of
+        the 5-tuple, and it is the same in every packet of the flow.  The
+        remaining 12 bits of this 4-byte field MUST be set to zero.</dd>
 
         <dt>Source Port (2 octets):</dt>
         <dd>Transport layer source port.  Set to zero if the transport
@@ -550,7 +556,7 @@
         protocol does not use ports.</dd>
 
         <dt>Sequence Number (4 octets):</dt>
-        <dd>Copied from the SeqNum field of the Monad PQC value layout
+        <dd>Copied from the SeqNum field of the Sophia PQC signature entry
         (<xref target="monad-value-layout"/>).  This field provides replay resistance.</dd>
       </dl>
 
@@ -569,22 +575,23 @@
 
       <section anchor="fast-path" numbered="true" toc="include">
         <name>Fast Path (Cached Verification)</name>
-        <t>When a packet arrives at an XDP verification point and the S flag
-        is set:</t>
+        <t>When a packet arrives at an XDP verification point and the S and
+        CUSTOM flags are both set:</t>
 
         <ol spacing="normal">
-          <li>Parse SigRef from the Monad value field.</li>
+          <li>Parse SigRef from the Monad scratch octets (0x0E-0x11).</li>
           <li>Look up SigRef in sophia_pqc_sigs map.</li>
           <li><t>If entry exists and verified == 1 (valid):</t>
             <ol type="(%c)" spacing="normal">
-              <li>Compare entry.flow_label with packet flow label.  If
-              mismatch, proceed to slow path (possible SigRef reuse
-              attack).</li>
-              <li>Read HashPfx from Monad register.  Compare with stored
-              SHA-256(signature)[0:2].  If mismatch, DROP and emit
+              <li>Compare entry.flow_label with the packet's Flow Label,
+              which is the same in every packet of the flow
+              <xref target="RFC6437"/>.  If mismatch, proceed to slow path
+              (possible SigRef reuse attack).</li>
+              <li>Compare entry.hash_pfx with
+              SHA-256(entry.signature)[0:2].  If mismatch, DROP and emit
               Anamnesis ERROR event.</li>
-              <li>Check SeqNum &gt; last_seen_seq for this flow in Wotan
-              memory.  If not, DROP (replay detected) and emit
+              <li>Check entry.seq_num &gt; last_seen_seq for this flow in
+              Wotan memory.  If not, DROP (replay detected) and emit
               Anamnesis ERROR event.</li>
               <li>Update last_seen_seq in Wotan memory.</li>
               <li>Forward packet (XDP_PASS).</li>
@@ -609,14 +616,15 @@
 
         <ol spacing="normal">
           <li>Write packet metadata to the Anamnesis ring buffer:
-          flow key, SigRef, KeyRef, SeqNum, timestamp.</li>
+          flow key, SigRef, the entry's KeyRef and SeqNum, timestamp.</li>
           <li>Apply verification policy (<xref target="verification-policies"/>) to determine
           whether to forward or hold the packet.</li>
           <li><t>The userspace PQC verifier daemon reads from the ring
           buffer and performs:</t>
             <ol type="(%c)" spacing="normal">
               <li>Retrieve full signature from sophia_pqc_sigs[SigRef].</li>
-              <li>Retrieve full public key from sophia_pqc_keys[KeyRef].</li>
+              <li>Retrieve full public key from
+              sophia_pqc_keys[entry.key_ref].</li>
               <li>Construct pseudo-header from packet metadata.</li>
               <li>Execute SLH-DSA.Verify(public_key, pseudo_header,
               signature).</li>
@@ -700,23 +708,24 @@
     <section anchor="compliance-tiers" numbered="true" toc="include">
       <name>Compliance Tiers</name>
       <t>Four PQC compliance tiers govern Shield processing behavior.
-      Tiers are signaled via the Kingdom Mode bits (K1|K0) in the
-      Monad flags byte:</t>
+      The tier is a per-service policy value held in a Sophia
+      dictionary and read by the verifier.  No packet carries it, and
+      the Monad has no tier bits; the policy levels are:</t>
 
       <table>
         <thead>
-          <tr><th>K1</th><th>K0</th><th>Tier</th><th>Algorithms</th><th>Layer 2</th><th>Multi-Algo</th></tr>
+          <tr><th>Level</th><th>Tier</th><th>Algorithms</th><th>Layer 2</th><th>Multi-Algo</th></tr>
         </thead>
         <tbody>
-          <tr><td>0</td><td>0</td><td>NONE</td><td>--</td><td>--</td><td>--</td></tr>
-          <tr><td>0</td><td>1</td><td>STANDARD</td><td>SLH-DSA only</td><td>OFF</td><td>NO</td></tr>
-          <tr><td>1</td><td>0</td><td>ENHANCED</td><td>SLH-DSA+ML-DSA+FN-DSA</td><td>OPT</td><td>NO</td></tr>
-          <tr><td>1</td><td>1</td><td>SOVEREIGN</td><td>All three, 2-of-3</td><td>MANDATORY</td><td>YES</td></tr>
+          <tr><td>0</td><td>NONE</td><td>--</td><td>--</td><td>--</td></tr>
+          <tr><td>1</td><td>STANDARD</td><td>SLH-DSA only</td><td>OFF</td><td>NO</td></tr>
+          <tr><td>2</td><td>ENHANCED</td><td>SLH-DSA+ML-DSA</td><td>OPT</td><td>NO</td></tr>
+          <tr><td>3</td><td>SOVEREIGN</td><td>SLH-DSA+ML-DSA, both verify</td><td>MANDATORY</td><td>YES</td></tr>
         </tbody>
       </table>
 
       <section anchor="tier-none" numbered="true" toc="include">
-        <name>Tier NONE (K1=0, K0=0)</name>
+        <name>Tier NONE (level 0)</name>
         <t>Shield performs no PQC processing.  Monad S flag is ignored.
         No Sophia PQC maps are loaded.  No Wotan PQC state is allocated.
         Wire overhead: zero.</t>
@@ -726,7 +735,7 @@
       </section>
 
       <section anchor="tier-standard" numbered="true" toc="include">
-        <name>Tier STANDARD (K1=0, K0=1)</name>
+        <name>Tier STANDARD (level 1)</name>
         <t>Shield verifies Layer 1 using SLH-DSA only.  The primary signature
         standard (FIPS 205) provides the most conservative security
         posture: hash-based construction with no lattice assumptions,
@@ -741,9 +750,9 @@
       </section>
 
       <section anchor="tier-enhanced" numbered="true" toc="include">
-        <name>Tier ENHANCED (K1=1, K0=0)</name>
-        <t>Shield verifies Layer 1 using any of the three signature algorithms
-        (SLH-DSA, ML-DSA, FN-DSA).  Applications MAY enable Layer 2
+        <name>Tier ENHANCED (level 2)</name>
+        <t>Shield verifies Layer 1 using either of the two signature algorithm
+        families (SLH-DSA, ML-DSA).  Applications MAY enable Layer 2
         Sophia policy dictionaries for per-application verification
         requirements.</t>
 
@@ -758,20 +767,20 @@
       </section>
 
       <section anchor="tier-sovereign" numbered="true" toc="include">
-        <name>Tier SOVEREIGN (K1=1, K0=1)</name>
-        <t>Shield verifies Layer 1 using ALL THREE signature algorithms in
-        a 2-of-3 multi-algorithm cross-verification scheme.  Layer 2 is
-        MANDATORY -- every application MUST have a Sophia policy dictionary.
-        Pinned key enforcement is REQUIRED.</t>
+        <name>Tier SOVEREIGN (level 3)</name>
+        <t>Shield verifies Layer 1 using BOTH signature algorithm families
+        (SLH-DSA and ML-DSA) in a multi-algorithm cross-verification
+        scheme.  Layer 2 is MANDATORY -- every application MUST have a
+        Sophia policy dictionary.  Pinned key enforcement is REQUIRED.</t>
 
         <t>For each incoming packet, Shield:</t>
 
         <ol spacing="normal">
           <li>Verifies the primary signature (algo indicated by algo_id).</li>
-          <li>Retrieves a secondary signature (different algorithm family)
-          from the Sophia map using an extended SigRef (<xref target="sovereign-multi-sig"/>).</li>
-          <li>If any 2 of 3 algorithms confirm the signature, verification
-          succeeds.  If fewer than 2 verify, DROP.</li>
+          <li>Retrieves the secondary signature (the other algorithm family)
+          from the Sophia map using the sovereign entry (<xref target="sovereign-multi-sig"/>).</li>
+          <li>If both families confirm the signature, verification
+          succeeds.  If either fails, DROP.</li>
         </ol>
 
         <t>Sophia maps loaded: all PQC maps, plus sophia_pqc_sovereign_sigs
@@ -790,8 +799,8 @@
         <t>Tier changes are effected via the control plane API:</t>
 
         <ol spacing="normal">
-          <li>Control plane updates the Kingdom Mode bits in the Monad
-          configuration.</li>
+          <li>Control plane updates the tier value in the service's Sophia
+          policy entry.  No packet changes.</li>
           <li>Shield hot-reloads Sophia maps appropriate for the new tier.</li>
           <li>Wotan PQC state addresses are allocated or deallocated as
           required.</li>
@@ -888,15 +897,16 @@
         the last verified sequence number per flow at address
         0x0000FF00.</t>
 
-        <t>For each packet with S flag set:</t>
+        <t>For each packet with the S and CUSTOM flags set, with
+        entry the signature entry named by its SigRef:</t>
 
         <ol spacing="normal">
           <li>Read last_seen_seq via bpf_wotan_read(flow_label,
           0x0000FF00, &amp;last_seq, 4).</li>
-          <li>If packet.SeqNum &lt;= last_seen_seq: DROP (replay).</li>
-          <li>If packet.SeqNum &gt; last_seen_seq: update via
+          <li>If entry.seq_num &lt;= last_seen_seq: DROP (replay).</li>
+          <li>If entry.seq_num &gt; last_seen_seq: update via
           bpf_wotan_cas(flow_label, 0x0000FF00, last_seen_seq,
-          packet.SeqNum).</li>
+          entry.seq_num).</li>
           <li>If CAS fails (concurrent update): re-read and retry
           (maximum 3 attempts before DROP).</li>
         </ol>
@@ -915,20 +925,21 @@
       <section anchor="shield-ingress" numbered="true" toc="include">
         <name>Ingress (Untrusted to Kingdom)</name>
         <t>When Shield receives a packet from an untrusted source with
-        the S flag set:</t>
+        the S and CUSTOM flags set:</t>
 
         <ol spacing="normal">
           <li>Validate Monad CRC-16 per <xref target="MONAD"/>.</li>
-          <li>Extract SigRef, KeyRef, SeqNum, HashPfx from value field.</li>
+          <li>Extract SigRef from the scratch octets (0x0E-0x11); read
+          KeyRef, SeqNum and HashPfx from the signature entry it names.</li>
           <li>Execute verification pipeline (<xref target="verification-pipeline"/>).</li>
           <li><t>If verification succeeds or policy is OPTIMISTIC:</t>
             <ol type="(%c)" spacing="normal">
               <li>Persist verification result to Wotan per-flow PQC
               state (<xref target="wotan-integration"/>): pqc_verified, pqc_algo_id,
               pqc_key_epoch, last_seen_seq.</li>
-              <li>Pin the key fingerprint from sophia_pqc_keys[KeyRef]
-              into Wotan address 0x0000FF10 (8 bytes, truncated
-              SHA-256).</li>
+              <li>Pin the key fingerprint from
+              sophia_pqc_keys[entry.key_ref] into Wotan address
+              0x0000FF10 (8 bytes, truncated SHA-256).</li>
               <li>Strip the Monad Hop-by-Hop extension header from
               the packet.  The internal kingdom network does not
               process or forward PQC wire metadata.</li>
@@ -947,14 +958,15 @@
           <li><t>Read Wotan per-flow PQC state.  If pqc_verified == 1:</t>
             <ol type="(%c)" spacing="normal">
               <li>Re-stamp a fresh Monad Hop-by-Hop extension header
-              with current SigRef, KeyRef, incremented SeqNum,
-              and recomputed HashPfx.</li>
-              <li>Set the S flag in the Monad flags byte.</li>
+              with the flow's current SigRef in the scratch octets.
+              The control plane keeps KeyRef, SeqNum and HashPfx in
+              the signature entry; the packet carries none of them.</li>
+              <li>Set the S and CUSTOM flags in the Monad flags byte.</li>
             </ol>
           </li>
           <li>Kingdom Mode bits MUST be zeroed (per <xref target="MONAD"/>).</li>
           <li>External receivers without Unheaded support will ignore
-          the S flag and Monad value field.</li>
+          the S flag and the SigRef.</li>
         </ol>
       </section>
 
@@ -1124,7 +1136,7 @@
 
     <section anchor="multi-algorithm-considerations" numbered="true" toc="include">
       <name>Multi-Algorithm Considerations</name>
-      <t>The inclusion of three distinct signature algorithm families
+      <t>The inclusion of two distinct signature algorithm families
       introduces architectural constraints that implementations MUST
       address.</t>
 
@@ -1141,47 +1153,13 @@
           <tbody>
             <tr><td>SLH-DSA</td><td>YES</td><td>NO</td><td>Hash-only, integer</td></tr>
             <tr><td>ML-DSA</td><td>YES</td><td>NO</td><td>Integer NTT mod q</td></tr>
-            <tr><td>FN-DSA</td><td>PARTIAL*</td><td>NO</td><td>Float in signing</td></tr>
           </tbody>
         </table>
 
-        <t>*FN-DSA verification performs integer NTT modular arithmetic
-        (mod q=12289) plus L2-norm and infinity-norm checks.  These
-        operations are integer-only and fit within the BPF verifier's
-        <xref target="RFC9669"/> 1,000,000 instruction budget (~21,000 instructions estimated).
-        However, implementations MAY choose to route FN-DSA verification
-        to userspace via bpf_kfunc upcall for simplicity.</t>
-
-        <t>FN-DSA signing requires IEEE-754 binary64 floating-point for:
-        FFT expansion of private basis, LDL tree decomposition, and
-        discrete Gaussian sampling.  eBPF does not support floating-point
-        operations.  FN-DSA signing MUST occur in a dedicated userspace
-        daemon.</t>
-      </section>
-
-      <section anchor="fndsa-signing-daemon" numbered="true" toc="include">
-        <name>FN-DSA Signing Daemon</name>
-        <t>When FN-DSA is enabled (Tier ENHANCED or SOVEREIGN), a dedicated
-        signing daemon MUST be deployed:</t>
-
-        <ol type="(%c)" spacing="normal">
-          <li>The daemon MUST run with process isolation (separate cgroup,
-          network namespace, dedicated CPU cores via isolcpus).</li>
-          <li>The daemon MUST use a constant-time FN-DSA implementation
-          to mitigate timing side channels (see Security Considerations
-          <xref target="fndsa-side-channels"/>).</li>
-          <li>FN-DSA mandates randomized signing only (NIST FIPS 206).
-          Deterministic signing is PROHIBITED due to floating-point
-          reproducibility concerns that could leak private key
-          information.</li>
-          <li>The daemon MUST validate entropy source quality at startup.
-          If system entropy is insufficient (&lt; 256 bits available),
-          the daemon MUST refuse to start and emit an Anamnesis
-          CRITICAL event.</li>
-          <li>Communication between Shield and the signing daemon MUST
-          use an authenticated channel (Unix domain socket with
-          SO_PEERCRED verification).</li>
-        </ol>
+        <t>Both families verify with integer-only operations that fit
+        within the BPF verifier's <xref target="RFC9669"/> instruction
+        budget.  Signing is a control-plane operation and never executes
+        in eBPF.</t>
       </section>
 
       <section anchor="algorithm-negotiation" numbered="true" toc="include">
@@ -1193,9 +1171,8 @@
         <ol spacing="normal">
           <li>Peer capability advertisement (if Unheaded-to-Unheaded).</li>
           <li>Administrative policy (Sophia app policy dictionary).</li>
-          <li>Performance preference (FN-DSA for minimum bandwidth,
-          ML-DSA for fastest verification, SLH-DSA for maximum
-          conservatism).</li>
+          <li>Performance preference (ML-DSA for fastest verification
+          and smallest signatures, SLH-DSA for maximum conservatism).</li>
         </ol>
 
         <t>The selected algo_id is written to the Sophia signature map
@@ -1205,26 +1182,27 @@
 
       <section anchor="sovereign-multi-sig" numbered="true" toc="include">
         <name>Sovereign Multi-Signature Layout</name>
-        <t>In Tier SOVEREIGN, each flow carries signatures from at least
-        two distinct algorithm families.  The Sophia signature map
-        entry is extended:</t>
+        <t>In Tier SOVEREIGN, each flow has signatures from both
+        algorithm families (SLH-DSA and ML-DSA).  The Sophia signature
+        map entry is extended; no packet carries any of these fields:</t>
 
         <sourcecode type="c"><![CDATA[
    struct sophia_pqc_sovereign_entry {
        uint8_t  primary_algo_id;     /* Primary algorithm            */
-       uint8_t  secondary_algo_id;   /* Secondary (different family) */
-       uint8_t  tertiary_algo_id;    /* Tertiary (0x00 if 2-of-3)   */
-       uint8_t  consensus;           /* Bitfield: b0=pri b1=sec b2=ter */
+       uint8_t  secondary_algo_id;   /* Secondary (other family)     */
+       uint8_t  tertiary_algo_id;    /* Reserved, MUST be 0x00       */
+       uint8_t  consensus;           /* Bitfield: b0=pri b1=sec; b2 reserved */
        uint32_t primary_sigref;      /* SigRef for primary sig       */
        uint32_t secondary_sigref;    /* SigRef for secondary sig     */
-       uint32_t tertiary_sigref;     /* SigRef for tertiary sig      */
+       uint32_t tertiary_sigref;     /* SigRef3: reserved, MUST be 0 */
    };
         ]]></sourcecode>
 
         <t>The consensus field tracks which algorithms have verified
-        successfully.  When popcount(consensus) &gt;= 2, the packet is
-        authenticated.  This ensures that compromise of any single
-        algorithm family does not break authentication.</t>
+        successfully.  When both b0 and b1 are set, the packet is
+        authenticated.  This ensures that compromise of either
+        algorithm family alone does not break authentication.  The
+        tertiary fields are reserved and MUST be zero.</t>
       </section>
     </section>
 
@@ -1267,63 +1245,72 @@
       <name>IANA Considerations</name>
 
       <section anchor="pqc-algo-registry" numbered="true" toc="include">
-        <name>PQC Algorithm Registry</name>
-        <t>This document requests IANA to create a new registry:
-        "Unheaded PQC Algorithm Identifiers"</t>
+        <name>PQC Parameter Set Registry</name>
+        <t>The PQC algorithm family identifiers (SLH-DSA 0x01, ML-DSA
+        0x02, ML-KEM 0x04, HQC 0x05; 0x03 Reserved) are owned by the
+        "PQC Algorithm Identifiers" section of <xref target="MONAD"/>.
+        This document requests IANA to create a new registry, "Unheaded
+        PQC Parameter Set Identifiers", that registers parameter sets
+        under those family identifiers.  Its values are the algo_id
+        values used in the Sophia PQC maps of this document.</t>
 
         <t>Registration Policy: Specification Required <xref target="RFC8126"/></t>
 
         <table>
           <thead>
-            <tr><th>Value</th><th>Description</th><th>FIPS</th><th>Reference</th></tr>
+            <tr><th>Value</th><th>Parameter Set</th><th>Family</th><th>FIPS</th><th>Reference</th></tr>
           </thead>
           <tbody>
-            <tr><td>0x00</td><td>Reserved</td><td>--</td><td>This document</td></tr>
-            <tr><td>0x01</td><td>SLH-DSA-SHA2-128s</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x02</td><td>SLH-DSA-SHA2-128f</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x03</td><td>SLH-DSA-SHA2-192s</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x04</td><td>SLH-DSA-SHA2-192f</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x05</td><td>SLH-DSA-SHA2-256s</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x06</td><td>SLH-DSA-SHA2-256f</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x07</td><td>SLH-DSA-SHAKE-128s</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x08</td><td>SLH-DSA-SHAKE-128f</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x09</td><td>SLH-DSA-SHAKE-192s</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x0A</td><td>SLH-DSA-SHAKE-192f</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x0B</td><td>SLH-DSA-SHAKE-256s</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x0C</td><td>SLH-DSA-SHAKE-256f</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x0D-0x0F</td><td>Reserved (SLH-DSA)</td><td>205</td><td>This document</td></tr>
-            <tr><td>0x10</td><td>ML-DSA-44</td><td>204</td><td>This document</td></tr>
-            <tr><td>0x11</td><td>ML-DSA-65</td><td>204</td><td>This document</td></tr>
-            <tr><td>0x12</td><td>ML-DSA-87</td><td>204</td><td>This document</td></tr>
-            <tr><td>0x13-0x1F</td><td>Reserved (ML-DSA)</td><td>204</td><td>This document</td></tr>
-            <tr><td>0x20</td><td>FN-DSA-512</td><td>206</td><td>This document</td></tr>
-            <tr><td>0x21</td><td>FN-DSA-1024</td><td>206</td><td>This document</td></tr>
-            <tr><td>0x22-0x7F</td><td>Reserved (sigs)</td><td>--</td><td>This document</td></tr>
-            <tr><td>0x80</td><td>ML-KEM-512</td><td>203</td><td>This document</td></tr>
-            <tr><td>0x81</td><td>ML-KEM-768</td><td>203</td><td>This document</td></tr>
-            <tr><td>0x82</td><td>ML-KEM-1024</td><td>203</td><td>This document</td></tr>
-            <tr><td>0x83-0x8F</td><td>Reserved (ML-KEM)</td><td>203</td><td>This document</td></tr>
-            <tr><td>0x90</td><td>HQC-128</td><td>207</td><td>This document</td></tr>
-            <tr><td>0x91</td><td>HQC-192</td><td>207</td><td>This document</td></tr>
-            <tr><td>0x92-0xFE</td><td>Unassigned</td><td>--</td><td></td></tr>
-            <tr><td>0xFF</td><td>Reserved</td><td>--</td><td>This document</td></tr>
+            <tr><td>0x00</td><td>Reserved</td><td>--</td><td>--</td><td>This document</td></tr>
+            <tr><td>0x01</td><td>SLH-DSA-SHA2-128s</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x02</td><td>SLH-DSA-SHA2-128f</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x03</td><td>SLH-DSA-SHA2-192s</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x04</td><td>SLH-DSA-SHA2-192f</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x05</td><td>SLH-DSA-SHA2-256s</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x06</td><td>SLH-DSA-SHA2-256f</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x07</td><td>SLH-DSA-SHAKE-128s</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x08</td><td>SLH-DSA-SHAKE-128f</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x09</td><td>SLH-DSA-SHAKE-192s</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x0A</td><td>SLH-DSA-SHAKE-192f</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x0B</td><td>SLH-DSA-SHAKE-256s</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x0C</td><td>SLH-DSA-SHAKE-256f</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x0D-0x0F</td><td>Reserved (SLH-DSA)</td><td>0x01</td><td>205</td><td>This document</td></tr>
+            <tr><td>0x10</td><td>ML-DSA-44</td><td>0x02</td><td>204</td><td>This document</td></tr>
+            <tr><td>0x11</td><td>ML-DSA-65</td><td>0x02</td><td>204</td><td>This document</td></tr>
+            <tr><td>0x12</td><td>ML-DSA-87</td><td>0x02</td><td>204</td><td>This document</td></tr>
+            <tr><td>0x13-0x1F</td><td>Reserved (ML-DSA)</td><td>0x02</td><td>204</td><td>This document</td></tr>
+            <tr><td>0x20</td><td>Reserved (never reassigned)</td><td>--</td><td>--</td><td>This document</td></tr>
+            <tr><td>0x21</td><td>Reserved (never reassigned)</td><td>--</td><td>--</td><td>This document</td></tr>
+            <tr><td>0x22-0x7F</td><td>Reserved (sigs)</td><td>--</td><td>--</td><td>This document</td></tr>
+            <tr><td>0x80</td><td>ML-KEM-512</td><td>0x04</td><td>203</td><td>This document</td></tr>
+            <tr><td>0x81</td><td>ML-KEM-768</td><td>0x04</td><td>203</td><td>This document</td></tr>
+            <tr><td>0x82</td><td>ML-KEM-1024</td><td>0x04</td><td>203</td><td>This document</td></tr>
+            <tr><td>0x83-0x8F</td><td>Reserved (ML-KEM)</td><td>0x04</td><td>203</td><td>This document</td></tr>
+            <tr><td>0x90</td><td>HQC-128</td><td>0x05</td><td>207</td><td>This document</td></tr>
+            <tr><td>0x91</td><td>HQC-192</td><td>0x05</td><td>207</td><td>This document</td></tr>
+            <tr><td>0x92-0xFE</td><td>Unassigned</td><td>--</td><td>--</td><td></td></tr>
+            <tr><td>0xFF</td><td>Reserved</td><td>--</td><td>--</td><td>This document</td></tr>
           </tbody>
         </table>
       </section>
 
       <section anchor="monad-flags-update" numbered="true" toc="include">
-        <name>Monad Flags Registry Update</name>
-        <t>This document updates the Monad Flags Registry to formally
-        define the semantics of the S (Signed) flag (bit 3) when used
-        with PQC authentication:</t>
+        <name>Monad Flags Registry Note</name>
+        <t>This document adds no flag bit to the Monad Flags Registry of
+        <xref target="MONAD"/> and changes no bit assignment.  It records
+        the semantics of the S (0x08) flag when set together with
+        CUSTOM (0x02):</t>
 
-        <t>S = 1: The Monad value field contains PQC authentication
-        references as defined in <xref target="monad-value-layout"/> of this document.</t>
+        <t>S = 1 and CUSTOM = 1: the Monad scratch octets (0x0E-0x11)
+        carry the 32-bit SigRef defined in <xref target="monad-value-layout"/>
+        of this document.</t>
       </section>
 
       <section anchor="sophia-map-type-update" numbered="true" toc="include">
         <name>Sophia Map Type Registry Update</name>
-        <t>This document registers three new Sophia map types:</t>
+        <t>This document registers five new Sophia map types in the
+        registry of <xref target="SOPHIA"/> (registration policy
+        Specification Required <xref target="RFC8126"/>):</t>
 
         <table>
           <thead>
@@ -1365,7 +1352,7 @@
 
       <section anchor="replay-resistance" numbered="true" toc="include">
         <name>Replay Resistance</name>
-        <t>The SeqNum field in the Monad register provides replay
+        <t>The SeqNum field of the Sophia signature entry provides replay
         resistance.  Without SeqNum, an attacker who captures a
         legitimate packet could replay it indefinitely, as the SigRef
         would still reference a valid cached verification result.</t>
@@ -1503,37 +1490,9 @@
         </ol>
       </section>
 
-      <section anchor="fndsa-side-channels" numbered="true" toc="include">
-        <name>FN-DSA Floating-Point Side Channels (PQC-009)</name>
-        <t>FN-DSA signing requires IEEE-754 binary64 floating-point
-        operations for FFT expansion, LDL tree decomposition, and
-        discrete Gaussian sampling.  The "Do Not Disturb a Sleeping
-        Falcon" paper (Eurocrypt 2025) demonstrates that timing
-        variations in these operations can leak private key bits after
-        approximately 2^26 observed signatures.</t>
-
-        <t>Mitigations:</t>
-
-        <ol type="(%c)" spacing="normal">
-          <li>The FN-DSA signing daemon MUST use a constant-time
-          implementation as specified in FIPS 206.</li>
-          <li>The signing daemon MUST run on isolated CPU cores (isolcpus)
-          with FPU state pinned (no context-switch FPU save/restore
-          observable by other processes).</li>
-          <li>Memory used by the signing daemon MUST be mlocked to prevent
-          swapping.</li>
-          <li>NIST requires randomized signing for FN-DSA.  This prevents
-          the deterministic signature patterns that enable the
-          Eurocrypt 2025 attack.</li>
-        </ol>
-
-        <t>Header stripping does NOT mitigate this finding -- the signing
-        daemon is internal to the kingdom.</t>
-      </section>
-
       <section anchor="userspace-kernel-boundary" numbered="true" toc="include">
         <name>Userspace-Kernel Boundary Attacks (PQC-010)</name>
-        <t>When FN-DSA verification is routed to userspace via bpf_kfunc
+        <t>When signature verification is routed to userspace via bpf_kfunc
         upcall, a time-of-check-to-time-of-use (TOCTOU) window exists
         between eBPF verification and application consumption.</t>
 
@@ -1555,9 +1514,9 @@
 
       <section anchor="algo-confusion-downgrade" numbered="true" toc="include">
         <name>Algorithm Confusion and Downgrade (PQC-011)</name>
-        <t>With three signature algorithm families, an attacker may attempt
-        to force use of a weaker or compromised algorithm by manipulating
-        the algo_id field in the Monad register.</t>
+        <t>With two signature algorithm families, an attacker may attempt
+        to force use of a weaker or compromised algorithm by steering a
+        flow to a signature entry of the other family.</t>
 
         <t>Mitigations:</t>
 
@@ -1566,40 +1525,17 @@
           in the Sophia signature map entry.  Mismatch leads to DROP.</li>
           <li>The compliance tier MUST restrict which algo_id values are
           accepted.  Tier STANDARD accepts only SLH-DSA (0x01-0x0C).
-          Packets with ML-DSA or FN-DSA algo_id values at Tier STANDARD
-          MUST be dropped.</li>
+          Packets whose signature entry carries an ML-DSA algo_id at
+          Tier STANDARD MUST be dropped.</li>
           <li>Algorithm selection MUST NOT change mid-flow.  If a packet
           arrives with a different algo_id than the flow's established
           algorithm, DROP and emit Anamnesis ERROR.</li>
-          <li>Tier SOVEREIGN requires 2-of-3 consensus across different
-          algorithm families, preventing single-algorithm downgrade.</li>
+          <li>Tier SOVEREIGN requires both algorithm families to verify,
+          preventing single-algorithm downgrade.</li>
         </ol>
 
-        <t>Header stripping mitigates this at the perimeter -- algo_id
+        <t>Header stripping mitigates this at the perimeter -- SigRef
         manipulation is only possible from external sources.</t>
-      </section>
-
-      <section anchor="entropy-requirements" numbered="true" toc="include">
-        <name>Entropy Requirements for FN-DSA (PQC-013)</name>
-        <t>FN-DSA signing requires approximately 40,448 bits of randomness
-        per signature (79 bits x 512 coefficients).  Insufficient
-        entropy in the discrete Gaussian sampling process can cause
-        signatures to leak private key information.</t>
-
-        <t>Mitigations:</t>
-
-        <ol type="(%c)" spacing="normal">
-          <li>The signing daemon MUST verify entropy source quality at
-          startup using RDSEED or equivalent hardware RNG.</li>
-          <li>If the kernel entropy pool drops below 256 bits, the signing
-          daemon MUST pause signing and emit an Anamnesis CRITICAL event.</li>
-          <li>Deployments in virtual machines or containers MUST ensure
-          virtio-rng or equivalent entropy passthrough is configured.</li>
-          <li>SLH-DSA does not have this vulnerability -- its hash-based
-          construction uses deterministic derivation from the message
-          and secret key.  This is one reason SLH-DSA is the RECOMMENDED
-          default at Tier STANDARD.</li>
-        </ol>
       </section>
 
       <section anchor="tier-security-boundaries" numbered="true" toc="include">
@@ -1615,8 +1551,9 @@
           <li>Tier ENHANCED: Multi-algorithm availability but single-algorithm
           enforcement per flow.  Provides algorithm agility
           but not simultaneous cross-verification.</li>
-          <li>Tier SOVEREIGN: Multi-algorithm cross-verification (2-of-3).
-          Survives compromise of any single algorithm family.  MANDATORY
+          <li>Tier SOVEREIGN: Multi-algorithm cross-verification (both
+          families).  Survives compromise of either algorithm family
+          alone.  MANDATORY
           Layer 2 enforcement and audit trail.  Maximum assurance.</li>
         </ol>
 
@@ -1666,17 +1603,6 @@
             <date year="2024" month="August"/>
           </front>
           <seriesInfo name="FIPS" value="205"/>
-        </reference>
-
-        <reference anchor="FIPS206">
-          <front>
-            <title>FFT over NTRU-Lattice-Based Digital Signature Standard</title>
-            <author>
-              <organization>National Institute of Standards and Technology</organization>
-            </author>
-            <date year="2025"/>
-          </front>
-          <seriesInfo name="FIPS" value="206"/>
         </reference>
 
         <reference anchor="FIPS207">
@@ -1783,6 +1709,18 @@
           </front>
           <seriesInfo name="RFC" value="9669"/>
         </reference>
+
+        <reference anchor="RFC6437" target="https://www.rfc-editor.org/info/rfc6437">
+          <front>
+            <title>IPv6 Flow Label Specification</title>
+            <author initials="S." surname="Amante"/>
+            <author initials="B." surname="Carpenter"/>
+            <author initials="S." surname="Jiang"/>
+            <author initials="J." surname="Rajahalme"/>
+            <date year="2011" month="November"/>
+          </front>
+          <seriesInfo name="RFC" value="6437"/>
+        </reference>
       </references>
     </references>
 
@@ -1797,11 +1735,10 @@
         <tbody>
           <tr><td>Most conservative</td><td>SLH-DSA-SHA2-128s</td><td>7,856 B</td><td>~2ms</td><td>STANDARD</td></tr>
           <tr><td>Fast verification</td><td>ML-DSA-44</td><td>2,420 B</td><td>~0.1ms</td><td>ENHANCED</td></tr>
-          <tr><td>Minimum bandwidth</td><td>FN-DSA-512</td><td>666 B</td><td>~0.2ms</td><td>ENHANCED</td></tr>
           <tr><td>High security (hash)</td><td>SLH-DSA-SHA2-256s</td><td>29,792 B</td><td>~5ms</td><td>STANDARD</td></tr>
           <tr><td>High security (lattice)</td><td>ML-DSA-87</td><td>4,627 B</td><td>~0.3ms</td><td>ENHANCED</td></tr>
           <tr><td>Government / CNSA 2.0</td><td>SLH-DSA-SHA2-192s+</td><td>16,224 B</td><td>~3ms</td><td>SOVEREIGN</td></tr>
-          <tr><td>Maximum assurance</td><td>2-of-3 (all algos)</td><td>varies</td><td>~5-7ms</td><td>SOVEREIGN</td></tr>
+          <tr><td>Maximum assurance</td><td>SLH-DSA + ML-DSA (both)</td><td>varies</td><td>~5-7ms</td><td>SOVEREIGN</td></tr>
         </tbody>
       </table>
 
@@ -1815,14 +1752,9 @@
       integer NTT.  Fully eBPF-native.  If lattice assumptions hold, this
       is the optimal choice for high-throughput deployments.</t>
 
-      <t>FN-DSA (FIPS 206): Smallest signatures (666-1,280B).  Lattice-based
-      with floating-point signing.  Requires userspace signing daemon.
-      Best for bandwidth-constrained links.  Carries additional side-channel
-      risk (see <xref target="fndsa-side-channels"/>).</t>
-
       <t>For the signature-by-reference scheme, signature size impacts Sophia
-      map memory, not wire overhead.  All algorithms use the same 12-byte
-      Monad value layout.</t>
+      map memory, not wire overhead.  All algorithms use the same 32-bit
+      SigRef in the Monad scratch octets.</t>
     </section>
 
     <section anchor="appendix-b" numbered="true" toc="include">
@@ -1881,8 +1813,14 @@
 
     <section anchor="changes-from-00" numbered="true" toc="include">
       <name>Changes from draft-bellis-unheaded-pqc-authentication-00</name>
-      <t>This revision changes the following. No algorithm identifier, field or procedure is changed.</t>
+      <t>This revision changes the following. The 20-octet Monad wire format (version 0x01) is unchanged: no field, offset, size or flag bit changes.</t>
       <ul>
+        <li>The PQC compliance tier is a per-service policy value held in Sophia and read by the verifier. Revision -00 said the tiers were signaled by Kingdom Mode bits K1|K0 in the Monad flags byte. The Monad has no tier bits; the tier table stays as policy levels 0-3, and the tier section headings name the levels.</li>
+        <li>The version 0x01 Monad carries one PQC field, a 32-bit SigRef (unsigned, big-endian, 0 reserved) in its scratch octets at offsets 0x0E-0x11, present when the S (0x08) and CUSTOM (0x02) flags are both set. Revision -00 described a 12-byte value with a 24-bit SigRef, a 24-bit KeyRef, HashPfx and SeqNum. KeyRef (32 bits), SeqNum (32 bits) and HashPfx (16 bits) are now fields of struct sophia_pqc_sig_entry, as the Sophia dictionary document defines it; no packet carries them. The value format diagram, the field definitions, the verification pipeline, the Shield ingress and egress rules, the sequence number management and the replay section follow.</li>
+        <li>FN-DSA is withdrawn. Parameter-set identifiers 0x20 and 0x21 are Reserved and never reassigned; the FN-DSA terminology entry, parameter-set table, eBPF compatibility row, FN-DSA Signing Daemon section, the PQC-009 floating-point side-channel section, the PQC-013 entropy section, the FN-DSA rows of the algorithm selection table and the FIPS 206 reference are removed. Tier ENHANCED lists SLH-DSA and ML-DSA; Tier SOVEREIGN is two families and both must verify (revision -00: 2-of-3). The tertiary fields of the sovereign entry (SigRef3) are reserved and MUST be zero.</li>
+        <li>The IANA registry is renamed "Unheaded PQC Parameter Set Identifiers" and registers parameter sets under the algorithm family identifiers that the Protocol Foundation owns; a Family column is added. Its policy stays Specification Required. The Monad Flags section is a note on the S-plus-CUSTOM semantics and adds no bit.</li>
+        <li>The Flow Label is stated to be per flow (RFC 6437), set by Shield at ingress from a hash of the 5-tuple and the same in every packet of the flow, in the pseudo-header and the fast path. An informative reference to RFC 6437 is added.</li>
+        <li>The document is marked as an Independent Submission (one workgroup string).</li>
         <li>An implementation status paragraph is added: Phases 1-3 are not implemented, and no wire-level PQC verification exists in the reference implementation.</li>
         <li>References to the companion documents name their -01 revisions.</li>
       </ul>

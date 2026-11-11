@@ -51,9 +51,9 @@ cache miss protocol, gRPC streaming contracts, triple-role architecture,
 reliability guarantees, and I/O topic naming conventions for systems
 implementing the Unheaded Protocol's computational layer.</t>
 
-<t>Draft-03 introduces a structured error code taxonomy with severity
+<t>It also defines a structured error code taxonomy with severity
 levels, helper return codes for common operations, and error recovery
-procedures. Draft-02 security patches W1-W8 are retained.</t>
+procedures.</t>
 
 
 
@@ -148,13 +148,13 @@ for persistence or hand-off.</t>
 </dl>
 
 </section>
-<section anchor="error-code-taxonomy-new-in-draft-03"><name>Error Code Taxonomy (NEW in draft-03)</name>
+<section anchor="error-code-taxonomy"><name>Error Code Taxonomy</name>
 
 <section anchor="overview"><name>Overview</name>
 
-<t>Draft-02 defined error handling for BPF helpers using standard errno
-codes (-ENOENT, -EFAULT, -ENOMEM, -EACCES, -EINVAL, -EAGAIN). Draft-03
-introduces a structured error code taxonomy that classifies errors by
+<t>BPF helpers report errors using standard errno
+codes (-ENOENT, -EFAULT, -ENOMEM, -EACCES, -EINVAL, -EAGAIN). This
+document adds a structured error code taxonomy that classifies errors by
 severity, origin, and recommended recovery action.</t>
 
 <t>This taxonomy applies to all Wotan operations: BPF helper functions,
@@ -178,7 +178,7 @@ FATAL       4       Unrecoverable failure        Log, halt, require restart
 </section>
 <section anchor="structured-error-code-format"><name>Structured Error Code Format</name>
 
-<t>Error codes in draft-03 use a 32-bit structured format:</t>
+<t>Error codes use a 32-bit structured format:</t>
 
 <figure><artwork><![CDATA[
  31       24 23       16 15        8 7         0
@@ -336,7 +336,7 @@ Code                                Errno     Description
 [ERROR, L1, BOUNDS, 0x02]          -EFAULT   Offset > 56 (write, 8-byte)
 [INFO, L1, CONCURRENCY, 0x01]      -EAGAIN   CAS comparison failed
 [ERROR, L1, BOUNDS, 0x03]          -EFAULT   CAS alignment error (not 8-byte)
-[WARN, L1, RATE_LIMIT, 0x01]       -EBUSY    Cache-miss rate exceeded (W6)
+[WARN, L1, RATE_LIMIT, 0x01]       -EBUSY    Cache-miss rate exceeded
 ]]></artwork></figure>
 
 </section>
@@ -348,7 +348,7 @@ Code                                Errno     Description
 [ERROR, L2, RESOURCE, 0x01]         -ENOENT   Flow not found (no ring buf)
 [ERROR, L2, RESOURCE, 0x02]         -ENOMEM   Ring buffer full (overflow)
 [ERROR, L2, INTEGRITY, 0x01]        N/A       CRC-32 mismatch on entry
-[ERROR, L2, INTEGRITY, 0x02]        N/A       Seqno discontinuity (W1)
+[ERROR, L2, INTEGRITY, 0x02]        N/A       Seqno discontinuity
 [ERROR, L2, DATA_CORRUPTION, 0x01]  N/A       Valid flag inconsistency
 ]]></artwork></figure>
 
@@ -359,10 +359,10 @@ Code                                Errno     Description
 Code                                Errno     Description
 ----------------------------------  --------  -------------------------
 [ERROR, L3, RESOURCE, 0x01]         -ENOSPC   WAL disk full
-[ERROR, L3, INTEGRITY, 0x01]        N/A       HMAC-SHA256 mismatch (W4)
+[ERROR, L3, INTEGRITY, 0x01]        N/A       HMAC-SHA256 mismatch
 [ERROR, L3, INTEGRITY, 0x02]        N/A       CRC-32 mismatch on WAL entry
-[ERROR, L3, INTEGRITY, 0x03]        N/A       Seqno gap in WAL (W1)
-[WARN, L3, CONCURRENCY, 0x01]       N/A       Compaction lock contention (W5)
+[ERROR, L3, INTEGRITY, 0x03]        N/A       Seqno gap in WAL
+[WARN, L3, CONCURRENCY, 0x01]       N/A       Compaction lock contention
 [CRITICAL, L3, DATA_CORRUPTION, 0x01] N/A     WAL file corrupted (unrecoverable)
 ]]></artwork></figure>
 
@@ -375,8 +375,8 @@ Code                                Errno     Description
 [ERROR, GRPC, ACCESS, 0x01]         N/A       Unauthorized topic publish
 [WARN, GRPC, RESOURCE, 0x01]        N/A       Subscriber buffer overflow
 [ERROR, GRPC, TIMEOUT, 0x01]        N/A       Subscription idle timeout (5m)
-[ERROR, GRPC, PROTOCOL, 0x01]       N/A       Invalid SETTINGS frame (W7)
-[ERROR, GRPC, PROTOCOL, 0x02]       N/A       Invalid GOAWAY frame (W8)
+[ERROR, GRPC, PROTOCOL, 0x01]       N/A       Invalid SETTINGS frame
+[ERROR, GRPC, PROTOCOL, 0x02]       N/A       Invalid GOAWAY frame
 [WARN, GRPC, RATE_LIMIT, 0x01]      N/A       GOAWAY rate limit exceeded
 ]]></artwork></figure>
 
@@ -396,7 +396,7 @@ Code                                Errno     Description
 
 </section>
 </section>
-<section anchor="error-recovery-procedures-new-in-draft-03"><name>Error Recovery Procedures (NEW in draft-03)</name>
+<section anchor="error-recovery-procedures"><name>Error Recovery Procedures</name>
 
 <section anchor="recovery-by-severity-level"><name>Recovery by Severity Level</name>
 
@@ -618,7 +618,7 @@ long bpf_wotan_cas(u32 flow_label, u32 addr, u32 expected, u32 desired);
 
 <t><strong>Arguments:</strong>
 - flow_label: 20-bit IPv6 Flow Label
-- addr: 32-bit address (MUST be 8-byte aligned per PATCH W3)
+- addr: 32-bit address (MUST be 8-byte aligned)
 - expected: expected current value (u32)
 - desired: value to write if current == expected</t>
 
@@ -631,7 +631,7 @@ long bpf_wotan_cas(u32 flow_label, u32 addr, u32 expected, u32 desired);
 - -EACCES (-13): not authorized [ERROR, CORE, ACCESS, 0x01]</t>
 
 </section>
-<section anchor="error-handling-enhanced-in-draft-03"><name>Error Handling (Enhanced in draft-03)</name>
+<section anchor="error-handling"><name>Error Handling</name>
 
 <t>Implementations MUST handle all specified error codes. The structured
 error taxonomy (Section 3) provides additional detail beyond errno:</t>
@@ -640,7 +640,7 @@ error taxonomy (Section 3) provides additional detail beyond errno:</t>
 For each helper return:
   1. Check errno (standard error handling, backward compatible)
   2. Optionally read wotan_last_error map for structured code
-  3. Apply recovery procedure per severity level (Section 3.5.1)
+  3. Apply recovery procedure per severity level (Section 3.6.1)
   4. Emit metric: wotan_helper_error_total{errno, helper_name}
 ]]></artwork></figure>
 
@@ -658,7 +658,7 @@ values and branch accordingly.</t>
 
 </section>
 </section>
-<section anchor="upc-memory-model-extensions-new-in-draft-03-update"><name>UPC Memory Model Extensions (NEW in draft-03 update)</name>
+<section anchor="upc-memory-model-extensions"><name>UPC Memory Model Extensions</name>
 
 <section anchor="overview-1"><name>Overview</name>
 
@@ -799,7 +799,7 @@ per hop (per-packet computation model).</t>
 
 </section>
 </section>
-<section anchor="wal-specification-new-in-draft-03-update"><name>WAL Specification (NEW in draft-03 update)</name>
+<section anchor="wal-specification"><name>WAL Specification</name>
 
 <section anchor="overview-2"><name>Overview</name>
 
@@ -861,7 +861,8 @@ that the record is durable before acknowledging the writeback.</t>
 1. Open WAL file in read mode
 2. Read 76-byte records sequentially
 3. For each record:
-   a. Validate record integrity (HMAC-SHA256 per PATCH W4)
+   a. Verify the record's HMAC-SHA256 tag, where the deployment
+      keeps one (see Security Considerations)
    b. Write cache line data to L2 ring buffer at line_addr
    c. Mark page as clean
 4. Resume normal operation
@@ -874,7 +875,7 @@ that the record is durable before acknowledging the writeback.</t>
 (records where a later record writes to the same address):</t>
 
 <figure><artwork><![CDATA[
-1. Acquire exclusive compaction lock (PATCH W5)
+1. Acquire exclusive compaction lock
 2. Read all records, building address -> latest_record map
 3. Write retained records to new WAL file
 4. Atomically rename new file over old
@@ -899,7 +900,7 @@ wal_fsync           true            fsync after each write
 
 </section>
 </section>
-<section anchor="tty-subsystem-new-in-draft-03-update"><name>TTY Subsystem (NEW in draft-03 update)</name>
+<section anchor="tty-subsystem"><name>TTY Subsystem</name>
 
 <section anchor="overview-3"><name>Overview</name>
 
@@ -1003,38 +1004,129 @@ tty_max_line_len    256        Max bytes per single write event
 - Emit ANOMALY event to Anamnesis</t>
 
 </section>
-<section anchor="ring-buffer-memory-exhaustion-patch-w6"><name>Ring Buffer Memory Exhaustion (PATCH W6)</name>
+<section anchor="ring-buffer-memory-exhaustion"><name>Ring Buffer Memory Exhaustion</name>
 
-<t>Per-program cache-miss rate limiting (10K misses/sec budget).
-See draft-02 Section 8.2 for complete specification.</t>
+<t>A malicious Shim could intentionally cause high cache-miss rates to
+exhaust ring buffer memory, causing denial of service to other flows.
+One Shim program that repeatedly accesses non-resident memory can
+trigger more than 100,000 cache misses per second; the ring buffer
+fills and overflows, which loses data and stalls other flows.</t>
 
-</section>
-<section anchor="cross-flow-memory-access-patch-w2"><name>Cross-Flow Memory Access (PATCH W2)</name>
+<t><strong>Mitigation (MANDATORY)</strong>:</t>
 
-<t>64-bit composite L1 cache keys prevent birthday attack collisions.
-See draft-02 Section 4.1 for complete specification.</t>
+<t><list style="symbols">
+  <t>Per-program cache-miss rate limiting (10K misses/sec budget,
+measured over a rolling one-second window)</t>
+  <t>Throttle programs exceeding the budget (100 ms delay,
+exponential backoff)</t>
+  <t>Export a metric (wotan_cache_miss_rate_exceeded_total)</t>
+  <t>Force-terminate programs exceeding the 5 s maximum delay</t>
+  <t>Monitor ring buffer occupancy (alert at 75%, proactive drain
+to L3)</t>
+</list></t>
 
-</section>
-<section anchor="cas-alignment-violations-patch-w3"><name>CAS Alignment Violations (PATCH W3)</name>
-
-<t>8-byte alignment enforced by BPF verifier at load time.
-See draft-02 Section 3.2.1 for complete specification.</t>
-
-</section>
-<section anchor="wal-tampering-detection-patch-w4"><name>WAL Tampering Detection (PATCH W4)</name>
-
-<t>HMAC-SHA256 authentication on WAL entries.
-See draft-02 Section 3.1 for specification.</t>
-
-</section>
-<section anchor="wal-compaction-race-conditions-patch-w5"><name>WAL Compaction Race Conditions (PATCH W5)</name>
-
-<t>Exclusive mutex during compaction. See draft-02 Section 3.3.</t>
+<t>A program over its budget receives -EBUSY, [WARN, L1, RATE_LIMIT,
+0x01]. This revision does not specify the limiter further.</t>
 
 </section>
-<section anchor="goaway-frame-dos-patch-w8"><name>GOAWAY Frame DoS (PATCH W8)</name>
+<section anchor="cross-flow-memory-access"><name>Cross-Flow Memory Access</name>
 
-<t>Frame validation and rate limiting. See draft-02 Section 10.2.</t>
+<t>Using only the 20-bit flow label as the L1 cache key enables
+birthday attack collisions. An attacker crafts packets with the same
+flow label and different source and destination addresses, so that
+two flows share a cache line; one flow can then read the other's
+memory (a confidentiality breach) or write it (an integrity
+violation).</t>
+
+<t><strong>Mitigation (MANDATORY)</strong>: 64-bit composite L1 cache
+keys prevent birthday attack collisions.</t>
+
+<figure><artwork><![CDATA[
+key = (flow_label << 44) | (tuple_hash & 0xFFFFFFFFFFF)
+
+flow_label: 20 bits
+tuple_hash: 44 bits of
+            SipHash-2-4(src_ip || dst_ip || src_port || dst_port)
+]]></artwork></figure>
+
+<t>Composite keys are required; an implementation rejects keys made
+of the 20-bit flow label alone for new flows. The key given to
+SipHash-2-4 is not defined in this revision.</t>
+
+</section>
+<section anchor="cas-alignment-violations"><name>CAS Alignment Violations</name>
+
+<t>Unaligned CAS operations may not be atomic on ARM64 or RISC-V,
+enabling race conditions and lost updates in concurrent flows; on
+those architectures an unaligned CAS can also raise a hardware fault
+and crash the program (denial of service).</t>
+
+<t><strong>Mitigation (MANDATORY)</strong>:</t>
+
+<t><list style="symbols">
+  <t>8-byte alignment enforced by BPF verifier at load time: the
+verifier MUST inject alignment checks before CAS operations</t>
+  <t>Reject programs with unaligned CAS at load time (fail-fast)</t>
+  <t>Enforce 8-byte alignment (not 4-byte)</t>
+  <t>Runtime check in the helper (<xref target="bpfwotancas"/>):
+if ((addr &amp; 0x7) != 0) return -EFAULT</t>
+</list></t>
+
+</section>
+<section anchor="wal-tampering-detection"><name>WAL Tampering Detection</name>
+
+<t>Persistent storage (the L3 WAL) may be accessed by unauthorized
+processes or network attackers if storage is not encrypted. An
+attacker with disk access can modify WAL records and so corrupt
+per-flow state. The 76-byte record (<xref target="wal-record-format"/>)
+carries no checksum and no authentication tag, so the record format
+alone does not reveal a modified record.</t>
+
+<t><strong>Mitigation (RECOMMENDED)</strong>:</t>
+
+<t><list style="symbols">
+  <t>Enable filesystem encryption (for example LUKS or ZFS
+encryption)</t>
+  <t>Restrict WAL file permissions (0600: read and write by Wotan
+only)</t>
+  <t>WAL records SHOULD be authenticated with HMAC-SHA256</t>
+  <t>Reject a record whose tag does not verify: skip it during
+recovery, report [ERROR, L3, INTEGRITY, 0x01] and emit an ANOMALY
+event</t>
+</list></t>
+
+<t>Where the tag is stored and how its key is managed are not defined
+in this revision; the 76-byte record has no field for it.</t>
+
+</section>
+<section anchor="wal-compaction-race-conditions"><name>WAL Compaction Race Conditions</name>
+
+<t>Without proper locking, concurrent compaction threads could cause
+double-free, use-after-free, or data corruption.</t>
+
+<t><strong>Mitigation (MANDATORY)</strong>:</t>
+
+<t><list style="symbols">
+  <t>Exclusive mutex during compaction</t>
+  <t>Only one compaction thread active at a time</t>
+  <t>No record is appended while compaction runs
+(<xref target="compaction"/>)</t>
+  <t>Compaction is atomic: it either succeeds completely or rolls
+back</t>
+</list></t>
+
+</section>
+<section anchor="goaway-frame-dos"><name>GOAWAY Frame DoS</name>
+
+<t>An attacker could send malformed GOAWAY frames to cause server
+crashes or connection termination. The mitigation is frame
+validation and rate limiting.</t>
+
+<t>This revision does not define the GOAWAY frame or the SETTINGS
+exchange: no frame layout, reason code or rate limit is specified
+here. The origin codes and error codes that name them
+(<xref target="error-code-taxonomy"/>) are kept for a later
+revision.</t>
 
 </section>
 <section anchor="normative-error-code-cross-reference-13-codes"><name>Normative Error Code Cross-Reference (13 codes)</name>
@@ -1108,8 +1200,9 @@ decompression security, and BPF map access control.</t>
 </section>
 <section anchor="iana-considerations"><name>IANA Considerations</name>
 
-<t>This memo does not request IANA registration of option types or protocol
-numbers; those are handled by <xref target="UNHEADED-FOUNDATION"></xref>.</t>
+<t>This memo requests no value in any existing IANA registry. The
+option type and protocol number that the Unheaded Protocol uses are
+described in <xref target="UNHEADED-FOUNDATION"></xref>.</t>
 
 <section anchor="wotan-topic-namespace-registry"><name>Wotan Topic Namespace Registry</name>
 
@@ -1138,7 +1231,7 @@ Initial entries:
 <t>Every payload on anomaly.scores and upc.cart.* carries flow metadata and a score or a cartridge event <xref target="UNHEADED-ADR108"></xref>; neither topic can carry packet payload.</t>
 
 </section>
-<section anchor="wotan-error-origin-registry-new-in-draft-03"><name>Wotan Error Origin Registry (NEW in draft-03)</name>
+<section anchor="wotan-error-origin-registry"><name>Wotan Error Origin Registry</name>
 
 <figure><artwork><![CDATA[
 Registry Name:  Unheaded Wotan Error Origin Codes
@@ -1146,11 +1239,11 @@ Template:       Origin Code (0x00-0x1F), Origin Name, Description,
                 Specification Reference
 Policy:         Specification Required
 
-Initial entries: See Section 3.2 (13 entries, codes 0x00-0x0C)
+Initial entries: See Section 3.3 (13 entries, codes 0x00-0x0C)
 ]]></artwork></figure>
 
 </section>
-<section anchor="wotan-error-category-registry-new-in-draft-03"><name>Wotan Error Category Registry (NEW in draft-03)</name>
+<section anchor="wotan-error-category-registry"><name>Wotan Error Category Registry</name>
 
 <figure><artwork><![CDATA[
 Registry Name:  Unheaded Wotan Error Category Codes
@@ -1158,7 +1251,7 @@ Template:       Category Code (0x00-0xFF), Category Name, Description,
                 Specification Reference
 Policy:         Specification Required
 
-Initial entries: See Section 3.2 (12 entries, codes 0x00-0x0B)
+Initial entries: See Section 3.3 (12 entries, codes 0x00-0x0B)
 ]]></artwork></figure>
 
 <?line 1113?>
@@ -1263,66 +1356,20 @@ Email: stevie@bellis.tech</t>
 <ul>
   <li>A registry "Wotan Topic Namespace" is requested (Expert Review), with initial entries compute.tty.*, anomaly.scores and upc.cart.*. Revision -00 only said that IANA might create one.</li>
   <li>An implementation note records where the reference implementation carries the 32-bit error code: the X-Wotan-Error header and the x-wotan-error trailer.</li>
-  <li>The count of initial error category entries is corrected from 16 to 13.</li>
-  <li>An informative reference to ADR-108 is added.</li>
+  <li>The count of initial entries in the error origin registry is corrected from 16 to 13.</li>
+  <li>An informative reference, <xref target="UNHEADED-ADR108"/>, is added.</li>
   <li>References to the companion documents name their -01 revisions.</li>
+  <li>Six Security Considerations subsections (ring buffer memory exhaustion, cross-flow memory access, CAS alignment, WAL tampering, WAL compaction and GOAWAY frames) pointed the reader to an unpublished working text. Each now states its threat and its mitigation in place, and says what this revision leaves undefined: the rate limiter beyond its budget, the key given to SipHash-2-4, where a WAL authentication tag is stored and how its key is managed, and the GOAWAY frame and SETTINGS exchange.</li>
+  <li>WAL recovery verifies an HMAC-SHA256 tag where the deployment keeps one, and authenticating WAL records is a SHOULD. Revision -00 listed the check as an unconditional recovery step although the 76-byte record has no field for a tag. The record format is unchanged.</li>
+  <li>The IANA Considerations state that no value is requested in any existing IANA registry.</li>
+  <li>Three references to section numbers are corrected: the recovery procedure is Section 3.6.1 and the initial registry entries are in Section 3.3.</li>
+  <li>Labels that referred to unpublished working revisions are removed from the abstract, section titles, tables and procedure steps, and an appendix that listed changes from an unpublished working revision is removed.</li>
 </ul>
 
-</section>
-
-<section anchor="changes-from-draft-bellis-unheaded-wotan-memory-02"><name>Changes from draft-bellis-unheaded-wotan-memory-02</name>
-
-<t>The following changes are made in draft-03:</t>
-
-<t><list style="numbers" type="1">
-  <t><strong>Error Code Taxonomy (NEW)</strong>: Added Section 3 defining a structured
-32-bit error code format with severity levels (INFO, WARNING, ERROR,
-CRITICAL, FATAL), origin codes (16 subsystems), and category codes
-(12 categories). Provides fine-grained error classification beyond
-standard errno codes.</t>
-  <t><strong>Helper Return Codes (ENHANCED)</strong>: Added structured error code
-annotations to all BPF helper return values (Section 5). Each errno
-return now maps to a full 32-bit structured code. Added auxiliary
-error detail mechanism via per-CPU BPF array map
-(wotan_last_error).</t>
-  <t><strong>Error Recovery Procedures (NEW)</strong>: Added Section 3.5 defining
-recovery procedures by severity level, automatic recovery state
-machine (HEALTHY -&gt; DEGRADED -&gt; RECOVERING -&gt; FAILED), recovery
-metrics, and cross-subsystem recovery dependency graph.</t>
-  <t><strong>Cross-References to Foundation draft-06 and Sophia draft-03
-(UPDATED)</strong>: Updated UNHEADED-FOUNDATION reference from draft-04 to
-draft-06. Updated UNHEADED-SOPHIA reference from draft-01 to
-draft-03. Added Section 1.1 documenting the specification family
-structure.</t>
-  <t><strong>Wotan Error Origin Registry (NEW IANA)</strong>: Added IANA registry for
-error origin codes (0x00-0x1F).</t>
-  <t><strong>Wotan Error Category Registry (NEW IANA)</strong>: Added IANA registry
-for error category codes (0x00-0xFF).</t>
-  <t><strong>Error Code Information Leakage (NEW Security)</strong>: Added security
-consideration for structured error codes potentially revealing
-internal architecture details.</t>
-  <t><strong>UPC Memory Model Extensions (NEW)</strong>: Added ROM_MAP, RAM_MAP,
-SCREEN_MAP, KBD_MAP, and CPU_MAP BPF map definitions with
-complete structure specifications.  Defines the UPC address space
-layout, screen I/O redirection, keyboard input protocol, and
-per-flow CPU state persistence model.</t>
-  <t><strong>WAL Specification (NEW)</strong>: Added complete Write-Ahead Log
-specification with 76-byte record format (8-byte timestamp +
-4-byte address + 64-byte cache line data), append/fsync semantics,
-crash recovery replay procedure, and compaction protocol with
-exclusive locking.</t>
-  <t><strong>TTY Subsystem (NEW)</strong>: Added console I/O subsystem with 4 KiB
-circular buffer, write/read operations on fd 0/1/2, overflow
-handling, EVENT_TTY_WRITE emission, and Wotan topic publication
-on compute.tty.{flow_label}.</t>
-  <t><strong>Updated Date</strong>: Changed date from 2026-03-05 to 2026-03-15.</t>
-</list></t>
-
-<t>All draft-02 content is retained, including security patches W1-W8.
-No existing wire format, processing rule, or normative requirement
-from draft-02 is modified or removed.</t>
+<t>The 20-octet Monad wire format (version 0x01) defined in <xref target="UNHEADED-FOUNDATION"/> is unchanged.</t>
 
 </section>
+
 <section anchor="acknowledgments"><name>Acknowledgments</name>
 
 <t>The Linux kernel BPF community (Alexei Starovoitov, Daniel Borkmann,
