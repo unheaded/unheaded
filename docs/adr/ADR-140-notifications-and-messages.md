@@ -46,6 +46,38 @@ Copyright (c) 2024-2026 Stevie Bellis.
 - **First uses:** accepted as listed in "The idea" item 4.
 - Question 1 (poll or stream), 2 (where it lives), 4 (retention) and 6 (messages between people) stay open; 3 is answered for the look, the reduced-motion rule stands; 5 is answered for now (the mailer's caps).
 
+## Question 1: polling or a kept-open connection (Developer pass, 2026-11-11)
+
+Stevie asked for the Developer's view: "web socket in con wait vrs api call every N seconds".
+
+**Recommendation: poll.** The badge asks one endpoint, `GET /notifications/unread` on its own page's origin, every 30 s with a few seconds of random jitter, and only while the tab is visible (`visibilitychange`); after an error it backs off to 2, then 5 minutes. The answer is a count and a version tag (`ETag`), so an unchanged count is a `304` with no body.
+
+Why, at this scale (a handful of users, three pages):
+
+- **Same path as every other read.** A poll is an ordinary request through the BFF session, auth middleware, rate limits, metrics and the Content-Security-Policy (`default-src 'self'` already allows a same-origin `fetch`). Nothing new to secure.
+- **Nothing long-lived to hold.** No per-tab connection on the server, no reconnect logic, nothing for the Zhen front (`cmd/zhen-ui-front`, a proxy over a Unix socket) to keep flushing.
+- **A WebSocket adds risk for no gain here:** the upgrade needs its own origin check (cross-site WebSocket hijacking rides the session cookie), its own auth on upgrade, and the front's proxy must pass upgrades. The badge only needs server-to-browser, one way.
+- **Cost:** three tabs at one request per 30 s is 6 requests a minute, each a `304` of a few hundred bytes.
+- **Delay:** a notice can wait up to about 30 s to light the badge. Acceptable for "changes requested" or "a card waits for you"; not for an outage, which already has alert mail.
+
+If instant delivery is wanted later, the step up is **server-sent events** (`EventSource`, one-way, plain HTTP, same session cookie; Kanban already uses one), not a WebSocket, behind the same endpoint so the badge does not change. Stevie decides; this is the recommendation only.
+
+## Encryption of each link on the notification path (read on west 2026-11-11)
+
+Stevie: "we need to be noting if app to app communications are encrypted or not and how it is being accomplished if so". Checked with `openssl s_client` and the containers' settings, not taken from docs:
+
+| Link | Encrypted | How |
+|---|---|---|
+| Browser to dashboard (20000), Kanban (20001), Zhen (20103) | Yes | TLS 1.3; the handshake negotiated `X25519MLKEM768` (hybrid post-quantum) on all three. Zhen through `cmd/zhen-ui-front`, `pkg/tls` Strict (ADR-138). |
+| Zhen front to the Zhen app | Not network traffic | Unix socket `/run/unheaded-zhen-ui/app.sock`, opened only by the front's account. |
+| Dashboard and Kanban to `unheaded-auth` (19020) | Yes | `AUTH_ISSUER_URL=https://auth:19020` with `UNHEADED_TLS_ENABLED=true` (Strict profile, deployment CA). Port not published on the host, so not probed directly. |
+| Services to Wotan (18000 HTTP, 18001 gRPC) | Yes | TLS 1.3, `X25519MLKEM768` on both; plain HTTP to 18000 is refused (400). |
+| Services to the Well (5432) | Yes | TLS 1.3; `pg_hba.conf` allows only `hostssl` from the compose network, plain `host` is rejected. Key exchange still classical (ADR-105 item E1). Local socket inside the container is `trust` (no network). |
+| Alert mailer to the mail relay (`smtp.gmail.com:587`) | Yes when sending | `STARTTLS`, TLS 1.2 minimum, and it refuses to send a password without it. West is in dry-run: nothing is sent. |
+| Browser to the wiki (20002) | **No** | Plain HTTP on the LAN address; the temporary `unheaded-wiki-test` unit. Read-only, no login, but unencrypted. Its permanent home (next.md item 8 (a)) should serve TLS like the other pages. |
+
+A notification service adds two links: browser to it (same TLS as the pages above, through the BFF) and it to the Well (same `hostssl`). Rule for this and later ADRs: every new link states whether it is encrypted and how, in a table like this one.
+
 ## Decision
 
 None. Parked under ADR-112; it needs ADR-139's users, teams and email first.
