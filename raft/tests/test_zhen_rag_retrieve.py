@@ -12,6 +12,13 @@ docs that define Wotan (wiki/Service-Wotan, wiki/Wotan-Memory-Model, the
 wotan-memory draft) never reached the model.
 
 The fake vor below reproduces those two behaviours with the real topic names.
+
+Regression for 2026-11-11: "tell me about getting the ccna" listed the
+kerberos sheet as its source, because vor matches substrings and `ccna` sits
+inside `KRB5CCNAME`; and a question about JNCIA-Junos had no source at all,
+because no one topic carries every word of a long question. The selection
+rule is pkg/vorquery's Select; the Go test TestMatchesPython compares the
+helpers.
 """
 
 import sys
@@ -61,6 +68,33 @@ SEARCH = {
         _hit('ca-compromise-root-rotation', 'docs/runbook-briefs'),
         _hit('pki-overview', 'docs/security'),
     ],
+    # vor matches substrings: `ccna` is inside KRB5CCNAME.
+    'ccna': [_hit('kerberos', 'security', line='export KRB5CCNAME=/tmp/krb5cc')],
+    'getting': [_hit('pki-overview', 'docs/security')],
+    'junos': [
+        _hit('junos-lonely', 'networking'),
+        _hit('junos-interfaces', 'networking'),
+        _hit('junos-architecture', 'networking'),
+        _hit('Junos-Stale', WT + '/networking'),
+    ],
+    'steps': [
+        _hit('pki-overview', 'docs/security'),
+        _hit('junos-interfaces', 'networking'),
+    ],
+    'associate': [_hit('junos-architecture', 'networking')],
+}
+
+# What a topic's sheet says, beyond its heading.
+CONTENT = {
+    'pki-overview': 'A stale copy of a certificate is refused. Getting one: '
+                    'the steps to rotate the CA are in the runbook.',
+    'ca-compromise-root-rotation': 'How to rotate the CA after a compromise.',
+    'kerberos': 'export KRB5CCNAME=/tmp/krb5cc_1000',
+    'junos-interfaces': 'Steps to configure an interface, then commit.',
+    'junos-architecture': 'Routing engine and forwarding engine. Associate '
+                          'level steps for the exam are listed below.',
+    'junos-lonely': 'show version',
+    'junos-unsearched': 'The steps an associate takes first.',
 }
 
 TOPICS = [
@@ -78,6 +112,12 @@ TOPICS = [
     {'name': 'Wotan-Stale-Copy', 'category': WT + '/wiki'},
     {'name': 'ca-compromise-root-rotation', 'category': 'docs/runbook-briefs'},
     {'name': 'pki-overview', 'category': 'docs/security'},
+    {'name': 'kerberos', 'category': 'security'},
+    {'name': 'junos-lonely', 'category': 'networking'},
+    {'name': 'junos-interfaces', 'category': 'networking'},
+    {'name': 'junos-architecture', 'category': 'networking'},
+    {'name': 'junos-unsearched', 'category': 'networking'},
+    {'name': 'Junos-Stale', 'category': WT + '/networking'},
 ]
 
 
@@ -95,25 +135,32 @@ class _Resp:
 
 
 class FakeVor:
-    def __init__(self, topics_status=200):
+    def __init__(self, topics_status=200, failing_searches=()):
         self.search_queries = []
         self.listing_calls = 0
+        self.fetched = []
         self.topics_status = topics_status
+        self.failing_searches = set(failing_searches)
 
     def get(self, url, timeout=None):
         u = urlparse(url)
         if u.path == '/api/search':
             q = parse_qs(u.query)['q'][0]
             self.search_queries.append(q)
-            return _Resp(SEARCH.get(q, []))
+            if q in self.failing_searches:
+                return _Resp({}, 500)
+            # vor answers null, not [], when nothing matches.
+            return _Resp(SEARCH.get(q))
         if u.path == '/api/topics':
             self.listing_calls += 1
             return _Resp(TOPICS, self.topics_status)
         if u.path.startswith('/api/topics/'):
             name = unquote(u.path[len('/api/topics/'):])
+            self.fetched.append(name)
             cat = next((t['category'] for t in TOPICS if t['name'] == name), '')
             return _Resp({'name': name, 'category': cat,
-                          'content': f'# {name}\n', 'source_trust': 'external',
+                          'content': f'# {name}\n{CONTENT.get(name, "")}',
+                          'source_trust': 'external',
                           'source_kind': 'user-source', 'source_label': 'unheaded'})
         return _Resp({}, 404)
 
@@ -172,7 +219,7 @@ def test_without_name_match_vor_order_is_kept(vor, rag):
 
 def test_all_stopwords_falls_back_to_the_question(vor, rag):
     rag.retrieve('what is this?', k=5)
-    assert vor.search_queries == ['what is this']
+    assert vor.search_queries[0] == 'what is this'
 
 
 def test_topic_listing_is_cached(vor, rag):
@@ -185,3 +232,84 @@ def test_listing_failure_degrades_to_search_order(monkeypatch, rag):
     fake = FakeVor(topics_status=500)
     monkeypatch.setattr(zhen_rag.requests, 'get', fake.get)
     assert _ids(rag.retrieve('what is wotan', k=5)) == ['wotan-cloud-battle-plan']
+
+
+# --- 2026-11-11: a source carries the words; long questions go word by word ---
+
+
+def test_substring_hit_is_not_a_source(vor, rag):
+    # vor returns kerberos for `ccna` (KRB5CCNAME). The sheet is read and
+    # refused: no word in it starts with `ccna`.
+    assert rag.retrieve('ccna', k=5) == []
+    assert vor.fetched == ['kerberos']
+
+
+def test_ccna_question_has_no_source(vor, rag):
+    assert rag.retrieve('tell me about getting the ccna', k=5) == []
+    assert vor.search_queries == ['getting ccna', 'getting', 'ccna']
+    # Second pass: no topic is named by `getting` or `ccna`, so none is read.
+    assert vor.fetched == []
+
+
+def test_long_question_falls_back_word_by_word(vor, rag):
+    ids = _ids(rag.retrieve(
+        'explain the steps towards Junos, Associate (JNCIA-Junos)', k=5))
+    assert vor.search_queries == [
+        'steps towards junos associate jncia-junos',
+        'steps', 'towards', 'junos', 'associate', 'jncia',
+    ]
+    # architecture carries junos, steps and associate; unsearched (named by
+    # `junos`, returned by no search) the same three; interfaces two.
+    assert ids == ['junos-architecture', 'junos-unsearched', 'junos-interfaces']
+    # pki-overview carries `steps` but no query word names it; junos-lonely
+    # is named but carries one word; the worktree copy is never read.
+    assert 'pki-overview' not in vor.fetched
+    assert 'junos-lonely' in vor.fetched
+    assert 'Junos-Stale' not in vor.fetched
+
+
+def test_fallback_respects_k(vor, rag):
+    ids = _ids(rag.retrieve(
+        'explain the steps towards Junos, Associate (JNCIA-Junos)', k=1))
+    assert ids == ['junos-architecture']
+
+
+def test_one_word_question_never_falls_back(vor, rag):
+    assert rag.retrieve('ccna?', k=5) == []
+    assert vor.search_queries == ['ccna']
+
+
+def test_fallback_skips_a_word_whose_search_fails(monkeypatch, rag):
+    fake = FakeVor(failing_searches={'steps'})
+    monkeypatch.setattr(zhen_rag.requests, 'get', fake.get)
+    ids = _ids(rag.retrieve(
+        'explain the steps towards Junos, Associate (JNCIA-Junos)', k=5))
+    assert ids == ['junos-architecture', 'junos-unsearched', 'junos-interfaces']
+
+
+def test_fallback_without_a_listing_keeps_nothing(monkeypatch, rag):
+    fake = FakeVor(topics_status=500)
+    monkeypatch.setattr(zhen_rag.requests, 'get', fake.get)
+    assert rag.retrieve(
+        'explain the steps towards Junos, Associate (JNCIA-Junos)', k=5) == []
+    assert fake.fetched == []
+
+
+def test_first_search_failure_returns_nothing(monkeypatch, rag):
+    fake = FakeVor(failing_searches={'wotan'})
+    monkeypatch.setattr(zhen_rag.requests, 'get', fake.get)
+    assert rag.retrieve('what is wotan', k=5) == []
+    assert fake.fetched == []
+
+
+def test_no_topic_is_fetched_twice(vor, rag):
+    rag.retrieve('explain the steps towards Junos, Associate (JNCIA-Junos)', k=5)
+    assert len(vor.fetched) == len(set(vor.fetched))
+
+
+def test_content_is_clipped_after_the_cover_check(vor):
+    # The words that make pki-overview a source sit past the clip.
+    rag = zhen_rag.RAGPipeline(vor_url='http://vor.test', max_topic_chars=20)
+    chunks = rag.retrieve('stale copy', k=5)
+    assert _ids(chunks) == ['pki-overview']
+    assert chunks[0]['content'].endswith('…[truncated]')

@@ -570,3 +570,73 @@ func TestAgent_AWriteBeforeAnyToolOutputKeepsTheOrdinaryRules(t *testing.T) {
 		t.Fatalf("refused: %+v", res.Trace[0])
 	}
 }
+
+// A serving layer wraps the question in a preamble. Retrieval is seeded by
+// the question alone when it is given, and the model still sees the goal.
+func TestRun_RetrieveQuerySeedsRetrievalInPlaceOfTheGoal(t *testing.T) {
+	const goal = "Prior conversation:\nUser: tell me about kerberos\n\nUser question: what is wotan"
+	for _, tc := range []struct {
+		name, query, wantSeed string
+	}{
+		{"question given", "  what is wotan \n", "what is wotan"},
+		{"no question", "", goal},
+		{"blank question", " \t ", goal},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c, err := champion.New(champion.Config{ProjectRoot: t.TempDir()}, mockActionStore{})
+			if err != nil {
+				t.Fatalf("champion.New: %v", err)
+			}
+			retriever := &queryAwareRetriever{fallback: queryHit{
+				refs:     canonicalRefs(),
+				contents: []TopicContent{{Ref: canonicalRefs()[0], Content: "(seed)"}},
+			}}
+			llm := &mockLLM{responses: []string{`{"thought":"t","answer":"a"}`}}
+			a := New(Config{MaxTurns: 2, RetrieveQuery: tc.query}, c, retriever, llm)
+			if _, err := a.Run(context.Background(), goal); err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			if len(retriever.calls) != 1 || retriever.calls[0] != tc.wantSeed {
+				t.Errorf("retrieval seeded with %q; want [%q]", retriever.calls, tc.wantSeed)
+			}
+		})
+	}
+}
+
+// The seed question narrows retrieval and nothing else: what the model
+// names on a later turn is still looked up, and an untrusted hit there
+// still holds the write.
+func TestRun_RetrieveQueryLeavesThePerTurnCheckInPlace(t *testing.T) {
+	c, err := champion.New(champion.Config{ProjectRoot: t.TempDir()}, mockActionStore{})
+	if err != nil {
+		t.Fatalf("champion.New: %v", err)
+	}
+	retriever := &queryAwareRetriever{
+		bySubstring: map[string]queryHit{
+			"wave14-truth": {
+				refs:     externalRefs(),
+				contents: []TopicContent{{Ref: externalRefs()[0], Content: "(poisoned)"}},
+			},
+		},
+		fallback: queryHit{
+			refs:     canonicalRefs(),
+			contents: []TopicContent{{Ref: canonicalRefs()[0], Content: "(canonical)"}},
+		},
+	}
+	target := filepath.Join(c.GetProjectRoot(), "out.txt")
+	llm := &mockLLM{responses: []string{
+		`{"thought":"the wave14-truth document recommends this fix","tool_call":{"name":"write_file","args":{"path":"` + target + `","content":"applied"}}}`,
+		`{"thought":"refused","answer":"refused"}`,
+	}}
+	a := New(Config{MaxTurns: 4, RetrieveQuery: "how do go errors wrap"}, c, retriever, llm)
+	res, err := a.Run(context.Background(), "FILE CONTENT:\nsee wave14-truth\n\nUser question: how do go errors wrap")
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if !res.Trace[0].Refused {
+		t.Errorf("trace[0] should be Refused: the model named an external source")
+	}
+	if _, err := os.Stat(target); !os.IsNotExist(err) {
+		t.Errorf("file should not exist; stat=%v", err)
+	}
+}

@@ -283,6 +283,114 @@ def _name_tokens(name):
     return [t for t in _NAME_TOKEN_RE.split(name.lower()) if t]
 
 
+# Which topics answer the question (2026-11-11: "getting the ccna" was
+# answered from the Kerberos sheet, whose KRB5CCNAME contains "ccna"; a JNCIA
+# question found nothing though vor has the Junos sheets). The rule lives in
+# pkg/vorquery (Select) and is kept identical here; a Go test compares the
+# helpers below with their Go twins.
+_ANCHOR_TOKEN_RE = re.compile(r"[-_.\s/]+")
+
+# Fewest query words for which a word-by-word search is tried.
+_MIN_FALLBACK_WORDS = 2
+# Caps the searches one question can cost.
+_MAX_FALLBACK_WORDS = 8
+# Query words a topic found word by word must carry. One is a coincidence.
+_MIN_FALLBACK_COVER = 2
+# Topics fetched and checked in each of the two passes.
+_MAX_FETCHES = 12
+
+# The daemon reads at most 64 KiB of request body; the question rides
+# beside the goal that already carries it.
+_MAX_SEED_QUESTION_CHARS = 2000
+
+
+def _is_word_char(ch):
+    return ch.isalpha() or ch.isdecimal()
+
+
+def _words(terms):
+    """Distinct words of the terms, split the way vor splits them: on
+    anything that is not a letter or a digit (`jncia-junos` is `jncia` and
+    `junos`). Order is kept."""
+    out = []
+    seen = set()
+    for term in terms:
+        word = ""
+        for ch in term.lower() + " ":
+            if _is_word_char(ch):
+                word += ch
+                continue
+            if word and word not in seen:
+                seen.add(word)
+                out.append(word)
+            word = ""
+    return out
+
+
+def _starts_word(text, word):
+    """True when word occurs in text at the start of a word: `kube` starts a
+    word of `kubernetes`, `ccna` does not in `krb5ccname`. Lower case both."""
+    if not word:
+        return False
+    start = 0
+    while True:
+        i = text.find(word, start)
+        if i < 0:
+            return False
+        if i == 0 or not _is_word_char(text[i - 1]):
+            return True
+        start = i + 1
+
+
+def _covers(text, words):
+    """How many of words start a word of text (any case)."""
+    text = text.lower()
+    return sum(1 for w in words if _starts_word(text, w))
+
+
+def _candidates(per_word):
+    """Order the topics of word-by-word searches. per_word[i] is the hits of
+    one query word as (name, category), in vor's order. Topics hit by more
+    words come first, then the order they were first seen. Worktree copies
+    are dropped."""
+    count = {}
+    first = []
+    for hits in per_word:
+        in_this = set()
+        for name, category in hits:
+            if not name or category.startswith(_WORKTREE_CATEGORY_PREFIX):
+                continue
+            if name in in_this:
+                continue
+            in_this.add(name)
+            if name not in count:
+                first.append(name)
+                count[name] = 0
+            count[name] += 1
+    first.sort(key=lambda n: -count[n])  # stable
+    return first
+
+
+def _anchored(topics, words):
+    """Topics a query word names: a word equal to a token of the topic's name
+    or category. topics is (name, category) in listing order. Returns how many
+    words name each topic, and the names in listing order."""
+    want = set(words)
+    count = {}
+    names = []
+    for name, category in topics:
+        if not name or category.startswith(_WORKTREE_CATEGORY_PREFIX):
+            continue
+        hit = want.intersection(_ANCHOR_TOKEN_RE.split((name + " " + category).lower()))
+        if not hit:
+            continue
+        if name not in count:
+            names.append(name)
+            count[name] = 0
+        count[name] = max(count[name], len(hit))
+    return count, names
+
+
 class RAGPipeline:
     def __init__(
         self,
@@ -422,34 +530,34 @@ class RAGPipeline:
            dozens of "Wotan ..." sections (wotan-cloud-battle-plan) filled
            all 50 lines and was the only topic returned for "wotan".
            Without a name match, vor's order is used unchanged.
+
+        And two from 2026-11-11 (the rule is pkg/vorquery's Select):
+
+        3. vor matches substrings. A topic is a source only when its text
+           carries every query word at the start of a word.
+        4. When that keeps nothing, the words are searched one at a time
+           and only topics a query word names are considered
+           (_word_by_word).
+
+        A question no topic passes for returns []: the answer then has no
+        source, and the page says so.
         """
         if not query or not query.strip():
             return []
 
         terms = _search_terms(query)
+        words = _words(terms)
 
-        # 1. /api/search — list of (topic, category, section, line) hits
-        #    plus B1 source-trust labels (source_kind, source_trust,
-        #    source_path, source_label).
-        try:
-            search_url = f"{self.vor_url}/api/search?{urlencode({'q': ' '.join(terms)})}"
-            resp = requests.get(search_url, timeout=VOR_TIMEOUT)
-            resp.raise_for_status()
-            hits = resp.json()
-        except (requests.RequestException, ValueError) as exc:
-            print(f"[zhen-rag] vor search failed: {exc}")
+        # 1. /api/search: (topic, category, section, line) hits in vor's
+        #    order. Worktree copies are stale, and /api/topics/<name> can
+        #    return one in place of the main tree's doc of the same name:
+        #    they are skipped here as well as in the name matches.
+        hits = self._search(" ".join(terms))
+        if hits is None:
             return []
-
-        if not isinstance(hits, list):
-            return []
-
-        # Worktree copies are stale, and /api/topics/<name> can return one
-        # in place of the main tree's doc of the same name: skip them here
-        # as well as in the name matches.
         searched = [
-            h.get("topic", "") for h in hits
-            if isinstance(h, dict)
-            and not str(h.get("category", "")).startswith(_WORKTREE_CATEGORY_PREFIX)
+            name for name, category in hits
+            if not category.startswith(_WORKTREE_CATEGORY_PREFIX)
         ]
         named = self._topics_named_by(terms)
 
@@ -461,23 +569,38 @@ class RAGPipeline:
             if i < len(searched):
                 order.append(searched[i])
 
-        # 2. For top-K UNIQUE topics, fetch full content via /api/topics/<name>.
-        #    Same dedup pattern as cmd/zhen-rag/main.go:201-208.
+        # No topic is fetched twice across the two passes.
+        memo = {}
+
+        def get(name):
+            if name not in memo:
+                memo[name] = self._fetch(name)
+            return memo[name]
+
+        # 2. First pass: a topic is a source only when its text carries
+        #    every query word at the start of a word.
+        kept = []
         seen = set()
+        for name in order:
+            if not name or name in seen:
+                continue
+            if len(seen) == _MAX_FETCHES:
+                break
+            seen.add(name)
+            t = get(name)
+            if t is None or _covers(self._text(t), words) < len(words):
+                continue
+            kept.append(name)
+            if len(kept) >= k:
+                break
+
+        # 3. Second pass, when the first kept nothing: word by word.
+        if not kept and len(words) >= _MIN_FALLBACK_WORDS:
+            kept = self._word_by_word(words[:_MAX_FALLBACK_WORDS], k, get)
+
         out = []
-        for topic in order:
-            if not topic or topic in seen:
-                continue
-            seen.add(topic)
-
-            try:
-                topic_url = f"{self.vor_url}/api/topics/{quote(topic, safe='')}"
-                t_resp = requests.get(topic_url, timeout=VOR_TIMEOUT)
-                t_resp.raise_for_status()
-                t = t_resp.json()
-            except (requests.RequestException, ValueError):
-                continue
-
+        for name in kept:
+            t = memo[name]
             content = t.get("content", "")
             if self.max_topic_chars > 0 and len(content) > self.max_topic_chars:
                 content = content[: self.max_topic_chars] + "\n\n…[truncated]"
@@ -487,9 +610,9 @@ class RAGPipeline:
             trust = t.get("source_trust") or "canonical"
 
             out.append({
-                "id":          topic,
+                "id":          name,
                 "category":    t.get("category", ""),
-                "source":      t.get("source_path", topic),
+                "source":      t.get("source_path", name),
                 "type":        t.get("source_kind", "embedded"),
                 "trust":       trust,
                 "label":       t.get("source_label", ""),
@@ -499,10 +622,99 @@ class RAGPipeline:
                 # Lower is "better" by convention; rank in retrieval order.
                 "distance":    float(len(out)),
             })
-            if len(out) >= k:
-                break
-
         return out
+
+    def _word_by_word(self, words, k, get):
+        """Second pass of retrieve(): one search per query word, then only
+        topics a query word names (a token of the name or category), hit by
+        more words first, then named topics no search returned. A topic is
+        kept when it carries _MIN_FALLBACK_COVER of the words, most first.
+        A failed word search skips the word; a failed listing keeps nothing.
+        """
+        per_word = []
+        for word in words:
+            hits = self._search(word)
+            if hits is not None:
+                per_word.append(hits)
+        listing = self._listing()
+        if listing is None:
+            return []
+        anchors, listed = _anchored(listing, words)
+
+        searched = _candidates(per_word)
+        cand = [n for n in searched if anchors.get(n, 0) > 0]
+        was = set(searched)
+        rest = [n for n in listed if n not in was]
+        rest.sort(key=lambda n: -anchors[n])  # stable
+        cand = (cand + rest)[:_MAX_FETCHES]
+
+        cover = {}
+        kept = []
+        for name in cand:
+            t = get(name)
+            if t is None:
+                continue
+            c = _covers(self._text(t), words)
+            if c >= _MIN_FALLBACK_COVER:
+                cover[name] = c
+                kept.append(name)
+        kept.sort(key=lambda n: -cover[n])  # stable
+        return kept[:k]
+
+    @staticmethod
+    def _text(t):
+        """What _covers is run over for a fetched topic (vorquery.Text):
+        the whole sheet, not the clipped copy the model is shown."""
+        return " ".join(str(t.get(f, "")) for f in ("name", "category", "title", "content"))
+
+    def _search(self, q):
+        """One vor /api/search: [(topic, category)] in vor's order, or None
+        when the search failed."""
+        try:
+            resp = requests.get(f"{self.vor_url}/api/search?{urlencode({'q': q})}", timeout=VOR_TIMEOUT)
+            resp.raise_for_status()
+            hits = resp.json()
+        except (requests.RequestException, ValueError) as exc:
+            print(f"[zhen-rag] vor search failed: {exc}")
+            return None
+        if not isinstance(hits, list):
+            # vor answers null for no hits.
+            return [] if hits is None else None
+        return [
+            (str(h.get("topic", "")), str(h.get("category", "")))
+            for h in hits if isinstance(h, dict)
+        ]
+
+    def _fetch(self, name):
+        """One vor topic as its JSON object, or None when the fetch failed."""
+        try:
+            resp = requests.get(f"{self.vor_url}/api/topics/{quote(name, safe='')}", timeout=VOR_TIMEOUT)
+            resp.raise_for_status()
+            t = resp.json()
+        except (requests.RequestException, ValueError):
+            return None
+        return t if isinstance(t, dict) else None
+
+    def _listing(self):
+        """vor's topic listing as [(name, category)], cached for
+        topic_list_ttl seconds. None when vor's listing is unavailable."""
+        now = time.monotonic()
+        if self._topic_list is None or now - self._topic_list_at > self.topic_list_ttl:
+            try:
+                resp = requests.get(f"{self.vor_url}/api/topics", timeout=VOR_TIMEOUT)
+                resp.raise_for_status()
+                listing = resp.json()
+            except (requests.RequestException, ValueError) as exc:
+                print(f"[zhen-rag] vor topic listing failed: {exc}")
+                return None
+            if not isinstance(listing, list):
+                return None
+            self._topic_list = [
+                (str(t.get("name", "")), str(t.get("category", "")))
+                for t in listing if isinstance(t, dict)
+            ]
+            self._topic_list_at = now
+        return self._topic_list
 
     def _topics_named_by(self, terms):
         """Topic names whose tokens include every query term.
@@ -517,26 +729,12 @@ class RAGPipeline:
             wanted.update(_name_tokens(term))
         if not wanted:
             return []
-
-        now = time.monotonic()
-        if self._topic_list is None or now - self._topic_list_at > self.topic_list_ttl:
-            try:
-                resp = requests.get(f"{self.vor_url}/api/topics", timeout=VOR_TIMEOUT)
-                resp.raise_for_status()
-                listing = resp.json()
-            except (requests.RequestException, ValueError) as exc:
-                print(f"[zhen-rag] vor topic listing failed: {exc}")
-                return []
-            if not isinstance(listing, list):
-                return []
-            self._topic_list = [
-                (t.get("name", ""), t.get("category", ""))
-                for t in listing if isinstance(t, dict)
-            ]
-            self._topic_list_at = now
+        listing = self._listing()
+        if listing is None:
+            return []
 
         best = {}
-        for name, category in self._topic_list:
+        for name, category in listing:
             if not name or category.startswith(_WORKTREE_CATEGORY_PREFIX):
                 continue
             tokens = _name_tokens(name)
@@ -779,6 +977,9 @@ class RAGPipeline:
                 f"{self.agentd_url}/api/v1/agent/ask",
                 json={
                     "goal":         goal,
+                    # The question alone seeds the daemon's retrieval, so
+                    # the preamble's words do not choose the sources.
+                    "question":     query[:_MAX_SEED_QUESTION_CHARS],
                     "k":            5,
                     "max_tokens":   max_tokens,
                     "max_turns":    4,

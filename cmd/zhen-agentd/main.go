@@ -616,7 +616,11 @@ func (p *championPool) get(root string) (*champion.Champion, error) {
 
 // askRequest is the request body for POST /api/v1/agent/ask.
 type askRequest struct {
-	Goal        string  `json:"goal"`
+	Goal string `json:"goal"`
+	// Question is the person's question alone, when Goal wraps it in a
+	// preamble. It seeds retrieval in place of Goal (agent.Config
+	// RetrieveQuery); empty means Goal does.
+	Question    string  `json:"question,omitempty"`
 	ProjectRoot string  `json:"project_root,omitempty"` // overrides default; must equal server's project_root for now
 	SessionID   string  `json:"session_id,omitempty"`
 	K           int     `json:"k,omitempty"`
@@ -706,6 +710,7 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 		Principal:     requestPrincipal(r), // RT-03: pending tokens bind to the caller
+		RetrieveQuery: strings.TrimSpace(req.Question),
 	}
 	if !s.askTokens {
 		cfg.OnPending = s.askPending(champ, req.SessionID)
@@ -885,6 +890,7 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 		Principal:     requestPrincipal(r), // RT-03: pending tokens bind to the caller
+		RetrieveQuery: strings.TrimSpace(req.Question),
 	}
 	if !s.askTokens {
 		cfg.OnPending = s.askPending(champ, req.SessionID)
@@ -1218,49 +1224,47 @@ func (r *vorRetriever) Name() string { return "vor" }
 
 func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
 	terms := vorquery.SearchTerms(query)
-	q := strings.Join(terms, " ")
-	endpoint := fmt.Sprintf("%s/api/search?q=%s",
-		strings.TrimRight(r.baseURL, "/"), url.QueryEscape(q))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, nil, err
-	}
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
+
+	// Select (pkg/vorquery) decides which topics answer the question. It
+	// searches and fetches through these two closures, so every hit of every
+	// search it makes and every topic it reads is seen here.
 	var hits []vorSearchHit
-	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
-		return nil, nil, fmt.Errorf("decode: %w", err)
+	search := func(ctx context.Context, q string) ([]vorquery.Topic, error) {
+		h, err := r.search(ctx, q)
+		if err != nil {
+			return nil, err
+		}
+		hits = append(hits, h...)
+		out := make([]vorquery.Topic, len(h))
+		for i := range h {
+			out[i] = vorquery.Topic{Name: h[i].Topic, Category: h[i].Category}
+		}
+		return out, nil
 	}
-
-	searched := make([]vorquery.Topic, len(hits))
-	for i, h := range hits {
-		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+	read := make(map[string]*vorTopic)
+	var readOrder []string
+	fetch := func(ctx context.Context, name string) (string, bool) {
+		t, err := r.topic(ctx, name)
+		if err != nil {
+			return "", false
+		}
+		read[name] = t
+		readOrder = append(readOrder, name)
+		return vorquery.Text(t.Name, t.Category, t.Title, t.Content), true
 	}
-	order, err := r.index.Order(ctx, terms, searched)
+	names, warn, err := r.index.Select(ctx, terms, k, search, fetch)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "zhen-agentd: vor topic listing: %v\n", err)
+		return nil, nil, err
+	}
+	if warn != nil {
+		fmt.Fprintf(os.Stderr, "zhen-agentd: vor topic listing: %v\n", warn)
 	}
 
-	seen := make(map[string]struct{})
 	fetched := make(map[string]string) // Name|Category to the trust vor answered with
 	var refs []champion.Reference
 	var contents []agent.TopicContent
-	for _, name := range order {
-		if _, dup := seen[name]; dup {
-			continue
-		}
-		seen[name] = struct{}{}
-		t, err := r.topic(ctx, name)
-		if err != nil {
-			continue
-		}
+	for _, name := range names {
+		t := read[name]
 		fetched[t.Name+"|"+t.Category] = t.SourceTrust
 		ref := champion.Reference{
 			Topic: t.Name, Category: t.Category,
@@ -1271,12 +1275,13 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		score := 1 / float64(len(refs)+1)
 		refs = append(refs, ref)
 		contents = append(contents, agent.TopicContent{Ref: ref, Content: clipContent(t.Content, r.maxChars), Score: score})
-		if len(refs) >= k {
-			break
-		}
 	}
-	// Every untrusted hit reaches the gate, without text, whether it fell past
-	// k, its fetch failed, or a same-named sheet answered for it.
+	// Fail closed: everything untrusted that retrieval touched reaches the
+	// gate, without text. That is every untrusted hit of every search made
+	// (past k, fetch failed, rejected for not carrying the question's words,
+	// or masked by a same-named sheet) and every untrusted topic that was
+	// read and not kept. Dropping a source from the answer never drops it
+	// from the gate.
 	for _, h := range hits {
 		key := h.Topic + "|" + h.Category
 		if champion.TrustedSourceLabels[h.SourceTrust] {
@@ -1292,7 +1297,46 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 			SourcePath: h.SourcePath, SourceLabel: h.SourceLabel,
 		})
 	}
+	for _, name := range readOrder {
+		t := read[name]
+		key := t.Name + "|" + t.Category
+		if champion.TrustedSourceLabels[t.SourceTrust] {
+			continue
+		}
+		if trust, ok := fetched[key]; ok && trust == t.SourceTrust {
+			continue
+		}
+		fetched[key] = t.SourceTrust
+		refs = append(refs, champion.Reference{
+			Topic: t.Name, Category: t.Category,
+			SourceKind: t.SourceKind, SourceTrust: t.SourceTrust,
+			SourcePath: t.SourcePath, SourceLabel: t.SourceLabel,
+		})
+	}
 	return refs, contents, nil
+}
+
+func (r *vorRetriever) search(ctx context.Context, q string) ([]vorSearchHit, error) {
+	endpoint := fmt.Sprintf("%s/api/search?q=%s",
+		strings.TrimRight(r.baseURL, "/"), url.QueryEscape(q))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		body, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
+	}
+	var hits []vorSearchHit
+	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
+		return nil, fmt.Errorf("decode: %w", err)
+	}
+	return hits, nil
 }
 
 func (r *vorRetriever) topic(ctx context.Context, name string) (*vorTopic, error) {
