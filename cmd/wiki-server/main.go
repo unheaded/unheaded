@@ -14,11 +14,12 @@
 // Package main implements wiki-server: a simple HTTP server that renders
 // markdown files from wiki/ as styled HTML pages with sidebar navigation.
 // GitHub-wiki-style [[Page]] / [[Display|Page]] links are rewritten to
-// standard markdown links before rendering.
+// standard markdown links before rendering, and links into the rest of the
+// repository are pointed at GitHub (repolinks.go).
 //
 // Usage:
 //
-//	wiki-server [--port 20002] [--wiki-dir ./wiki]
+//	wiki-server [--port 20002] [--wiki-dir ./wiki] [--vor-url http://127.0.0.1:20110]
 //
 // Endpoints:
 //
@@ -27,6 +28,12 @@
 //	GET /wiki/{page}   Render wiki/{page}.md as HTML
 //	GET /health        Health check (200 OK)
 //	GET /ready         Readiness probe (200 OK)
+//
+// With --vor-url (search.go), answered by vor:
+//
+//	GET /search?q=     Wiki pages and vor sheets that match
+//	GET /sheets        The vor sheets, by category
+//	GET /sheet/{name}  One vor sheet
 //
 // Version: 0.1.0-alpha
 package main
@@ -51,11 +58,13 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
+	"github.com/yuin/goldmark/text"
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/vorclient"
 )
 
 // wikiLinkRe matches GitHub-wiki-style links: [[Display|Page-Name]] or [[Page-Name]].
@@ -96,6 +105,10 @@ type WikiServer struct {
 	md        goldmark.Markdown
 	tmpl      *template.Template
 	startTime time.Time
+	// vor answers /search, /sheets and /sheet/ (search.go). nil: no search
+	// box and none of the routes.
+	vor    *vorclient.Client
+	sheets sheetList
 }
 
 // NavItem represents a sidebar navigation entry.
@@ -114,6 +127,10 @@ type PageData struct {
 	NavGroups []NavGroup
 	// HomeActive marks the pinned Top link when the homepage is being shown.
 	HomeActive bool
+	// Search shows the search box and the Sheets link; Query is what the
+	// box holds.
+	Search bool
+	Query  string
 }
 
 // NewWikiServer creates a new wiki server.
@@ -259,8 +276,11 @@ func (ws *WikiServer) renderPage(slug string) (string, string, error) {
 
 	data = rewriteWikiLinks(data)
 
+	doc := ws.md.Parser().Parse(text.NewReader(data))
+	rewriteRepoLinks(doc)
+
 	var buf bytes.Buffer
-	if err := ws.md.Convert(data, &buf); err != nil {
+	if err := ws.md.Renderer().Render(&buf, data, doc); err != nil {
 		return "", "", fmt.Errorf("render markdown: %w", err)
 	}
 
@@ -283,16 +303,24 @@ func (ws *WikiServer) handleWiki(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := PageData{
+	ws.writePage(w, http.StatusOK, PageData{
 		Title:      title,
-		Content:    template.HTML(content), // #nosec G203 -- goldmark no longer emits raw HTML (WithUnsafe removed); block HTML is dropped, inline HTML entity-escaped
 		ActiveSlug: path,
-		Version:    serviceVersion,
 		NavGroups:  ws.navGroups(path),
 		HomeActive: path == "" || path+".md" == ws.rootFile(),
-	}
+	}, content)
+}
+
+// writePage sends one page in the wiki's template. content is HTML that
+// goldmark or html/template wrote, never text taken from a request, a file
+// or vor as it came.
+func (ws *WikiServer) writePage(w http.ResponseWriter, status int, data PageData, content string) {
+	data.Content = template.HTML(content) // #nosec G203 -- goldmark emits no raw HTML (WithUnsafe removed: it is dropped or entity-escaped), and the vor pages are written by html/template
+	data.Version = serviceVersion
+	data.Search = ws.vor != nil
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
 	if err := ws.tmpl.Execute(w, data); err != nil {
 		logf("ERROR", "execute template", "err", err)
 	}
@@ -335,6 +363,13 @@ func setupMux(ws *WikiServer) *http.ServeMux {
 	// Wiki pages.
 	mux.HandleFunc("/wiki/", ws.handleWiki)
 
+	// Search, answered by vor.
+	if ws.vor != nil {
+		mux.HandleFunc(searchPath, ws.handleSearch)
+		mux.HandleFunc(sheetsPath, ws.handleSheets)
+		mux.HandleFunc(sheetPath, ws.handleSheet)
+	}
+
 	// Health and readiness.
 	mux.HandleFunc("/health", ws.handleHealth)
 	mux.HandleFunc("/ready", ws.handleReady)
@@ -353,10 +388,16 @@ func wrapAuth(handler http.Handler, authCfg auth.ServiceAuthConfig) (http.Handle
 }
 
 // buildHandler creates the full HTTP handler stack for the wiki server.
-func buildHandler(wikiDir string) (http.Handler, error) {
+// vorURL is the vor that answers the search box; empty means no search.
+func buildHandler(wikiDir, vorURL string) (http.Handler, error) {
 	ws, err := NewWikiServer(wikiDir)
 	if err != nil {
 		return nil, err
+	}
+	if vorURL != "" {
+		if ws.vor, err = vorclient.New(vorURL, nil); err != nil {
+			return nil, fmt.Errorf("--vor-url: %w", err)
+		}
 	}
 	mux := setupMux(ws)
 	authed, err := wrapAuth(mux, auth.LoadServiceAuthConfig("wiki-server"))
@@ -383,19 +424,25 @@ func newServer(port int, handler http.Handler) *http.Server {
 func main() {
 	port := flag.Int("port", 20002, "HTTP server port")
 	wikiDir := flag.String("wiki-dir", "./wiki", "Path to wiki markdown directory")
+	vorURL := flag.String("vor-url", "", "vor base URL, such as http://127.0.0.1:20110: adds the search box, /search, /sheets and /sheet/ (unset: none of them)")
 	cmdline.Parse(cmdline.Spec{
-		Name:     "wiki-server",
-		Purpose:  "Serve the Kingdom wiki as rendered HTML.",
-		Examples: []string{"wiki-server", "wiki-server --port 20002 --wiki-dir ./wiki"},
+		Name:    "wiki-server",
+		Purpose: "Serve the Kingdom wiki as rendered HTML.",
+		Examples: []string{
+			"wiki-server",
+			"wiki-server --port 20002 --wiki-dir ./wiki",
+			"wiki-server --vor-url http://127.0.0.1:20110",
+		},
 	})
 
 	logf("INFO", "starting wiki-server",
 		"version", serviceVersion,
 		"port", *port,
 		"wiki_dir", *wikiDir,
+		"vor_url", *vorURL,
 	)
 
-	httpHandler, err := buildHandler(*wikiDir)
+	httpHandler, err := buildHandler(*wikiDir, *vorURL)
 	if err != nil {
 		logf("FATAL", "failed to create wiki server", "err", err)
 		os.Exit(1)
@@ -543,6 +590,41 @@ const pageTemplate = `<!DOCTYPE html>
 
         .sidebar-links a:hover {
             text-decoration: underline;
+        }
+
+        /* Search box and Sheets link, shown when vor is configured. */
+        .sidebar-search {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 20px 12px;
+            font-size: 12px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-search a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .sidebar-search a:hover {
+            text-decoration: underline;
+        }
+
+        .sidebar-search input {
+            flex: 1;
+            min-width: 0;
+            padding: 6px 8px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font: inherit;
+            font-size: 13px;
+        }
+
+        .sidebar-search input:focus {
+            border-color: var(--accent);
         }
 
         /* Pinned "Home" link (returns to the wiki root without scrolling up). */
@@ -792,6 +874,18 @@ const pageTemplate = `<!DOCTYPE html>
             color: var(--text-heading);
         }
 
+        /* Search results, the sheet listing and the foot of a sheet. */
+        .page-note {
+            color: var(--text-secondary);
+            font-size: 0.85em;
+            font-weight: normal;
+        }
+
+        .sheet-index a {
+            margin-right: 10px;
+            white-space: nowrap;
+        }
+
         .main img {
             max-width: 100%;
             border-radius: 6px;
@@ -848,6 +942,10 @@ const pageTemplate = `<!DOCTYPE html>
             <div class="sidebar-links">
                 <a href="https://192.168.69.184:20000">Dashboard</a> | <a href="https://192.168.69.184:20001">Kanban</a> | <a href="https://192.168.69.184:20103">Zhenai</a>
             </div>
+            {{if .Search}}<form class="sidebar-search" action="/search" method="get" role="search">
+                <input type="search" name="q" value="{{.Query}}" placeholder="search" aria-label="Search the wiki and vor sheets">
+                <a href="/sheets">Sheets</a>
+            </form>{{end}}
             <a href="/wiki/" class="sidebar-home{{if .HomeActive}} active{{end}}">&#8962; Top</a>
             <nav>
                 {{range .NavGroups}}

@@ -835,7 +835,7 @@ func TestBuildHandler_Valid(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Test\n"), 0644)
 
-	handler, err := buildHandler(dir)
+	handler, err := buildHandler(dir, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -863,7 +863,7 @@ func TestBuildHandler_Valid(t *testing.T) {
 }
 
 func TestBuildHandler_InvalidDir(t *testing.T) {
-	_, err := buildHandler("/tmp/nonexistent-build-" + t.Name())
+	_, err := buildHandler("/tmp/nonexistent-build-"+t.Name(), "")
 	if err == nil {
 		t.Fatal("expected error for non-existent directory")
 	}
@@ -1056,7 +1056,7 @@ func TestBuildHandler_MetricsEndpoint(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Home\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	handler, err := buildHandler(dir)
+	handler, err := buildHandler(dir, "")
 	if err != nil {
 		t.Fatal(err)
 	}

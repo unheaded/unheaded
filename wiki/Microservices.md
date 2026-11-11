@@ -22,7 +22,7 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `zhen-agentd` | Zhen agent daemon (ReAct loop + Champion gate) | [[Zhen-AI]] |
 | `huginn` | Huginn, the host metrics agent (ADR-084) | [[Service-Huginn]] |
 | `alert-mailer` | The only alert mail sender: pages at once, tickets as a daily digest, daily cap, dry-run mode (`:19130`) | [[Alerting]] |
-| `wiki-server` | Renders this wiki locally over HTTP | — |
+| `wiki-server` | Renders this wiki locally over HTTP (`:20002`). A link from a page into the rest of the repository goes to GitHub. With `--vor-url`, vor answers a search box (`/search`: wiki pages and vor sheets), `/sheets` (vor's sheets by category) and `/sheet/<name>`; without it none of them exist | — |
 
 Timeguru, Captain, Architect and Micromanager build from `services/<name>`: [[Service-Timeguru]], [[Service-Captain]], [[Service-Architect]], [[Service-Micromanager]].
 
