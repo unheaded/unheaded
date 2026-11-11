@@ -1033,13 +1033,69 @@
     </style>
     <link rel="stylesheet" href="/api/v1/highlight.css">
     <style>
-        .login-panel { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); }
+        /* Login: the page's own tokens (see :root), so it reads as part of Zhen. */
+        .login-panel {
+            position: fixed; inset: 0; z-index: 1000; padding: 16px;
+            display: flex; align-items: center; justify-content: center;
+            background: rgba(0, 0, 0, 0.72);
+            backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        }
         .login-panel[hidden], .login-who[hidden] { display: none; }
-        .login-box { display: flex; flex-direction: column; gap: 10px; min-width: 280px; padding: 20px; background: #161b22; color: #e6edf3; border: 1px solid #30363d; border-radius: 8px; }
-        .login-box label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-        .login-title { font-weight: 600; }
-        .login-error { color: #ff7b72; font-size: 13px; min-height: 1em; }
-        .login-who { position: fixed; top: 8px; right: 12px; z-index: 999; font-size: 12px; color: #8b949e; }
+        .login-box {
+            display: flex; flex-direction: column;
+            width: 100%; max-width: 340px; padding: 28px 28px 22px;
+            background: var(--bg-card); color: var(--text);
+            border: 1px solid var(--border-card); border-top: 2px solid var(--accent);
+            border-radius: 10px;
+            box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+        }
+        .login-brand {
+            font-family: var(--font-heading); color: var(--accent);
+            font-size: 1.5em; font-weight: 300; letter-spacing: 0.3em;
+        }
+        .login-title { margin: 6px 0 22px; color: var(--text-dim); font-size: 0.72em; letter-spacing: 0.1em; }
+        .login-box label {
+            display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px;
+            color: var(--text-dim); font-size: 0.68em; letter-spacing: 0.12em; text-transform: uppercase;
+        }
+        .login-box input {
+            width: 100%; padding: 10px 12px;
+            background: var(--bg-primary); color: var(--text);
+            border: 1px solid var(--border-card); border-radius: 6px;
+            font-family: var(--font-mono); font-size: 14px; letter-spacing: normal; text-transform: none;
+            outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+        .login-box input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+        .login-box input:-webkit-autofill {
+            -webkit-text-fill-color: var(--text);
+            box-shadow: 0 0 0 1000px var(--bg-primary) inset;
+            caret-color: var(--text);
+        }
+        .login-box button[type=submit] {
+            margin-top: 6px; padding: 11px 16px;
+            background: var(--accent); color: #000;
+            border: none; border-radius: 6px;
+            font-family: var(--font-mono); font-size: 0.82em; font-weight: 700; letter-spacing: 0.08em;
+            cursor: pointer; transition: background 0.2s ease;
+        }
+        .login-box button[type=submit]:hover { background: var(--accent-hover); }
+        .login-box button[type=submit]:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+        .login-box button[type=submit]:disabled { background: var(--border); color: var(--text-dim); cursor: wait; }
+        .login-error { margin-top: 12px; min-height: 1.3em; color: #ff7b72; font-size: 0.75em; line-height: 1.3; }
+        .login-who {
+            position: fixed; top: 8px; right: 12px; z-index: 999;
+            display: flex; align-items: center; gap: 8px;
+            padding: 3px 4px 3px 10px;
+            background: var(--bg-glass); border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-dim); font-size: 0.68em;
+        }
+        .login-who button {
+            padding: 3px 8px; background: transparent; color: var(--text-dim);
+            border: 1px solid var(--border-card); border-radius: 4px;
+            font-family: var(--font-mono); font-size: 1em; cursor: pointer;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+        .login-who button:hover { color: var(--accent); border-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -1239,10 +1295,11 @@
 
     <div id="login-panel" class="login-panel" hidden>
         <form id="login-form" class="login-box" autocomplete="on">
+            <div class="login-brand" aria-hidden="true">ZHENAI</div>
             <div class="login-title">Log in to Zhen</div>
-            <label>Username <input id="login-user" name="username" autocomplete="username" required></label>
+            <label>Username <input id="login-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
             <label>Password <input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
-            <button type="submit">Log in</button>
+            <button type="submit" id="login-submit">Log in</button>
             <div id="login-error" class="login-error" role="alert"></div>
         </form>
     </div>
@@ -1296,13 +1353,24 @@ document.getElementById('login-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const errEl = document.getElementById('login-error');
     const pw = document.getElementById('login-password');
+    const btn = document.getElementById('login-submit');
     errEl.textContent = '';
-    const r = await fetch(API + '/auth/login', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({username: document.getElementById('login-user').value, password: pw.value}),
-    });
+    btn.disabled = true;
+    let r;
+    try {
+        r = await fetch(API + '/auth/login', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({username: document.getElementById('login-user').value, password: pw.value}),
+        });
+    } catch (_e) {
+        pw.value = '';
+        btn.disabled = false;
+        errEl.textContent = 'login is unreachable (network error)';
+        return;
+    }
     pw.value = '';
+    btn.disabled = false;
     const body = await r.json().catch(() => ({}));
     if (r.ok) {
         if (body.password_below_floor) {
