@@ -836,7 +836,8 @@ body {
    ========================================================================== */
 #toast-container {
     position: fixed;
-    bottom: var(--spacing-lg);
+    /* Clear of the login badge (/auth/auth.js), which sits at bottom right. */
+    bottom: calc(var(--spacing-lg) + 32px);
     right: var(--spacing-lg);
     display: flex;
     flex-direction: column;

@@ -167,7 +167,8 @@
   function renderBadge(me) {
     if (!badge) {
       badge = el('div', {
-        position: 'fixed', top: '8px', right: '8px', zIndex: '9999', display: 'flex', gap: '8px',
+        // Bottom right: at the top it sat on each page's header and toasts.
+        position: 'fixed', bottom: '8px', right: '8px', zIndex: '9999', display: 'flex', gap: '8px',
         alignItems: 'center', padding: '4px 10px', borderRadius: '8px', background: 'rgba(22,27,34,0.85)',
         color: '#e6edf3', font: '12px system-ui, sans-serif'
       });
