@@ -28,8 +28,9 @@ Deterministic, includes sender to prevent identity spoofing.
 
 The sender is the publish request's `sender_id`, or, for a publisher that
 sent none, the identity Wotan verified from its EdDSA service token (ADR-103
-§6, S-IRON-GATE Phase 7: `topics.auto_approve` lists verified identities, and a
-publish under another identity's id is refused). With Wotan's auth off, the
+§6, S-IRON-GATE Phase 7: `topics.auto_approve` lists verified identities, a
+publish under another identity's id is refused, and since FND-043
+`topics.permissions` bounds which topics each identity may publish and read). With Wotan's auth off, the
 legacy `display_name` is used instead (`topics.legacy_display_names`). A signed
 event's `sender_id` is that same string.
 

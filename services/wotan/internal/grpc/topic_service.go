@@ -65,6 +65,10 @@ type TopicService struct {
 	// callers and tests keep working; cmd/wotan always wires it.
 	AutoApprove AutoApprover
 
+	// Permissions gates every stream and publish by the caller's identity
+	// (FND-043). nil: no per-identity limit, as before the finding.
+	Permissions Permitter
+
 	// RequireIdentity: AUTH_ENABLED=true. Every call must carry the
 	// identity AuthServerOptions verified; one without it (an embedding
 	// without the interceptors) is Unauthenticated, never approved by
@@ -96,6 +100,14 @@ const defaultPublisherDisplayName = "service"
 // only (ADR-103 §6).
 type AutoApprover interface {
 	IsAutoApproved(identity *auth.Identity, displayName string) bool
+}
+
+// Permitter decides per-identity topic access (FND-043): action is
+// "subscribe" or "publish", pattern a topic or, for subscribe, a pattern.
+// The reason is for the log, never sent to the client. api.TopicConfig
+// implements it from topics.permissions; nil means not configured.
+type Permitter interface {
+	Permit(identity *auth.Identity, action, pattern string) (allowed bool, reason string)
 }
 
 // callerIdentity returns the verified caller, or an Unauthenticated error
@@ -197,6 +209,16 @@ func (s *TopicService) StreamTopics(
 	memberName := displayName
 	if identity != nil {
 		memberName = identity.Subject
+	}
+	if s.Permissions != nil {
+		if ok, reason := s.Permissions.Permit(identity, "subscribe", req.TopicPattern); !ok {
+			logger.FromContext(ctx).Warn().
+				Str("topic_pattern", req.TopicPattern).
+				Str("member", memberName).
+				Str("reason", reason).
+				Msg("topic_stream_not_permitted")
+			return codedError(ctx, codes.PermissionDenied, wotanerr.TopicAccessDenied, "this identity may not subscribe to that pattern")
+		}
 	}
 
 	// Create a temporary topic for the subscription (use a pattern-based name)
@@ -589,6 +611,15 @@ func (s *TopicService) PublishTopic(
 	identity, err := s.callerIdentity(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if s.Permissions != nil {
+		if ok, reason := s.Permissions.Permit(identity, "publish", req.Topic); !ok {
+			logger.FromContext(ctx).Warn().
+				Str("topic", req.Topic).
+				Str("reason", reason).
+				Msg("topic_publish_not_permitted")
+			return nil, codedError(ctx, codes.PermissionDenied, wotanerr.UnauthorizedPublish, "this identity may not publish to that topic")
+		}
 	}
 
 	// Authorize the sender first (read-only checks; nothing is created yet).

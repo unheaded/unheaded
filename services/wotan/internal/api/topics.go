@@ -98,6 +98,12 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	if identity != nil {
 		memberName = identity.Subject
 	}
+	// FND-043: an identity reads only the topics its permissions name.
+	if ok, reason := s.TopicConfig.Permit(identity, PermitSubscribe, topic); !ok {
+		log.Warn().Str("topic", topic).Str("member", memberName).Str("reason", reason).Msg("topic_subscribe_not_permitted")
+		writeCodedError(w, http.StatusForbidden, wotanerr.TopicAccessDenied, "this identity may not subscribe to that topic")
+		return
+	}
 	var newMember *member.Member
 	var err error
 	status := "pending"
@@ -165,6 +171,12 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	}
 	if s.TopicConfig.RequiresSignature(topic) {
 		writeCodedError(w, http.StatusForbidden, wotanerr.SignatureRequired, "signed topics (config.*, drift.*) are published over gRPC with an ML-DSA-65 signature")
+		return
+	}
+	// FND-043: an identity publishes only on the topics its permissions name.
+	if ok, reason := s.TopicConfig.Permit(auth.IdentityFromContext(r.Context()), PermitPublish, topic); !ok {
+		log.Warn().Str("topic", topic).Str("caller", callerName(r)).Str("reason", reason).Msg("topic_publish_not_permitted")
+		writeCodedError(w, http.StatusForbidden, wotanerr.TopicAccessDenied, "this identity may not publish to that topic")
 		return
 	}
 
@@ -320,6 +332,13 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 	topic := extractTopic(r.URL.Path, "/api/v1/topics/", "/messages")
 	if topic == "" {
 		writeError(w, http.StatusBadRequest, "topic is required")
+		return
+	}
+	// FND-043: reading a topic's messages is reading the topic; the same
+	// permission as a subscription, pattern or not.
+	if ok, reason := s.TopicConfig.Permit(auth.IdentityFromContext(r.Context()), PermitSubscribe, topic); !ok {
+		log.Warn().Str("topic", topic).Str("caller", callerName(r)).Str("reason", reason).Msg("topic_read_not_permitted")
+		writeCodedError(w, http.StatusForbidden, wotanerr.TopicAccessDenied, "this identity may not read that topic")
 		return
 	}
 

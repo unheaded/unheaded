@@ -115,6 +115,106 @@ topics:
     - prefix: "system.health.remediate."   # Akira's remediation suggestions (HEALTH_SIGNING_KEY_FILE)
       keys: []
 
+  # Per-identity topic access (FND-043, 2026-11-11). Without this section
+  # any approved caller could stream every topic, "#" included, and read
+  # any topic's messages over HTTP. With it a verified service identity may
+  # subscribe to, stream and read only the patterns under its subscribe list
+  # and publish only to its publish list (a service may always read what it
+  # may publish). An identity this section does not name gets what unlisted
+  # says. It applies to EdDSA service tokens only; with auth off there is no
+  # identity and the section does not apply. Reloaded on SIGHUP.
+  #
+  # Entries are topic patterns: a topic, "a.*" (one segment), "a.#" (one or
+  # more segments), "#" (everything). A subscription pattern is allowed only
+  # when an entry covers every topic it could match: "tasks.#" is not
+  # allowed by "tasks.*".
+  #
+  # mode: audit lets every call through and logs and counts what enforce
+  # would refuse (topic_permission_refused_audit_only,
+  # unheaded_wotan_topic_permission_refusals_total{outcome="audited"}).
+  # Run a new list in audit first, read the log, then set enforce.
+  #
+  # The lists below were taken from the code on 2026-11-11 (every
+  # Subscribe/Publish call per binary, plus pkg/discovery, pkg/healthreport
+  # and pkg/logagg, which every service that uses them joins). Two common
+  # sets: "D+H" is system.discovery and system.health.reports; "logs" is
+  # logs.<identity>.<level>.
+  permissions:
+    unlisted: deny
+    mode: audit
+    services:
+      akira:
+        publish: ["system.health.reports", "system.health.consensus", "system.health.remediate"]
+      anomaly:
+        subscribe: ["anomaly.baseline", "alerts.critical"]
+        publish: ["anomaly.alerts", "anomaly.scores"]
+      architect:
+        subscribe: ["alerts.critical"]
+        publish: ["architecture.updates", "system.discovery", "system.health.reports", "logs.architect.*"]
+      captain:
+        subscribe: ["alerts.critical"]
+        publish: ["decisions.created", "system.discovery", "system.health.reports"]
+      chaos-controller:
+        subscribe: ["chaos.abort"]
+        publish: ["chaos.experiment.started", "chaos.experiment.completed", "chaos.refused", "chaos.revert_failed", "chaos.schedules", "system.discovery", "system.health.reports"]
+      dashboard-backend:
+        # The human-facing aggregator: it streams metrics.*, health.*,
+        # alerts.*, timeline.*, tasks.*, decisions.*, state.*,
+        # architecture.*, traces.*, ebpf.*.events, compute.*, anamnesis.*,
+        # bench.perf.packet and system.health.*, and "*" when its list is
+        # empty. The one reader of everything.
+        subscribe: ["#"]
+        publish: ["metrics.*", "health.*", "alerts.*", "system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
+      ebpf-collector:
+        publish: ["ebpf.packet.events", "ebpf.latency.events"]
+      gateway:
+        # On AUTH_ALLOW_CALLERS but not on auto_approve (found 2026-11-11):
+        # its subscriptions stay pending today. Listed so that the day it is
+        # approved its access is already bounded.
+        subscribe: ["alerts.critical"]
+        publish: ["gateway.requests"]
+      heimdall:
+        publish: ["drift.detected.*"]
+      kanban-app:
+        subscribe: ["tasks.*", "timeline.updates", "runbooks.progress"]
+        publish: ["tasks.created", "tasks.updated", "tasks.deleted", "system.discovery", "system.health.reports", "logs.kanban-app.*"]
+      kev-poller:
+        publish: ["threats.cisa-kev.updates", "threats.cisa-kev.delta"]
+      micromanager:
+        subscribe: ["alerts.critical"]
+        publish: ["tasks.created", "tasks.updated", "tasks.completed", "system.discovery", "system.health.reports", "logs.micromanager.*"]
+      monad:
+        subscribe: ["alerts.critical"]
+        publish: ["monad.operations", "system.discovery", "system.health.reports", "logs.monad.*"]
+      perf-benchmark:
+        publish: ["bench.perf.packet"]
+      sophia:
+        subscribe: ["alerts.critical"]
+        publish: ["sophia.wisdom", "system.discovery", "system.health.reports", "logs.sophia.*"]
+      sword:
+        publish: ["deploy.started", "deploy.progress", "deploy.succeeded", "deploy.failed", "deploy.rolled_back", "system.discovery", "system.health.reports"]
+      timeguru:
+        subscribe: ["alerts.critical"]
+        publish: ["timeline.updates", "system.discovery", "system.health.reports", "logs.timeguru.*"]
+      trace-collector:
+        publish: ["traces.*", "ebpf.*.events", "anamnesis.*", "system.discovery", "system.health.reports", "logs.trace-collector.*"]
+      unheaded-baseline:
+        publish: ["compliance.deviation.*"]
+      unheaded-cli:
+        # The operator's key: the demo trace injector, scripts/run-runbook.py
+        # by hand, and the chaos abort nothing in the repo publishes yet.
+        publish: ["ebpf.*.events", "runbooks.progress", "chaos.abort"]
+      unheaded-daemon:
+        publish: ["cuirass.drift", "cuirass.metrics", "cuirass.chaos", "system.discovery", "system.health.reports", "logs.unheaded-daemon.*"]
+      upc-cartridgectl:
+        # weights subcommand only; not on auto_approve or AUTH_ALLOW_CALLERS
+        # today (found 2026-11-11), so this is for when it is.
+        publish: ["upc.cart.weights.*"]
+      zhen-agentd:
+        publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending", "zhen.agent.report", "zhen.agent.runs", "zhen.scheduler.heartbeat", "runbooks.progress"]
+      zhen-claude:
+        publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending"]
+
 # Message store. Wotan is an in-memory store (ADR-005): memory is the default
 # and what production runs. wal is an opt-in write-ahead log on local disk,
 # for debugging or a deliberate need to survive restarts; a wal store that

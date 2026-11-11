@@ -47,7 +47,14 @@ type TopicConfig struct {
 		// not it is listed; listed with no keys, or not listed, every
 		// drift.* publish is refused.
 		SignedPrefixes []SignedPrefix `yaml:"signed_prefixes"`
+		// Permissions is per-identity topic access (FND-043); nil: not
+		// configured, and every approved caller may read every topic.
+		Permissions *Permissions `yaml:"permissions"`
 	} `yaml:"topics"`
+
+	// perms is Permissions compiled (topic_permissions.go), under mu with
+	// the allowlists; nil when the section is absent.
+	perms *compiledPermissions
 
 	// mu guards the allowlists (AutoApprove, LegacyDisplayNames and their
 	// sets), which Reload swaps. The signing fields never change after
@@ -87,6 +94,11 @@ func parseTopicConfig(data []byte) (*TopicConfig, error) {
 
 	cfg.allowSet = nameSet(cfg.Topics.AutoApprove)
 	cfg.legacySet = nameSet(cfg.Topics.LegacyDisplayNames)
+	perms, err := compilePermissions(cfg.Topics.Permissions)
+	if err != nil {
+		return nil, err
+	}
+	cfg.perms = perms
 	return &cfg, nil
 }
 
@@ -118,9 +130,11 @@ func TopicConfigReloadCounts() (applied, refused float64) {
 }
 
 // ReloadResult counts the allowlist names a reload added and removed
-// (auto_approve and legacy_display_names, each list on its own).
+// (auto_approve and legacy_display_names, each list on its own), and says
+// whether topics.permissions changed.
 type ReloadResult struct {
-	Added, Removed int
+	Added, Removed     int
+	PermissionsChanged bool
 }
 
 // errSigningChanged refuses a reload that changes signing_keys or
@@ -176,11 +190,32 @@ func (c *TopicConfig) reload(path string) (ReloadResult, error) {
 			}
 		}
 	}
+	res.PermissionsChanged = !samePermissions(c.Topics.Permissions, next.Topics.Permissions)
 	c.Topics.AutoApprove = next.Topics.AutoApprove
 	c.Topics.LegacyDisplayNames = next.Topics.LegacyDisplayNames
+	c.Topics.Permissions = next.Topics.Permissions
 	c.allowSet = next.allowSet
 	c.legacySet = next.legacySet
+	c.perms = next.perms
 	return res, nil
+}
+
+// samePermissions reports whether two permissions sections say the same,
+// for the reload log line.
+func samePermissions(a, b *Permissions) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	if a.Unlisted != b.Unlisted || a.Mode != b.Mode || len(a.Services) != len(b.Services) {
+		return false
+	}
+	for name, sa := range a.Services {
+		sb, ok := b.Services[name]
+		if !ok || !slices.Equal(sa.Subscribe, sb.Subscribe) || !slices.Equal(sa.Publish, sb.Publish) {
+			return false
+		}
+	}
+	return true
 }
 
 // sameSigning reports whether two configs trust the same signing keys for
