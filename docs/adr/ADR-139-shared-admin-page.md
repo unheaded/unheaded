@@ -57,6 +57,16 @@ One page, reached from all three applications, for an `admin`:
 - **Could come first, without teams:** the server refuses a change to Done unless the card is in Review and the request is a human with the admin role. Owner and team approval join when this page gives cards real owners.
 - **More questions:** (4) a team's members: managed on this page only, or also from the host CLI? (5) Can a card have several owning teams? (6) Do timeline-sync cards skip the review rule?
 
+## Addendum 3 (Stevie, 2026-11-11): LDAP and Active Directory
+
+> i do miss pam and ldap and all that - might be fun to hook ldap/AD into the mix
+
+- **Idea:** `unheaded-auth` can take its users and teams from an LDAP directory or Active Directory instead of, or beside, its own store: a directory group is a team, and a directory login is a user. This page then shows directory users read-only and manages only local ones.
+- **What it touches:** ADR-114 decided one identity provider (`unheaded-auth`), argon2id passwords and TOTP for every user. With a directory, the password check moves to the directory (an LDAP bind over TLS, never plain LDAP on 389), while TOTP stays in `unheaded-auth`. Password resets for directory users belong to the directory, not this page.
+- **Third party:** Go's standard library has no LDAP client. A client library (for example `go-ldap/ldap`) or a server to test against (OpenLDAP, Samba AD, `lldap`) needs Stevie's confirmation under the native-first rule; a minimal first-party LDAP bind and search over `crypto/tls` is the native option.
+- **PAM:** the host side of the same idea, with west and east logins from the directory through SSSD; host configuration, not this page, and also third party.
+- **Questions:** (7) directory as the only source, or beside local users? (8) Which first, OpenLDAP or Samba AD, as a lab on west or east?
+
 ## Decision
 
 None. Parked under ADR-112 until Stevie takes it up; it depends on ADR-114 being built first.
