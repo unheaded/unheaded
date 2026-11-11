@@ -72,7 +72,7 @@ Yes, between services. That is what Wotan is for, and the dashboard and Kanban b
 2. **The service that owns notifications subscribes**, writes each one to the Well (history and read marks), and keeps per-user unread counts. The Well holds them because Wotan is in memory by default and keeps no history (ADR-005; the Postgres store was deleted 2026-11-09).
 3. **The browser asks its own page's backend**, as above, by poll or later server-sent events. It never connects to Wotan.
 
-Why the browser stays off Wotan: Wotan is internal. It accepts only service tokens and approves topics per service identity (`topics.auto_approve` in `configs/wotan.yaml`). A browser on it would mean user sessions on the bus, and users able to subscribe to infrastructure topics. CLAUDE.md "Breaking Architectural Isolation" names that pitfall. So Wotan replaces any service-to-service calls for notifications; the last hop to the browser stays poll or server-sent events through the BFF. The poll is only that last hop.
+Why the browser stays off Wotan: Wotan is internal. It accepts only service tokens (`topics.auto_approve` in `configs/wotan.yaml` lists the service identities), and today it does not limit which topics an accepted service may read: FND-043, found 2026-11-11 while writing this, to be fixed on develop. A browser on it would mean user sessions on the bus, and users able to subscribe to infrastructure topics. CLAUDE.md "Breaking Architectural Isolation" names that pitfall. So Wotan replaces any service-to-service calls for notifications; the last hop to the browser stays poll or server-sent events through the BFF. The poll is only that last hop.
 
 ## Encryption of each link on the notification path (read on west 2026-11-11)
 

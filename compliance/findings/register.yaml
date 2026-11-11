@@ -1990,3 +1990,28 @@ findings:
     plan: >-
       Stevie 2026-11-06: after the first green CI, required status checks and no review count, since one person cannot
       review his own work. A GitHub setting, in Stevie's hands
+  - id: FND-043
+    title: >-
+      Wotan has no per-topic read permission: any authenticated service may stream every topic, wildcard included
+    verify: >-
+      configs/wotan.yaml names, per service identity, the topic prefixes it may subscribe to and publish on; a
+      StreamTopics or SubscribeTopic call for a pattern outside the caller's list, and any "#" or "*" pattern from a
+      service not named as a wildcard reader, is refused with PermissionDenied, and a test proves each refusal
+    severity: medium
+    class: app
+    opened: 2026-11-11
+    exposure: >-
+      needs a valid service token first (18 keys in trust.d, each 0400 under its own account; Wotan is on loopback,
+      the compose bridge and the overlay only, TLS 1.3). From there, StreamTopics approves any pattern for any
+      identity (services/wotan/internal/grpc/topic_service.go, the RequestJoin + Approve after callerIdentity), and the
+      HTTP SubscribeTopic path approves every identity on topics.auto_approve, which is the whole caller list. One
+      compromised service, kev-poller say, reads audit.*, alerts.*, system.health.*, kanban.* and the rest. Signed
+      prefixes stop forging, not reading. ADR-103 section 6 named topic ACLs as "a later step"
+    lockout: none
+    step: 7
+    plan: >-
+      Stevie 2026-11-11: record and fix. Per-identity allow lists in configs/wotan.yaml (read prefixes, publish
+      prefixes, wildcard readers such as dashboard-backend), enforced on both listeners before the join is approved;
+      default deny once the file names a service; the first list written from what each service subscribes to today
+      (grep of Subscribe calls per cmd/ and services/), so nothing live breaks; tests that a wrong pattern and a bare
+      "#" are refused. Fixed on develop first (ADR-089)
