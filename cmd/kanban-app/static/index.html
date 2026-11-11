@@ -23,10 +23,7 @@
             </div>
             <div class="header-center">
                 <nav class="nav-tabs" id="nav-tabs">
-                    <a class="nav-tab nav-link" href="https://192.168.69.184:20000">Dashboard</a>
-                    <a class="nav-tab nav-link" href="http://192.168.69.184:3001">Grafana</a>
-                    <a class="nav-tab nav-link" href="http://192.168.69.184:20002">Wiki</a>
-                    <a class="nav-tab nav-link" href="https://192.168.69.184:20103">Zhenai</a>
+                    <span data-kingdom-nav="kanban"></span><!-- Dashboard, Grafana, Wiki, Zhenai: /auth/nav.js (pkg/bff), from this host's name and pkg/ports -->
                 </nav>
             </div>
             <div class="header-right">
@@ -355,7 +352,8 @@
     </div>
 
     <!-- Scripts - Order matters! -->
-    <script src="/auth/auth.js"></script><!-- board login; adds X-Requested-With to same-origin fetches (pkg/bff, ADR-103 §4) -->
+    <script src="/auth/auth.js"></script>
+    <script src="/auth/nav.js"></script><!-- the Kingdom menu (pkg/bff) --><!-- board login; adds X-Requested-With to same-origin fetches (pkg/bff, ADR-103 §4) -->
     <script src="js/particles.js"></script>
     <script src="js/api.js"></script>
     <script src="js/websocket.js"></script>

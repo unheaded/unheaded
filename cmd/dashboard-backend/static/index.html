@@ -26,10 +26,7 @@
                     <button class="nav-tab" data-page="latency">Latency</button>
                     <button class="nav-tab" data-page="events">Events</button>
                     <a class="nav-tab nav-link" href="/compliance">Compliance</a>
-                    <a class="nav-tab nav-link" href="http://192.168.69.184:3001">Grafana</a>
-                    <a class="nav-tab nav-link" href="https://192.168.69.184:20001">Kanban</a>
-                    <a class="nav-tab nav-link" href="http://192.168.69.184:20002">Wiki</a>
-                    <a class="nav-tab nav-link" href="https://192.168.69.184:20103">Zhenai</a>
+                    <span data-kingdom-nav="dashboard"></span><!-- Grafana, Kanban, Wiki, Zhenai: /auth/nav.js (pkg/bff), from this host's name and pkg/ports -->
                     <a class="nav-tab nav-link" href="/logs" target="_blank">Logs</a>
                 </nav>
             </div>
@@ -385,7 +382,8 @@
     <div id="toast-container"></div>
 
     <!-- Scripts -->
-    <script src="/auth/auth.js"></script><!-- login panel; adds X-Requested-With to same-origin fetches (pkg/bff, ADR-103 §4) -->
+    <script src="/auth/auth.js"></script>
+    <script src="/auth/nav.js"></script><!-- the Kingdom menu (pkg/bff) --><!-- login panel; adds X-Requested-With to same-origin fetches (pkg/bff, ADR-103 §4) -->
     <script src="js/particles.js"></script>
     <script src="dashboard.js"></script>
 </body>

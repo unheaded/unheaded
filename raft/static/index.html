@@ -1113,12 +1113,7 @@
                 <div class="sub">Unheaded Champion</div>
             </div>
         </div>
-        <nav class="kingdom-nav">
-            <a href="https://192.168.69.184:20000">Dashboard</a>
-            <a href="http://192.168.69.184:3001">Grafana</a>
-            <a href="https://192.168.69.184:20001">Kanban</a>
-            <a href="http://192.168.69.184:20002">Wiki</a>
-        </nav>
+        <nav class="kingdom-nav" data-kingdom-nav="zhenai" data-kingdom-nav-class=""></nav><!-- Dashboard, Grafana, Kanban, Wiki: /auth/nav.js, served by zhen-ui-front (pkg/bff) -->
         <div class="header-right">
             <div class="stats" id="model-info"></div>
             <div class="status-dot" id="status-dot"></div>
@@ -1312,6 +1307,7 @@
         <span id="login-who-name"></span> <button type="button" id="login-logout">Log out</button>
     </div>
 
+<script src="/auth/nav.js"></script>
 <script>
 const API = '';  // Same origin
 

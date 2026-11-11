@@ -43,6 +43,7 @@ import (
 
 	"github.com/rs/zerolog"
 
+	"unheaded/pkg/bff"
 	"unheaded/pkg/cmdline"
 	svchttp "unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
@@ -431,10 +432,20 @@ func (f *front) handler() http.Handler {
 		r.Body = cappedBody{ReadCloser: http.MaxBytesReader(w, r.Body, f.cfg.maxBody), state: state}
 		proxy.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), bodyStateKey{}, state)))
 	})
-	// The mux is only the label source: one pattern, so one path series.
+	// The Kingdom menu (pkg/bff) is the front's own: the app behind it has
+	// no copy, and the page loads it from this origin like every other app.
+	served := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/auth/nav.js" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			bff.ServeNavJS(w, r)
+			return
+		}
+		checked.ServeHTTP(w, r)
+	})
+	// The mux is only the label source: one pattern each, so one path series.
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /auth/nav.js", bff.ServeNavJS)
 	mux.Handle("/", checked)
-	return svchttp.NewServiceMetrics(serviceName).Instrument(mux, checked)
+	return svchttp.NewServiceMetrics(serviceName).Instrument(mux, served)
 }
 
 // upstreamError answers for a request the app did not. The client learns the
