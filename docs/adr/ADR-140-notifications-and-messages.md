@@ -35,6 +35,17 @@ Copyright (c) 2024-2026 Stevie Bellis.
 5. **Mail limits.** Account mail shares the mailer's account and caps, or has its own (DP-710 watches outbound mail closely).
 6. **Messages between people**, or notifications only at first?
 
+## Addendum (Stevie, 2026-11-11): badge look, links, Champion, mail
+
+> the badge should have a hover over text when lit/pulsing, highlighting the outer box leaving the inner "Log out" rectangle flat and unlit ---- links is nice, can ping pong around between task and stuff, say an automated champion task notices something weird it could notify admins and link the related dashboards (would need runbook) just pitching ideas. mail notification would be configurable from admin page, we can piggy back off alert email setup for now while in development first uses look good.
+
+- **Badge look:** when there are unread notifications, the badge's outer box is what lights and pulses; the inner "Log out" button stays flat and unlit, so the two never look like one control. Hovering the lit badge shows a short text (for example "2 unread: click to read"). The click target for messages is the box, not the button.
+- **Links both ways:** a notification links to what it is about (a card, a dashboard, a run), and those pages link back to the thread, so a reader can move between a task and its discussion.
+- **Champion as a sender (idea):** an automated Champion task that notices something odd notifies the admins, with links to the related dashboards. It acts only through a runbook (ADR-024: approved, in the sealed manifest), so what it may notice and say is reviewed like any other runbook step.
+- **Mail:** configured on ADR-139's admin page. Until that exists, during development, notification mail uses the alert mailer's setup (its account, recipients, dry-run switch and caps in `observability/alerting/policy.yaml`).
+- **First uses:** accepted as listed in "The idea" item 4.
+- Question 1 (poll or stream), 2 (where it lives), 4 (retention) and 6 (messages between people) stay open; 3 is answered for the look, the reduced-motion rule stands; 5 is answered for now (the mailer's caps).
+
 ## Decision
 
 None. Parked under ADR-112; it needs ADR-139's users, teams and email first.
