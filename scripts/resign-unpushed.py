@@ -8,10 +8,11 @@ in messages to commits already rewritten in this run are replaced with
 their new abbreviated hashes. The branch is moved only if it still points
 at the old head (compare-and-swap); a backup ref keeps the old head.
 
-usage: resign-unpushed.py REPO BASE [--no-sign] [--merges] [--committer-name NAME]
+usage: resign-unpushed.py REPO BASE [--no-sign] [--merges] [--committer-name NAME] [--author-name NAME]
 
 Use when commits were made unsigned (gpg-agent timed out) and the key is
-now cached. BASE is the last pushed commit (e.g. origin/develop). Check
+now cached, or to put the right name on them (--author-name and
+--committer-name). BASE is the last pushed commit (e.g. origin/develop). Check
 afterwards: git log --format=%G? BASE..HEAD shows G for every commit, and
 HEAD^{tree} equals the backup ref's tree.
 """
@@ -25,6 +26,9 @@ sign = "--no-sign" not in sys.argv
 committer_override = None
 if "--committer-name" in sys.argv:
     committer_override = sys.argv[sys.argv.index("--committer-name") + 1]
+author_override = None
+if "--author-name" in sys.argv:
+    author_override = sys.argv[sys.argv.index("--author-name") + 1]
 
 
 def git(*args, env=None, input=None):
@@ -58,7 +62,7 @@ for old in olds:
 
     msg = hex8.sub(repl, msg)
     new_parents = [mapping.get(p, p) for p in parents.split()]
-    env = dict(os.environ, GIT_AUTHOR_NAME=an, GIT_AUTHOR_EMAIL=ae, GIT_AUTHOR_DATE=ad,
+    env = dict(os.environ, GIT_AUTHOR_NAME=author_override or an, GIT_AUTHOR_EMAIL=ae, GIT_AUTHOR_DATE=ad,
                GIT_COMMITTER_NAME=committer_override or cn, GIT_COMMITTER_EMAIL=ce,
                GIT_COMMITTER_DATE=cd)
     args = ["commit-tree", tree]
