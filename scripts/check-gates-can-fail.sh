@@ -1245,6 +1245,16 @@ provoke_image_digests() {
     grep -qE 'image: traefik:v3\.3\.7$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_image_drift() {
+    # Contract (ADR-117 step 5): what runs is what the compose file pins. The
+    # running side is the state prepare_gate recorded from the clean tree, so
+    # moving the file's pin is the host and the file disagreeing.
+    local f="docker-compose.yml"
+    backup "${f}"
+    sed -i -E '0,/(image: grafana\/grafana):11\.5\.1@sha256:/s//\1:11.5.0@sha256:/' "${REPO_ROOT}/${f}"
+    grep -qE 'image: grafana/grafana:11\.5\.0@sha256:' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_nosec_ratchet() {
     # Contract (L20): gosec suppressions may only shrink. Add one.
     local f="pkg/database/config.go"
@@ -1333,6 +1343,7 @@ check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
 check-image-digests|provoke_image_digests|fast|traefik's digest dropped from docker-compose.yml
+check-image-drift|provoke_image_drift|fast|Grafana's pin moved to another tag in docker-compose.yml while the recorded host state still runs 11.5.1
 check-crypto-inventory|provoke_crypto_inventory|fast|a component the tree does not contain appended to compliance/crypto/cbom.cdx.json
 check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences to X25519 only (classical key exchange)
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
@@ -1563,6 +1574,16 @@ row_output() {
 prepare_gate() {
     GATE_ENV=()
     ROW_NOTE=""
+    if [ "${1}" = "check-image-drift" ]; then
+        # check-image-drift reads the containers of the host it runs on. A CI
+        # runner has none, and west's are not the tree under test, so both of
+        # this gate's runs judge the state the clean tree implies: clean it
+        # matches the files, provoked the file has moved away from it.
+        "${REPO_ROOT}/scripts/check-image-drift.sh" --expected >"${BACKUP_DIR}/drift.state" || return 0
+        GATE_ENV=("IMAGE_DRIFT_STATE=${BACKUP_DIR}/drift.state")
+        ROW_NOTE=", on the state the clean tree implies, no docker"
+        return 0
+    fi
     [ "${1}" = "check-ebpf-insns" ] || return 0
     [ "${CI:-}" = "true" ] || return 0
     local f="docs/policy/ebpf-insns-baseline.tsv" kernel
