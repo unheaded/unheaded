@@ -62,6 +62,18 @@ Why, at this scale (a handful of users, three pages):
 
 If instant delivery is wanted later, the step up is **server-sent events** (`EventSource`, one-way, plain HTTP, same session cookie; Kanban already uses one), not a WebSocket, behind the same endpoint so the badge does not change. Stevie decides; this is the recommendation only.
 
+## Wotan carries the notifications (Stevie, 2026-11-11)
+
+> don't we have a connection to wotan, can't we use that - wasn't that sort of wotans purpose?
+
+Yes, between services. That is what Wotan is for, and the dashboard and Kanban backends already hold a Wotan connection (`WOTAN_GRPC_ADDR`, gRPC stream with HTTP fallback, `pkg/wotan-client`). The shape:
+
+1. **Producers publish** on Wotan: Kanban (`notify.*` when changes are requested or a card waits for review), a Champion runbook, Akira. Topics carry ids, kinds and links, never message text (question 4). A notification that is also an alert or comes from a Champion uses a signed prefix (the producer signs or refuses).
+2. **The service that owns notifications subscribes**, writes each one to the Well (history and read marks), and keeps per-user unread counts. The Well holds them because Wotan is in memory by default and keeps no history (ADR-005; the Postgres store was deleted 2026-11-09).
+3. **The browser asks its own page's backend**, as above, by poll or later server-sent events. It never connects to Wotan.
+
+Why the browser stays off Wotan: Wotan is internal. It accepts only service tokens and approves topics per service identity (`topics.auto_approve` in `configs/wotan.yaml`). A browser on it would mean user sessions on the bus, and users able to subscribe to infrastructure topics. CLAUDE.md "Breaking Architectural Isolation" names that pitfall. So Wotan replaces any service-to-service calls for notifications; the last hop to the browser stays poll or server-sent events through the BFF. The poll is only that last hop.
+
 ## Encryption of each link on the notification path (read on west 2026-11-11)
 
 Stevie: "we need to be noting if app to app communications are encrypted or not and how it is being accomplished if so". Checked with `openssl s_client` and the containers' settings, not taken from docs:
@@ -76,7 +88,7 @@ Stevie: "we need to be noting if app to app communications are encrypted or not 
 | Alert mailer to the mail relay (`smtp.gmail.com:587`) | Yes when sending | `STARTTLS`, TLS 1.2 minimum, and it refuses to send a password without it. West is in dry-run: nothing is sent. |
 | Browser to the wiki (20002) | **No** | Plain HTTP on the LAN address; the temporary `unheaded-wiki-test` unit. Read-only, no login, but unencrypted. Its permanent home (next.md item 8 (a)) should serve TLS like the other pages. |
 
-A notification service adds two links: browser to it (same TLS as the pages above, through the BFF) and it to the Well (same `hostssl`). Rule for this and later ADRs: every new link states whether it is encrypted and how, in a table like this one.
+A notification service adds three links: producers and it to Wotan (same TLS 1.3 hybrid as above), it to the Well (same `hostssl`), and the browser to it through its page's BFF (same TLS as the pages). Rule for this and later ADRs: every new link states whether it is encrypted and how, in a table like this one.
 
 ## Decision
 
