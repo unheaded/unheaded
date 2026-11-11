@@ -337,29 +337,61 @@
         document.getElementById('fw-detail').scrollIntoView({ behavior: 'smooth' });
     }
 
+    // The page stays behind one spinner until the summary, the findings and
+    // the profiles have all answered, so no card shows ahead of the rest. A
+    // part that fails still answers: it says so in its own title. The 60 s
+    // refresh redraws in place and never brings the spinner back.
+    let shown = false;
+
+    function reveal() {
+        if (shown) return;
+        shown = true;
+        document.querySelector('main.cx-page').classList.remove('cx-loading');
+    }
+
+    function waiting(text, failed) {
+        if (shown) return;
+        document.getElementById('cx-wait').classList.toggle('cx-failed', failed);
+        document.getElementById('cx-wait-text').textContent = text;
+    }
+
     async function load() {
         const status = document.getElementById('cx-status');
+        waiting('Loading compliance data', false);
         let res;
         try {
             res = await fetch('/api/v1/compliance/summary');
         } catch (_e) {
             status.textContent = 'unreachable';
+            waiting('Compliance data unreachable. Trying again each minute.', true);
             return;
         }
         if (!res.ok) {
             status.textContent = 'unavailable (' + res.status + ')';
+            waiting('Compliance data unavailable (' + res.status + '). Trying again each minute.', true);
             return;
         }
-        const s = await res.json();
-        noteSource('summary', s.source);
-        status.textContent = s.evidence_available
-            ? s.evidence_records + ' evidence records'
-            : 'no evidence collected yet: every control NOT_ASSESSED';
-        loadFindings();
-        loadProfiles();
-        renderFrameworks(s.frameworks || []);
-        renderMatrix(s.controls || [], s.frameworks || []);
-        renderControls(s.controls || []);
+        let s;
+        try {
+            s = await res.json();
+        } catch (_e) {
+            status.textContent = 'unreadable';
+            waiting('Compliance data unreadable. Trying again each minute.', true);
+            return;
+        }
+        const parts = [loadFindings(), loadProfiles()];
+        try {
+            noteSource('summary', s.source);
+            renderFrameworks(s.frameworks || []);
+            renderMatrix(s.controls || [], s.frameworks || []);
+            renderControls(s.controls || []);
+            await Promise.all(parts);
+            status.textContent = s.evidence_available
+                ? s.evidence_records + ' evidence records'
+                : 'no evidence collected yet: every control NOT_ASSESSED';
+        } finally {
+            reveal();
+        }
     }
 
     load();
