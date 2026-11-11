@@ -112,6 +112,15 @@ while read -r ident uid; do
 	printf '%-20s %-16s %s\n' "$ident" "$kid" "$owner"
 done <"$WORK/ids"
 
+# configs/keys is root's and unlistable, so the Go tool refuses the whole
+# ./... pattern at it (see scripts/gen-dev-certs.sh). A module sentinel ends
+# the walk there; it needs only search permission to be found.
+sentinel="$(dirname "$KEYS_DIR")/go.mod"
+if [[ ! -f "$sentinel" ]]; then
+	printf 'module ignore\n\ngo 1.21\n' >"$sentinel"
+	chmod 0644 "$sentinel"
+fi
+
 # The dev issuer user: one operator, random password, shown once.
 if [[ $RESET_USERS -eq 1 ]]; then
 	rm -f "$USERS_FILE"

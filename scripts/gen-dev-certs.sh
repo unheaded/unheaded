@@ -50,6 +50,11 @@ fi
 
 mkdir -p "$CERT_DIR"
 chmod 0750 "$CERT_DIR"
+# Each service directory below is owned by that service's uid, 0750, so a
+# plain user cannot read it, and the Go tool refuses the whole ./... pattern
+# at the first directory it cannot open. A module sentinel makes ./... stop
+# here: a nested go.mod ends the walk, and it needs no permission to find.
+[[ -f "$CERT_DIR/go.mod" ]] || printf 'module ignore\n\ngo 1.21\n' > "$CERT_DIR/go.mod"
 ARGS=(-out "$CERT_DIR" -ttl "$CERT_VALIDITY" -layout per-service -reuse-ca)
 [[ -n "$SERVICES" ]] && ARGS+=(-services "$SERVICES")
 "$CERTGEN" "${ARGS[@]}"

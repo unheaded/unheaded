@@ -5,6 +5,8 @@ package uids
 
 import (
 	"bufio"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -192,6 +194,16 @@ func altComposeUsers(t *testing.T) map[string][]altService {
 	files := 0
 	err := filepath.WalkDir(root, func(p string, e os.DirEntry, err error) error {
 		if err != nil {
+			// A gitignored runtime directory another account owns (a
+			// service's dev certificate directory, 0750 to its uid; the
+			// dev keys) holds no compose file. On a host with the stack
+			// up it is unreadable; skip it instead of failing the test.
+			if errors.Is(err, fs.ErrPermission) {
+				if e != nil && e.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
 			return err
 		}
 		if e.IsDir() {
