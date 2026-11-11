@@ -268,6 +268,7 @@ func (b *BFF) Handler() http.Handler {
 	mux.HandleFunc("/auth/me", b.me)
 	mux.HandleFunc("/auth/logout", b.logout)
 	mux.HandleFunc("/auth/auth.js", ServeAuthJS)
+	mux.HandleFunc("/auth/nav.js", ServeNavJS)
 	return mux
 }
 

@@ -750,6 +750,7 @@ func (s *Server) setupRoutes() {
 	// The login panel script (pkg/bff), served with auth on or off: with
 	// auth off it finds no /auth/me and shows nothing.
 	s.mux.HandleFunc("/auth/auth.js", bff.ServeAuthJS)
+	s.mux.HandleFunc("/auth/nav.js", bff.ServeNavJS) // the Kingdom menu, with auth on or off
 
 	// Static file serving for dashboard UI
 	var staticFS http.FileSystem

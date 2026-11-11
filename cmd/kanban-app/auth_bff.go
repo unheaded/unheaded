@@ -23,6 +23,7 @@ import (
 // auth.NewServiceHandler. The BFF's eviction loop stops with the server.
 func (s *Server) kanbanAuthRoutes(mux *http.ServeMux, cfg auth.ServiceAuthConfig) (auth.ServiceRoutes, error) {
 	mux.HandleFunc("/auth/auth.js", bff.ServeAuthJS)
+	mux.HandleFunc("/auth/nav.js", bff.ServeNavJS) // the Kingdom menu, with auth on or off
 	routes := auth.ServiceRoutes{OpenReads: []string{"/"}, OpenPaths: []string{"/auth"}}
 	if !cfg.Enabled {
 		return routes, nil
