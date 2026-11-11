@@ -141,7 +141,7 @@ topics:
   # logs.<identity>.<level>.
   permissions:
     unlisted: deny
-    mode: audit
+    mode: enforce
     services:
       akira:
         publish: ["system.health.reports", "system.health.consensus", "system.health.remediate"]

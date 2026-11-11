@@ -30,6 +30,7 @@ func reloadTopicConfigOnHUP(ctx context.Context, hup <-chan os.Signal, cfg *api.
 				Str("config_path", path).
 				Int("added", res.Added).
 				Int("removed", res.Removed).
+				Bool("permissions_changed", res.PermissionsChanged).
 				Msg("topic_config_reloaded")
 		}
 	}
