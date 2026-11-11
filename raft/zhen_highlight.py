@@ -76,10 +76,11 @@ class ZhenStyle(Style):
 _FORMATTER = HtmlFormatter(style=ZhenStyle, nowrap=True, classprefix='hl-')
 
 
-def stylesheet():
-    """CSS for the hl-* classes, scoped to code inside Zhen's answers. Token
-    rules only: get_style_defs() would also emit page-wide pre/linenos rules."""
-    return '\n'.join(_FORMATTER.get_token_style_defs('.msg.zhen pre code'))
+def stylesheet(scope='.msg.zhen pre code'):
+    """CSS for the hl-* classes, scoped to code inside Zhen's answers (or the
+    selector given). Token rules only: get_style_defs() would also emit
+    page-wide pre/linenos rules."""
+    return '\n'.join(_FORMATTER.get_token_style_defs(scope))
 
 
 def lexer_for(info):
@@ -118,6 +119,12 @@ def highlight_blocks(blocks):
         if lexer is None or size > MAX_BLOCK_BYTES or total > MAX_TOTAL_BYTES:
             out.append(None)
             continue
-        # Pygments ends output with a newline the plain rendering doesn't have.
-        out.append(highlight(code, lexer, _FORMATTER).rstrip('\n'))
+        out.append(highlight_one(code, lexer))
     return out
+
+
+def highlight_one(code, lexer):
+    """One block's HTML for a lexer from lexer_for(). The caller keeps its own
+    size limits (the source viewer does, in zhen_markdown.py)."""
+    # Pygments ends output with a newline the plain rendering doesn't have.
+    return highlight(code, lexer, _FORMATTER).rstrip('\n')

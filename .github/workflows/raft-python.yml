@@ -62,7 +62,7 @@ jobs:
           # pkg/zhenrag's pre-move goldens (same stub, no network).
           # Every raft/tests/test_*.py is listed here or named as left out in
           # tests/scripts/test_raft_ci.py, which fails on one that is neither.
-          pytest raft/tests/test_zhen_login.py raft/tests/test_action_manager.py raft/tests/test_zhen_highlight.py raft/tests/test_zhen_rag_retrieve.py raft/tests/test_zhen_prompt.py raft/tests/test_zhen_embedder_pin.py raft/tests/test_zhen_scheduler_client.py raft/tests/test_zhen_rag_strip.py raft/tests/test_zhen_memory_provenance.py raft/tests/test_zhen_redact.py raft/tests/test_zhen_app_pg_log.py raft/tests/test_zhen_socket.py raft/tests/test_zhen_url_scheme.py raft/tests/test_zhen_db_tls.py raft/tests/test_zhen_app_gate.py raft/tests/test_zhen_agentd_proxy.py -v --tb=short
+          pytest raft/tests/test_zhen_login.py raft/tests/test_action_manager.py raft/tests/test_zhen_highlight.py raft/tests/test_zhen_markdown.py raft/tests/test_zhen_rag_retrieve.py raft/tests/test_zhen_prompt.py raft/tests/test_zhen_embedder_pin.py raft/tests/test_zhen_scheduler_client.py raft/tests/test_zhen_rag_strip.py raft/tests/test_zhen_memory_provenance.py raft/tests/test_zhen_redact.py raft/tests/test_zhen_app_pg_log.py raft/tests/test_zhen_socket.py raft/tests/test_zhen_url_scheme.py raft/tests/test_zhen_db_tls.py raft/tests/test_zhen_app_gate.py raft/tests/test_zhen_agentd_proxy.py -v --tb=short
 
       - name: Confirm test_memory_poison.py imports cleanly (syntax only)
         # We don't execute the integration test in CI, but we DO want

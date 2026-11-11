@@ -62,8 +62,8 @@ poisoned — see [`eval/coding-gate/probe-2026-05-02/A1-source-poison.md`](../ev
 | `/api/v1/champion/read` | POST | sandboxed file read |
 | `/api/v1/skills` | GET | list Kingdom skills |
 | `/api/v1/skill/<name>` | GET | get skill content |
-| `/api/v1/source` | GET | view a vor topic in full (used by viewer page) |
-| `/view/source` | GET | HTML page for the source viewer |
+| `/api/v1/source` | GET | a vor topic in full: raw `content`, plus `html`, `outline` and `notes` from `zhen_markdown.py` (`html` is null when the sheet is too large to render) |
+| `/view/source` | GET | the source viewer: constant page `pages/source-view.html` with its own Content-Security-Policy; script and styles in `static/source-view.*` |
 | `/api/v1/stats` | GET | backend + memory-embedder stats |
 | `/api/v1/corpus/stats` | GET | **deprecated** post-WAVE15 (returns deprecation message; was the 6+ min Werkzeug deadlock cause) |
 | `/api/v1/teach` | POST | **deprecated** (returns 410); to add content drop a markdown file under `~/.config/cs/sources/<source>/` |
@@ -99,6 +99,13 @@ where defenses aren't fully closed today. Notable:
   copy; the login failure budget is keyed on it). It reads no other
   forwarding header. A client needs the hybrid group (`X25519MLKEM768`):
   curl on OpenSSL 3.5 or later, a current browser.
+- **Source viewer** (`zhen_markdown.py`): a sheet can be `external`, so
+  its Markdown is treated as hostile. The renderer escapes everything and
+  emits only its own allow-listed tags; raw HTML shows as text, HTML
+  comments show as marked blocks, links are followed only for `http`,
+  `https`, `mailto` and in-page `#`, and images are named, never fetched.
+  The page checks the tags again and the route's policy allows no inline
+  script or style and no images. No Markdown library is involved.
 
 When adding new mutation endpoints, route through the daemon at
 `/api/v1/tool/exec` with a `direct-user` justification chain. That
