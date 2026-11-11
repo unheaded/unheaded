@@ -23,7 +23,7 @@
 // Endpoints:
 //
 //	GET /              Redirect to /wiki/
-//	GET /wiki/         Wiki homepage (README.md)
+//	GET /wiki/         Wiki homepage (Home.md, or README.md without one)
 //	GET /wiki/{page}   Render wiki/{page}.md as HTML
 //	GET /health        Health check (200 OK)
 //	GET /ready         Readiness probe (200 OK)
@@ -108,9 +108,12 @@ type NavItem struct {
 type PageData struct {
 	Title      string
 	Content    template.HTML
-	NavItems   []NavItem
 	ActiveSlug string
 	Version    string
+	// NavGroups is the sidebar: the sections of wiki/_Sidebar.md (nav.go).
+	NavGroups []NavGroup
+	// HomeActive marks the pinned Top link when the homepage is being shown.
+	HomeActive bool
 }
 
 // NewWikiServer creates a new wiki server.
@@ -206,7 +209,7 @@ func slugToTitle(slug string) string {
 
 // renderPage reads a markdown file and renders it as HTML.
 func (ws *WikiServer) renderPage(slug string) (string, string, error) {
-	filename := "README.md"
+	filename := ws.rootFile()
 	if slug != "" {
 		filename = slug + ".md"
 	}
@@ -283,9 +286,10 @@ func (ws *WikiServer) handleWiki(w http.ResponseWriter, r *http.Request) {
 	data := PageData{
 		Title:      title,
 		Content:    template.HTML(content), // #nosec G203 -- goldmark no longer emits raw HTML (WithUnsafe removed); block HTML is dropped, inline HTML entity-escaped
-		NavItems:   ws.listPages(),
 		ActiveSlug: path,
 		Version:    serviceVersion,
+		NavGroups:  ws.navGroups(path),
+		HomeActive: path == "" || path+".md" == ws.rootFile(),
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -552,7 +556,8 @@ const pageTemplate = `<!DOCTYPE html>
             flex-shrink: 0;
         }
 
-        .sidebar-home:hover {
+        .sidebar-home:hover,
+        .sidebar-home.active {
             background: var(--bg-tertiary);
         }
 
@@ -567,9 +572,53 @@ const pageTemplate = `<!DOCTYPE html>
             list-style: none;
         }
 
+        .nav-group {
+            margin-bottom: 12px;
+        }
+
+        .nav-group h2 {
+            padding: 8px 20px 4px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--text-heading);
+            opacity: 0.55;
+        }
+
+        .sidebar nav summary {
+            padding: 4px 20px;
+            font-size: 13px;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .sidebar nav summary:hover {
+            color: var(--text-primary);
+        }
+
+        .sidebar nav li.sub a,
+        .sidebar nav li.sub .nav-missing {
+            padding-left: 36px;
+            font-size: 13px;
+        }
+
+        .nav-note {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        .nav-missing {
+            display: block;
+            padding: 4px 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            opacity: 0.5;
+        }
+
         .sidebar nav a {
             display: block;
-            padding: 8px 20px;
+            padding: 4px 20px;
             color: var(--text-secondary);
             text-decoration: none;
             font-size: 14px;
@@ -797,15 +846,24 @@ const pageTemplate = `<!DOCTYPE html>
                 </a>
             </div>
             <div class="sidebar-links">
-                <a href="http://192.168.69.184:20000">Dashboard</a> | <a href="http://192.168.69.184:20001">Kanban</a> | <a href="http://192.168.69.184:20103">Zhenai</a>
+                <a href="https://192.168.69.184:20000">Dashboard</a> | <a href="https://192.168.69.184:20001">Kanban</a> | <a href="https://192.168.69.184:20103">Zhenai</a>
             </div>
-            <a href="/wiki/" class="sidebar-home">&#8962; Top</a>
+            <a href="/wiki/" class="sidebar-home{{if .HomeActive}} active{{end}}">&#8962; Top</a>
             <nav>
-                <ul>
-                {{range .NavItems}}
-                    <li><a href="/wiki/{{.Slug}}" class="{{if eq .Slug $.ActiveSlug}}active{{end}}">{{.Title}}</a></li>
+                {{range .NavGroups}}
+                <section class="nav-group">
+                    {{if .Title}}<h2>{{.Title}}</h2>{{end}}
+                    {{range .Blocks}}
+                    {{if .Summary}}{{if .Open}}<details open>{{else}}<details>{{end}}<summary>{{.Summary}}</summary>{{end}}
+                    <ul>
+                    {{range .Items}}
+                        <li class="{{if .Sub}}sub{{end}}">{{if .Missing}}<span class="nav-missing">{{.Title}}{{if .Note}} <span class="nav-note">{{.Note}}</span>{{end}}</span>{{else}}<a href="/wiki/{{.Slug}}" class="{{if .Active}}active{{end}}">{{.Title}}{{if .Note}} <span class="nav-note">{{.Note}}</span>{{end}}</a>{{end}}</li>
+                    {{end}}
+                    </ul>
+                    {{if .Summary}}</details>{{end}}
+                    {{end}}
+                </section>
                 {{end}}
-                </ul>
             </nav>
             <div class="sidebar-footer">
                 <p>v{{.Version}}</p>
@@ -817,6 +875,10 @@ const pageTemplate = `<!DOCTYPE html>
     </div>
     </div>
     <script>
+    (function(){
+        var n=document.querySelector('.sidebar nav'),a=n&&n.querySelector('a.active');
+        if(a){n.scrollTop+=a.getBoundingClientRect().top-n.getBoundingClientRect().top-n.clientHeight/2;}
+    })();
     (function(){
         var c=document.getElementById('particle-canvas'),x=c.getContext('2d'),
             ps=[],N=50,W,H,dpr=window.devicePixelRatio||1;

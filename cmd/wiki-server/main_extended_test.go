@@ -665,7 +665,7 @@ func TestPageData_Fields(t *testing.T) {
 	pd := PageData{
 		Title:      "Test",
 		Content:    "<p>Hello</p>",
-		NavItems:   []NavItem{{Slug: "a", Title: "A"}},
+		NavGroups:  []NavGroup{{Blocks: []NavBlock{{Items: []NavEntry{{Slug: "a", Title: "A"}}}}}},
 		ActiveSlug: "a",
 		Version:    "1.0",
 	}
@@ -675,8 +675,8 @@ func TestPageData_Fields(t *testing.T) {
 	if pd.Version != "1.0" {
 		t.Error("PageData Version mismatch")
 	}
-	if len(pd.NavItems) != 1 {
-		t.Error("PageData NavItems count mismatch")
+	if len(pd.NavGroups) != 1 {
+		t.Error("PageData NavGroups count mismatch")
 	}
 }
 
