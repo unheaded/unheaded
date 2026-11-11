@@ -18,7 +18,7 @@ What was found and why nothing is lost: `docs/sweeps/ONE-GRAFANA-INVENTORY-2026-
 The compose stacks mount files from the `develop` checkout (`~/tmp/unheaded`), so the merge itself changes what running containers see:
 
 - `monitoring/grafana/dashboards/` is deleted. Both Grafanas mount that directory: from the moment of the merge the Grafana on 3001 shows no dashboards, until step 2 recreates it.
-- `monitoring/prometheus/` is a directory mount. Prometheus sees the new `prometheus.yml` at once but acts on it only at a reload (step 5) **or at its next restart**. After that it stops forwarding scraped series to the store. If Prometheus restarts before step 3, the dashboards lose their host series until step 3 is done. So: merge, then go straight through step 5.
+- `monitoring/prometheus/` is a directory mount. Prometheus sees the new `prometheus.yml` at once but acts on it only at a reload (step 5) **or at its next restart**. After that it stops forwarding scraped series to VictoriaMetrics. If Prometheus restarts before step 3, the dashboards lose their host series until step 3 is done. So: merge, then go straight through step 5.
 - `config/victoria/scrape.yml` is a single-file mount. The running VictoriaMetrics keeps the file it started with until it is recreated (step 3).
 
 To split the work, merge `99e18bbb` first (dashboards and scrape hand-over, nothing deleted), run steps 1 to 6, and merge the rest of the branch before step 7.
@@ -92,7 +92,7 @@ ssh east "curl -fsS -g 'http://[fd00:dead:beef::1]:8428/-/healthy'"
 
 All three must answer. The second and third are the publish on the overlay address, which Prometheus's remote-write uses. East's huginn pushes to the `UNHEADED_P2P_BIND` address: `ssh east 'journalctl -u huginn --since -5min | tail -5'` should show no push errors after the first minute. It has not been exercised with an IPv6-enabled container before: **if either fails, roll this step back.**
 
-**Rollback:** in `docker-compose.yml` remove `- scrape` from `victoria`'s `networks:` and the `-enableTCP6` line, `sudo docker compose up -d victoria`, and do not run step 5. The store is then as before and Prometheus still forwards everything.
+**Rollback:** in `docker-compose.yml` remove `- scrape` from `victoria`'s `networks:` and the `-enableTCP6` line, `sudo docker compose up -d victoria`, and do not run step 5. VictoriaMetrics is then as before and Prometheus still forwards everything.
 
 ## 4. Targets
 
@@ -145,7 +145,7 @@ Expect 19 targets (was 46), both counts non-empty, and a failure rate of 0.
 
 ## 6. Look
 
-Open the eight dashboards on `http://<west>:3001`. Host panels come from the store's own scrapes now. Series that used to arrive through Prometheus carried `cluster` and `env` labels; the scraped ones do not, so a graph may show a seam at the minute of step 5 and the old series end there.
+Open the eight dashboards on `http://<west>:3001`. Host panels come from VictoriaMetrics's own scrapes now. Series that used to arrive through Prometheus carried `cluster` and `env` labels; the scraped ones do not, so a graph may show a seam at the minute of step 5 and the old series end there.
 
 `09_compliance` stays empty until `cmd/unheaded-baseline` runs.
 
