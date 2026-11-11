@@ -583,7 +583,7 @@ services:
   # TIER 2: DASHBOARD (Visor / Crest)
   # =========================================================================
 
-  # --- Grafana for dev visualization (supplements custom dashboards) ---
+  # --- Grafana: the Kingdom's only one (ADR-117). Supplements the custom dashboards. ---
   grafana:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
@@ -609,10 +609,14 @@ services:
       GF_PATHS_DATA: /tmp
       GF_PATHS_PLUGINS: /tmp/plugins
       GF_PATHS_LOGS: /tmp/log
+      # 11.x fetches two app plugins from grafana.com at every start (Loki
+      # explore, Pyroscope; found in /tmp/plugins on west, 2026-11-11). No
+      # dashboard uses a plugin: nothing is downloaded at run time.
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
     volumes:
       - ./config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      # The provider file and the dashboards it loads (kingdom/) are one mount.
       - ./config/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
-      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
       # 3001 to avoid conflict with Fiber on :3000. Traefik has no Grafana route,
       # so a browser on another host needs UNHEADED_LAN_BIND (see dashboard-backend).

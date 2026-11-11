@@ -7,7 +7,13 @@ providers:
     type: file
     disableDeletion: false
     updateIntervalSeconds: 30
+    # An edit made in the browser lasts until the container restarts (its
+    # state is on tmpfs); to keep one, change the JSON here.
     allowUiUpdates: true
     options:
-      path: /var/lib/grafana/dashboards
+      # Beside this file, in the same mount (docker-compose.yml, grafana).
+      # Every dashboard here names the datasource by uid "victoriametrics"
+      # (datasources/victoriametrics.yml). What is here and what was left
+      # behind: docs/sweeps/ONE-GRAFANA-INVENTORY-2026-11-11.md.
+      path: /etc/grafana/provisioning/dashboards/kingdom
       foldersFromFilesStructure: false
