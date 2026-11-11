@@ -38,7 +38,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "id": 1,
       "type": "stat",
@@ -91,7 +91,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "unheaded_baseline_soak_clean_seconds / 86400",
           "legendFormat": "{{instance}}",
@@ -103,7 +103,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "id": 2,
       "type": "stat",
@@ -156,7 +156,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "increase(unheaded_baseline_would_enforce_total[7d])",
           "legendFormat": "{{instance}}",
@@ -180,7 +180,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "id": 3,
       "type": "timeseries",
@@ -214,7 +214,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "unheaded_baseline_deviations",
           "legendFormat": "deviations {{instance}}",
@@ -223,7 +223,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "unheaded_baseline_would_enforce",
           "legendFormat": "would enforce {{instance}}",
@@ -234,7 +234,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "id": 4,
       "type": "timeseries",
@@ -268,7 +268,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "unheaded_baseline_enforcing",
           "legendFormat": "enforcing {{instance}}",
@@ -277,7 +277,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "increase(unheaded_baseline_enforced_total[1h])",
           "legendFormat": "applies/h {{instance}}",
@@ -286,7 +286,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "unheaded_baseline_critical_events",
           "legendFormat": "critical {{instance}}",
@@ -295,7 +295,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "unheaded_baseline_breaker_open",
           "legendFormat": "breaker {{fix}} {{instance}}",

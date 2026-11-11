@@ -38,7 +38,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "description": "Share of each SLO's 28-day error budget still unspent (slo:error_budget_remaining, from observability/alerting/policy.yaml). Red: spent (0 or below). Amber: under a quarter left. A budget below zero means the SLO was missed over the window.",
       "fieldConfig": {
@@ -93,7 +93,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "slo:error_budget_remaining",
           "legendFormat": "{{slo}}",
@@ -107,7 +107,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "description": "1 when the SLI is good this minute (slo:good); a missing series counts as bad.",
       "fieldConfig": {
@@ -158,7 +158,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "slo:good",
           "legendFormat": "{{slo}}",
@@ -184,7 +184,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "description": "How many times faster than sustainable each SLO spends its budget over the last hour. 1x spends exactly the budget over 28 days; the fast tier pages at 14.4x (with the 5m window agreeing), the medium tier at 6x over 6h.",
       "fieldConfig": {
@@ -251,7 +251,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           }
         }
       ],
@@ -261,7 +261,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "description": "The medium (6h, 6x) and steady (3d, 1x) tiers' long windows: a slow leak shows here before it pages.",
       "fieldConfig": {
@@ -328,7 +328,7 @@
           "refId": "A",
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           }
         },
         {
@@ -337,7 +337,7 @@
           "refId": "B",
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           }
         }
       ],
@@ -359,7 +359,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "description": "ErrorBudgetBurn alerts firing now, with tier and urgency (page mails at once; ticket waits for the 09:00 digest).",
       "fieldConfig": {
@@ -380,7 +380,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "P4169E866C3094E38"
+            "uid": "victoriametrics"
           },
           "expr": "ALERTS{alertname=\"ErrorBudgetBurn\",alertstate=\"firing\"}",
           "format": "table",

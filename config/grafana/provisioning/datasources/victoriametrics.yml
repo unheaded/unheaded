@@ -2,6 +2,9 @@ apiVersion: 1
 
 datasources:
   - name: VictoriaMetrics
+    # Fixed, so dashboards name it. Without it Grafana derives a uid from the
+    # name (P4169E866C3094E38), which twelve dashboards used and two did not.
+    uid: victoriametrics
     type: prometheus
     access: proxy
     url: http://victoria:8428

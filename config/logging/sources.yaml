@@ -558,37 +558,7 @@ sources:
     canary: http-get
     owner: architect
     status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
-  - id: west/monitoring-grafana
-    host: west
-    kind: journal-container
-    match: unheaded-monitoring-grafana
-    retention: operational
-    max_silence: 24h
-    canary: http-get
-    owner: architect
-    status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
-  - id: west/monitoring-loki
-    host: west
-    kind: journal-container
-    match: unheaded-monitoring-loki
-    retention: operational
-    max_silence: 24h
-    canary: "none: storage; lifecycle lines only"
-    owner: architect
-    status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
-  - id: west/monitoring-victoriametrics
-    host: west
-    kind: journal-container
-    match: unheaded-monitoring-victoriametrics
-    retention: operational
-    max_silence: 24h
-    canary: "none: storage; lifecycle lines only"
-    owner: architect
-    status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+    note: "alert path (monitoring/docker-compose.yml); D5 applies; ADR-117 retired this stack's grafana, loki and victoriametrics on 2026-11-11, prometheus stays as rule evaluator"
   - id: west/monitoring-alertmanager
     host: west
     kind: journal-container
@@ -598,7 +568,7 @@ sources:
     canary: http-get
     owner: architect
     status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+    note: "alert path (monitoring/docker-compose.yml); D5 applies; ADR-117 retired this stack's grafana, loki and victoriametrics on 2026-11-11, prometheus stays as rule evaluator"
   - id: west/monitoring-alert-mailer
     host: west
     kind: journal-container
@@ -608,7 +578,7 @@ sources:
     canary: http-get
     owner: architect
     status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+    note: "alert path (monitoring/docker-compose.yml); D5 applies; ADR-117 retired this stack's grafana, loki and victoriametrics on 2026-11-11, prometheus stays as rule evaluator"
   - id: west/monitoring-volume-init
     host: west
     kind: journal-container
@@ -618,7 +588,7 @@ sources:
     canary: "none: storage; lifecycle lines only"
     owner: architect
     status: gap
-    note: "monitoring stack (monitoring/docker-compose.yml); D5 applies; ADR-117 may retire prometheus, loki and this grafana"
+    note: "alert path (monitoring/docker-compose.yml); D5 applies; ADR-117 retired this stack's grafana, loki and victoriametrics on 2026-11-11, prometheus stays as rule evaluator"
   - id: pihole/pihole-log
     host: pihole
     kind: lxd-file

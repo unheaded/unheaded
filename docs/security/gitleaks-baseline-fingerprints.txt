@@ -9,7 +9,6 @@ docs/bare-metal/WIREGUARD_TUNNEL.md:curl-auth-user:459
 docs/bare-metal/WIREGUARD_TUNNEL.md:curl-auth-user:487
 docs/battle-plans/tools/anamnesis-lite-battle-plan.md:curl-auth-header:1543
 eval/coding-gate/probe-2026-05-02/A2-agent-adversarial.md:generic-api-key:115
-monitoring/grafana/README.md:curl-auth-header:187
 nix/yggdrasil/packer/template.pkr.hcl:hashicorp-tf-password:127
 pkg/auth/apikey_test.go:generic-api-key:199
 pkg/auth/apikey_test.go:generic-api-key:26

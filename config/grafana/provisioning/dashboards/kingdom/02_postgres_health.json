@@ -25,7 +25,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -63,7 +63,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "huginn_pg_up",
           "instant": true,
           "legendFormat": "{{db}}",
@@ -74,7 +74,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -109,7 +109,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "huginn_pg_size_bytes",
           "instant": true,
           "legendFormat": "{{db}}",
@@ -120,7 +120,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -154,7 +154,7 @@
       "type": "stat",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "huginn_pg_connections",
           "instant": true,
           "legendFormat": "{{db}}",
@@ -165,7 +165,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -211,7 +211,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "huginn_pg_connections",
           "legendFormat": "{{db}}",
           "refId": "A"
@@ -221,7 +221,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -270,7 +270,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "huginn_pg_cache_hit_ratio",
           "legendFormat": "{{db}}",
           "refId": "A"
@@ -280,7 +280,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -323,13 +323,13 @@
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "rate(huginn_pg_commits_total[5m])",
           "legendFormat": "{{db}} commits",
           "refId": "A"
         },
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "rate(huginn_pg_rollbacks_total[5m])",
           "legendFormat": "{{db}} rollbacks",
           "refId": "B"
@@ -339,7 +339,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -382,7 +382,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "huginn_pg_locks",
           "legendFormat": "{{db}}",
           "refId": "A"
@@ -392,7 +392,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "P4169E866C3094E38"
+        "uid": "victoriametrics"
       },
       "fieldConfig": {
         "defaults": {
@@ -438,7 +438,7 @@
       "type": "timeseries",
       "targets": [
         {
-          "datasource": { "type": "prometheus", "uid": "P4169E866C3094E38" },
+          "datasource": { "type": "prometheus", "uid": "victoriametrics" },
           "expr": "rate(huginn_pg_deadlocks_total[5m])",
           "legendFormat": "{{db}}",
           "refId": "A"

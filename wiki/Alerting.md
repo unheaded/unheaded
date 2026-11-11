@@ -44,7 +44,7 @@ not count, a stale reader counts as red. Runbook `runbooks/observe/ci-red.yaml`
 (an SLO may name its own runbook in the policy; the rest share
 `slo-error-budget-burn.yaml`).
 
-The Grafana dashboard **SLO Error Budget** (`monitoring/grafana/dashboards/08_slo_error_budget.json`)
+The Grafana dashboard **SLO Error Budget** (`config/grafana/provisioning/dashboards/kingdom/08_slo_error_budget.json`)
 shows each SLO's budget left (red when spent, amber under a quarter), the
 burn rate over 1 h, 6 h and 3 d against the tier thresholds, and what is
 burning now.

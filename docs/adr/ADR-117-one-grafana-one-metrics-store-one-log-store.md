@@ -4,6 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-117: One Grafana, one metrics store, one log store
 
+**Status (2026-11-11):** Accepted for work, in part. Stevie, 2026-11-11, after asking why west has two Grafanas: "go for it in background". Built on branch `sprint/s-one-grafana` and applied to no host: one Grafana, one metrics store, the three duplicates out of the files. Prometheus stays as the rule evaluator; its retirement is an open question. See "Status 2026-11-11" at the end. The next line is the 2026-11-03 status, kept as written.
 **Status:** Proposed (parked under ADR-112). Stevie asked for this ADR on 2026-11-03 (ADR-115 Q7: "yes, write the store-convergence ADR"). Nothing is built.
 **Date:** 2026-11-03
 **Grounded on:** `develop` at `222f2fcd`, plus the stopped containers on west.
@@ -74,3 +75,36 @@ From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 ## Decisions 2026-11-04 (decision pack, round 3)
 
 - DP-207: the leanest, cleanest long-term setup, polish over shortcuts: keep every dashboard worth keeping, rebuild paging rules on the native path before Prometheus retires, fold sophia-eye into the main VictoriaMetrics, retention per retention-policy-v1. Log store: ClickHouse through E1, then a measured week shipping to both, Postgres (the Well) favoured if the numbers are close; this may reopen S-LOG-HARVEST D1.
+
+## Status 2026-11-11
+
+Stevie's word on 2026-11-11 ("go for it in background") took this ADR out of the freeze for the Grafana and metrics halves. Work is on `sprint/s-one-grafana`; applying it to west is `docs/runbooks/one-grafana-cutover.md`. What west ran before: `docs/sweeps/ONE-GRAFANA-INVENTORY-2026-11-11.md`.
+
+Against the steps above:
+
+| Step | State |
+|---|---|
+| 1 Inventory | Done. The Context table's monitoring column names `docker/telemetry/`; the stack that runs is `monitoring/docker-compose.yml`. Both Grafanas served the same 14 files from the main store; Loki held 0 streams; the second VictoriaMetrics held 0 series |
+| 2 Port scrapes and dashboards | Done. `config/victoria/scrape.yml` scrapes both hosts (21 jobs, 27 targets); eight dashboards provisioned under `config/grafana/provisioning/dashboards/kingdom/`; seven with no emitter were not ported. No Loki panel existed to repoint |
+| 3 Alert rules to the native path | **Not done: there is no native path to move them to.** See the question below |
+| 4 Retire | Done in the files for the second Grafana, Loki, the second VictoriaMetrics and `docker/telemetry/`. `kubernetes/` was already gone. `deploy/sophia-eye`'s Prometheus is untouched. Containers and volumes on west go in the runbook, after a copy of the Grafana database |
+| 5 Re-pin | Done: `scripts/check-image-drift.sh` compares running containers with the compose pins |
+| 6 Record the drop | Done: `docs/policy/third-party-inventory-2026-11-11-one-grafana.md`. Three duplicates gone, not four: Prometheus stays |
+
+Answers to the open questions: Q1, none of the monitoring stack's dashboards was unique to it. Q2, yes: `policy.yaml` pages on SLO burn and on `HeartbeatMissing`, all evaluated by Prometheus. Q3, moot. Q4 and Q5, unchanged (DP-207).
+
+### Question for Stevie: what evaluates the alert rules
+
+84 alerting and 35 recording rules run in Prometheus. Nothing in the tree can take them: `cmd/healthprobe` is a container health check, `cmd/alert-policy` generates files, ADR-116's warden is not built, and single-node VictoriaMetrics evaluates no alerting rules. DP-207 says paging rules are rebuilt on the native path before Prometheus retires.
+
+- **A. Keep Prometheus as the evaluator until ADR-116's warden exists (recommended).** Nothing new, nothing to build now. One image and its 1 G ceiling stay. Prometheus already forwards only rule results to the store.
+- **B. Build a native evaluator now.** First-party Go: read `monitoring/prometheus/rules/*.yml`, query the store, keep `for:` state, post to Alertmanager. Prometheus goes. A sprint of its own, and it is the thing that pages, so it needs ADR-116's own watchdog first.
+- **C. `vmalert`.** Least work. A new third-party image, which step 3 above rules out and the 2026-10-29 policy needs confirmed.
+- **D. Grafana alerting.** No new image. Rules move into Grafana, `cmd/alert-policy` has to emit Grafana provisioning, and the Grafana whose state is on tmpfs becomes the thing that pages.
+
+### Smaller questions
+
+1. Grafana reports usage and checks for updates at grafana.com by default. Turn both off in `docker-compose.yml`?
+2. Log panels in Grafana need the ClickHouse datasource plugin, which is third party. Confirm it, or keep logs in the dashboard's own log page?
+3. The seven dashboards with no emitter (eBPF pipeline, LLM inference, services, load balancers, container fleet, firewall, routing): rebuild each when its emitter exists, or leave them in history?
+4. `deploy/sophia-eye`'s Prometheus: fold into the main store when that stack next runs (DP-207), or now?

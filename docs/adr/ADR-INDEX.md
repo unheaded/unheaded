@@ -1,6 +1,6 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-11-06
+**Last updated:** 2026-11-11
 **Total:** 134 entries (ADR-001 to ADR-137, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
@@ -16,12 +16,12 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day).
 
 | Status | Count |
 |--------|-------|
-| Accepted | 62 |
-| Proposed | 36 |
+| Accepted | 63 |
+| Proposed | 35 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -176,7 +176,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [114](ADR-114-user-authentication-for-every-web-page.md) | User authentication for every web page, one login for all (recommended: central IdP + one gate in front of every page + signed per-app passport + pushed revocation, after Google IAP/BeyondCorp, Netflix Passport, Microsoft CAE); BFF/gate/OIDC code flow per page type; outside-library decision per need (recommendation: zero new modules; WebAuthn native-minimal vs go-webauthn open) | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [115](ADR-115-smallest-install-for-a-shop-owner.md) | The smallest install a shop owner can run ("Unheaded Shop", name TBD): an aid, not a promise; preflight keeps a badly configured app offline; gate, firewall, egress allowlist, sandbox, change detection, updates, backups, plain report; one binary + one deb | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [116](ADR-116-monitor-the-monitors.md) | Monitor the monitors: every expected signal has a stated expectation and its absence is an alert; expectations registry + CI gate, out-of-stack wardens with mutual heartbeats, proven alert delivery, volume-drop and artifact-freshness checks (high emphasis) | **Proposed** (pitch, parked under ADR-112) | 2026-10-31 |
-| [117](ADR-117-one-grafana-one-metrics-store-one-log-store.md) | One Grafana, one metrics store, one log store: converge the duplicated observability stores (two Grafanas, Prometheus + two VictoriaMetrics, Loki + ClickHouse) before Studio is sized | **Proposed** (parked under ADR-112; from ADR-115 Q7) | 2026-11-03 |
+| [117](ADR-117-one-grafana-one-metrics-store-one-log-store.md) | One Grafana, one metrics store, one log store: converge the duplicated observability stores (two Grafanas, Prometheus + two VictoriaMetrics, Loki + ClickHouse) before Studio is sized | **Accepted** for work, in part (Stevie 2026-11-11; built on `sprint/s-one-grafana`, applied to no host; Prometheus stays as rule evaluator, open question) | 2026-11-03 |
 | [118](ADR-118-pi-hole-twice-behind-one-front.md) | Pi-hole twice (Docker and LXD) behind one DNS front on west: two instances yes; HAProxy only for 53/tcp and 853 (it does not balance UDP); a native UDP front with health checks (B) or nft two-backend DNAT (A) for the UDP path; never 0.0.0.0:53 (LXD dnsmasq) | **Proposed** (pitch, parked under ADR-112) | 2026-11-03 |
 | [119](ADR-119-shield-xdp-pqc-fast-path-design.md) | Shield XDP post-quantum signature fast path, designed with both ends (userspace ML-DSA-65 verifier as the only map writer, PQC_SIG_STATUS contract, OFF/OPTIMISTIC/PESSIMISTIC states, verifier budget, threat model, four stages behind a cargo feature); nothing built | **Proposed** (parked under ADR-112; Stevie 2026-11-03: design it properly, build after the freeze) | 2026-11-03 |
 | [120](ADR-120-estimated-energy-per-llm-request.md) | Estimated energy per LLM request in the Well: sampled GPU power integrated per local request, NULL for Claude until a defensible published figure exists; joules per answer beside quality in the routing evals | **Proposed** (Stevie's word 2026-11-04; carried by S-ZHEN-POLISH) | 2026-11-04 |

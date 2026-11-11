@@ -50,7 +50,7 @@ Layer 1: Data Plane (eBPF)
 Layer 0: Infrastructure
   LXD / containerd / NixOS / Docker (interchangeable runtimes)
   Host OS (Linux, kernel 6.x+)
-  Network: compose bridges control/data/observe (172.28.0-2.0/24); LXD lxdbr0 (10.10.10.0/24) in lxd/
+  Network: compose bridges control/data/observe (172.28.0-2.0/24) and scrape (172.28.6.0/24, IPv6); LXD lxdbr0 (10.10.10.0/24) in lxd/
 ```
 
 ---
@@ -180,7 +180,7 @@ stack runs it for detection only.
 
 ### Internal Network (Docker Compose)
 
-Three bridge networks; services publish their Doom Range port (see
+Four bridge networks; services publish their Doom Range port (see
 [[Port Registry|Port-Registry]]):
 
 | Network | Subnet | Members |
@@ -188,6 +188,7 @@ Three bridge networks; services publish their Doom Range port (see
 | `control` | 172.28.0.0/24 | wotan, cuirass, coredns, traefik |
 | `data` | 172.28.1.0/24 | every Kingdom service, The Well, akira |
 | `observe` | 172.28.2.0/24 | VictoriaMetrics, ClickHouse, Vector, Grafana, dashboard-backend |
+| `scrape` | 172.28.6.0/24, fd00:d0c0:e706::/64 | VictoriaMetrics only: IPv6, to scrape overlay addresses |
 
 The Well publishes `127.0.0.1:5432` only; ClickHouse `127.0.0.1` only.
 The older LXD design (`lxdbr0`, 10.10.10.0/24) remains in `lxd/`.
