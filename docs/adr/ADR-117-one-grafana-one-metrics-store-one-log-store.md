@@ -93,6 +93,8 @@ Against the steps above:
 
 Answers to the open questions: Q1, none of the monitoring stack's dashboards was unique to it. Q2, yes: `policy.yaml` pages on SLO burn and on `HeartbeatMissing`, all evaluated by Prometheus. Q3, moot. Q4 and Q5, unchanged (DP-207).
 
+**Applied to west 2026-11-11** (17:21Z to 17:46Z, `docs/runbooks/one-grafana-cutover.md`, all ten steps). Stevie's words: "go ahead with this" for steps 1 to 6, "go ahead with steps 7-9" for the rest. West now runs one Grafana (3001, 11.5.1) and one VictoriaMetrics (`unheaded-victoria`, 8428) that scrapes both hosts itself; Prometheus has 19 targets and forwards rule results only. The second Grafana, Loki and the second VictoriaMetrics are removed with their volumes. The old Grafana's database is copied to `/srv/backups/unheaded-grafana-10.4/` on west (root only): one user row, 15 dashboard rows, all provisioned from files, none made by hand. The line "applied to no host" in the header above is as written before the cut-over.
+
 ### Question for Stevie: what evaluates the alert rules
 
 84 alerting and 35 recording rules run in Prometheus. Nothing in the tree can take them: `cmd/healthprobe` is a container health check, `cmd/alert-policy` generates files, ADR-116's warden is not built, and single-node VictoriaMetrics evaluates no alerting rules. DP-207 says paging rules are rebuilt on the native path before Prometheus retires.
