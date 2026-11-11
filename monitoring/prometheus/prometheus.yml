@@ -1,5 +1,12 @@
-# Prometheus configuration - Primary observability host (Forge, host-a)
+# Prometheus configuration - west
 # Unheaded Kingdom infrastructure
+#
+# What this Prometheus is for since 2026-11-11 (ADR-117): it evaluates the
+# alert and recording rules (rules/*.yml) and hands firing alerts to
+# Alertmanager. It scrapes the targets those rules read, keeps 30 days, and
+# is not the metrics store: VictoriaMetrics in docker-compose.yml scrapes the
+# same targets itself (config/victoria/scrape.yml) and is what Grafana reads.
+# A job added here for a rule needs the same job there for a dashboard.
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 
@@ -45,105 +52,15 @@ scrape_configs:
       - targets: ['[fd00:dead:beef::1]:9110']
         labels: {host: west}
 
-  # FRR exporter (host-a only)
-  - job_name: frr_exporter
-    static_configs:
-      - targets:
-          - '[fd00:dead:beef::1]:9342'
-
-  # BIRD exporter (host-b only)
-  - job_name: bird_exporter
-    static_configs:
-      - targets:
-          - '[fd00:dead:beef::2]:9324'
-
-  # Routing health checks
-  - job_name: routing_health
-    metrics_path: /metrics
-    static_configs:
-      - targets:
-          - '[fd00:dead:beef::1]:8080'
-          - '[fd00:dead:beef::2]:8080'
-
-  # Doom Range services (16666-16689)
-  - job_name: doom_services
-    static_configs:
-      # Protocol services
-      - targets: ['[fd00:dead:beef::1]:16666']
-        labels:
-          service: "protocol-api"
-      - targets: ['[fd00:dead:beef::1]:16667']
-        labels:
-          service: "dashboard-backend"
-      - targets: ['[fd00:dead:beef::1]:16668']
-        labels:
-          service: "monad"
-      - targets: ['[fd00:dead:beef::1]:16669']
-        labels:
-          service: "sophia"
-      - targets: ['[fd00:dead:beef::1]:16670']
-        labels:
-          service: "anamnesis"
-      - targets: ['[fd00:dead:beef::1]:16672']
-        labels:
-          service: "shield"
-      - targets: ['[fd00:dead:beef::1]:16673']
-        labels:
-          service: "timeguru-svc"
-      - targets: ['[fd00:dead:beef::1]:16674']
-        labels:
-          service: "captain-svc"
-      - targets: ['[fd00:dead:beef::1]:16675']
-        labels:
-          service: "micromanager-svc"
-      - targets: ['[fd00:dead:beef::1]:16676']
-        labels:
-          service: "architect-svc"
-      - targets: ['[fd00:dead:beef::1]:16677']
-        labels:
-          service: "developer-svc"
-      - targets: ['[fd00:dead:beef::1]:16678']
-        labels:
-          service: "blackmage-svc"
-      - targets: ['[fd00:dead:beef::1]:16679']
-        labels:
-          service: "moatghost-svc"
-      - targets: ['[fd00:dead:beef::1]:16680']
-        labels:
-          service: "busboy-svc"
-      - targets: ['[fd00:dead:beef::1]:16681']
-        labels:
-          service: "lore-svc"
-      - targets: ['[fd00:dead:beef::1]:16682']
-        labels:
-          service: "kingdom-svc"
-      - targets: ['[fd00:dead:beef::1]:16683']
-        labels:
-          service: "rfceditor-svc"
-      - targets: ['[fd00:dead:beef::1]:16684']
-        labels:
-          service: "calendar-svc"
-      - targets: ['[fd00:dead:beef::1]:16685']
-        labels:
-          service: "scientist-svc"
-      - targets: ['[fd00:dead:beef::1]:16686']
-        labels:
-          service: "warmonger-svc"
-      - targets: ['[fd00:dead:beef::1]:16687']
-        labels:
-          service: "librarian-svc"
-      - targets: ['[fd00:dead:beef::1]:16688']
-        labels:
-          service: "barrister-svc"
-      - targets: ['[fd00:dead:beef::1]:16689']
-        labels:
-          service: "unheaded-daemon"
+  # Four jobs left this file on 2026-11-11 (ADR-117): frr_exporter,
+  # bird_exporter, routing_health and doom_services (23 targets on the old
+  # 16666-16689 port block). Nothing listens on any of them on either host
+  # and no rule reads them: 27 targets that had only ever read up == 0.
+  # docs/sweeps/ONE-GRAFANA-INVENTORY-2026-11-11.md lists each.
 
   # eBPF trace collector, one per host (host unit unheaded-trace-collector,
   # /metrics on 16671 = pkg/ports.TraceCollectorMetrics); alerts in
-  # rules/collector.yml. 16671 used to sit in doom_services above labelled
-  # "wotan", so the collector was scraped under the wrong name and never
-  # on east. The unit binds loopback unless TRACE_METRICS_ADDR in
+  # rules/collector.yml. The unit binds loopback unless TRACE_METRICS_ADDR in
   # /etc/unheaded/trace-collector.env names the overlay address too.
   - job_name: trace-collector
     static_configs:
@@ -222,10 +139,21 @@ scrape_configs:
       # host, and a target label would rename it to exported_host.
       - targets: ['alert-mailer:19130']
 
+# Only what VictoriaMetrics cannot get for itself goes over: rule results
+# (recorded series all have a colon in the name; ALERTS and ALERTS_FOR_STATE
+# are the alert states) and the two jobs only this container can reach.
+# The SLO dashboard, pkg/sloguard and the compliance evidence read slo:*
+# there. Everything else is scraped there directly; forwarding it too stored
+# each series twice under two instance names.
 remote_write:
   - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'
     queue_config:
       max_samples_per_send: 10000
+    write_relabel_configs:
+      - source_labels: [__name__, job]
+        separator: ';'
+        regex: '([^;]*:[^;]*|ALERTS|ALERTS_FOR_STATE);.*|[^;]*;(alert-mailer|prometheus)'
+        action: keep
 
 rule_files:
   - 'rules/*.yml'

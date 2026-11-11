@@ -96,8 +96,10 @@ IPAddressDeny=any
 IPAddressAllow=localhost
 IPAddressAllow=10.10.20.0/24
 IPAddressAllow=fd00:dead:beef::/48
-# Prometheus' scrape arrives from the monitoring network's own address.
+# The scrapes arrive from the container networks' own addresses:
+# Prometheus (monitoring stack) and VictoriaMetrics (scrape network, ADR-117).
 IPAddressAllow=fd00:d0c0:e703::/64
+IPAddressAllow=fd00:d0c0:e706::/64
 
 [Install]
 WantedBy=multi-user.target

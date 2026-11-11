@@ -4,6 +4,27 @@
 # The listeners accept hybrid groups only (Strict, ADR-105), so the scraper
 # must be built with Go 1.24 or later: v1.108.1 failed every handshake here
 # ("no key exchanges supported by both client and server"), v1.155.0 does not.
+#
+# One scraper (ADR-117, 2026-11-11): this file is the Kingdom's only scrape
+# list of record. The second half, below "Hosts and the second host", came
+# from monitoring/prometheus/prometheus.yml with the same job names, targets
+# and host labels, so dashboards and rule expressions read the same series.
+# Two differences, both on purpose: no "service" target label on wotan and
+# dashboard-backend (Prometheus's overwrote the label those services set on
+# their own series), and huginn's host_* is dropped (huginn pushes it).
+# Prometheus in the monitoring stack still scrapes those targets for as long
+# as it evaluates the alert rules, and forwards only rule results here
+# (remote_write keep list in prometheus.yml), so nothing is stored twice.
+#
+# Not moved, each with its reason (docs/sweeps/ONE-GRAFANA-INVENTORY-2026-11-11.md):
+#   doom_services   23 targets on the old 16666-16689 port block; the services
+#                   moved (pkg/ports) and nothing listens there
+#   frr_exporter    no exporter installed on west; no rule or kept dashboard reads it
+#   bird_exporter   no exporter installed on east; same
+#   routing_health  cmd/routing-health runs on neither host; same
+#   alert-mailer    its metrics port is on the monitoring network and on
+#                   loopback only; Prometheus scrapes it and forwards the series
+#   prometheus      Prometheus's own counters; forwarded the same way
 scrape_configs:
   - job_name: "wotan"
     scrape_interval: 10s
@@ -75,20 +96,31 @@ scrape_configs:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: localhost
 
+  # East runs it as a host unit on 17000, plain HTTP until its debs are
+  # upgraded (S-E1-LIVE Evening 10B); __scheme__ overrides the job's https.
   - job_name: "unheaded-daemon"
     scrape_interval: 10s
     static_configs:
       - targets: ["host.docker.internal:19006"]
+        labels: {host: west}
+      - targets: ["[fd00:dead:beef::2]:17000"]
+        labels: {host: east, __scheme__: http}
     metrics_path: /metrics
     scheme: https
     tls_config:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: localhost
 
+  # One per host: the dashboard SLO (observability/alerting/policy.yaml) is
+  # "up on both". East is plain HTTP until Evening 10B. No host or service
+  # target label: the backend labels its own series (host_*{host=...},
+  # service=...), and a target label would rename those to exported_*.
   - job_name: "dashboard-backend"
     scrape_interval: 10s
     static_configs:
       - targets: ["host.docker.internal:20000"]
+      - targets: ["[fd00:dead:beef::2]:20000"]
+        labels: {__scheme__: http}
     metrics_path: /metrics
     scheme: https
     tls_config:
@@ -148,3 +180,85 @@ scrape_configs:
     tls_config:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: logstore-writer
+
+  # ---------------------------------------------------------------------------
+  # Hosts and the second host (from monitoring/prometheus/prometheus.yml).
+  #
+  # These targets are overlay addresses (fd00:dead:beef::/48 on wg0): host
+  # units that bind the overlay and not docker0, and everything on east. The
+  # observe network is IPv4 only, so the victoria service is also on the
+  # "scrape" network (docker-compose.yml), which has IPv6. On a host with no
+  # overlay these read up == 0 and nothing else changes.
+  # ---------------------------------------------------------------------------
+
+  # deploy/systemd/node-exporter.service on each host. The overlay SLO reads
+  # up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"}.
+  - job_name: "node_exporter"
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "[fd00:dead:beef::1]:9100"
+          - "[fd00:dead:beef::2]:9100"
+
+  # Huginn on west (ADR-084): huginn_pg_up, the log-directory gauges and the
+  # textfile metrics (Well backup, offsite, drill, CI status). It pushes
+  # host_* here itself, so those are dropped from the scrape: one source.
+  - job_name: "huginn"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["[fd00:dead:beef::1]:9110"]
+        labels: {host: west}
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "host_.*"
+        action: drop
+
+  # eBPF trace collector, one per host (unit unheaded-trace-collector, 16671).
+  - job_name: "trace-collector"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["[fd00:dead:beef::1]:16671"]
+        labels: {host: west}
+      - targets: ["[fd00:dead:beef::2]:16671"]
+        labels: {host: east}
+
+  # CISA KEV feed poller, one per host (ADR-055).
+  - job_name: "kev-poller"
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - "[fd00:dead:beef::1]:19120"
+          - "[fd00:dead:beef::2]:19120"
+
+  # Vector's own counters (ADR-092 step 8). docker-compose.yml publishes 9598
+  # on the docker0 gateway only (check-scrape-publish.sh).
+  - job_name: "vector"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["host.docker.internal:9598"]
+
+  # The three below read up == 0 today because nothing serves them yet. Each
+  # has an alert rule that reads it, so the job stays until the thing is
+  # deployed or its rule is parked with it (next.md todo 11, question 19):
+  #   heimdall      no unit runs heimdall-daemon on either host
+  #   syslog-relay  ADR-124 relay not installed on west (S-LOG-HARVEST Step 141)
+  #   zhen-agentd   needs -scheduler -metrics-addr on the overlay address (E4)
+  - job_name: "heimdall"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["[fd00:dead:beef::1]:19101"]
+        labels: {host: west}
+      - targets: ["[fd00:dead:beef::2]:19101"]
+        labels: {host: east}
+
+  - job_name: "syslog-relay"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["[fd00:dead:beef::1]:9599"]
+        labels: {host: west}
+
+  - job_name: "zhen-agentd"
+    scrape_interval: 15s
+    static_configs:
+      - targets: ["[fd00:dead:beef::1]:20111"]
+        labels: {host: west}
