@@ -1,6 +1,13 @@
-# Unheaded Kingdom — Monitoring Stack
-# Deploy on host-a alongside existing services
+# Unheaded Kingdom: the alert path (rule evaluator, Alertmanager, alert-mailer).
 # Usage: docker compose -f monitoring/docker-compose.yml up -d
+#
+# ADR-117 (2026-11-11): the second Grafana, Loki and the second VictoriaMetrics
+# that lived here are retired. Dashboards and the metrics store are the main
+# stack's (docker-compose.yml: grafana, victoria); logs are ClickHouse's.
+# Prometheus stays only to evaluate monitoring/prometheus/rules and hand
+# alerts to Alertmanager, until a native evaluator replaces it (ADR-116).
+# Cut-over on a host that still runs the old three:
+# docs/runbooks/one-grafana-cutover.md.
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
@@ -24,15 +31,12 @@ networks:
 
 volumes:
   prometheus_data:
-  grafana_data:
-  loki_data:
-  victoriametrics_data:
   alertmanager_data:
   alert_mailer_data:
 
 services:
   # One-shot: hands each named volume to its service's uid (pkg/uids). A
-  # fresh volume inherits the image's owner (nobody, 472, 10001), and a volume
+  # fresh volume inherits the image's owner (nobody), and a volume
   # from before 2026-10-20 is owned by those; chown only when it differs.
   volume-init:
     image: alpine:3.24@sha256:3f4d6b32e26703c6082839234f43769d5046b3ac7c910033911d1e71d8cd630a
@@ -45,9 +49,6 @@ services:
       - no-new-privileges:true
     volumes:
       - prometheus_data:/volumes/prometheus
-      - grafana_data:/volumes/grafana
-      - loki_data:/volumes/loki
-      - victoriametrics_data:/volumes/victoriametrics
       - alertmanager_data:/volumes/alertmanager
       - alert_mailer_data:/volumes/alert-mailer
     command:
@@ -56,9 +57,6 @@ services:
       - |
         own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
         own 16700:16700 /volumes/prometheus
-        own 16701:16701 /volumes/grafana
-        own 16702:16702 /volumes/loki
-        own 16703:16703 /volumes/victoriametrics
         own 16709:16709 /volumes/alertmanager
         own 16710:16710 /volumes/alert-mailer
 
@@ -100,116 +98,6 @@ services:
       resources:
         limits:
           cpus: '2.0'
-          memory: 1024M
-    security_opt:
-      - no-new-privileges:true
-
-  grafana:
-    image: grafana/grafana:10.4.0@sha256:f9811e4e687ffecf1a43adb9b64096c50bc0d7a782f8608530f478b6542de7d5
-    # Not unheaded-grafana: docker-compose.yml's Grafana has that name, and
-    # the two stacks run on the same host.
-    container_name: unheaded-monitoring-grafana
-    restart: unless-stopped
-    user: "16701:16701"
-    read_only: true
-    tmpfs:
-      - /tmp:size=64M
-      - /var/log/grafana:uid=16701,gid=16701,size=16M
-    cap_drop: [ALL]
-    ports:
-      - "${GRAFANA_BIND:-127.0.0.1}:3000:3000"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in monitoring/.env - credentials are not stored in this repo}
-      - GF_AUTH_ANONYMOUS_ENABLED=false
-      - GF_SERVER_HTTP_ADDR=0.0.0.0
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
-    networks: [monitoring]
-    depends_on:
-      volume-init:
-        condition: service_completed_successfully
-      prometheus:
-        condition: service_started
-      loki:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-    security_opt:
-      - no-new-privileges:true
-
-  loki:
-    image: grafana/loki:3.0.1@sha256:ac6eb6be00ce34eb6584de508766974da66241cd073c51187f33251f97b4edd5
-    container_name: unheaded-loki
-    restart: unless-stopped
-    user: "16702:16702"
-    read_only: true
-    tmpfs:
-      - /tmp:size=64M
-    cap_drop: [ALL]
-    ports:
-      - "127.0.0.1:3100:3100"   # loopback only: no auth, and the push API would take injected logs
-    volumes:
-      - ./loki:/etc/loki:ro
-      - loki_data:/var/lib/loki
-    command: -config.file=/etc/loki/loki.yaml
-    networks: [monitoring]
-    depends_on:
-      volume-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 512M
-    security_opt:
-      - no-new-privileges:true
-
-  victoriametrics:
-    image: victoriametrics/victoria-metrics:v1.155.0@sha256:f60dc268b54ecf87f6e09d740c2b732838aa9193090cc741417c9f6386a130df
-    container_name: unheaded-victoriametrics
-    restart: unless-stopped
-    user: "16703:16703"
-    read_only: true
-    cap_drop: [ALL]
-    # No host port: docker-compose.yml's VictoriaMetrics owns 8428 on the
-    # host, and Prometheus here remote-writes to that one.
-    volumes:
-      - victoriametrics_data:/storage
-    command:
-      - '--storageDataPath=/storage'
-      - '--retentionPeriod=12'
-      - '--dedup.minScrapeInterval=15s'
-      - '--httpListenAddr=:8428'
-    networks: [monitoring]
-    depends_on:
-      volume-init:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8428/-/healthy"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
           memory: 1024M
     security_opt:
       - no-new-privileges:true

@@ -33,7 +33,7 @@ Outside the Doom Range (infrastructure on standard ports):
 | The Well (PostgreSQL) | 5432 | `127.0.0.1` only, TLS ([[The-Well]]) |
 | Huginn | 9110 | host ([[Service-Huginn]]) |
 | VictoriaMetrics | 8428 | `127.0.0.1`, plus `UNHEADED_P2P_BIND` and `UNHEADED_OVERLAY_BIND` |
-| Grafana | 3001 | `127.0.0.1`, plus `UNHEADED_LAN_BIND`; `monitoring/docker-compose.yml` on 3000: `GRAFANA_BIND`, default `127.0.0.1` |
+| Grafana | 3001 | `127.0.0.1`, plus `UNHEADED_LAN_BIND`. The only Grafana (ADR-117); the monitoring stack's on 3000 is retired |
 | ClickHouse | 8123 / 9000 | `127.0.0.1` |
 | Vector metrics | 9598 | `172.17.0.1` (override `VECTOR_METRICS_BIND`) |
 | syslog-relay (ADR-124) | 514 udp and tcp | `10.10.20.1`, bound by `unheaded-syslog-relay.socket`; LAN after D7; no wildcard; not installed |

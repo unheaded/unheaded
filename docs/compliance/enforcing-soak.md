@@ -71,7 +71,7 @@ snapshot (it cannot judge what enforcing would do), and any state tamper. It
 only runs in audit; once enforcing is in effect it is left alone.
 
 Grafana: **Compliance: Baseline Enforcing Soak**
-(`monitoring/grafana/dashboards/09_compliance.json`): clean days per host, would
+(`config/grafana/provisioning/dashboards/kingdom/09_compliance.json`): clean days per host, would
 enforce over 7 days (must read 0), deviations, applies, critical events, breaker.
 
 PromQL for the check: `increase(unheaded_baseline_would_enforce_total{instance="<host>"}[7d]) == 0`
