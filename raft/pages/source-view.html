@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 Stevie Bellis. -->
+<!-- The source viewer (/view/source). A constant page: nothing from the
+     request is written into it. The script reads ?id= or ?path= and asks
+     /api/v1/source, which returns the sheet already rendered to a fixed set
+     of tags (raft/zhen_markdown.py). The route sends a Content-Security-Policy
+     that allows no inline script or style, so this file has neither. -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Source — Zhenai</title>
+    <!-- The chat page's fonts, same address. Loaded as print and switched on
+         by the script, so a host with no internet does not wait for it. -->
+    <link rel="stylesheet" id="sv-fonts" media="print" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;700&amp;family=Space+Grotesk:wght@300;400;500;700&amp;display=swap">
+    <link rel="stylesheet" href="/api/v1/highlight.css">
+    <link rel="stylesheet" href="/static/source-view.css">
+</head>
+<body>
+    <header class="sv-bar">
+        <a class="sv-home" href="/" title="Back to Zhenai">ZHENAI</a>
+        <div class="sv-head">
+            <div class="sv-title" id="sv-title">Loading…</div>
+            <div class="sv-meta">
+                <span id="sv-meta"></span>
+                <span class="sv-trust" id="sv-trust" hidden></span>
+            </div>
+        </div>
+        <div class="sv-tools">
+            <button type="button" id="sv-outline-btn" title="Show or hide the outline (o)">Outline</button>
+            <span class="sv-seg" role="group" aria-label="View">
+                <button type="button" id="sv-rendered-btn" class="sv-on" title="Rendered view (r)">Rendered</button>
+                <button type="button" id="sv-raw-btn" title="Raw text (r)">Raw</button>
+            </span>
+            <span class="sv-seg" role="group" aria-label="Text size">
+                <button type="button" id="sv-zoom-out" title="Smaller text (-)">−</button>
+                <button type="button" id="sv-zoom-reset" title="Reset text size (0)">100%</button>
+                <button type="button" id="sv-zoom-in" title="Larger text (+)">+</button>
+            </span>
+            <button type="button" id="sv-copy-all" title="Copy the raw text of the whole sheet">Copy</button>
+        </div>
+    </header>
+    <div class="sv-layout">
+        <nav class="sv-outline" id="sv-outline" aria-label="Outline" hidden></nav>
+        <main class="sv-main">
+            <div class="sv-notes" id="sv-notes" hidden></div>
+            <article class="md-body" id="sv-body"></article>
+            <pre class="sv-raw" id="sv-raw" hidden></pre>
+        </main>
+    </div>
+    <script src="/static/source-view.js"></script>
+</body>
+</html>

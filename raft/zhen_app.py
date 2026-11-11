@@ -34,7 +34,6 @@ Features (post-rewire):
 - Skills + runbook listing
 """
 import hmac
-import html
 import io
 import ipaddress
 import json
@@ -54,6 +53,7 @@ from flask import Flask, g, jsonify, request, send_file
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 import zhen_highlight
 import zhen_login
+import zhen_markdown
 import zhen_redact
 import zhen_scheduler_client
 import zhen_socket
@@ -2583,6 +2583,35 @@ def deny_request(approval_id):
 # Source Viewer — view full source content in a new tab
 # ──────────────────────────────────────────────────────────────────────
 
+def _source_payload(topic_id, source, t):
+    """What /api/v1/source answers for one vor topic: the raw text, and the
+    same text rendered for the viewer (raft/zhen_markdown.py). `html` is None
+    when the sheet is too large to render; the page then shows it raw."""
+    content = t.get('content', '')
+    if not isinstance(content, str):
+        content = ''
+    try:
+        rendered = zhen_markdown.render(content)
+    except Exception:  # a renderer bug must not make a sheet unreadable
+        log.exception('source viewer: render failed for %r', topic_id)
+        rendered = {'html': None, 'outline': [],
+                    'notes': ['This sheet could not be rendered. The raw text is shown.']}
+    return {
+        'id':       topic_id,
+        'source':   source,
+        'type':     t.get('source_kind', ''),
+        'trust':    t.get('source_trust', 'canonical'),
+        'label':    t.get('source_label', ''),
+        'title':    t.get('title', ''),
+        'category': t.get('category', ''),
+        'content':  content,
+        'html':     rendered['html'],
+        'outline':  rendered['outline'],
+        'notes':    rendered['notes'],
+        'total_matches': 1,
+    }
+
+
 @app.route('/api/v1/source', methods=['GET'])
 def view_source():
     """Retrieve full content of a vor topic by ID or source path.
@@ -2609,17 +2638,9 @@ def view_source():
             url = f'{rag.vor_url}/api/topics/{_up.quote(source_id, safe="")}'
             with _ur.urlopen(url, timeout=5) as resp:
                 t = json.loads(resp.read().decode())
-            return jsonify({
-                'id':      source_id,
-                'source':  t.get('source_path', ''),
-                'type':    t.get('source_kind', ''),
-                'trust':   t.get('source_trust', 'canonical'),
-                'label':   t.get('source_label', ''),
-                'content': t.get('content', ''),
-                'total_matches': 1,
-            })
         except Exception as exc:
             return jsonify({'error': f'vor topic lookup failed: {exc}'}), 404
+        return jsonify(_source_payload(source_id, t.get('source_path', ''), t))
 
     # Path-based lookup: search vor and filter by source_path.
     try:
@@ -2635,69 +2656,43 @@ def view_source():
                 turl = f'{rag.vor_url}/api/topics/{_up.quote(topic, safe="")}'
                 with _ur.urlopen(turl, timeout=5) as tr:
                     t = json.loads(tr.read().decode())
-                return jsonify({
-                    'id':      topic,
-                    'source':  source_path,
-                    'type':    t.get('source_kind', ''),
-                    'trust':   t.get('source_trust', 'canonical'),
-                    'label':   t.get('source_label', ''),
-                    'content': t.get('content', ''),
-                    'total_matches': 1,
-                })
+                return jsonify(_source_payload(topic, source_path, t))
         return jsonify({'error': f'Source not found: {source_path}'}), 404
     except Exception as exc:
         return jsonify({'error': f'vor search failed: {exc}'}), 500
 
 
+# The viewer shows text that can come from an `external` source. The renderer
+# emits a fixed set of tags and the page checks them again; this policy is the
+# third layer: no inline script or style, nothing loaded but this origin's own
+# files and the chat page's two font hosts, no framing.
+_SOURCE_VIEW_CSP = (
+    "default-src 'none'; script-src 'self'; "
+    "style-src 'self' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com; "
+    "connect-src 'self'; img-src 'none'; base-uri 'none'; "
+    "form-action 'none'; frame-ancestors 'none'"
+)
+
+
+_SOURCE_VIEW_PAGE = (Path(__file__).resolve().parent / 'pages' / 'source-view.html').read_bytes()
+
+
 @app.route('/view/source')
 def source_viewer_page():
-    """HTML page that displays a source document. Opened in a new tab."""
-    # Escaped: a reflected <script> here would read the CSRF cookie.
-    source_path = html.escape(request.args.get('path', ''))
-    source_id = html.escape(request.args.get('id', ''))
-    return f'''<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Source: {source_path or source_id} — Zhenai</title>
-    <style>
-        body {{ background: #0a0a0a; color: #c9c9c9; font-family: 'JetBrains Mono', monospace; padding: 20px; max-width: 900px; margin: 0 auto; }}
-        h1 {{ color: #ff5c00; font-size: 1.2em; border-bottom: 1px solid #333; padding-bottom: 8px; }}
-        .meta {{ color: #666; font-size: 0.8em; margin-bottom: 16px; }}
-        pre {{ background: #111; padding: 16px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }}
-        .error {{ color: #ff4444; }}
-        a {{ color: #ff5c00; }}
-    </style>
-</head>
-<body>
-    <h1 id="title">Loading...</h1>
-    <div class="meta" id="meta"></div>
-    <pre id="content">Loading source content...</pre>
-    <script>
-        const params = new URLSearchParams(window.location.search);
-        const id = params.get('id') || '';
-        const path = params.get('path') || '';
-        fetch('/api/v1/source?' + (id ? 'id=' + encodeURIComponent(id) : 'path=' + encodeURIComponent(path)))
-            .then(r => r.json())
-            .then(d => {{
-                if (d.error) {{
-                    document.getElementById('title').textContent = 'Source Not Found';
-                    document.getElementById('content').className = 'error';
-                    document.getElementById('content').textContent = d.error;
-                    return;
-                }}
-                document.getElementById('title').textContent = d.source || d.id;
-                document.getElementById('meta').textContent = 'Type: ' + (d.type || 'unknown') + ' | ID: ' + (d.id || '?');
-                document.title = 'Source: ' + (d.source || d.id) + ' — Zhenai';
-                document.getElementById('content').textContent = d.content;
-            }})
-            .catch(e => {{
-                document.getElementById('content').className = 'error';
-                document.getElementById('content').textContent = 'Error loading source: ' + e;
-            }});
-    </script>
-</body>
-</html>'''
+    """The source viewer, opened in a new tab from an answer's Sources line.
+
+    A constant page (pages/source-view.html): nothing from the request is
+    written into it, so there is nothing to reflect. Its script reads ?id= or
+    ?path= and asks /api/v1/source. The file is kept out of static/ so the
+    page is only ever served here, with these headers."""
+    resp = app.response_class(_SOURCE_VIEW_PAGE, mimetype='text/html')
+    resp.headers['Content-Security-Policy'] = _SOURCE_VIEW_CSP
+    resp.headers['X-Content-Type-Options'] = 'nosniff'
+    resp.headers['Referrer-Policy'] = 'no-referrer'
+    resp.headers['X-Frame-Options'] = 'DENY'
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
 
 
 @app.route('/api/v1/highlight', methods=['POST'])
@@ -2716,7 +2711,9 @@ def highlight_code():
     return jsonify({'html': zhen_highlight.highlight_blocks(blocks)})
 
 
-_HIGHLIGHT_CSS = zhen_highlight.stylesheet()
+# One stylesheet for both places highlighted code appears: Zhen's answers and
+# the source viewer's rendered sheets.
+_HIGHLIGHT_CSS = zhen_highlight.stylesheet() + '\n' + zhen_highlight.stylesheet('.md-body pre code')
 
 
 @app.route('/api/v1/highlight.css', methods=['GET'])

@@ -471,3 +471,121 @@ def test_champion_read_allows_names_that_only_look_alike(sandbox_root, rel):
     p.write_text('x\n')
     path, err = zhen_app.champion_validate_path(str(p))
     assert err is None and path
+
+
+# ── source viewer ───────────────────────────────────────────────────────
+# A sheet can come from an `external` source. Three layers keep it text:
+# raft/zhen_markdown.py (test_zhen_markdown.py), the page's own check
+# (static/source-view.js), and the policy the route sends.
+
+class _VorReply(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def _vor(monkeypatch, topic):
+    """Stand in for vor: /api/v1/source reads one topic from it."""
+    import urllib.request
+    monkeypatch.setattr(zhen_app, 'rag', types.SimpleNamespace(vor_url='http://vor.test'))
+    asked = []
+
+    def fake(url, timeout=None):
+        asked.append(url)
+        return _VorReply(json.dumps(topic).encode())
+
+    monkeypatch.setattr(urllib.request, 'urlopen', fake)
+    return asked
+
+
+def test_source_view_page_is_constant_whatever_is_asked(client):
+    _log_in(client)
+    page = (RAFT / 'pages' / 'source-view.html').read_bytes()
+    for q in ('', '?id=x', '?id="><script>alert(1)</script>', '?path=</title><svg onload=alert(1)>'):
+        r = client.get('/view/source' + q, base_url=ORIGIN)
+        assert r.status_code == 200
+        assert r.data == page
+
+
+def test_source_view_page_has_no_inline_script_or_style():
+    import re
+    page = (RAFT / 'pages' / 'source-view.html').read_text()
+    assert re.findall(r'<script\b[^>]*>', page) == ['<script src="/static/source-view.js">']
+    assert '<style' not in page
+    assert not re.search(r'\s(?:style|on[a-z]+)\s*=', page)
+
+
+def test_source_view_policy_allows_no_inline_code_and_no_images(client):
+    _log_in(client)
+    r = client.get('/view/source?id=x', base_url=ORIGIN)
+    csp = dict(part.strip().split(' ', 1) for part in r.headers['Content-Security-Policy'].split(';'))
+    assert csp['default-src'] == "'none'"
+    assert csp['script-src'] == "'self'"
+    assert csp['img-src'] == "'none'"
+    assert csp['connect-src'] == "'self'"
+    assert csp['frame-ancestors'] == "'none'" and csp['base-uri'] == "'none'" and csp['form-action'] == "'none'"
+    assert 'unsafe' not in r.headers['Content-Security-Policy']
+    assert '*' not in r.headers['Content-Security-Policy']
+    assert r.headers['X-Content-Type-Options'] == 'nosniff'
+    assert r.headers['Referrer-Policy'] == 'no-referrer'
+    assert r.headers['X-Frame-Options'] == 'DENY'
+
+
+def test_source_view_page_is_not_served_without_its_headers(client):
+    _log_in(client)
+    assert client.get('/static/source-view.html', base_url=ORIGIN).status_code == 404
+    assert client.get('/static/../pages/source-view.html', base_url=ORIGIN).status_code == 404
+    for name in ('source-view.js', 'source-view.css'):
+        assert client.get('/static/' + name, base_url=ORIGIN).status_code == 200
+
+
+def test_source_api_returns_the_sheet_rendered_and_raw(client, monkeypatch):
+    sheet = '# Top\n\n<script>alert(1)</script> [x](javascript:alert(1))\n\n```sh\necho "hi"\n```\n'
+    asked = _vor(monkeypatch, {'content': sheet, 'title': 'T', 'category': 'net',
+                               'source_trust': 'external', 'source_kind': 'user-source',
+                               'source_path': '/p/t.md'})
+    _log_in(client)
+    r = client.get('/api/v1/source?id=a/b c', base_url=ORIGIN)
+    assert r.status_code == 200
+    assert asked == ['http://vor.test/api/topics/a%2Fb%20c']
+    body = r.get_json()
+    assert body['content'] == sheet
+    assert body['trust'] == 'external' and body['title'] == 'T' and body['category'] == 'net'
+    assert body['outline'] == [{'level': 1, 'id': 'md-top', 'text': 'Top'}]
+    assert '<script' not in body['html'] and '&lt;script&gt;' in body['html']
+    assert 'href="javascript' not in body['html']
+    assert 'class="hl-' in body['html']
+
+
+def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatch):
+    _vor(monkeypatch, {'content': 'plain words'})
+
+    def boom(source):
+        raise RuntimeError('renderer bug')
+
+    monkeypatch.setattr(zhen_app.zhen_markdown, 'render', boom)
+    _log_in(client)
+    body = client.get('/api/v1/source?id=x', base_url=ORIGIN).get_json()
+    assert body['html'] is None and body['content'] == 'plain words'
+    assert body['notes'] == ['This sheet could not be rendered. The raw text is shown.']
+
+
+def test_source_api_treats_non_text_content_as_empty(client, monkeypatch):
+    _vor(monkeypatch, {'content': {'not': 'text'}})
+    _log_in(client)
+    body = client.get('/api/v1/source?id=x', base_url=ORIGIN).get_json()
+    assert body['content'] == '' and body['html'] == ''
+
+
+def test_source_routes_need_a_login(client, monkeypatch):
+    _vor(monkeypatch, {'content': 'x'})
+    assert client.get('/view/source?id=x', base_url=ORIGIN).status_code == 401
+    assert client.get('/api/v1/source?id=x', base_url=ORIGIN).status_code == 401
+
+
+def test_highlight_css_covers_answers_and_the_viewer(client):
+    css = client.get('/api/v1/highlight.css', base_url=ORIGIN).get_data(as_text=True)
+    assert '.msg.zhen pre code .hl-k' in css
+    assert '.md-body pre code .hl-k' in css
