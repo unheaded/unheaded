@@ -211,7 +211,7 @@ const Cards = (function() {
                     <button class="review-btn review-btn--approve" title="Approve & move to Done" data-action="approve">
                         Approve
                     </button>
-                    <button class="review-btn review-btn--changes" title="Request changes" data-action="changes">
+                    <button class="review-btn review-btn--changes" title="Request changes: back to In Progress" data-action="changes">
                         Changes
                     </button>
                     <button class="review-btn review-btn--reject" title="Reject & move to Backlog" data-action="reject">

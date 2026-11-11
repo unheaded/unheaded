@@ -737,16 +737,17 @@ const App = (function() {
                 successMessage = 'Task rejected and moved to Backlog';
                 break;
             case 'changes':
-                // Request changes - stay in review but add flag
+                // Request changes: back to In Progress, with a dated note
+                // appended to the description (earlier text and notes kept).
+                // Nobody is notified yet: a card's owner is free text with
+                // no user or email behind it (ADR-139).
                 try {
-                    // Update task with changes-requested flag
                     const updatedTask = await API.tasks.update(task.id, {
-                        status: 'review',
-                        // Add a marker that changes were requested
-                        description: (task.description || '').split('\n\n[Changes requested')[0] + '\n\n[Changes requested - ' + new Date().toLocaleDateString() + ']'
+                        status: 'in_progress',
+                        description: (task.description || '') + '\n\n[Changes requested ' + new Date().toISOString().slice(0, 10) + ']'
                     });
                     Board.updateTask(updatedTask);
-                    Board.showToast('info', 'Changes Requested', 'Author will be notified');
+                    Board.showToast('info', 'Changes requested', 'Moved back to In Progress. No one is notified yet.');
                 } catch (error) {
                     console.error('[App] Failed to request changes:', error);
                     Board.showToast('error', 'Failed to request changes', error.message);

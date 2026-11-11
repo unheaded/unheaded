@@ -36,6 +36,14 @@ One page, reached from all three applications, for an `admin`:
 4. **Mail settings in a page.** The alert policy is a reviewed file today. A page that writes it needs the Well (write needs a database, `feedback_db_required_writes`), an audit row per change, and a decision on whether the file or the database is the source.
 5. **Audit.** Every change from the page goes to `ops.login_events` and a signed Wotan `audit.auth.*` event, as ADR-114 sets for logins.
 
+## Addendum (Stevie, 2026-11-11): Request changes contacts the card's owner
+
+> it should send it back back to inprogress and contact the owner... if it was a manually created card there should be a mapping of an email to the user ( we are approaching an admin/settings/managment type page for user creation, password resets, rbac, and other application related settings )
+
+- **Done the same day:** the Kanban review button "Request changes" moves the card back to In Progress and appends `[Changes requested <date>]` to its description, keeping earlier text. Its message no longer claims anyone is notified (`cmd/kanban-app/static/js/app.js`).
+- **Waits on this ADR:** contacting the owner. A card's `owner` is free text typed into the form, with no user account or email behind it. The page above gives each user an email; a card then records its owner as a user, and Request changes mails that user through the same mail settings.
+- **Questions:** (1) a card created by Zhen (`zhen-agentd`) has no human owner: does Request changes send it to To Do, where the worker picks cards up, with the reviewer's note as its next instruction, instead of In Progress, where the worker never looks? (2) Who else hears: the reviewer, a watcher list? (3) Mail only, or also a notice inside the apps?
+
 ## Decision
 
 None. Parked under ADR-112 until Stevie takes it up; it depends on ADR-114 being built first.
