@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -23,13 +24,21 @@ import (
 // fakeVor answers the three calls the wiki server makes, the way vor does:
 // a topic is found by name alone, the first of that name wins, and an
 // unknown name gets the nearest match, which here is the first topic.
+//
+// A search is answered from hits[q], or from hits["q|category"] when the
+// call names a category and that key exists (vor's ranking within one
+// category, which can hold what the plain answer crowded out); otherwise
+// hits[q] filtered to the category. limit and per_topic apply as in vor.
+// old answers like a vor from before 2026-11-11: it ignores all three.
 type fakeVor struct {
 	hits   map[string][]vorclient.Hit
-	fail   map[string]bool // queries answered with a 500
+	fail   map[string]bool // "q|category" answered with a 500
 	topics []vorclient.Topic
+	old    bool
 
-	mu    sync.Mutex
-	calls map[string]int // by request path
+	mu       sync.Mutex
+	calls    map[string]int // by request path
+	searches []string       // raw query of each search
 }
 
 func (f *fakeVor) count(path string) int {
@@ -54,17 +63,25 @@ func (f *fakeVor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		f.calls = map[string]int{}
 	}
 	f.calls[r.URL.Path]++
+	if r.URL.Path == "/api/search" {
+		f.searches = append(f.searches, r.URL.RawQuery)
+	}
 	f.mu.Unlock()
 
+	v := r.URL.Query()
 	switch {
-	case r.URL.Path == "/api/search" && f.fail[r.URL.Query().Get("q")]:
+	case r.URL.Path == "/api/search" && f.fail[v.Get("q")+"|"+v.Get("category")]:
 		http.Error(w, "boom", http.StatusInternalServerError)
 	case r.URL.Path == "/api/search":
-		_ = json.NewEncoder(w).Encode(f.hits[r.URL.Query().Get("q")]) // no hits: null, as vor answers
+		_ = json.NewEncoder(w).Encode(f.search(v)) // no hits: null, as vor answers
 	case r.URL.Path == "/api/topics":
 		var list []vorclient.TopicSummary
 		for _, t := range f.topics {
-			list = append(list, vorclient.TopicSummary{Name: t.Name, Category: t.Category, Title: t.Title})
+			s := vorclient.TopicSummary{Name: t.Name, Category: t.Category, Title: t.Title}
+			if !f.old {
+				s.SourceKind, s.SourceTrust = t.SourceKind, t.SourceTrust
+			}
+			list = append(list, s)
 		}
 		_ = json.NewEncoder(w).Encode(list)
 	case strings.HasPrefix(r.URL.Path, "/api/topics/"):
@@ -79,6 +96,40 @@ func (f *fakeVor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (f *fakeVor) search(v url.Values) []vorclient.Hit {
+	q, category := v.Get("q"), v.Get("category")
+	if f.old {
+		return f.hits[q]
+	}
+	hits, ok := f.hits[q+"|"+category]
+	if !ok {
+		for _, h := range f.hits[q] {
+			if category == "" || h.Category == category {
+				hits = append(hits, h)
+			}
+		}
+	}
+	limit, perTopic := len(hits), len(hits)
+	if n, err := strconv.Atoi(v.Get("limit")); err == nil {
+		limit = n
+	}
+	if n, err := strconv.Atoi(v.Get("per_topic")); err == nil {
+		perTopic = n
+	}
+	var out []vorclient.Hit
+	per := map[string]int{}
+	for _, h := range hits {
+		if len(out) == limit {
+			break
+		}
+		if k := h.Category + "/" + h.Topic; per[k] < perTopic {
+			per[k]++
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 // Hostile text for every place vor's text, or the reader's, reaches a page.
@@ -105,25 +156,61 @@ func hit(t vorclient.Topic, section, line string) vorclient.Hit {
 		SourceKind: t.SourceKind, SourceTrust: t.SourceTrust, SourcePath: t.SourcePath, SourceLabel: t.SourceLabel}
 }
 
-// searchFixture is a wiki of three pages and a vor that holds them, the
-// rest of a repository, and sheets of its own.
+// searchFixture is a repository with a wiki of three pages and a few other
+// files, and a vor that holds them, files the repository no longer has, and
+// sheets of its own.
 func searchFixture(t *testing.T) (http.Handler, *fakeVor) {
 	t.Helper()
-	dir := t.TempDir()
+	repo := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret.md")
 	for name, body := range map[string]string{
-		"README.md":            "# Home\n",
-		"Wotan.md":             "# Wotan\n\nThe all-father.\n",
-		"Chaos-Engineering.md": "# Chaos Engineering\n",
+		"wiki/README.md":                    "# Home\n",
+		"wiki/Wotan.md":                     "# Wotan\n\nThe all-father.\n",
+		"wiki/Chaos-Engineering.md":         "# Chaos Engineering\n",
+		"docs/adr/ADR-900-unpublished.md":   "# ADR-900\n",
+		"docs/Plan b&c.md":                  "# Plan\n",
+		"docs/adr/not-markdown.md/keep.txt": "a directory named like a file\n",
+		"eval/baseline.md":                  "# Not under docs/\n",
+		outside:                             "# Outside the repository\n",
 	} {
-		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+		if !filepath.IsAbs(name) {
+			name = filepath.Join(repo, name)
+		}
+		if err := os.MkdirAll(filepath.Dir(name), 0o700); err != nil {
 			t.Fatal(err)
 		}
+		if err := os.WriteFile(name, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(outside, filepath.Join(repo, "docs", "escape.md")); err != nil {
+		t.Fatal(err)
 	}
 
 	bash := canonical("shell", "bash", "Bash", "# Bash\n\n## Loops\n\n    for f in *; do echo \"$f\"; done\n\nSee [zsh](../shell/zsh.md) and [[ -f x ]].\n")
 	wotan := external("wiki", "Wotan", "Wotan")
 	ghost := external("wiki", "Ghost-Page", "Ghost Page")
 	adr := external("docs/adr", "ADR-900-unpublished", "ADR-900: Unpublished")
+	plan := external("docs", "Plan b&c", "Plan")
+	// Repository files the wiki server must not link: gone since vor's copy
+	// was made, outside docs/, out of the repository, or not a file.
+	notHere := []vorclient.Topic{
+		external("docs/plans", "moved-away", "Moved away"),
+		external("eval", "baseline", "Not under docs"),
+		external("docs", "escape", "Escape"),
+		external("docs/../eval", "baseline", "Dots"),
+		external("docs/adr/..", "ADR-900-unpublished", "Dots again"),
+		external("docs/adr", "../../eval/baseline", "Slash in the name"),
+		external("docs", "adr\\ADR-900-unpublished", "Backslash"),
+		external("docs/adr", "not-markdown", "Directory"),
+		external("docs//adr", "ADR-900-unpublished", "Double slash"),
+		external("/docs/adr", "ADR-900-unpublished", "Absolute"),
+		external("docs", "", "No name"),
+	}
+	var notHereHits []vorclient.Hit
+	for _, n := range notHere {
+		notHereHits = append(notHereHits, hit(n, "Lost", "never linked"))
+	}
 	hostile := canonical("shell", evilImg, evilScript,
 		"# Hostile\n\n<script>alert(1)</script>\n\n<img src=x onerror=alert(1)> inline\n\n"+
 			"[click](javascript:alert(1)) [data](data:text/html,<script>alert(1)</script>)\n\n"+
@@ -147,34 +234,33 @@ func searchFixture(t *testing.T) (http.Handler, *fakeVor) {
 		},
 	}
 	vor.hits = map[string][]vorclient.Hit{
-		"loop": {
-			hit(adr, "Decision", "the event loop is unpublished"),
+		"loop": append([]vorclient.Hit{
+			hit(adr, "Decision", strings.Repeat("long ", 100)),
 			hit(bash, "Loops", `for f in *; do echo "$f"; done`),
 			hit(wotan, "Heartbeat", "Wotan's loop runs every second"),
 			hit(ghost, "Intro", "a loop nobody can read"),
 			hit(bash, "While", "while read -r line; do :; done"),
-			hit(wotan, "", strings.Repeat("long ", 100)),
+			hit(bash, "Until", "a third bash line, over the cap"),
+			hit(plan, "", "the plan loops"),
+		}, notHereHits...),
+		// vor's ranking within the wiki category: what the first answer
+		// left out comes from here.
+		"loop|wiki": {
+			hit(wotan, "Heartbeat", "Wotan's loop runs every second"),
+			hit(wotan, "Timers", "a second loop"),
 		},
-		"docsonly": {hit(adr, "Decision", "only the repository matches")},
-		// What vor does with a common word: one repository file takes
-		// every line of the answer, and the wiki pages come only when the
-		// wiki category is a term too.
+		"repoonly": append([]vorclient.Hit{hit(external("eval", "baseline", "x"), "Run", "only the repository matches")}, notHereHits...),
+		// What vor does with a common word: repository files take every
+		// line of the plain answer, and the wiki pages come from the second.
 		"father": {
 			hit(adr, "Decision", "the all-father is unpublished"),
 			hit(adr, "Context", "father of the unpublished"),
 		},
-		"father wiki": {
+		"father|wiki": {
 			hit(wotan, "Wotan", "The all-father."),
 			hit(wotan, "Wotan", "The all-father."),
-			hit(wotan, "See also", "the wiki has more"),
 			hit(ghost, "Intro", "a father nobody can read"),
-			hit(adr, "Decision", "the wiki's father is unpublished"),
-			hit(bash, "Loops", "father of wiki loops"),
-			hit(external("wiki", "Chaos-Engineering", "Chaos Engineering"), "", "the wiki, and nothing else"),
-		},
-		"loop wiki": {
-			hit(wotan, "Heartbeat", "Wotan's loop runs every second"),
-			hit(wotan, "Timers", "a second loop"),
+			hit(external("wiki", "Chaos-Engineering", "Chaos Engineering"), "", "father of chaos"),
 		},
 		"half": {hit(bash, "Loops", "half a loop")},
 		evilScript: {
@@ -183,11 +269,11 @@ func searchFixture(t *testing.T) (http.Handler, *fakeVor) {
 			{Topic: evilImg, Category: evilSVG, Section: "s", Line: "wiki hit for a page that does not exist", SourceTrust: "external"},
 		},
 	}
-	vor.fail = map[string]bool{"half wiki": true}
+	vor.fail = map[string]bool{"half|wiki": true}
 	srv := httptest.NewServer(vor)
 	t.Cleanup(srv.Close)
 
-	h, err := buildHandler(dir, srv.URL)
+	h, err := buildHandler(filepath.Join(repo, "wiki"), srv.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,83 +404,100 @@ func TestSearch_BoxSitsBetweenTheLinksAndTop(t *testing.T) {
 }
 
 func TestSearch_GroupsByPageAndLeavesOutTheRest(t *testing.T) {
-	h, _ := searchFixture(t)
+	h, vor := searchFixture(t)
 	w := get(t, h, "/search?q=loop")
 	if w.Code != http.StatusOK {
 		t.Fatalf("GET /search?q=loop = %d", w.Code)
 	}
 	content := mainOf(t, w.Body.String())
 
-	// One group a page, in vor's order, each with its lines.
-	bash := strings.Index(content, `<h3><a href="/sheet/bash">bash</a> <span class="page-note">vor sheet</span></h3>`)
-	wotan := strings.Index(content, `<h3><a href="/wiki/Wotan">Wotan</a> <span class="page-note">wiki page</span></h3>`)
-	if bash < 0 || wotan < bash {
-		t.Fatalf("want the bash sheet, then the Wotan page:\n%s", content)
-	}
-	if n := strings.Count(content, "<h3>"); n != 2 {
-		t.Errorf("%d groups, want 2", n)
-	}
-	for _, want := range []string{
-		"2 matches for <strong>loop</strong>",
+	// Three groups, wiki pages first; one entry a page, in vor's order.
+	last := -1
+	for _, part := range []string{
+		"4 matches for <strong>loop</strong>",
+		`<h2>Wiki pages</h2>`,
+		`<h3><a href="/wiki/Wotan">Wotan</a></h3>`,
+		`<li><strong>Heartbeat</strong> Wotan&#39;s loop runs every second</li>`,
+		// Found only by the wiki call.
+		`<li><strong>Timers</strong> a second loop</li>`,
+		`<h2>vor sheets</h2>`,
+		`<h3><a href="/sheet/bash">bash</a> <span class="page-note">shell</span></h3>`,
 		`<li><strong>Loops</strong> for f in *; do echo &#34;$f&#34;; done</li>`,
 		`<li><strong>While</strong> while read -r line; do :; done</li>`,
-		`<li><strong>Heartbeat</strong> Wotan&#39;s loop runs every second</li>`,
-		// Found only by the second question to vor.
-		`<li><strong>Timers</strong> a second loop</li>`,
+		`<h2>docs/ on GitHub</h2>`,
+		`<h3><a href="https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-900-unpublished.md">ADR-900-unpublished</a> <span class="page-note">docs/adr</span></h3>`,
+		`<h3><a href="https://github.com/unheaded/unheaded/blob/develop/docs/Plan%20b&amp;c.md">Plan b&amp;c</a> <span class="page-note">docs</span></h3>`,
 	} {
-		if !strings.Contains(content, want) {
-			t.Errorf("results lack %s:\n%s", want, content)
+		at := strings.Index(content, part)
+		if at < 0 || at < last {
+			t.Fatalf("results lack %s, or it is out of order:\n%s", part, content)
 		}
+		last = at
+	}
+	if n := strings.Count(content, "<h3>"); n != 4 {
+		t.Errorf("%d results, want 4:\n%s", n, content)
 	}
 	if n := strings.Count(content, "Heartbeat"); n != 1 {
 		t.Errorf("a line both answers hold is shown %d times, want 1", n)
+	}
+	if strings.Contains(content, "over the cap") {
+		t.Errorf("a third line of one topic is shown, want at most %d", searchPerTopic)
 	}
 	if !strings.Contains(content, "long long") || !strings.Contains(content, "…</li>") ||
 		strings.Contains(content, strings.Repeat("long ", 50)) {
 		t.Error("a long matching line was not cut")
 	}
 
-	// The repository's own files, and a wiki page that is not on disk.
-	for _, hidden := range []string{"ADR-900", "unpublished", "Ghost", "nobody can read", "docs/adr"} {
+	// A wiki page not on disk, and repository files that are not under
+	// docs/, not in this copy, not files, or not where the name says.
+	for _, hidden := range []string{"Ghost", "nobody can read", "never linked", "moved-away", "baseline", "escape", "not-markdown", "eval", "Outside"} {
 		if strings.Contains(w.Body.String(), hidden) {
-			t.Errorf("results show %q, which is neither a wiki page here nor a vor sheet", hidden)
+			t.Errorf("results show %q:\n%s", hidden, content)
 		}
 	}
 	if !strings.Contains(w.Body.String(), `name="q" value="loop"`) {
 		t.Error("the search box does not hold the query")
 	}
 	wantCSPHolds(t, w)
+
+	// What vor was asked: everything, and the wiki category on its own.
+	vor.mu.Lock()
+	searches := append([]string(nil), vor.searches...)
+	vor.mu.Unlock()
+	want := []string{"limit=500&per_topic=2&q=loop", "category=wiki&limit=200&per_topic=2&q=loop"}
+	if len(searches) != 2 || searches[0] != want[0] || searches[1] != want[1] {
+		t.Errorf("vor was asked %q, want %q", searches, want)
+	}
 }
 
-// TestSearch_WikiPagesBehindVorsCap: the plain query is answered with the
-// repository's own files alone, and the wiki pages still come.
-func TestSearch_WikiPagesBehindVorsCap(t *testing.T) {
+// TestSearch_WikiPagesFromTheirOwnCall: the plain answer holds repository
+// files alone, and the wiki pages still come.
+func TestSearch_WikiPagesFromTheirOwnCall(t *testing.T) {
 	h, vor := searchFixture(t)
 	w := get(t, h, "/search?q=father")
 	if w.Code != http.StatusOK {
 		t.Fatalf("GET /search?q=father = %d", w.Code)
 	}
 	content := mainOf(t, w.Body.String())
-	wotan := strings.Index(content, `<h3><a href="/wiki/Wotan">Wotan</a> <span class="page-note">wiki page</span></h3>`)
-	chaos := strings.Index(content, `<h3><a href="/wiki/Chaos-Engineering">Chaos Engineering</a> <span class="page-note">wiki page</span></h3>`)
-	if wotan < 0 || chaos < wotan {
-		t.Fatalf("want the Wotan page, then the Chaos Engineering page:\n%s", content)
-	}
-	if n := strings.Count(content, "<h3>"); n != 2 {
-		t.Errorf("%d groups, want 2:\n%s", n, content)
-	}
-	if n := strings.Count(content, "<li>"); n != 1 || !strings.Contains(content, `<li><strong>Wotan</strong> The all-father.</li>`) {
-		t.Errorf("%d lines, want the one line that holds the query, once:\n%s", n, content)
-	}
-	// Only wiki pages are taken from the second answer, and no line that
-	// matched the added term alone.
-	for _, hidden := range []string{"ADR-900", "unpublished", "Ghost", "nobody can read", "/sheet/bash", "wiki loops", "has more", "nothing else"} {
-		if strings.Contains(content, hidden) {
-			t.Errorf("results show %q", hidden)
+	last := -1
+	for _, part := range []string{
+		`<h3><a href="/wiki/Wotan">Wotan</a></h3>`,
+		`<li><strong>Wotan</strong> The all-father.</li>`,
+		`<h3><a href="/wiki/Chaos-Engineering">Chaos Engineering</a></h3>`,
+		`<li>father of chaos</li>`,
+		`docs/adr/ADR-900-unpublished.md`,
+	} {
+		at := strings.Index(content, part)
+		if at < 0 || at < last {
+			t.Fatalf("results lack %s, or it is out of order:\n%s", part, content)
 		}
+		last = at
 	}
-	if !strings.Contains(w.Body.String(), `name="q" value="father"`) {
-		t.Error("the search box does not hold the query as typed")
+	if n := strings.Count(content, "The all-father."); n != 1 {
+		t.Errorf("a line vor gave twice is shown %d times, want 1", n)
+	}
+	if strings.Contains(content, "Ghost") || strings.Contains(content, "/sheet/") {
+		t.Errorf("results show a page that is not here, or a sheet:\n%s", content)
 	}
 	wantCSPHolds(t, w)
 
@@ -406,6 +509,24 @@ func TestSearch_WikiPagesBehindVorsCap(t *testing.T) {
 	}
 	if got := vor.total() - before; got != 2 {
 		t.Errorf("%d calls to vor, want 2", got)
+	}
+}
+
+// TestSearch_OldVor: a vor that ignores category, limit and per_topic gives
+// the same groups, with no line more per topic than a new one would.
+func TestSearch_OldVor(t *testing.T) {
+	h, vor := searchFixture(t)
+	vor.old = true
+	w := get(t, h, "/search?q=loop")
+	content := mainOf(t, w.Body.String())
+	if w.Code != http.StatusOK || !strings.Contains(content, "4 matches for <strong>loop</strong>") {
+		t.Fatalf("GET /search?q=loop = %d:\n%s", w.Code, content)
+	}
+	if strings.Contains(content, "over the cap") || strings.Contains(content, "never linked") {
+		t.Errorf("an old vor's answer got past the wiki server's own checks:\n%s", content)
+	}
+	if n := strings.Count(content, "Heartbeat"); n != 1 {
+		t.Errorf("Heartbeat shown %d times, want 1", n)
 	}
 }
 
@@ -422,8 +543,8 @@ func TestSearch_PlainPages(t *testing.T) {
 		{"blank query", "/search?q=+%09+", http.StatusOK, "Type a word or two", 0},
 		{"too long", "/search?q=" + strings.Repeat("a", maxQueryBytes+1), http.StatusBadRequest, "too long", 0},
 		{"not text", "/search?q=%ff%fe", http.StatusBadRequest, "not text", 0},
-		{"no hits", "/search?q=nothing", http.StatusOK, "No wiki page or vor sheet matches <strong>nothing</strong>", 2},
-		{"hits, none shown", "/search?q=docsonly", http.StatusOK, "No wiki page or vor sheet matches <strong>docsonly</strong>", 2},
+		{"no hits", "/search?q=nothing", http.StatusOK, "Nothing in the wiki, the vor sheets or docs/ matches <strong>nothing</strong>", 2},
+		{"hits, none shown", "/search?q=repoonly", http.StatusOK, "Nothing in the wiki, the vor sheets or docs/ matches <strong>repoonly</strong>", 2},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			before := vor.total()
@@ -434,11 +555,32 @@ func TestSearch_PlainPages(t *testing.T) {
 			if got := vor.total() - before; got != tc.vorCalls {
 				t.Errorf("%d calls to vor, want %d", got, tc.vorCalls)
 			}
-			if strings.Contains(w.Body.String(), "only the repository matches") {
-				t.Error("a repository hit is shown")
+			if strings.Contains(w.Body.String(), "only the repository matches") || strings.Contains(w.Body.String(), "never linked") {
+				t.Error("a repository hit outside docs/ is shown")
 			}
 			wantInert(t, w)
 		})
+	}
+}
+
+// TestSearch_GroupCap: a group shows its first maxGroupResults and says how
+// many there were.
+func TestSearch_GroupCap(t *testing.T) {
+	h, vor := searchFixture(t)
+	var many []vorclient.Hit
+	for i := range maxGroupResults + 5 {
+		many = append(many, hit(canonical("shell", "s"+strconv.Itoa(i), "S", "# S\n"), "", "x"))
+	}
+	vor.mu.Lock()
+	vor.hits["many"] = many
+	vor.mu.Unlock()
+	content := mainOf(t, get(t, h, "/search?q=many").Body.String())
+	if n := strings.Count(content, "<h3>"); n != maxGroupResults {
+		t.Errorf("%d results shown, want %d", n, maxGroupResults)
+	}
+	if want := "The first 25 of 30. More words narrow it."; !strings.Contains(content, want) ||
+		!strings.Contains(content, "30 matches") {
+		t.Errorf("page does not say %q and 30 matches:\n%s", want, content)
 	}
 }
 
@@ -598,10 +740,13 @@ func TestSheets_ListsOnlyWhatSheetCanShow(t *testing.T) {
 			t.Errorf("listing shows %q:\n%s", hidden, content)
 		}
 	}
-	// A topic in a nested category is never one of vor's own, and is not
-	// fetched to find that out.
-	if n := vor.count("/api/topics/ADR-900-unpublished"); n != 0 {
-		t.Errorf("fetched a docs/adr topic %d times, want 0", n)
+	// The listing says which topics are vor's own; only a name it holds
+	// twice is fetched, to learn which one /sheet/<name> gets.
+	if n := vor.count("/api/topics/chaos-engineering"); n != 1 {
+		t.Errorf("fetched chaos-engineering %d times, want 1", n)
+	}
+	if n := vor.total() - vor.count("/api/topics") - vor.count("/api/topics/chaos-engineering"); n != 0 {
+		t.Errorf("%d other calls to vor, want 0", n)
 	}
 
 	// Every link in the listing opens.

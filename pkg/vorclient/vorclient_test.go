@@ -27,13 +27,22 @@ func fakeVor(t *testing.T) *Client {
 		case "nothing":
 			_, _ = w.Write([]byte("null"))
 		default:
-			_ = json.NewEncoder(w).Encode([]Hit{{Topic: "bash", Category: "shell", Section: "Loops", Line: q,
+			// The options come back in the section, so a test sees what vor got.
+			v := r.URL.Query()
+			opts := "category=" + v.Get("category") + " limit=" + v.Get("limit") + " per_topic=" + v.Get("per_topic")
+			for _, k := range []string{"category", "limit", "per_topic"} {
+				if v.Has(k) && v.Get(k) == "" {
+					opts += " empty " + k
+				}
+			}
+			_ = json.NewEncoder(w).Encode([]Hit{{Topic: "bash", Category: "shell", Section: opts, Line: q,
 				SourceKind: "embedded", SourceTrust: TrustCanonical}})
 		}
 	})
 	mux.HandleFunc("/api/topics", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte(`[{"name":"bash","category":"shell","title":"Bash","description":"The shell.",` +
-			`"has_detail":true,"see_also":["zsh"]},{"name":"Home","category":"wiki","title":"Home"}]`))
+			`"has_detail":true,"see_also":["zsh"],"source_kind":"embedded","source_trust":"canonical"},` +
+			`{"name":"Home","category":"wiki","title":"Home"}]`))
 	})
 	mux.HandleFunc("/api/topics/", func(w http.ResponseWriter, r *http.Request) {
 		switch strings.TrimPrefix(r.URL.Path, "/api/topics/") {
@@ -76,19 +85,30 @@ func TestSearch(t *testing.T) {
 
 	// The query reaches vor as one parameter, whatever it holds.
 	const q = `for loop & "x" #frag ?a=b <b>`
-	hits, err := c.Search(context.Background(), q)
+	hits, err := c.Search(context.Background(), q, SearchOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := Hit{Topic: "bash", Category: "shell", Section: "Loops", Line: q, SourceKind: "embedded", SourceTrust: TrustCanonical}
+	// No options: none sent, so vor's defaults hold.
+	want := Hit{Topic: "bash", Category: "shell", Section: "category= limit= per_topic=", Line: q,
+		SourceKind: "embedded", SourceTrust: TrustCanonical}
 	if len(hits) != 1 || hits[0] != want {
 		t.Errorf("hits = %+v, want [%+v]", hits, want)
 	}
 
-	if hits, err := c.Search(context.Background(), "nothing"); err != nil || len(hits) != 0 {
+	// Options reach vor as their own parameters, escaped like the query.
+	hits, err = c.Search(context.Background(), q, SearchOptions{Category: "docs/a b&c", Limit: 500, PerTopic: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Section != "category=docs/a b&c limit=500 per_topic=2" || hits[0].Line != q {
+		t.Errorf("with options: hits = %+v", hits)
+	}
+
+	if hits, err := c.Search(context.Background(), "nothing", SearchOptions{}); err != nil || len(hits) != 0 {
 		t.Errorf("no match: hits = %v, err = %v; want none, nil", hits, err)
 	}
-	if _, err := c.Search(context.Background(), ""); err == nil {
+	if _, err := c.Search(context.Background(), "", SearchOptions{}); err == nil {
 		t.Error("empty query: vor's 400 was not reported")
 	}
 }
@@ -120,7 +140,8 @@ func TestTopics(t *testing.T) {
 	}
 	if len(got) != 2 || got[0].Name != "bash" || got[0].Category != "shell" || got[0].Title != "Bash" ||
 		got[0].Description != "The shell." || !got[0].HasDetail || len(got[0].SeeAlso) != 1 ||
-		got[1].Name != "Home" || got[1].Category != "wiki" {
+		got[0].SourceKind != "embedded" || got[0].SourceTrust != TrustCanonical ||
+		got[1].Name != "Home" || got[1].Category != "wiki" || got[1].SourceTrust != "" {
 		t.Errorf("topics = %+v", got)
 	}
 
@@ -168,7 +189,7 @@ func TestTopic_FailuresAreNotNotFound(t *testing.T) {
 	if _, err := down.Topic(context.Background(), "bash"); err == nil || errors.Is(err, ErrNotFound) {
 		t.Errorf("vor down: err = %v; want a failure that is not ErrNotFound", err)
 	}
-	if _, err := down.Search(context.Background(), "bash"); err == nil {
+	if _, err := down.Search(context.Background(), "bash", SearchOptions{}); err == nil {
 		t.Error("vor down: Search returned no error")
 	}
 }
@@ -192,7 +213,7 @@ func TestCallsCarryADeadline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := c.Search(context.Background(), "x"); err != nil {
+	if _, err := c.Search(context.Background(), "x", SearchOptions{}); err != nil {
 		t.Fatal(err)
 	}
 	<-seen
@@ -203,7 +224,7 @@ func TestCallsCarryADeadline(t *testing.T) {
 	// A caller's cancelled context stops the call.
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if _, err := c.Search(ctx, "x"); !errors.Is(err, context.Canceled) {
+	if _, err := c.Search(ctx, "x", SearchOptions{}); !errors.Is(err, context.Canceled) {
 		t.Errorf("cancelled context: err = %v", err)
 	}
 }

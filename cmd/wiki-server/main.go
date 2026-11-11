@@ -31,7 +31,7 @@
 //
 // With --vor-url (search.go), answered by vor:
 //
-//	GET /search?q=     Wiki pages and vor sheets that match
+//	GET /search?q=     Wiki pages, vor sheets and docs/ files that match
 //	GET /sheets        The vor sheets, by category
 //	GET /sheet/{name}  One vor sheet
 //
@@ -943,7 +943,7 @@ const pageTemplate = `<!DOCTYPE html>
                 <a href="https://192.168.69.184:20000">Dashboard</a> | <a href="https://192.168.69.184:20001">Kanban</a> | <a href="https://192.168.69.184:20103">Zhenai</a>
             </div>
             {{if .Search}}<form class="sidebar-search" action="/search" method="get" role="search">
-                <input type="search" name="q" value="{{.Query}}" placeholder="search" aria-label="Search the wiki and vor sheets">
+                <input type="search" name="q" value="{{.Query}}" placeholder="search" aria-label="Search the wiki, vor sheets and docs">
                 <a href="/sheets">Sheets</a>
             </form>{{end}}
             <a href="/wiki/" class="sidebar-home{{if .HomeActive}} active{{end}}">&#8962; Top</a>

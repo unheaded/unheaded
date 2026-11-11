@@ -10,11 +10,13 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"unheaded/pkg/vorclient"
@@ -26,8 +28,10 @@ import (
 // What is shown is narrower than what vor holds. vor is also pointed at the
 // whole repository, so it knows the wiki pages (category "wiki") and every
 // other Markdown file. Here a wiki topic leads to the wiki page, a sheet
-// built into vor (source_trust "canonical") is shown at /sheet/<name>, and
-// nothing else is shown or linked.
+// built into vor (source_trust "canonical") is shown at /sheet/<name>, a
+// file under docs/ is a search result that links to GitHub (repolinks.go),
+// and nothing else is shown or linked. docs/ is never in the sidebar or on
+// /sheets.
 //
 // The query and every field vor returns are untrusted text. They reach a
 // page only through html/template, or, for the Markdown of a sheet, through
@@ -39,6 +43,8 @@ const (
 
 	// wikiCategory is the category vor files the wiki pages under.
 	wikiCategory = "wiki"
+	// docsDir is the repository directory whose files search may show.
+	docsDir = "docs"
 
 	// noPage is the "page being shown" for a page that is not a wiki page.
 	// No file name holds a slash, so no sidebar entry lights up.
@@ -49,6 +55,16 @@ const (
 	// maxLineRunes cuts a matching line vor returned, which can be a whole
 	// paragraph.
 	maxLineRunes = 200
+
+	// One search asks vor for up to searchLimit lines, searchPerTopic from
+	// any one topic, so that one long file cannot take the whole answer, and
+	// once more for the wiki category alone, so that the 186 wiki pages are
+	// not crowded out by 800 sheets and docs. A group on the page shows its
+	// first maxGroupResults topics, each with at most searchPerTopic lines.
+	searchLimit     = 500
+	wikiSearchLimit = 200
+	searchPerTopic  = 2
+	maxGroupResults = 25
 
 	// The sheet listing is kept this long, and a failure to build it this
 	// long, so that page views do not each ask vor again.
@@ -72,24 +88,46 @@ type notice struct {
 
 var searchTmpl = template.Must(template.New("search").Parse(
 	`<h1>Search</h1>
-{{if .Results}}<p>{{len .Results}} {{if eq (len .Results) 1}}match{{else}}matches{{end}} for <strong>{{.Query}}</strong>.</p>
-{{range .Results}}<h3><a href="{{.URL}}">{{.Title}}</a> <span class="page-note">{{.Kind}}</span></h3>
+{{if .Total}}<p>{{.Total}} {{if eq .Total 1}}match{{else}}matches{{end}} for <strong>{{.Query}}</strong>.</p>
+{{range .Groups}}{{if .Results}}<h2>{{.Name}}</h2>
+{{if gt .Count (len .Results)}}<p class="page-note">The first {{len .Results}} of {{.Count}}. More words narrow it.</p>
+{{end}}{{range .Results}}<h3><a href="{{.URL}}">{{.Title}}</a>{{if .Note}} <span class="page-note">{{.Note}}</span>{{end}}</h3>
 <ul>
 {{range .Lines}}<li>{{if .Section}}<strong>{{.Section}}</strong> {{end}}{{.Text}}</li>
 {{end}}</ul>
-{{end}}{{else}}<p>No wiki page or vor sheet matches <strong>{{.Query}}</strong>.</p>
+{{end}}{{end}}{{end}}{{else}}<p>Nothing in the wiki, the vor sheets or docs/ matches <strong>{{.Query}}</strong>.</p>
 {{end}}`))
 
 type searchPage struct {
-	Query   string
+	Query  string
+	Total  int
+	Groups []searchGroup
+}
+
+// searchGroup is one kind of result: wiki pages, vor sheets, docs. Count is
+// how many vor found; Results the first maxGroupResults of them.
+type searchGroup struct {
+	Name    string
+	Count   int
 	Results []*searchResult
 }
 
-// searchResult is one wiki page or one vor sheet, with its matching lines.
+// The groups, in the order the page shows them.
+const (
+	groupWiki = iota
+	groupSheets
+	groupDocs
+	groupCount
+)
+
+var groupNames = [groupCount]string{"Wiki pages", "vor sheets", "docs/ on GitHub"}
+
+// searchResult is one wiki page, vor sheet or docs file, with its matching
+// lines. Note is its category, for a sheet or a docs file.
 type searchResult struct {
 	URL   string
 	Title string
-	Kind  string
+	Note  string
 	Lines []searchLine
 }
 
@@ -160,16 +198,16 @@ func (ws *WikiServer) vorDown(w http.ResponseWriter, title, query, what string, 
 	})
 }
 
-// handleSearch serves /search?q=: the wiki pages and vor sheets vor finds
-// for q, each with its matching lines, in vor's order, then the wiki pages
-// only wikiHits found.
+// handleSearch serves /search?q=: the wiki pages, vor sheets and docs files
+// vor finds for q, in three groups, each in vor's order with its matching
+// lines.
 func (ws *WikiServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	switch {
 	case q == "":
 		ws.vorPage(w, http.StatusOK, "Search", "", noticeTmpl, notice{
 			Heading: "Search",
-			Text:    "Type a word or two in the search box. It looks through the wiki pages and the vor sheets.",
+			Text:    "Type a word or two in the search box. It looks through the wiki pages, the vor sheets and docs/.",
 		})
 		return
 	case len(q) > maxQueryBytes || !utf8.ValidString(q):
@@ -180,91 +218,116 @@ func (ws *WikiServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hits, err := ws.vor.Search(r.Context(), q)
+	hits, err := ws.vor.Search(r.Context(), q, vorclient.SearchOptions{Limit: searchLimit, PerTopic: searchPerTopic})
 	if err != nil {
 		ws.vorDown(w, "Search", q, "search", err)
 		return
 	}
-	hits = append(hits, ws.wikiHits(r.Context(), q)...)
-	ws.vorPage(w, http.StatusOK, "Search", q, searchTmpl, searchPage{Query: q, Results: ws.searchResults(hits)})
-}
-
-// wikiHits asks vor for q once more with its wiki category as one more
-// term, and returns the wiki hits of that answer. vor returns at most 50
-// lines for a query, before anything is left out here, and one long file of
-// the repository can take all 50: without this, "wotan" finds no wiki page.
-// vor ranks a topic whose category is a query term first, so the second
-// answer holds the wiki pages. A line that matched only the added term is
-// dropped; the page stays. A failure here costs these hits and nothing
-// else.
-func (ws *WikiServer) wikiHits(ctx context.Context, q string) []vorclient.Hit {
-	hits, err := ws.vor.Search(ctx, q+" "+wikiCategory)
+	// The wiki pages on their own. A failure here costs the wiki pages the
+	// first answer did not hold, and nothing else.
+	wiki, err := ws.vor.Search(r.Context(), q, vorclient.SearchOptions{
+		Category: wikiCategory, Limit: wikiSearchLimit, PerTopic: searchPerTopic,
+	})
 	if err != nil {
 		logf("WARN", "vor did not answer the wiki search", "err", err)
-		return nil
 	}
-	terms := strings.FieldsFunc(strings.ToLower(q), func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
-	})
-	var out []vorclient.Hit
-	for _, h := range hits {
-		if h.Category != wikiCategory {
-			continue
-		}
-		if text := strings.ToLower(h.Section + " " + h.Line); !containsAny(text, terms) {
-			h.Section, h.Line = "", ""
-		}
-		out = append(out, h)
-	}
-	return out
-}
-
-// containsAny reports whether s holds one of terms. No terms: true.
-func containsAny(s string, terms []string) bool {
-	for _, t := range terms {
-		if strings.Contains(s, t) {
-			return true
-		}
-	}
-	return len(terms) == 0
+	ws.vorPage(w, http.StatusOK, "Search", q, searchTmpl, ws.searchResults(q, append(hits, wiki...)))
 }
 
 // searchResults groups vor's hits by the page they lead to, in vor's order,
-// and drops the hits that lead nowhere this server shows.
-func (ws *WikiServer) searchResults(hits []vorclient.Hit) []*searchResult {
+// and drops the hits that lead nowhere this server shows. vor ranks the same
+// way in both answers, so the wiki hits of the first come first among those
+// of the second.
+func (ws *WikiServer) searchResults(q string, hits []vorclient.Hit) searchPage {
 	pages := ws.pageSlugs()
-	var results []*searchResult
-	byURL := map[string]*searchResult{}
+	docs := ws.openRepo()
+	if docs != nil {
+		defer func() { _ = docs.Close() }()
+	}
+
+	page := searchPage{Query: q, Groups: make([]searchGroup, groupCount)}
+	for g := range page.Groups {
+		page.Groups[g].Name = groupNames[g]
+	}
 	type shown struct {
 		url  string
 		line searchLine
 	}
+	byURL := map[string]*searchResult{}
 	seen := map[shown]bool{}
 	for _, h := range hits {
 		var res searchResult
+		var group int
 		switch {
 		case h.SourceTrust == vorclient.TrustCanonical:
-			res = searchResult{URL: sheetPath + url.PathEscape(h.Topic), Title: h.Topic, Kind: "vor sheet"}
-		case h.Category == wikiCategory && pages[h.Topic]:
-			res = searchResult{URL: "/wiki/" + url.PathEscape(h.Topic), Title: slugToTitle(h.Topic), Kind: "wiki page"}
+			group = groupSheets
+			res = searchResult{URL: sheetPath + url.PathEscape(h.Topic), Title: h.Topic, Note: h.Category}
+		case h.Category == wikiCategory:
+			if !pages[h.Topic] {
+				continue // a wiki page that is not on disk here
+			}
+			group = groupWiki
+			res = searchResult{URL: "/wiki/" + url.PathEscape(h.Topic), Title: slugToTitle(h.Topic)}
 		default:
-			// The rest of the repository, or a wiki page that is not on
-			// disk here.
-			continue
+			link, ok := docsLink(docs, h.Category, h.Topic)
+			if !ok {
+				continue // the rest of the repository, or a file not here
+			}
+			group = groupDocs
+			res = searchResult{URL: link, Title: h.Topic, Note: h.Category}
 		}
 		got := byURL[res.URL]
 		if got == nil {
 			got = &res
 			byURL[res.URL] = got
-			results = append(results, got)
+			g := &page.Groups[group]
+			g.Count++
+			page.Total++
+			if len(g.Results) < maxGroupResults {
+				g.Results = append(g.Results, got)
+			}
 		}
 		line := searchLine{Section: h.Section, Text: cutRunes(strings.TrimSpace(h.Line), maxLineRunes)}
-		if line != (searchLine{}) && !seen[shown{res.URL, line}] {
+		if line != (searchLine{}) && !seen[shown{res.URL, line}] && len(got.Lines) < searchPerTopic {
 			seen[shown{res.URL, line}] = true
 			got.Lines = append(got.Lines, line)
 		}
 	}
-	return results
+	return page
+}
+
+// openRepo opens the repository the wiki directory sits in, for docsLink.
+// nil, and no docs results, when it cannot be opened.
+func (ws *WikiServer) openRepo() *os.Root {
+	root, err := os.OpenRoot(filepath.Dir(ws.wikiDir))
+	if err != nil {
+		logf("WARN", "open the repository for docs results", "err", err)
+		return nil
+	}
+	return root
+}
+
+// docsLink returns the GitHub URL of the file vor knows as topic in
+// category, when the category is docs/ or below it and the file is in this
+// server's copy of the repository. vor's copy can be older than this one:
+// a file since moved or deleted is not linked. vor files a repository file
+// as <directory>/<name>.md, so that is the only path tried; anything that
+// path cleaning would change, or that leaves the repository, is refused.
+func docsLink(repo *os.Root, category, topic string) (string, bool) {
+	if repo == nil || topic == "" || strings.ContainsAny(topic, `/\`) || strings.Contains(category, `\`) ||
+		(category != docsDir && !strings.HasPrefix(category, docsDir+"/")) {
+		return "", false
+	}
+	p := category + "/" + topic + ".md"
+	if path.Clean(p) != p {
+		return "", false
+	}
+	// os.Root refuses to resolve out of the repository, symlinks included.
+	info, err := repo.Stat(p)
+	if err != nil || !info.Mode().IsRegular() {
+		return "", false
+	}
+	return repoBlobURL + (&url.URL{Path: p}).EscapedPath(), true
 }
 
 // cutRunes shortens s to at most n runes, marking the cut.
@@ -357,16 +420,15 @@ func (ws *WikiServer) sheetsPage(ctx context.Context) (sheetsPage, error) {
 	return page, err
 }
 
-// listSheets asks vor for the sheets /sheet/<name> can show.
+// listSheets asks vor for the sheets /sheet/<name> can show: the topics its
+// listing marks source_trust "canonical".
 //
-// vor's listing (/api/topics) names every topic from every source without
-// saying which source, and a topic name is unique only within a category.
-// So each candidate is fetched once by name, and is listed only when vor
-// answers with that name, that category and source_trust "canonical": the
-// same test /sheet/<name> applies, which makes every link here one that
-// works. Candidates are the topics whose category holds no slash: vor's own
-// sheets are sheets/<category>/<name>.md, one level deep, while a directory
-// vor was pointed at mostly yields deeper categories ("docs/adr").
+// vor finds a topic by name alone, in any case, and a name is unique only
+// within a category: for a name the listing holds twice, /sheet/<name> may
+// get the other topic. Those few are fetched by name and listed only when
+// vor answers with that name, that category and source_trust "canonical":
+// the same test /sheet/<name> applies, which makes every link here one that
+// works.
 func (ws *WikiServer) listSheets(ctx context.Context) (sheetsPage, error) {
 	ctx, cancel := context.WithTimeout(ctx, sheetListTimeout)
 	defer cancel()
@@ -375,27 +437,33 @@ func (ws *WikiServer) listSheets(ctx context.Context) (sheetsPage, error) {
 	if err != nil {
 		return sheetsPage{}, err
 	}
+	names := map[string]int{}
+	for _, s := range topics {
+		names[strings.ToLower(s.Name)]++
+	}
 
 	var page sheetsPage
 	byCategory := map[string][]sheetEntry{}
 	for _, s := range topics {
-		if strings.Contains(s.Category, "/") {
+		if s.SourceTrust != vorclient.TrustCanonical {
 			continue
 		}
-		t, err := ws.vor.Topic(ctx, s.Name)
-		if errors.Is(err, vorclient.ErrNotFound) {
-			continue
+		if names[strings.ToLower(s.Name)] > 1 {
+			t, err := ws.vor.Topic(ctx, s.Name)
+			if errors.Is(err, vorclient.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return sheetsPage{}, err
+			}
+			if t.Category != s.Category || t.SourceTrust != vorclient.TrustCanonical {
+				continue
+			}
 		}
-		if err != nil {
-			return sheetsPage{}, err
-		}
-		if t.Category != s.Category || t.SourceTrust != vorclient.TrustCanonical {
-			continue
-		}
-		byCategory[t.Category] = append(byCategory[t.Category], sheetEntry{
-			URL:   sheetPath + url.PathEscape(t.Name),
-			Name:  t.Name,
-			Title: t.Title,
+		byCategory[s.Category] = append(byCategory[s.Category], sheetEntry{
+			URL:   sheetPath + url.PathEscape(s.Name),
+			Name:  s.Name,
+			Title: s.Title,
 		})
 		page.Count++
 	}

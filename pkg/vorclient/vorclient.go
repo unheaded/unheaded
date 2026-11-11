@@ -17,6 +17,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -71,8 +72,7 @@ type Topic struct {
 }
 
 // TopicSummary is one row of GET /api/topics: a topic without its content.
-// The listing does not say where a topic came from; only Topic and Search
-// carry source_trust.
+// A vor from before 2026-11-11 leaves SourceKind and SourceTrust empty.
 type TopicSummary struct {
 	Name        string   `json:"name"`
 	Category    string   `json:"category"`
@@ -80,6 +80,34 @@ type TopicSummary struct {
 	Description string   `json:"description"`
 	HasDetail   bool     `json:"has_detail"`
 	SeeAlso     []string `json:"see_also"`
+	SourceKind  string   `json:"source_kind"`
+	SourceTrust string   `json:"source_trust"`
+}
+
+// SearchOptions narrows GET /api/search. Zero values leave vor's defaults:
+// every category, 50 lines, no cap per topic. A vor from before 2026-11-11
+// ignores all three, so a caller that depends on Category checks each hit.
+type SearchOptions struct {
+	// Category keeps only topics in exactly this category.
+	Category string
+	// Limit is the most lines returned, 1 to 500.
+	Limit int
+	// PerTopic is the most lines from any one topic, 1 to 50.
+	PerTopic int
+}
+
+func (o SearchOptions) query(q string) string {
+	v := url.Values{"q": {q}}
+	if o.Category != "" {
+		v.Set("category", o.Category)
+	}
+	if o.Limit > 0 {
+		v.Set("limit", strconv.Itoa(o.Limit))
+	}
+	if o.PerTopic > 0 {
+		v.Set("per_topic", strconv.Itoa(o.PerTopic))
+	}
+	return v.Encode()
 }
 
 // Client talks to one vor. Safe for concurrent use.
@@ -107,9 +135,9 @@ func New(baseURL string, hc *http.Client) (*Client, error) {
 
 // Search returns vor's hits for q, in vor's order. No hits is an empty
 // result, not an error.
-func (c *Client) Search(ctx context.Context, q string) ([]Hit, error) {
+func (c *Client) Search(ctx context.Context, q string, opt SearchOptions) ([]Hit, error) {
 	var hits []Hit
-	if _, err := c.get(ctx, "/api/search?q="+url.QueryEscape(q), MaxResponseBytes, &hits); err != nil {
+	if _, err := c.get(ctx, "/api/search?"+opt.query(q), MaxResponseBytes, &hits); err != nil {
 		return nil, err
 	}
 	return hits, nil
