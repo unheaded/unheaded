@@ -11,13 +11,16 @@ import (
 	"unheaded/pkg/auth/authtest"
 )
 
-// S-IRON-GATE Phase 6 (Steps 179-182, wiki-server): the wiki is read by
-// browsers, so every read stays open; it has no write route, and with auth
-// on a write is refused for everyone: 401 without a token, 403 for any
-// service token (the allowlist is empty until a user login exists).
+// S-IRON-GATE Phase 6 (Steps 179-182, wiki-server): with auth on and no
+// issuer configured (no AUTH_ISSUER_URL), every read stays open; it has no
+// write route, and a write is refused for everyone: 401 without a token,
+// 403 for any service token (the allowlist is empty). With an issuer the
+// pages need a login: TestWikiLogin.
 func TestAuthE2E_WikiServer(t *testing.T) {
+	t.Setenv("AUTH_ISSUER_URL", "")
 	f := authtest.New(t, "wiki-server", "unheaded-cli")
-	h, err := wrapAuth(setupMux(setupTestWiki(t)), f.Config("wiki-server"))
+	ws := setupTestWiki(t)
+	h, err := wrapAuth(ws, setupMux(ws), f.Config("wiki-server"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -38,7 +41,8 @@ func TestAuthE2E_WikiServer(t *testing.T) {
 }
 
 func TestAuthE2E_WikiServerRefusesBadConfig(t *testing.T) {
-	if _, err := wrapAuth(http.NewServeMux(), auth.ServiceAuthConfig{Enabled: true, ServiceName: "wiki-server"}); err == nil {
+	t.Setenv("AUTH_ISSUER_URL", "")
+	if _, err := wrapAuth(setupTestWiki(t), http.NewServeMux(), auth.ServiceAuthConfig{Enabled: true, ServiceName: "wiki-server"}); err == nil {
 		t.Error("auth on with nothing to verify against: no error, want refusal to start")
 	}
 }

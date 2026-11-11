@@ -310,11 +310,17 @@ func wantInert(t *testing.T, w *httptest.ResponseRecorder) {
 			t.Errorf("live %s in the page content:\n%s", live, content)
 		}
 	}
-	// Outside the content the template writes one script, one style, one
-	// form and one input, and nothing may add to them.
-	for tag, want := range map[string]int{"<script": 1, "<style": 1, "<svg": 0, "<img": 0, "<iframe": 0} {
+	// Outside the content the template writes one inline script, one style,
+	// one form and one input, plus the two same-origin scripts (the menu and
+	// the login badge, pkg/bff), and nothing may add to them.
+	for tag, want := range map[string]int{"<script>": 1, "<script src=": 2, "<style": 1, "<svg": 0, "<img": 0, "<iframe": 0} {
 		if n := strings.Count(body, tag); n != want {
 			t.Errorf("%d %s in the page, want %d", n, tag, want)
+		}
+	}
+	for _, src := range regexp.MustCompile(`<script src="([^"]*)"`).FindAllStringSubmatch(body, -1) {
+		if src[1] != "/auth/nav.js" && src[1] != "/auth/auth.js" {
+			t.Errorf("script from %q in the page; only the two /auth/ scripts are expected", src[1])
 		}
 	}
 	// Every attribute the pages write is name="value" with the value's own
@@ -385,7 +391,7 @@ func TestSearch_BoxSitsBetweenTheLinksAndTop(t *testing.T) {
 	}
 	last := -1
 	for _, part := range []string{
-		`>Zhenai</a>`,
+		`<div class="sidebar-links" data-kingdom-nav="wiki"`,
 		`<form class="sidebar-search" action="/search" method="get" role="search">`,
 		`<input type="search" name="q" value=""`,
 		`<a href="/sheets">Sheets</a>`,

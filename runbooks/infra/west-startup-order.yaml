@@ -134,15 +134,17 @@ steps:
   - name: start-wiki
     action: shell
     command: |
-      if ss -lnt | grep -q ':20002'; then
-        echo "wiki-server already on :20002"
+      if systemctl is-active --quiet unheaded-wiki-server.service; then
+        echo "unheaded-wiki-server already active"
       else
-        # wiki-server binary lives in the repo bin/ or is a system install
-        cd ~/tmp/unheaded
-        nohup wiki-server &> "$(~/tmp/unheaded/scripts/lib/logpath.sh wiki-server)" &
-        echo "wiki-server PID: $!"
+        # The wiki is a host unit since 2026-11-11 (deploy/systemd/
+        # unheaded-wiki-server.service, account unheaded-wiki-server):
+        # TLS, the dashboard's login, vor search. Never nohup.
+        sudo systemctl start unheaded-wiki-server.service
       fi
-    description: "Start wiki-server on :20002 (optional — skip if not installed)"
+    verify: "systemctl is-active --quiet unheaded-wiki-server.service"
+    description: "Start the wiki (unheaded-wiki-server.service) on :20002"
+    on_fail: "sudo journalctl -u unheaded-wiki-server.service -n 20 --no-pager"
 
   # ── Tier 5d: Zhenai web UI (depends on llama-server + vor + postgres) ──────
 

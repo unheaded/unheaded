@@ -12,6 +12,10 @@ Type=simple
 # or the operator installs it; a checkout can be named in a drop-in with
 # ProtectHome=read-only.
 ExecStart=/usr/local/bin/wiki-server --listen 127.0.0.1:20002 --wiki-dir /usr/share/unheaded/wiki --vor-url http://127.0.0.1:20110
+# The binary's relative defaults (./wiki) resolve here, never from /.
+StateDirectory=unheaded/wiki-server
+StateDirectoryMode=0750
+WorkingDirectory=/var/lib/unheaded/wiki-server
 Restart=always
 RestartSec=10s
 TimeoutStopSec=15s

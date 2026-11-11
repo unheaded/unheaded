@@ -804,7 +804,7 @@ func TestSetupMux_ReadyRoute(t *testing.T) {
 func TestNewServer_Configuration(t *testing.T) {
 	ws := setupTestWiki(t)
 	mux := setupMux(ws)
-	srv := newServer(12345, mux)
+	srv := newServer(":12345", mux)
 
 	if srv.Addr != ":12345" {
 		t.Errorf("expected addr :12345, got %q", srv.Addr)
@@ -874,7 +874,7 @@ func TestBuildHandler_InvalidDir(t *testing.T) {
 func TestWrapAuth(t *testing.T) {
 	ws := setupTestWiki(t)
 	mux := setupMux(ws)
-	handler, err := wrapAuth(mux, auth.LoadServiceAuthConfig("wiki-server"))
+	handler, err := wrapAuth(ws, mux, auth.LoadServiceAuthConfig("wiki-server"))
 	if err != nil {
 		t.Fatal(err)
 	}

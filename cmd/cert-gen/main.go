@@ -76,6 +76,7 @@ var defaultServices = []serviceSpec{
 	{Name: "auth", DNS: []string{"unheaded-auth"}},
 	{Name: "sword"},
 	{Name: "logstore-writer"},
+	{Name: "wiki-server"}, // a host unit, not compose; the same dev CA while the host has no Kingdom CA certificate
 	{Name: "unheaded-cli"},
 }
 

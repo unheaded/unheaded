@@ -80,6 +80,8 @@ What follows from that:
 | haproxy stats | third party | its own config | 21404 / 21405 |
 | LXD API / UI | third party | client certificate | 8443 |
 
+> **2026-11-11, supersedes the Wiki row above (the row is kept as the 2026-10-30 record):** the wiki runs as the host unit `unheaded-wiki-server.service` over TLS and, when `/etc/unheaded/wiki-server.env` names `AUTH_ISSUER_URL`, behind the same `pkg/bff` login as the dashboard (audience `wiki-server`, listed on the issuer). Every page then needs a session; a browser without one gets the page shell with the login panel. Without an issuer the reads stay open as the row says. Stevie's word in the 2026-11-11 test sitting: "tls + login on wiki"; decision (c) of next.md todo 8.
+
 The compose stack is down (FND-001), so most rows are about config, not live exposure. The host firewall is still open (`firewall-inbound-deny`).
 
 ### The library question

@@ -51,6 +51,7 @@ unheaded-auth       ./cmd/unheaded-auth
 well-retention      ./cmd/well-retention
 syslog-relay        ./cmd/syslog-relay
 zhen-ui-front       ./cmd/zhen-ui-front
+wiki-server         ./cmd/wiki-server
 "
 # Run by a unit but not built here: an upstream release binary.
 THIRD_PARTY="node_exporter vor"

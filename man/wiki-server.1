@@ -1,4 +1,4 @@
-.TH WIKI\-SERVER 1 "2026-11-11" "unheaded 83d02fca" "Unheaded Kingdom"
+.TH WIKI\-SERVER 1 "2026-11-11" "unheaded f89409d6" "Unheaded Kingdom"
 .SH NAME
 wiki\-server \- Serve the Kingdom wiki as rendered HTML.
 .SH SYNOPSIS
@@ -8,8 +8,11 @@ wiki\-server \- Serve the Kingdom wiki as rendered HTML.
 Serve the Kingdom wiki as rendered HTML.
 .SH OPTIONS
 .TP
+.B \-\-listen \fIVALUE\fR
+IP:PORT to serve on, repeatable; no wildcard address (default 127.0.0.1:20002). TLS when UNHEADED_TLS_ENABLED=true with UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE
+.TP
 .B \-\-port \fIN\fR
-HTTP server port (default 20002)
+port of the default listener, 127.0.0.1:PORT, when no \-\-listen is given (default 20002)
 .TP
 .B \-\-vor\-url \fISTRING\fR
 vor base URL, such as http://127.0.0.1:20110: adds the search box, /search, /sheets and /sheet/ (unset: none of them)
@@ -26,7 +29,7 @@ output version information and exit
 .EX
 wiki\-server
 wiki\-server \-\-port 20002 \-\-wiki\-dir ./wiki
-wiki\-server \-\-vor\-url http://127.0.0.1:20110
+wiki\-server \-\-listen 127.0.0.1:20002 \-\-listen 192.0.2.10:20002 \-\-vor\-url http://127.0.0.1:20110
 .EE
 .SH SEE ALSO
 .BR unheaded (1)

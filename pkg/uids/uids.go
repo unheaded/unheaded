@@ -128,8 +128,12 @@ const (
 	// tier's, so the next free Kingdom number is here.
 	ZhenUIFront = 16755
 	// LogstoreWriter is cmd/logstore-writer (S-E1-LIVE Evening 16): compose
-	// service logstore-writer only. Next free: 16757.
+	// service logstore-writer only.
 	LogstoreWriter = 16756
+	// WikiServer is cmd/wiki-server, a host unit (deploy/systemd/
+	// unheaded-wiki-server.service, account unheaded-wiki-server): the
+	// wiki over TLS with the dashboard's login. Next free: 16758.
+	WikiServer = 16757
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -242,6 +246,7 @@ var Registry = map[string]int{
 	"syslog-relay":      SyslogRelay,
 	"zhen-ui-front":     ZhenUIFront,
 	"logstore-writer":   LogstoreWriter,
+	"wiki-server":       WikiServer,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

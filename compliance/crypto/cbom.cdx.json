@@ -856,7 +856,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/zhen-ui-front/main.go:244:tls-config",
+      "bom-ref": "cmd/zhen-ui-front/main.go:245:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -896,7 +896,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/zhen-ui-front/main.go:244"
+          "value": "cmd/zhen-ui-front/main.go:245"
         }
       ]
     },
@@ -1453,7 +1453,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:165:proxy-image",
+      "bom-ref": "docker-compose.yml:187:proxy-image",
       "name": "Traefik edge (traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1488,13 +1488,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:165"
+          "value": "docker-compose.yml:187"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:370:postgres-image",
+      "bom-ref": "docker-compose.yml:397:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1534,7 +1534,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:370"
+          "value": "docker-compose.yml:397"
         }
       ]
     },

@@ -93,6 +93,8 @@ var hostOnly = map[string]string{
 	"vor": "unheaded-vor",
 	// The web UI's TLS front: deploy/systemd/unheaded-zhen-ui-front.service (ADR-138).
 	"zhen-ui-front": "unheaded-zhen-ui-front",
+	// The wiki: deploy/systemd/unheaded-wiki-server.service (2026-11-11).
+	"wiki-server": "unheaded-wiki-server",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

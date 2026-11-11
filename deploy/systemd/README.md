@@ -30,6 +30,7 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
 | `unheaded-zhen-ui-front.service` | 20103, 20112 (loopback, /metrics) | TLS front of the Zhen web UI (ADR-138): hybrid-only TLS 1.3 to the app's Unix socket; see [zhen-ui-front](#zhen-ui-front) |
+| `unheaded-wiki-server.service` | 20002 (loopback; a drop-in adds addresses) | The wiki over TLS, behind the dashboard's login (pkg/bff) when `/etc/unheaded/wiki-server.env` names `AUTH_ISSUER_URL`; vor search when vor runs on the host; see [wiki-server](#wiki-server) |
 | `unheaded-auth.service`         | 19020         | Built-in OIDC issuer (ADR-103, `wiki/Service-Auth.md`); needs its key, a users file and TLS (`UNHEADED_TLS_*` in `/etc/unheaded/auth.env`), see the unit's header |
 | `unheaded-anomaly.service`      | 19018 (loopback) | Anomaly service + cartridge bridge (`cmd/anomaly`), consumes `anomaly.scores` from Wotan; no capabilities. Reads only the `CART_EVENTS` pin (bind-mounted; `upc-cartridgectl -events-group unheaded-anomaly up`) |
 | `unheaded-heimdall.service`     | 19101 (loopback, /metrics) | Drift monitor (`cmd/heimdall-daemon`), alerts only, signed `drift.detected.<node>`; account `unheaded-heimdall` (uid 16736), CAP_DAC_READ_SEARCH only. Not started anywhere until S-IRON-GATE E2 (drift-key custody); steps in `runbooks/security/heimdall-enrol-drift-key.yaml` |
@@ -188,6 +189,31 @@ unit picks up a new certificate. Turning TLS on is a host change: every
 unit that talks to Wotan must move in the same window (a plaintext client
 cannot reach a TLS port), and Prometheus jobs that scrape these units need
 `scheme: https` with the CA.
+
+## wiki-server
+
+`unheaded-wiki-server.service` serves `wiki/` (the deb's or the operator's
+copy at `/usr/share/unheaded/wiki`) over TLS with the Preferred profile
+(browsers), as `unheaded-wiki-server` (uid 16757), loopback only. It needs
+`/etc/unheaded/tls/wiki-server/wiki-server.pem` and `-key.pem` and the CA at
+`/etc/unheaded/tls/ca.pem`, and `/etc/unheaded/trust.d` for service tokens.
+It holds no service key: it verifies tokens and login sessions and mints
+nothing.
+
+Login: with `AUTH_ISSUER_URL=https://<issuer>:19020` in
+`/etc/unheaded/wiki-server.env` every page needs a session (the dashboard's
+login, `pkg/bff`; the issuer must list the audience `wiki-server`); a browser
+without one gets the page shell with the login panel. Without that line
+reads stay open, as the wiki was before 2026-11-11, and the unit logs a
+warning. The issuer is reached by name through the deployment CA: on a
+host that runs the compose stack, a hosts line for `auth` (see next.md,
+question 22) until the issuer has a host address of its own.
+
+Publishing: the unit binds `127.0.0.1:20002`. A host that shows the wiki on
+a LAN address or to the compose scrapes adds a drop-in with one `--listen
+IP:20002` per address and the matching `IPAddressAllow=` and
+`SocketBindAllow=tcp:20002`; vor search needs `IPAddressAllow=localhost`
+(kept) and vor on `127.0.0.1:20110`.
 
 ## zhen-ui-front
 

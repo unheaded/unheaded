@@ -167,3 +167,9 @@ Architecture: amd64
 Depends: libc6
 Description: Unheaded Zhen UI front: hybrid-only TLS 1.3 to the app's socket
  Binary zhen-ui-front, unit unheaded-zhen-ui-front.service.
+
+Package: unheaded-wiki-server
+Architecture: amd64
+Depends: libc6
+Description: Unheaded wiki server: the wiki over TLS, behind the dashboard's login
+ Binary wiki-server, unit unheaded-wiki-server.service.

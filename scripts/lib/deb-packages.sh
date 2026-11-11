@@ -26,7 +26,7 @@ DEB_SERVICES=(
 	timeguru captain architect micromanager monad sophia
 	unheaded-auth heimdall-daemon sword chaos-controller anomaly kev-poller
 	trace-collector-go unheaded-baseline huginn zhen-agentd well-retention
-	syslog-relay zhen-ui-front
+	syslog-relay zhen-ui-front wiki-server
 )
 
 # Packages with no unit of their own (deb_control writes their stanzas).
@@ -92,12 +92,13 @@ deb_objects() {
 # wotanClient.InitServiceIdentity). Empty: the binary holds no service key
 # (huginn reports to Prometheus only; well-retention logs in to the Well
 # with a password; syslog-relay authenticates to nothing; zhen-ui-front holds
-# a TLS certificate and no service key, the app behind it does the login).
+# a TLS certificate and no service key, the app behind it does the login;
+# wiki-server verifies tokens and sessions and mints none).
 deb_identity_for() {
 	case "$1" in
 	heimdall-daemon) echo heimdall ;;
 	trace-collector-go) echo trace-collector ;;
-	huginn | well-retention | syslog-relay | zhen-ui-front) ;;
+	huginn | well-retention | syslog-relay | zhen-ui-front | wiki-server) ;;
 	*) echo "$1" ;;
 	esac
 }

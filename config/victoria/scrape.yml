@@ -143,6 +143,18 @@ scrape_configs:
     tls_config:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: localhost
+  # The wiki is a host unit (unheaded-wiki-server.service) that listens on
+  # loopback by default; on west a drop-in adds the docker gateway address,
+  # which host.docker.internal names, so this target is up only there.
+  - job_name: "wiki-server"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:20002"]
+    metrics_path: /metrics
+    scheme: https
+    tls_config:
+      ca_file: /etc/victoria/tls/ca.pem
+      server_name: localhost
 
   # Akira (compose service akira, 19100) serves /metrics (cmd/akira main.go:295).
   - job_name: "akira"

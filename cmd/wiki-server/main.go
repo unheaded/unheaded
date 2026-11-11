@@ -40,12 +40,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"flag"
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/netip"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -61,9 +63,11 @@ import (
 	"github.com/yuin/goldmark/text"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/bff"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
+	pqtls "unheaded/pkg/tls"
 	"unheaded/pkg/vorclient"
 )
 
@@ -379,12 +383,101 @@ func setupMux(ws *WikiServer) *http.ServeMux {
 }
 
 // wrapAuth applies auth from authCfg to the handler (S-IRON-GATE Phase 6).
-// Browsers read the wiki, so every read stays open; a write (there is no
-// write route) needs a token, and with no caller allowlisted every service
-// token gets 403 until a user login exists. An error means auth is on but
-// unusable, and the server must not start.
-func wrapAuth(handler http.Handler, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
-	return auth.NewServiceHandler(handler, authCfg, auth.ServiceRoutes{OpenReads: []string{"/"}})
+//
+// With AUTH_ENABLED=true and an issuer (AUTH_ISSUER_URL) the wiki has the
+// dashboard's login (pkg/bff, ADR-103 section 4): every page needs a
+// session cookie or a service token, /auth/* and the probes stay open, and
+// a browser without a session gets the page shell with the login panel
+// instead of a bare 401 (Stevie 2026-11-11: "tls + login on wiki"). With
+// auth on and no issuer, reads stay open as before and a warning says so.
+// An error means auth is on but unusable, and the server must not start.
+func wrapAuth(ws *WikiServer, mux *http.ServeMux, authCfg auth.ServiceAuthConfig) (http.Handler, error) {
+	mux.HandleFunc("/auth/auth.js", bff.ServeAuthJS)
+	mux.HandleFunc("/auth/nav.js", bff.ServeNavJS)
+	routes := auth.ServiceRoutes{OpenPaths: []string{"/auth"}}
+	var gate func(http.Handler) http.Handler
+	switch bcfg := bff.ConfigFromEnv(authCfg.ServiceName); {
+	case !authCfg.Enabled:
+		routes.OpenReads = []string{"/"}
+	case !bcfg.Enabled():
+		logf("WARN", "auth on without AUTH_ISSUER_URL: the wiki's reads stay open; a write needs a token")
+		routes.OpenReads = []string{"/"}
+	default:
+		b, err := bff.New(bcfg)
+		if err != nil {
+			return nil, fmt.Errorf("wiki login: %w", err)
+		}
+		mux.Handle("/auth/", b.Handler())
+		routes.Authenticators = []auth.Authenticator{b.Authenticator()}
+		gate = ws.loginPage
+	}
+	authed, err := auth.NewServiceHandler(mux, authCfg, routes)
+	if err != nil {
+		return nil, err
+	}
+	if gate != nil {
+		return gate(authed), nil
+	}
+	return authed, nil
+}
+
+// loginPage turns the 401 that auth gives a browser's page request into
+// the wiki's page shell at 401: the menu, the sidebar brand and a line
+// saying to sign in. auth.js on that page shows the login panel and
+// reloads after a login. Anything that is not a GET or HEAD for HTML (a
+// script, a curl, a service token that was refused) gets auth's own answer.
+func (ws *WikiServer) loginPage(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if (r.Method != http.MethodGet && r.Method != http.MethodHead) || !strings.Contains(r.Header.Get("Accept"), "text/html") {
+			next.ServeHTTP(w, r)
+			return
+		}
+		cw := &catch401{ResponseWriter: w}
+		next.ServeHTTP(cw, r)
+		if !cw.caught {
+			return
+		}
+		h := w.Header()
+		h.Del("WWW-Authenticate")
+		h.Del("Content-Type")
+		h.Set("Cache-Control", "no-store")
+		var body bytes.Buffer
+		_ = noticeTmpl.Execute(&body, notice{
+			Heading: "Sign in",
+			Text:    "This wiki needs a login. Use the Log in button at the bottom right; the page returns here afterwards.",
+		})
+		ws.writePage(w, http.StatusUnauthorized, PageData{Title: "Sign in", NavGroups: nil}, body.String())
+	})
+}
+
+// catch401 swallows a 401 answer so the caller can write a page instead.
+// Any other status passes through untouched.
+type catch401 struct {
+	http.ResponseWriter
+	caught bool
+	wrote  bool
+}
+
+func (c *catch401) WriteHeader(status int) {
+	if c.wrote {
+		return
+	}
+	c.wrote = true
+	if status == http.StatusUnauthorized {
+		c.caught = true
+		return
+	}
+	c.ResponseWriter.WriteHeader(status)
+}
+
+func (c *catch401) Write(b []byte) (int, error) {
+	if !c.wrote {
+		c.WriteHeader(http.StatusOK)
+	}
+	if c.caught {
+		return len(b), nil
+	}
+	return c.ResponseWriter.Write(b)
 }
 
 // buildHandler creates the full HTTP handler stack for the wiki server.
@@ -400,7 +493,7 @@ func buildHandler(wikiDir, vorURL string) (http.Handler, error) {
 		}
 	}
 	mux := setupMux(ws)
-	authed, err := wrapAuth(mux, auth.LoadServiceAuthConfig("wiki-server"))
+	authed, err := wrapAuth(ws, mux, auth.LoadServiceAuthConfig("wiki-server"))
 	if err != nil {
 		return nil, fmt.Errorf("auth: %w (see ADR-103)", err)
 	}
@@ -409,9 +502,9 @@ func buildHandler(wikiDir, vorURL string) (http.Handler, error) {
 }
 
 // newServer creates an http.Server with standard timeouts.
-func newServer(port int, handler http.Handler) *http.Server {
+func newServer(addr string, handler http.Handler) *http.Server {
 	return &http.Server{
-		Addr:              fmt.Sprintf(":%d", port),
+		Addr:              addr,
 		Handler:           handler,
 		ReadTimeout:       10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
@@ -421,8 +514,55 @@ func newServer(port int, handler http.Handler) *http.Server {
 	}
 }
 
+// newListener returns the server for addr: TLS when the process serves TLS
+// (UNHEADED_TLS_ENABLED with a certificate and key, pkg/tls; the Preferred
+// profile, browsers reach this, or Strict with UNHEADED_TLS_PROFILE=strict),
+// plain HTTP otherwise. The second value is what to call to serve.
+func newListener(addr string, handler http.Handler) (*http.Server, func(*http.Server) error, error) {
+	if !pqtls.ServesTLS() {
+		return newServer(addr, handler), (*http.Server).ListenAndServe, nil
+	}
+	cfg := pqtls.LoadServiceTLSConfig()
+	certPEM, err := os.ReadFile(cfg.CertFile) // #nosec G304 -- operator-supplied path from the environment
+	if err != nil {
+		return nil, nil, fmt.Errorf("tls certificate: %w", err)
+	}
+	keyPEM, err := os.ReadFile(cfg.KeyFile) // #nosec G304 -- operator-supplied path from the environment
+	if err != nil {
+		return nil, nil, fmt.Errorf("tls key: %w", err)
+	}
+	srv, err := pqtls.NewTLSServer(addr, handler, pqtls.ServerConfig{CertPEM: certPEM, KeyPEM: keyPEM})
+	if err != nil {
+		return nil, nil, err
+	}
+	if cfg.Profile == "strict" {
+		pqtls.ApplyStrict(srv.TLSConfig)
+	}
+	srv.ReadHeaderTimeout = 5 * time.Second
+	srv.MaxHeaderBytes = 1 << 20
+	return srv, func(s *http.Server) error { return s.ListenAndServeTLS("", "") }, nil
+}
+
+// listenFlags collects --listen, repeatable.
+type listenFlags []string
+
+func (l *listenFlags) String() string { return strings.Join(*l, ",") }
+func (l *listenFlags) Set(v string) error {
+	ap, err := netip.ParseAddrPort(strings.TrimSpace(v))
+	if err != nil {
+		return fmt.Errorf("--listen %q: want IP:PORT", v)
+	}
+	if ap.Addr().IsUnspecified() {
+		return fmt.Errorf("--listen %q: name each address; the wildcard address is not accepted", v)
+	}
+	*l = append(*l, ap.String())
+	return nil
+}
+
 func main() {
-	port := flag.Int("port", 20002, "HTTP server port")
+	port := flag.Int("port", 20002, "port of the default listener, 127.0.0.1:PORT, when no --listen is given")
+	var listens listenFlags
+	flag.Var(&listens, "listen", "IP:PORT to serve on, repeatable; no wildcard address (default 127.0.0.1:20002). TLS when UNHEADED_TLS_ENABLED=true with UNHEADED_TLS_CERT and UNHEADED_TLS_KEY_FILE")
 	wikiDir := flag.String("wiki-dir", "./wiki", "Path to wiki markdown directory")
 	vorURL := flag.String("vor-url", "", "vor base URL, such as http://127.0.0.1:20110: adds the search box, /search, /sheets and /sheet/ (unset: none of them)")
 	cmdline.Parse(cmdline.Spec{
@@ -431,13 +571,17 @@ func main() {
 		Examples: []string{
 			"wiki-server",
 			"wiki-server --port 20002 --wiki-dir ./wiki",
-			"wiki-server --vor-url http://127.0.0.1:20110",
+			"wiki-server --listen 127.0.0.1:20002 --listen 192.0.2.10:20002 --vor-url http://127.0.0.1:20110",
 		},
 	})
+	if len(listens) == 0 {
+		listens = listenFlags{netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), uint16(*port)).String()} // #nosec G115 -- a port fits
+	}
 
 	logf("INFO", "starting wiki-server",
 		"version", serviceVersion,
-		"port", *port,
+		"listen", listens.String(),
+		"tls", pqtls.ServesTLS(),
 		"wiki_dir", *wikiDir,
 		"vor_url", *vorURL,
 	)
@@ -448,22 +592,33 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := newServer(*port, httpHandler)
+	var servers []*http.Server
+	for _, addr := range listens {
+		server, serve, err := newListener(addr, httpHandler)
+		if err != nil {
+			logf("FATAL", "listener", "addr", addr, "err", err)
+			os.Exit(1)
+		}
+		servers = append(servers, server)
+		go func() {
+			logf("INFO", "wiki-server listening", "addr", server.Addr, "tls", pqtls.ServesTLS())
+			if err := serve(server); err != nil && err != http.ErrServerClosed {
+				logf("FATAL", "server error", "addr", server.Addr, "err", err)
+				os.Exit(1)
+			}
+		}()
+	}
 
 	// Graceful shutdown.
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGTERM)
-
-	go func() {
-		logf("INFO", "wiki-server listening", "addr", server.Addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logf("FATAL", "server error", "err", err)
-			os.Exit(1)
-		}
-	}()
-
 	<-done
 	logf("INFO", "shutting down wiki-server")
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for _, server := range servers {
+		_ = server.Shutdown(ctx)
+	}
 }
 
 // pageTemplate is the HTML template for rendering wiki pages.
@@ -488,7 +643,7 @@ func wikiCSP() string {
 		}
 		return strings.Join(out, " ")
 	}
-	return "default-src 'self'; script-src " + hashes("script") + "; style-src " + hashes("style") +
+	return "default-src 'self'; script-src 'self' " + hashes("script") + "; style-src " + hashes("style") +
 		"; img-src 'self' data: https:; frame-ancestors 'none'; base-uri 'none'"
 }
 
@@ -939,9 +1094,7 @@ const pageTemplate = `<!DOCTYPE html>
                     <div class="subtitle">wiki</div>
                 </a>
             </div>
-            <div class="sidebar-links">
-                <a href="https://192.168.69.184:20000">Dashboard</a> | <a href="https://192.168.69.184:20001">Kanban</a> | <a href="https://192.168.69.184:20103">Zhenai</a>
-            </div>
+            <div class="sidebar-links" data-kingdom-nav="wiki" data-kingdom-nav-class="" data-kingdom-nav-sep=" | "></div>
             {{if .Search}}<form class="sidebar-search" action="/search" method="get" role="search">
                 <input type="search" name="q" value="{{.Query}}" placeholder="search" aria-label="Search the wiki, vor sheets and docs">
                 <a href="/sheets">Sheets</a>
@@ -993,5 +1146,7 @@ const pageTemplate = `<!DOCTYPE html>
         draw();
     })();
     </script>
+    <script src="/auth/nav.js"></script>
+    <script src="/auth/auth.js"></script>
 </body>
 </html>`
