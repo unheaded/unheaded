@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-11-11
-**Total:** 137 entries (ADR-001 to ADR-140, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 138 entries (ADR-001 to ADR-141, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -16,12 +16,12 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked)).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked)).
 
 | Status | Count |
 |--------|-------|
 | Accepted | 63 |
-| Proposed | 37 |
+| Proposed | 38 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -34,7 +34,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **137** |
+| **Total** | **138** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -200,3 +200,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [138](ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI: a first-party Go front on `pkg/tls` Strict, proxying to the app over a Unix socket | **Accepted** (Stevie's answer #32, 2026-11-09; built 2026-11-10, installed nowhere) | 2026-11-09 |
 | [139](ADR-139-shared-admin-page.md) | One administration page shared by dashboard, Kanban and Zhen: users, roles, password resets, and mail settings shared with the alert mailer; Kanban's Request changes then mails the card's owner; Done only after review by an admin or the owning user or team; users and teams possibly from LDAP or Active Directory; far future, after ADR-114 | **Proposed** (parked) | 2026-11-11 |
 | [140](ADR-140-notifications-and-messages.md) | Notifications and messages across the web pages: an unread mark that pulses slightly on the login badge, a messages page with direct and team history, mail as well; far future, after ADR-139 | **Proposed** (parked) | 2026-11-11 |
+| [141](ADR-141-chaos-controller-always-on.md) | The chaos controller runs all the time, slowly, after 1.0.0: a random allowlisted fault every n minutes inside the ADR-107 envelope, a recovery record per fault, stop and page when something does not come back | **Proposed** (parked) | 2026-11-12 |
