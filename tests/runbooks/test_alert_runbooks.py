@@ -15,7 +15,7 @@ import harness
 import pytest
 
 RUNBOOKS = {
-    "runbooks/observe/heartbeat-missing.yaml": ("HeartbeatMissing", "Watchdog"),
+    "runbooks/observe/heartbeat-missing.yaml": ("HeartbeatMissing", "AlertPipelineHeartbeat"),
     "runbooks/observe/trace-collector-down.yaml": ("TraceCollectorDown",),
     "runbooks/observe/high-latency.yaml": ("TraceCollectorHighLatency",),
     "runbooks/observe/log-pipeline.yaml": ("JournalNotShipping", "JournalShipErrors", "VectorDown", "LogSpam", "LogErrorSpam", "LogSilence"),

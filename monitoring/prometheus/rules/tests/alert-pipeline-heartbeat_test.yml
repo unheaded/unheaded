@@ -1,0 +1,24 @@
+# promtool test rules alert-pipeline-heartbeat_test.yml (from this directory)
+rule_files:
+  - ../alert-pipeline-heartbeat.yml
+evaluation_interval: 1m
+tests:
+  # Fires from the first evaluation and never stops.
+  - interval: 1m
+    alert_rule_test:
+      - eval_time: 0m
+        alertname: AlertPipelineHeartbeat
+        exp_alerts:
+          - exp_labels: {severity: none, urgency: none}
+            exp_annotations:
+              summary: "Heartbeat: alerts are reaching Alertmanager (healthy while firing)"
+              description: "Always firing, on purpose. If this alert is missing from Alertmanager, rule evaluation or delivery is broken."
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"
+      - eval_time: 3d
+        alertname: AlertPipelineHeartbeat
+        exp_alerts:
+          - exp_labels: {severity: none, urgency: none}
+            exp_annotations:
+              summary: "Heartbeat: alerts are reaching Alertmanager (healthy while firing)"
+              description: "Always firing, on purpose. If this alert is missing from Alertmanager, rule evaluation or delivery is broken."
+              runbook_url: "runbooks/observe/heartbeat-missing.yaml"

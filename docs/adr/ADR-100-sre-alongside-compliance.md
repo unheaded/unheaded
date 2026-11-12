@@ -182,6 +182,8 @@ then; that is the recorded gap.
 | Piece | Where |
 |---|---|
 | `Watchdog`: `vector(1)`, urgency none, always firing; missing from Alertmanager means the alerting path is broken | `monitoring/prometheus/rules/watchdog.yml`, `tests/watchdog_test.yml` |
+
+> 2026-11-11: renamed `AlertPipelineHeartbeat`, files `alert-pipeline-heartbeat.yml` and `tests/alert-pipeline-heartbeat_test.yml`, summary "Heartbeat: alerts are reaching Alertmanager (healthy while firing)" (Stevie in the test sitting: "i dunno what watchdog is but change the name"). The row above is the 2026-10-27 record.
 | Heartbeat receiver: `POST /heartbeat/{host}` with `X-Heartbeat-Token`, on its own listener (19131) so the other host cannot reach the webhooks or the outbox; gauge `unheaded_heartbeat_last_seen_timestamp_seconds{host}`; off unless `HEARTBEAT_HOSTS` is set | `cmd/alert-mailer/heartbeat.go`, compose `HEARTBEAT_*` |
 | `HeartbeatMissing` (10 min quiet): promoted to page in the policy, the only alert that pages on an absence | `monitoring/prometheus/rules/heartbeat.yml`, `policy.yaml` `promote:` |
 | East sender every 2 min as `unheaded-heartbeat` (uid 16711), token through `LoadCredential` | `deploy/systemd/unheaded-heartbeat.{service,timer}`, `scripts/monitoring/heartbeat.sh` |

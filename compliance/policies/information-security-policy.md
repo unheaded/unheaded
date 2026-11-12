@@ -59,7 +59,7 @@ Supports: UH-SIGN-01, UH-GATE-01, UH-SAST-01, UH-VULN-01, UH-SBOM-01, UH-FUZZ-01
 
 - Host and container logs go to the systemd journal and from there through Vector (ADR-092). Log storage is bounded.
 - Service level objectives, alert urgency and the single mail sender are defined in `observability/alerting/policy.yaml` (ADR-100). Every alert names a runbook.
-- A dead-man's switch (Watchdog, west/east heartbeat) proves the alert path itself is alive.
+- A dead-man's switch (the always-firing AlertPipelineHeartbeat alert, west/east heartbeat) proves the alert path itself is alive.
 - Security-relevant host events are recorded by auditd. Clocks are synchronized.
 
 Supports: UH-LOG-01, UH-LOG-02, UH-AUDIT-01, UH-TIME-01, UH-FIM-01, UH-BASE-01.

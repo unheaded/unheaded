@@ -20,7 +20,7 @@ Every alert carries `urgency`:
 |---|---|
 | `page` | Mailed within about 2 minutes. One mail per incident, plus one when everything is clear, plus a reminder after 12 h if it is still burning. |
 | `ticket` | Collected, then one digest mail at 09:00, only if something is open, resolved since the last digest, or held back by the cap. |
-| `none` | Nobody. All 44 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence, compliance, Well backups, KEV, trace collector, Watchdog, security detections in `detection.yml`: SSH login from a new source, SSH auth-failure bursts, outbound volume, …), except the three the policy promotes: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket). DGA, beaconing and DNS tunnelling have no rule: there is no DNS query log source yet (threat register DET-01). |
+| `none` | Nobody. All 44 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence, compliance, Well backups, KEV, trace collector, AlertPipelineHeartbeat, security detections in `detection.yml`: SSH login from a new source, SSH auth-failure bursts, outbound volume, …), except the three the policy promotes: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket). DGA, beaconing and DNS tunnelling have no rule: there is no DNS query log source yet (threat register DET-01). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
 
@@ -149,7 +149,7 @@ balancer rules return with an HAProxy/Nginx exporter.
 
 Two alerts watch the watchers (ADR-100 section 4):
 
-- **`Watchdog`** is always firing, urgency `none`. It mails no one; it should
+- **`AlertPipelineHeartbeat`** (named `Watchdog` until 2026-11-11) is always firing, urgency `none`, and firing is the healthy state. It mails no one; it should
   always be on Alertmanager's page. If it is missing, rule evaluation or
   delivery is broken and every quiet alert is suspect.
 - **`HeartbeatMissing{host}`** pages when a watched host has not sent a

@@ -24,7 +24,7 @@ Defaults, written so they can be held to. **Open for Stevie (S-WELL-SPRING E-E):
 | # | Statement (default) | Holds while |
 |---|---|---|
 | A1 | **Keys and source integrity: no appetite.** A finding that could let someone sign with Stevie's key, push to the repository, or forge evidence or drift events is fixed, not accepted. One practice is named here and is not such a finding: there is one signing key and no agent key, so Claude Code agents' commits are signed with Stevie's key and carry `Co-Authored-By` and `Claude-Session` trailers. Every agent commit from `7a93b734` (2026-11-04) on does; older ones may lack the session trailer or a signature, and history is not rewritten. A signature shows that Stevie's key signed the commit, and the trailers show which agent session wrote it; a signature alone does not show that Stevie read the change (Stevie, 2026-11-06; FND-038). The exception is commit signing and nothing else: an agent pushing, or forging evidence or drift events, is inside this row. | always |
-| A2 | **Availability: lab appetite.** Outages within the SLO targets (99.5 % / 99 %, ADR-100) are accepted; budgets are not frozen when spent. A *silent* failure is not accepted: every outage must be detectable (Watchdog, heartbeat, SLO pages). | the hosts serve only the operator |
+| A2 | **Availability: lab appetite.** Outages within the SLO targets (99.5 % / 99 %, ADR-100) are accepted; budgets are not frozen when spent. A *silent* failure is not accepted: every outage must be detectable (AlertPipelineHeartbeat, heartbeat, SLO pages). | the hosts serve only the operator |
 | A3 | **Host hardening deviations: accepted while LAN-only.** CIS deviations on west and east may be accepted for up to 90 days at a time (ADR-098 answer 10: until 2026-12-30) because the hosts are held to be reachable from the home LAN and the P2P link only, which is untested from outside until FND-004 closes. Any internet exposure ends every such acceptance and requires rotating first: every value in git history counts as burned (FND-041). | no internet-facing listener on either host |
 
 ## 3. System categorization
@@ -39,7 +39,7 @@ FIPS 199 style: confidentiality, integrity, availability rated low / moderate / 
 | Kanban, timeguru, captain, architect, micromanager, monad, sophia | low | low | low | low | planning data, rebuildable from git and The Well |
 | unheaded-daemon (Cuirass), Sword, chaos-controller | low | low | low | low | lab deploys and chaos inside an allowlist (ADR-107) |
 | unheaded-auth, unheaded-keygen | low | low | low | low | proposed raise to moderate integrity (issues tokens): decision for Stevie |
-| trace-collector, Heimdall, Akira, kev-poller, alert-mailer | low | low | low | low | detection and telemetry; loss is visible (SLOs, Watchdog) |
+| trace-collector, Heimdall, Akira, kev-poller, alert-mailer | low | low | low | low | detection and telemetry; loss is visible (SLOs, AlertPipelineHeartbeat) |
 | Monitoring stack, Vector, ClickHouse | low | low | low | low | history; ClickHouse holds incident evidence (contingency plan gap C2) |
 | Zhen (zhen-agentd, MCP, llama-server) | low | low | low | low | local models; writes need confirmation; captures are redacted |
 
@@ -49,7 +49,7 @@ Recovery and protection order, highest first (the contingency plan's recovery or
 
 1. Signing keys and the repository (GitHub, the east mirror): everything else is rebuilt from them.
 2. The Well and its backups.
-3. The alert path: Prometheus, Alertmanager, alert-mailer, Watchdog and heartbeat.
+3. The alert path: Prometheus, Alertmanager, alert-mailer, AlertPipelineHeartbeat and the west/east heartbeat.
 4. Wotan.
 5. The dashboard and Kanban.
 6. Everything else.

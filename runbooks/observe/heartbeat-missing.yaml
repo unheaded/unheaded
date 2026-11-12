@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: heartbeat-missing
-  description: A watched host stopped sending heartbeats (HeartbeatMissing), or the always-firing Watchdog is missing from Alertmanager
+  description: A watched host stopped sending heartbeats (HeartbeatMissing), or the always-firing AlertPipelineHeartbeat is missing from Alertmanager
   owner: architect
   estimated_duration: 15m
   risk: low
@@ -24,7 +24,8 @@ notes: |
   tell them apart in that order. West dying is not covered (no receiver
   outside both hosts yet).
 
-  Watchdog: always firing, urgency none. If it is missing from Alertmanager
+  AlertPipelineHeartbeat (named Watchdog until 2026-11-11): always firing,
+  urgency none, and firing is the healthy state. If it is missing from Alertmanager
   (http://127.0.0.1:9093 on west, ssh -L 9093:127.0.0.1:9093 west), rule
   evaluation or delivery is broken and every quiet alert is suspect: start
   with the monitoring-stack step.
@@ -37,9 +38,9 @@ steps:
     action: shell
     command: |
       set -euo pipefail
-      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"HeartbeatMissing|Watchdog"}' |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"HeartbeatMissing|AlertPipelineHeartbeat"}' |
         python3 -c 'import json,sys; [print(r["metric"]["alertname"], r["metric"].get("host", "-"), r["metric"]["alertstate"]) for r in json.load(sys.stdin)["data"]["result"]]'
-    description: "Is Watchdog firing (it should be), and which host is missing"
+    description: "Is AlertPipelineHeartbeat firing (it should be), and which host is missing"
 
   - name: last-seen
     action: shell
@@ -52,7 +53,7 @@ steps:
   - name: monitoring-stack
     action: shell
     command: "timeout 10 docker ps --filter name=unheaded-prometheus --filter name=unheaded-alertmanager --filter name=unheaded-alert-mailer --format '{{.Names}} {{.Status}}'"
-    description: "Prometheus, Alertmanager and alert-mailer are up on west (a missing Watchdog starts here)"
+    description: "Prometheus, Alertmanager and alert-mailer are up on west (a missing AlertPipelineHeartbeat starts here)"
 
   - name: p2p-link
     action: shell
