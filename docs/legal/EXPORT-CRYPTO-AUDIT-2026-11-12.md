@@ -6,7 +6,7 @@ Copyright (c) 2026 Stevie Bellis.
 # Cryptography in the repository: facts for the export notification decision (2026-11-12)
 
 **Status:** read-only audit by an AI agent (Claude, `unheaded-barrister` skill
-loaded), 2026-11-12, of branch `develop` at `590f4a7f`. It is not legal advice,
+loaded), 2026-11-12, of branch `develop` at `e5721cf2`. It is not legal advice,
 it draws no conclusion about what the regulation requires, and no person has
 checked it yet.
 

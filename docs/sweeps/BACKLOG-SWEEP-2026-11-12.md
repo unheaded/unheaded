@@ -6,8 +6,8 @@ Copyright (c) 2026 Stevie Bellis.
 
 ## How this was made
 
-1. Sources: `~/tmp/next.md` (513 lines, as of 2026-11-12 07:20Z), `docs/adr/ADR-INDEX.md`, `compliance/findings/register.yaml`, `docs/battle-plans/` with `progress/`, `docs/sweeps/`, and `git log` on `develop` at `fe4b4e5e`.
-2. Date: 2026-11-12, while the night session was still committing (ADR-144 `8d7f5ad6` and the export audit `fe4b4e5e` landed during the sweep and are included).
+1. Sources: `~/tmp/next.md` (513 lines, as of 2026-11-12 07:20Z), `docs/adr/ADR-INDEX.md`, `compliance/findings/register.yaml`, `docs/battle-plans/` with `progress/`, `docs/sweeps/`, and `git log` on `develop` at `248afba6`.
+2. Date: 2026-11-12, while the night session was still committing (ADR-144 `377d3fc2` and the export audit `248afba6` landed during the sweep and are included).
 3. Read-only: nothing was edited, committed, started or run with sudo; this file is the only output.
 4. Made by an AI agent (Claude), with three read-only sub-agents for the 2026-11-04 sprint progress files; their rows are marked PROG and were spot-checked (14 of 14 checked claims held).
 5. Not yet checked by a person. Where two sources disagree the row is in group E, not guessed.
@@ -53,7 +53,7 @@ One row can stand for several small items of the same kind (the row says how man
 |---|---|---|
 | A-01 | Seal `runbooks/MANIFEST.sha256` and place the public key on west. Then in `zhen-cli`: `/schedule resume`, `/confirm <token>`. Until then every live runbook is refused and the scheduler stays paused. | N-night queue 1; N-hands 2 |
 | A-02 | Approve `runbooks/security/ioc-audit.yaml` (`status: approved`, `approved_by`, `approved_at`), run `scripts/runbook-manifest.sh --write`, seal, uncomment the four `ioc-audit` lines in `configs/zhen-schedules.yaml`. Checked: `approved_by` is empty and the lines are commented. | N-night "three things" 1 |
-| A-03 | Re-sign, then push. Unsigned: 14 commits on develop (`c870e9e4` to `fe4b4e5e`), `36d7c93` in orb, `9f69412` in unheaded-terraform. develop is 27 ahead of `origin/develop`. | N-night "three things" 3; N-hands 9; `git log origin/develop..develop` |
+| A-03 | Re-sign, then push. Unsigned: 14 commits on develop (`a81038a0` to `248afba6`), `36d7c93` in orb, `9f69412` in unheaded-terraform. develop is 27 ahead of `origin/develop`. | N-night "three things" 3; N-hands 9; `git log origin/develop..develop` |
 | A-04 | Look at the monitor once: `orb -gfx` blanking after 5 minutes was tested with no panel attached. | N-night "three things" 2 |
 | A-05 | Delete vor's `harden/api-dos-and-traversal` branch on GitHub if not yet done. | N-hands 9; N-decide 5 |
 | A-06 | Optional: create `unheaded-waf` on GitHub and push it; `unheaded-terraform` has no remote either. | N-hands 9; N-night queue 11 |
@@ -80,7 +80,7 @@ One row can stand for several small items of the same kind (the row says how man
 | A-22 | Trace collector `LATENCY_MAP` defect (71,000 `bpf()` calls a second, map never shrinks, inserts fail silently at 65,536 entries; east at 1.56 cores for 20 days): his word to take the fix out of the freeze, and whether to record it in the findings register. Same item as the unanswered eviction question from S-WIRE-HONEST. | N-night "Todo, footprint"; ADR-144; PROG S-WIRE-HONEST-lat:21, 29 |
 | A-23 | East (question 28): (a) Evenings 10 and 10B together with him, (b) Claude makes the apt key unseen and walks the runbook after his approval, (c) a test cut through the old unsigned repo. And whether the Step 206 certificates, the Steps 190/192 edits and a trial deb are done ahead. Blocks B-10 to B-12. | N-Q 28; N-decide 5 |
 | A-24 | Drafts, before Step 261: five judgment calls, chiefly ruling 37 (the replay check became per signature, not per packet). His note: later, with Fable. | N-decide 4; E1-prog "Evening 14, second sitting" |
-| A-25 | Export notification email: send or not. The audit he asked for is done: `docs/legal/EXPORT-CRYPTO-AUDIT-2026-11-12.md` (`fe4b4e5e`, by an agent, not legal advice, not checked by a person). It found no algorithm of the project's own, and three self-defined constructions that encrypt or establish keys (`pkg/secrets/encryption/age.go`, the zhend hybrid KEM, the KEM tunnel of the PQC draft). Read its section "What a person must read in the regulation before deciding", decide, then E1 20-21. Also his call: delete the two constructions that have no callers. | N-night queue 13; N-Q 26; N-hands 8 |
+| A-25 | Export notification email: send or not. The audit he asked for is done: `docs/legal/EXPORT-CRYPTO-AUDIT-2026-11-12.md` (`248afba6`, by an agent, not legal advice, not checked by a person). It found no algorithm of the project's own, and three self-defined constructions that encrypt or establish keys (`pkg/secrets/encryption/age.go`, the zhend hybrid KEM, the KEM tunnel of the PQC draft). Read its section "What a person must read in the regulation before deciding", decide, then E1 20-21. Also his call: delete the two constructions that have no callers. | N-night queue 13; N-Q 26; N-hands 8 |
 | A-26 | Go bumps held: anthropic-sdk-go 1.84.0 is clean alone; grpc 1.85.0 adds `go.opencensus.io` and `golang/groupcache` as go.sum lines. | N-hands 7 |
 | A-27 | "Log it to the well" (compliance page): (a) the page reads from the Well, (b) a Kanban card, (c) page-load timing. | N-todo 18 |
 | A-28 | ADR-117 questions: (1) rule evaluator after Prometheus: keep until ADR-116's warden, native, `vmalert`, or Grafana alerting; (2) Grafana's calls to grafana.com, a ClickHouse datasource plugin, the seven unported dashboards, sophia-eye's own Prometheus; (3) the literal Grafana password in `tomb/dark-mirror/docker-compose.yml`. | N-todo 19; S-ONE-GRAFANA plan E1-E3 |
@@ -172,7 +172,7 @@ One row can stand for several small items of the same kind (the row says how man
 
 ## C. ADRs with status Proposed, Deferred or In Progress
 
-From `docs/adr/ADR-INDEX.md` at `fe4b4e5e` (41 Proposed, 3 Deferred, 1 In Progress). "Parked" means no plan by design under the plan freeze (ADR-112). Ten more ADRs are Planned (032, 033, 037, 041, 042, 055, 058, 085, 087, 088) and ADR-029 is partially implemented (cross-host ballot pending); they are outside the three statuses asked for.
+From `docs/adr/ADR-INDEX.md` at `248afba6` (41 Proposed, 3 Deferred, 1 In Progress). "Parked" means no plan by design under the plan freeze (ADR-112). Ten more ADRs are Planned (032, 033, 037, 041, 042, 055, 058, 085, 087, 088) and ADR-029 is partially implemented (cross-host ballot pending); they are outside the three statuses asked for.
 
 | ID | ADR | One line | State |
 |---|---|---|---|
@@ -246,7 +246,7 @@ From `docs/adr/ADR-INDEX.md` at `fe4b4e5e` (41 Proposed, 3 Deferred, 1 In Progre
 | D-09 | Wiki link defects: four sheets share a name with another topic and 404 from search; links inside a sheet are not rewritten; about 136 dead `[x](Page.md)` links; bare `..` and image links. | N-todo 22 "Noticed" | |
 | D-10 | Move the five hand-written vor callers (`zhen-mcp`, `zhen-rag`, `zhen-cli`, `zhen-agent`, `zhen-agentd`) onto `pkg/vorclient` (checked: only `wiki-server` imports it); `cmd/alert-policy/main.go:43` keeps its own copy of the GitHub blob address. | N-todo 22 | |
 | D-11 | In vor (its own repo): exact id or 404 for an unknown topic; word-boundary matching in search. | N-todo 16, 20, 22 | |
-| D-12 | vor's copy of the repository is a snapshot (last export 2026-11-12 at `0efd63e6`): nothing reruns `scripts/vor-export-source.sh` after doc changes. | N-todo 22; N-night queue 5 | |
+| D-12 | vor's copy of the repository is a snapshot (last export 2026-11-12 at `5db79a5e`): nothing reruns `scripts/vor-export-source.sh` after doc changes. | N-todo 22; N-night queue 5 | |
 
 ### D3. Monitoring
 
@@ -294,7 +294,7 @@ From `docs/adr/ADR-INDEX.md` at `fe4b4e5e` (41 Proposed, 3 Deferred, 1 In Progre
 
 | ID | Item | Source one says | Source two says |
 |---|---|---|---|
-| E-01 | FND-043 (medium), Wotan per-topic permissions | N-state: fixed and enforced 2026-11-12 (`24025056`), gaps closed (`52f79a9a`) | REG: entry has no `resolved` block |
+| E-01 | FND-043 (medium), Wotan per-topic permissions | N-state: fixed and enforced 2026-11-12 (`24025056`), gaps closed (`90e45458`) | REG: entry has no `resolved` block |
 | E-02 | FND-025 (medium), hop checks prove key presence only | REG FND-025: closes on a root run of `tests/hopchecks` at HEAD | REG FND-033 text: that run passed 2026-11-09 (46 pass); FND-025 still listed |
 | E-03 | FND-009 (low), WireGuard container needs root | REG: "stays listed", no next action written | No acceptance block and no plan; open by design or awaiting an acceptance |
 | E-04 | `host-probe:west:alert-route` (high), `host-probe:west:db-backup-recent` (medium) | REG: clear when E1 brings the stack up | N: stack up since 2026-11-10, backup succeeded 2026-11-12, mail leg not run; rows still listed |
@@ -459,4 +459,4 @@ Evidence-source rows (144; the id is the title):
 - Plans over 1,000 lines were read by headings, step titles and box counts, not line by line. Progress files for the 2026-10-23 and 2026-10-27 sprints were not read.
 - East was not contacted. No gate was run; gate states are as the sources report them.
 - `~/tmp/secrets-2026-11.md` and every `.env` were not opened.
-- The repository changed during the sweep (`8d7f5ad6`, `fe4b4e5e`). Anything after `next.md` 2026-11-12 07:20Z is not reflected. The export audit itself was read only as far as its summary and the `next.md` note about it.
+- The repository changed during the sweep (`377d3fc2`, `248afba6`). Anything after `next.md` 2026-11-12 07:20Z is not reflected. The export audit itself was read only as far as its summary and the `next.md` note about it.
