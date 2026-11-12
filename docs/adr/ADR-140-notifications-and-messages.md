@@ -90,6 +90,27 @@ Stevie: "we need to be noting if app to app communications are encrypted or not 
 
 A notification service adds three links: producers and it to Wotan (same TLS 1.3 hybrid as above), it to the Well (same `hostssl`), and the browser to it through its page's BFF (same TLS as the pages). Rule for this and later ADRs: every new link states whether it is encrypted and how, in a table like this one.
 
+## The last hop is a live relay, not a poll (Stevie's answer, 2026-11-12)
+
+Asked whether the badge should poll, Stevie chose the other one: **notifications ride Wotan, and the last hop to the browser is a live server-sent-events relay of the page server's Wotan subscription.** The poll recommended above is set aside; that section stays as the record of what was weighed.
+
+The shape, with nothing else changed:
+
+1. Producers publish `notify.*` on Wotan and the notification service writes each one to the Well, as above.
+2. **Each page's backend holds one Wotan subscription** for notifications (dashboard-backend and kanban-app already hold a stream; the Zhen page's backend gets one, or relays through the service that owns notifications). Under FND-043's `topics.permissions` each backend's identity is listed for `notify.*` and nothing wider.
+3. **The backend relays to its own browser tabs over server-sent events** (`EventSource`): one way, plain HTTP semantics, same origin, the same session cookie as every other read. The browser still never connects to Wotan.
+4. **The relay filters per session.** A tab receives only the events addressed to its logged-in user or that user's teams. The Wotan topic carries ids and kinds, never text (question 4), and the backend decides who may see which id; an event for someone else is dropped at the backend, not hidden in the page.
+5. **The Well is still the truth.** A tab that connects, or reconnects after sleep, first reads its unread count from the Well through the backend, then follows the live stream; an event missed while disconnected is found by that read, not by replay from Wotan (in memory, no history).
+
+What the answer adds to settle before a plan:
+
+- **A connection per tab on each backend.** A cap per session and per server, a heartbeat comment so idle streams are not cut by a proxy, and a clean close at logout and at session expiry so a tab cannot keep listening on a dead session.
+- **The Zhen front** (`cmd/zhen-ui-front`, a proxy over a Unix socket) must pass a streaming response without buffering; today it serves ordinary requests.
+- **Cross-site use of the stream.** `EventSource` sends the session cookie, so the endpoint checks `Origin` and `Sec-Fetch-Site` like the WebSocket endpoints do, and its Content-Security-Policy needs `connect-src 'self'` only.
+- **Encryption of the links:** unchanged from the table above. The stream is the browser-to-page link (TLS 1.3, hybrid ML-KEM); the backend's subscription is a services-to-Wotan link (the same).
+
+His other sentence that day, that Wotan "may still be improved and developed on to increase its speed and efficiency too so it is a more comparable alternative to redis", is a pitch of its own: ADR-142.
+
 ## Decision
 
-None. Parked under ADR-112; it needs ADR-139's users, teams and email first.
+None. Parked under ADR-112; it needs ADR-139's users, teams and email first. The transport of the last hop is decided (server-sent events, 2026-11-12); everything else stands as written.
