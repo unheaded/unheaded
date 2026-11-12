@@ -67,3 +67,50 @@ tests:
       - eval_time: 35m
         alertname: ZhenSchedulerStalled
         exp_alerts: []
+
+  # ioc-audit last succeeded at t=0 and the daemon keeps exporting that. Up
+  # to three days it is quiet; past three days it waits out the 30m hold,
+  # then fires. A success at 74h (the gauge moves to then) clears it. The
+  # other job's gauge is as old and does not fire: the alarm is this job's.
+  - interval: 1m
+    input_series:
+      - series: 'zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111",schedule="ioc-audit"}'
+        values: '0x4440 266400x120'
+      - series: 'zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111",schedule="service-health-sweep"}'
+        values: '0x4560'
+    alert_rule_test:
+      - eval_time: 71h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 72h20m
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 73h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd, instance: "[fd00:dead:beef::1]:20111", schedule: ioc-audit}
+            exp_annotations:
+              summary: "The daily indicator-of-compromise audit has not succeeded for over 3 days"
+              description: "Every ioc-audit run since then failed or none ran: it kept finding an indicator, or it could not see (VictoriaMetrics or journal shipping down). Read the newest scheduled-run card in Review, or run the runbook by hand"
+              runbook_url: "runbooks/security/ioc-audit.yaml"
+      - eval_time: 75h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+
+  # The host was off for five days: no series, no alarm. Back up, the gauge
+  # still says five days ago for the minutes until the catch-up run lands;
+  # the 30m hold keeps that from firing.
+  - interval: 1m
+    input_series:
+      - series: 'zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111",schedule="ioc-audit"}'
+        values: '0x10 _x7180 0x3 432180x60'
+    alert_rule_test:
+      - eval_time: 100h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 7193m
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 7240m
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []

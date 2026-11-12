@@ -128,13 +128,38 @@ jobs:
     runbook: observe/service-health-sweep # category/name under runbooks/
     every: 6h                           # <N>m|<N>h (5m..744h), daily@HH:MM, weekly@sun@HH:MM
     enabled: true                       # default
+    catch_up: false                     # default; true: a slot the daemon was down for runs at the next start
 ```
 
 A job may name only a runbook whose `metadata.status` is `approved`, or that
 carries no status (ADR-024 "Authorship and approval"). A draft or stub makes
 the file refuse to load, and the status is checked again before every run.
 Times are the host's local time; an interval counts from the last run, with no
-catch-up burst after downtime.
+catch-up burst after downtime. A job with `catch_up: true` is the exception: the
+time of its last run is kept in `-schedules-state`, and when the daemon starts
+after one of its slots went by (the host was off at 02:00), it runs once at the
+first tick, then keeps its cadence. A job that has never run is due at once. Use
+it for a job that must happen "daily, whenever the host is on".
+
+Each job's last successful run is kept in `-schedules-state` as well and exported
+as `zhen_scheduler_job_last_success_timestamp_seconds{schedule}`, so it survives
+a restart; for a job that has never succeeded it is the time the job was first
+loaded. An alert on "no success for N days" reads this gauge.
+
+**The daily indicator-of-compromise audit.** `runbooks/security/ioc-audit.yaml`
+(job `ioc-audit`, `daily@02:00`, `catch_up: true`; commented out in the shipped
+schedule until the runbook is approved, since a draft makes the file refuse to
+load). It reads VictoriaMetrics on loopback and nothing else: SSH logins by
+host, account, source and method, and authentication failures by host and kind,
+over the last two days. The run fails, and its card lands in Review, on a login
+from outside the operator networks (`IOC_OPERATOR_NETS`, by default every
+private range), a login as root, or failures over the limits; it also fails
+when it could not see (VictoriaMetrics down, the journal shipped in no hour of
+the window), so blind never reads as clean. New sources inside the operator
+networks, logins not by key and hosts that ship no journal are notes. It reads
+counters, not log text: account changes, sudo command lines and kernel messages
+are not covered. Three days without a successful run is the alert
+`IOCAuditNotSucceeding` (a ticket in `observability/alerting/policy.yaml`).
 
 **Adding a job.** Edit the file and restart the daemon, or in `zhen-cli` type
 `/schedule add <name> <every> [runbook]`, `/schedule remove <name>` or

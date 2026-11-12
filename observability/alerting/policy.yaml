@@ -75,6 +75,14 @@ promote:
       service healthy. Rare by construction (operators log in from a few
       fixed LAN/P2P addresses), so a daily digest line costs nothing.
       Fires once per known source right after rollout (detection.yml).
+  - alert: IOCAuditNotSucceeding
+    urgency: ticket
+    reason: >-
+      Stevie, 2026-11-12: "alarm if fails for n+ days". The daily audit of
+      SSH logins and authentication failures fails its run when it finds an
+      indicator and when it cannot see. One failed day is a card in Review;
+      three days with no success means nobody read the card or the audit is
+      blind, and no SLO shows either.
   - alert: AlertMailVolumeHigh
     urgency: ticket
     reason: >-

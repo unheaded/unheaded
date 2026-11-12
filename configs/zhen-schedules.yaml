@@ -11,6 +11,9 @@
 #   every: <N>m | <N>h            (5m .. 744h, counted from the last run)
 #          daily@HH:MM            (the host's local time)
 #          weekly@<sun..sat>@HH:MM
+#   catch_up: true                (optional) a slot the daemon was down for
+#                                 runs at the next start instead of being
+#                                 skipped: "daily, whenever the host is on"
 #
 # Every job names a runbook (category/name under runbooks/) whose
 # metadata.status is approved, or that carries no status (the pre-policy
@@ -27,6 +30,20 @@ jobs:
   - name: service-health-sweep
     runbook: observe/service-health-sweep
     every: 6h
+
+  # Daily indicator-of-compromise audit (Stevie 2026-11-12: "daily if
+  # running, alarm if fails for n+ days"). Reads VictoriaMetrics on loopback
+  # only; an indicator fails the run and the card lands in Review; three days
+  # without a success is the alert IOCAuditNotSucceeding. catch_up because
+  # west is not always on at 02:00. COMMENTED OUT: the runbook is
+  # status: draft, and a draft in this file makes the scheduler refuse to
+  # start. After Stevie approves it (status: approved, approved_by,
+  # approved_at, then scripts/runbook-manifest.sh --write and the seal),
+  # uncomment these four lines.
+  # - name: ioc-audit
+  #   runbook: security/ioc-audit
+  #   every: daily@02:00
+  #   catch_up: true
 
   # Weekly consolidation (the step's starting job). Disabled: its steps run
   # `sudo docker exec unheaded-postgres psql`, which the unit's

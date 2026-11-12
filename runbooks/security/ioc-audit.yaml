@@ -1,0 +1,237 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ioc-audit
+  description: Daily read of SSH logins, authentication failures and journal shipping for indicators of compromise; an indicator fails the run so its card lands in Review
+  owner: sentinel
+  estimated_duration: 1m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_ioc_audit.py
+
+notes: |
+  Stevie, 2026-11-12: "set a weekly scheduled task with zhenai to read and
+  audit ssh and syslog for any indicators of compromise", then "maybe daily
+  if running, alarm if fails for n+ days". Meant for zhen-agentd's scheduler
+  (configs/zhen-schedules.yaml, job ioc-audit: daily, catch_up so a day the
+  host was off at the hour is made up at the next start); it also runs by
+  hand. The alarm is IOCAuditNotSucceeding
+  (monitoring/prometheus/rules/zhen.yml): three days without a successful
+  run, whether the audit could not see or kept finding something.
+
+  The window is two days although the run is daily: every hour is read by
+  two runs, so one missed run loses nothing, and an indicator a person has
+  looked at leaves the report after two days instead of failing the run
+  for a week.
+
+  What it reads: VictoriaMetrics on loopback, nothing else. Vector already
+  turns the journal's sshd, sudo and PAM lines into counters
+  (config/vector/vector.yaml): unheaded_ssh_accepted_total{host,user,src,
+  method} and unheaded_auth_failures_total{host,kind}. So the daemon needs no
+  journal access, no log-store login and no secret, and no log text reaches
+  the card: only hosts, account names, addresses, methods and counts. Label
+  values come from log lines, so every one is reduced to a safe character
+  set before it is printed.
+
+  An INDICATOR fails the run (exit 1), and the scheduler moves the card to
+  Review:
+    - a login from an address outside IOC_OPERATOR_NETS;
+    - a login as root;
+    - more SSH failures on one host than IOC_SSH_FAIL_MAX in the window;
+    - more sudo failures on one host than IOC_SUDO_FAIL_MAX in the window.
+  A NOTE is printed and does not fail the run: a source inside the operator
+  networks that was not seen in the baseline before the window (a new DHCP
+  lease looks like this), logins that were not by key, detection alerts that
+  fired in the window (they have their own tickets), and hosts that are
+  scraped but ship no journal.
+
+  Blind is not clean: when VictoriaMetrics does not answer, or the journal
+  was shipped in no hour of the window, the run fails with exit 2 ("cannot
+  audit").
+
+  Not covered, by design of the source: the text of log lines. Account
+  changes (useradd, usermod, group changes), sudo command lines, cron edits
+  and kernel messages are in the journal and in ClickHouse but have no
+  counter. Hosts whose journal is not shipped (east, 2026-11-12) are named
+  in a NOTE and are not audited. An indicator is followed up with
+  runbooks/security/ssh-login-new-source.yaml and
+  runbooks/security/incident-response.yaml.
+
+  The default operator networks are every private and local range, so the
+  default indicator is "a login from a public address". A host that knows
+  its operators narrows IOC_OPERATOR_NETS (space-separated CIDRs).
+
+parameters:
+  - name: IOC_VM_URL
+    default: "http://127.0.0.1:8428"
+    description: VictoriaMetrics query endpoint (loopback)
+  - name: IOC_WINDOW
+    default: "2d"
+    description: The window audited, a MetricsQL duration (twice the run interval, so a missed run loses nothing)
+  - name: IOC_BASELINE
+    default: "21d"
+    description: How far before the window a source counts as seen before (window plus baseline must fit VictoriaMetrics' retention, 30d)
+  - name: IOC_OPERATOR_NETS
+    default: "10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 127.0.0.0/8 fc00::/7 fe80::/10 ::1/128"
+    description: Networks operators log in from, space-separated CIDRs
+  - name: IOC_SSH_FAIL_MAX
+    default: "100"
+    description: SSH authentication failures per host in the window above which the run fails
+  - name: IOC_SUDO_FAIL_MAX
+    default: "5"
+    description: sudo authentication failures per host in the window above which the run fails
+
+steps:
+  - name: audit
+    action: shell
+    timeout: 120
+    description: "Read the window from VictoriaMetrics, print the report, exit 1 on an indicator, 2 when the audit could not see"
+    command: |
+      set -euo pipefail
+      python3 - <<'PY'
+      import ipaddress, json, os, re, sys, urllib.parse, urllib.request
+
+      VM = os.environ.get("IOC_VM_URL", "http://127.0.0.1:8428").rstrip("/")
+      WINDOW = os.environ.get("IOC_WINDOW", "2d")
+      BASELINE = os.environ.get("IOC_BASELINE", "21d")
+      DUR = re.compile(r"^[1-9][0-9]{0,3}[mhdw]$")
+
+      def fail_blind(why):
+          print("RESULT: cannot audit: " + why)
+          sys.exit(2)
+
+      for name, v in (("IOC_WINDOW", WINDOW), ("IOC_BASELINE", BASELINE)):
+          if not DUR.match(v):
+              fail_blind(name + " is not a duration like 7d")
+      if not re.match(r"^http://(127\.0\.0\.1|localhost|\[::1\])(:[0-9]{1,5})?$", VM):
+          fail_blind("IOC_VM_URL must be plain http on loopback")
+      try:
+          NETS = [ipaddress.ip_network(n) for n in os.environ.get("IOC_OPERATOR_NETS", "").split()]
+          SSH_MAX = int(os.environ.get("IOC_SSH_FAIL_MAX", "100"))
+          SUDO_MAX = int(os.environ.get("IOC_SUDO_FAIL_MAX", "5"))
+      except ValueError as e:
+          fail_blind("bad parameter: " + str(e)[:80])
+      if not NETS:
+          fail_blind("IOC_OPERATOR_NETS is empty")
+
+      def safe(s):
+          # Label values were log text once: keep a harmless alphabet, bounded.
+          return re.sub(r"[^A-Za-z0-9._@:/-]", "?", str(s))[:64] or "-"
+
+      def query(q):
+          url = VM + "/api/v1/query?" + urllib.parse.urlencode({"query": q})
+          try:
+              with urllib.request.urlopen(url, timeout=30) as r:
+                  body = json.loads(r.read(4 << 20))
+          except (OSError, ValueError) as e:
+              fail_blind("VictoriaMetrics did not answer (" + type(e).__name__ + ")")
+          if body.get("status") != "success":
+              fail_blind("VictoriaMetrics refused a query")
+          out = []
+          for row in body.get("data", {}).get("result", []):
+              try:
+                  out.append((row.get("metric", {}), float(row["value"][1])))
+              except (KeyError, IndexError, TypeError, ValueError):
+                  fail_blind("VictoriaMetrics sent an unreadable row")
+          return out
+
+      def inside(src):
+          try:
+              a = ipaddress.ip_address(src)
+          except ValueError:
+              return False  # not an address at all: treat as outside
+          if a.version == 6 and a.ipv4_mapped:
+              a = a.ipv4_mapped
+          return any(a.version == n.version and a in n for n in NETS)
+
+      indicators, notes = [], []
+
+      # Blind is not clean: was the journal shipped at all in the window?
+      hours = query('count_over_time((max(up{job="vector"}) == 1)[%s:1h])' % WINDOW)
+      shipped = int(hours[0][1]) if hours else 0
+      if shipped == 0:
+          fail_blind("the journal was shipped in no hour of the last " + WINDOW)
+
+      logins = [(m, v) for m, v in query(
+          'sum by (host, user, src, method) (increase(unheaded_ssh_accepted_total[%s])) > 0' % WINDOW)]
+      before = {(m.get("host", ""), m.get("src", "")) for m, v in query(
+          'sum by (host, src) (increase(unheaded_ssh_accepted_total[%s] offset %s)) > 0' % (BASELINE, WINDOW))}
+      failures = query('sum by (host, kind) (increase(unheaded_auth_failures_total[%s])) > 0' % WINDOW)
+      alerts = query('count by (alertname) (count_over_time(ALERTS{alertstate="firing",'
+                     'alertname=~"SSHLoginNewSource|SSHAuthFailureBurst|OutboundVolumeDeviation"}[%s]))' % WINDOW)
+      shipping = {m.get("host", "") for m, v in query('count by (host) (unheaded_log_lines_total)')}
+      scraped = {m.get("host", "") for m, v in query('count by (host) (up{host!=""})')}
+
+      print("IOC AUDIT, window %s, baseline %s before it" % (WINDOW, BASELINE))
+      print("journal shipping seen in %d hourly samples of the window" % shipped)
+      print("")
+      print("SSH logins accepted (host user source method count):")
+      if not logins:
+          print("  none")
+      for m, v in sorted(logins, key=lambda r: (r[0].get("host", ""), -r[1])):
+          host, user, src, method = (m.get(k, "") for k in ("host", "user", "src", "method"))
+          print("  %s %s %s %s %d" % (safe(host), safe(user), safe(src), safe(method), round(v)))
+          if not inside(src):
+              indicators.append("login from outside the operator networks: %s@%s from %s (%d)" % (
+                  safe(user), safe(host), safe(src), round(v)))
+          elif (host, src) not in before:
+              notes.append("new source inside the operator networks: %s@%s from %s" % (safe(user), safe(host), safe(src)))
+          if user == "root":
+              indicators.append("login as root on %s from %s (%d)" % (safe(host), safe(src), round(v)))
+          if method != "publickey":
+              notes.append("login not by key: %s@%s from %s by %s" % (safe(user), safe(host), safe(src), safe(method)))
+
+      print("")
+      print("Authentication failures (host kind count):")
+      if not failures:
+          print("  none")
+      for m, v in sorted(failures, key=lambda r: (r[0].get("host", ""), r[0].get("kind", ""))):
+          host, kind = m.get("host", ""), m.get("kind", "")
+          print("  %s %s %d" % (safe(host), safe(kind), round(v)))
+          if kind == "ssh" and v > SSH_MAX:
+              indicators.append("%d SSH authentication failures on %s (limit %d)" % (round(v), safe(host), SSH_MAX))
+          if kind == "sudo" and v > SUDO_MAX:
+              indicators.append("%d sudo authentication failures on %s (limit %d)" % (round(v), safe(host), SUDO_MAX))
+
+      for m, v in sorted(alerts, key=lambda r: r[0].get("alertname", "")):
+          notes.append("detection alert fired in the window: %s" % safe(m.get("alertname", "")))
+      for host in sorted(scraped - shipping - {""}):
+          notes.append("host %s is scraped but ships no journal: not audited" % safe(host))
+
+      print("")
+      print("NOTES (%d):" % len(notes))
+      for n in notes[:40]:
+          print("  " + n)
+      if len(notes) > 40:
+          print("  ... %d more" % (len(notes) - 40))
+      # The verdict goes last: the card keeps the tail of the output.
+      print("")
+      if indicators:
+          print("RESULT: %d indicator(s)" % len(indicators))
+          for i in indicators[:10]:
+              print("INDICATOR: " + i)
+          sys.exit(1)
+      print("RESULT: clean, no indicator in the last " + WINDOW)
+      PY
+
+  - name: follow-up
+    action: manual
+    command: "echo 'Indicator: runbooks/security/ssh-login-new-source.yaml for the login, runbooks/security/incident-response.yaml if it is not yours. Cannot audit: runbooks/observe/log-pipeline.yaml.'"
+    description: "MANUAL. Only when the audit step failed: an indicator is checked by a person, never closed by the scheduler"
+
+verification:
+  - name: victoria-answers
+    command: |
+      set -euo pipefail
+      curl -sf --max-time 10 "${IOC_VM_URL}/api/v1/query" --data-urlencode 'query=count(up{job="vector"})' |
+        python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; print("vector series:", len(r)); sys.exit(not r)'
+
+rollback:
+  - name: nothing-to-roll-back
+    action: manual
+    command: "echo 'Every step reads. Nothing to undo.'"
+    description: "MANUAL. The audit changes nothing"
