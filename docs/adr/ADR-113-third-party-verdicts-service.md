@@ -335,3 +335,15 @@ Environment collectors, read-only and first-party, run on each host by the same 
 ## Decision
 
 None yet. Parked under ADR-112.
+
+## Status 2026-11-12: a read-only page, nothing else
+
+Stevie, 2026-11-11: "the 3rd party artifact page was sick - do we have that as a real service/application/site yet?" His answer on 2026-11-12: a dashboard page, `/verdicts`, from the repository's verdict data, behind the dashboard login, in the menu; writes later and admin-only.
+
+Built that day, and only that:
+
+- `GET /api/v1/verdicts` on dashboard-backend and the page `/verdicts` (`cmd/dashboard-backend/static/verdicts.html`, `static/js/verdicts.js`): counts by verdict, one table per section of the inventory, a verdict filter and a text filter. The data needs a login like every other `/api/` read.
+- The data is `docs/policy/third-party-inventory-2026-10-29.md`, parsed into `cmd/dashboard-backend/internal/verdicts/inventory.json` and embedded in the binary. A test fails when the two differ (`-update` rewrites the JSON). The Verdict column of that record is empty today, so the page shows 235 rows, all undecided.
+- No table in the Well, no service account, no audit trail, no write path: the page cannot change anything, so the rule "no mutable page without the database" is not in play yet. A verdict is given by editing the record in git, as before.
+
+Everything this ADR asks for is still open: the service and its name, the schema and role, who may write, the audit trail, the generator that rebuilds the inventory from the tree (the 2026-10-29 one lived in scratch and is gone), the daily check. The questions above stand.

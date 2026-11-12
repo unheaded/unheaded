@@ -739,6 +739,9 @@ func (s *Server) setupRoutes() {
 		}
 	}
 
+	// Third-party inventory and verdicts (ADR-113, read-only).
+	s.mux.HandleFunc("/api/v1/verdicts", s.handleVerdicts)
+
 	// Service config management endpoints (S47)
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
 	s.mux.HandleFunc("/api/v1/infrastructure", s.handleInfrastructure)
@@ -776,6 +779,7 @@ func (s *Server) setupRoutes() {
 	// Serve dashboard pages
 	s.mux.HandleFunc("/logs", s.handleStaticFile("logs.html"))
 	s.mux.HandleFunc("/compliance", s.handleStaticFile("compliance.html"))
+	s.mux.HandleFunc("/verdicts", s.handleStaticFile("verdicts.html"))
 	s.mux.HandleFunc("/", s.handleStaticIndex)
 }
 

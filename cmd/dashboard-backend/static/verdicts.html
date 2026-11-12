@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Unheaded third-party inventory - every outside thing the repository pulls in, calls, bundles or carries, with the verdict on each">
+    <title>Verdicts | (U)NHEADED</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='55' text-anchor='middle' dominant-baseline='middle' fill='%234a9eff' font-family='monospace' font-size='40'%3E(u)%3C/text%3E%3C/svg%3E">
+    <style>
+        .vd-page { padding: var(--spacing-lg); display: flex; flex-direction: column; gap: var(--spacing-lg); overflow: auto; }
+        .vd-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md) var(--spacing-lg); }
+        .vd-card h2 { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 var(--spacing-md); font-weight: 600; }
+        .vd-card h2 .vd-count { color: var(--text-muted); font-weight: 400; letter-spacing: 0; text-transform: none; margin-left: var(--spacing-sm); }
+        .vd-note { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.5; margin: 0; }
+        .vd-note strong { color: var(--text-primary); }
+        .vd-banner { border-left: 3px solid var(--gold-dark); padding-left: var(--spacing-md); }
+        .vd-tiles { display: flex; gap: var(--spacing-lg); flex-wrap: wrap; margin-bottom: var(--spacing-md); }
+        .vd-tile { min-width: 96px; }
+        .vd-tile .n { font-size: 1.6rem; font-variant-numeric: tabular-nums; line-height: 1.1; color: var(--text-primary); }
+        .vd-tile .l { font-size: 0.7rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+        .vd-bar { display: flex; height: 8px; border-radius: 2px; overflow: hidden; background: var(--status-unknown-bg); }
+        .vd-bar span { display: block; height: 100%; }
+        .vd-controls { display: flex; gap: var(--spacing-sm); flex-wrap: wrap; align-items: center; }
+        .vd-controls button { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 0.75rem; }
+        .vd-controls button.on { color: var(--gold); border-color: var(--gold); }
+        .vd-controls input { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 3px; padding: 3px 8px; font-size: 0.8rem; min-width: 16rem; }
+        .vd-controls .vd-shown { color: var(--text-muted); font-size: 0.75rem; margin-left: auto; }
+        table.vd { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        table.vd th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        table.vd td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; overflow-wrap: anywhere; }
+        table.vd td.name { font-family: var(--font-mono, monospace); color: var(--text-primary); }
+        .muted { color: var(--text-muted); }
+        .mono { font-family: var(--font-mono, monospace); }
+        .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; letter-spacing: 0.05em; border: 1px solid currentColor; white-space: nowrap; }
+        .c-keep { color: var(--status-healthy); }
+        .c-replace { color: var(--status-degraded); }
+        .c-cut { color: var(--status-unhealthy); }
+        .c-other { color: var(--gold-light); }
+        .c-undecided { color: var(--text-muted); }
+        .b-keep { background: var(--status-healthy); }
+        .b-replace { background: var(--status-degraded); }
+        .b-cut { background: var(--status-unhealthy); }
+        .b-other { background: var(--gold-dark); }
+        /* One spinner until the inventory has loaded; verdicts.js lifts vd-loading. */
+        .vd-wait { display: none; align-items: center; gap: var(--spacing-md); }
+        .vd-loading > section, .vd-loading > div { display: none; }
+        .vd-loading > .vd-wait { display: flex; }
+        .vd-spin { width: 18px; height: 18px; flex: none; border: 2px solid var(--border-color); border-top-color: var(--gold); border-radius: 50%; animation: vd-spin 0.8s linear infinite; }
+        .vd-failed .vd-spin { display: none; }
+        @keyframes vd-spin { to { transform: rotate(360deg); } }
+        @media (prefers-reduced-motion: reduce) { .vd-spin { animation-duration: 3s; } }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-left">
+                <h1 class="logo">
+                    <span class="logo-text">(u)nheaded</span>
+                    <span style="color:#333;margin:0 0.5rem;">|</span>
+                    <span style="color:#888;font-size:0.75rem;letter-spacing:0.1em;">verdicts</span>
+                </h1>
+            </div>
+            <div class="header-center">
+                <nav class="nav-tabs">
+                    <!-- Same tabs as the main dashboard (index.html); the first four open its in-page tabs by hash. -->
+                    <a class="nav-tab nav-link" href="/#overview">Overview</a>
+                    <a class="nav-tab nav-link" href="/#flows">Flow Graph</a>
+                    <a class="nav-tab nav-link" href="/#latency">Latency</a>
+                    <a class="nav-tab nav-link" href="/#events">Events</a>
+                    <a class="nav-tab nav-link" href="/compliance">Compliance</a>
+                    <a class="nav-tab nav-link active" href="/verdicts" aria-current="page">Verdicts</a>
+                    <span data-kingdom-nav="dashboard"></span><!-- Grafana, Kanban, Wiki, Zhenai: /auth/nav.js (pkg/bff), from this host's name and pkg/ports -->
+                    <a class="nav-tab nav-link" href="/logs">Logs</a>
+                </nav>
+            </div>
+            <div class="header-right">
+                <span id="vd-status" class="muted" style="font-size:0.8rem;">loading...</span>
+            </div>
+        </header>
+
+        <main class="vd-page vd-loading" id="vd-page">
+            <section class="vd-card vd-wait" id="vd-wait" role="status" aria-live="polite">
+                <span class="vd-spin" aria-hidden="true"></span>
+                <p class="vd-note" id="vd-wait-text">Loading the inventory</p>
+            </section>
+
+            <section class="vd-card">
+                <h2>Third-party verdicts</h2>
+                <div class="vd-tiles">
+                    <div class="vd-tile"><div class="n" id="vd-n-total">0</div><div class="l">items</div></div>
+                    <div class="vd-tile"><div class="n c-undecided" id="vd-n-undecided">0</div><div class="l">undecided</div></div>
+                    <div class="vd-tile"><div class="n c-keep" id="vd-n-keep">0</div><div class="l">keep</div></div>
+                    <div class="vd-tile"><div class="n c-replace" id="vd-n-replace">0</div><div class="l">replace</div></div>
+                    <div class="vd-tile"><div class="n c-cut" id="vd-n-cut">0</div><div class="l">cut</div></div>
+                    <div class="vd-tile"><div class="n c-other" id="vd-n-other">0</div><div class="l">other</div></div>
+                </div>
+                <div class="vd-bar" id="vd-bar" role="img" aria-label="Share of items by verdict"></div>
+            </section>
+
+            <section class="vd-card">
+                <div class="vd-controls">
+                    <button type="button" id="vd-f-all" class="on">All</button>
+                    <button type="button" id="vd-f-undecided">Undecided</button>
+                    <button type="button" id="vd-f-keep">Keep</button>
+                    <button type="button" id="vd-f-replace">Replace</button>
+                    <button type="button" id="vd-f-cut">Cut</button>
+                    <button type="button" id="vd-f-other">Other</button>
+                    <input type="search" id="vd-q" placeholder="Filter by name, version, path or commit" aria-label="Filter the inventory" autocomplete="off" spellcheck="false">
+                    <span class="vd-shown" id="vd-shown"></span>
+                </div>
+            </section>
+
+            <div id="vd-sections" style="display:flex;flex-direction:column;gap:var(--spacing-lg);"></div>
+
+            <section class="vd-card vd-banner">
+                <p class="vd-note">
+                    <strong>How to read this.</strong> Each row is something outside Unheaded that the repository pulls in,
+                    calls, bundles or carries. The verdict is Stevie's: <span class="c-keep">keep</span>,
+                    <span class="c-replace">replace</span> with our own, or <span class="c-cut">cut</span>; a row with none is
+                    <span class="c-undecided">undecided</span>. Nothing third-party is added, bumped or bundled without his
+                    confirmation (ADR-096, native first). This page only reads: the record is
+                    <span class="mono" id="vd-source"></span>, a dated file in the repository, and a verdict is given there.
+                    "First added" is the oldest commit on develop that adds the name; "assistant" under "By" means that
+                    commit carries a Claude co-author trailer.
+                </p>
+            </section>
+        </main>
+    </div>
+    <script src="/auth/auth.js"></script>
+    <script src="/auth/nav.js"></script><!-- the Kingdom menu (pkg/bff) --><!-- login panel; adds X-Requested-With to same-origin fetches (pkg/bff, ADR-103 §4) -->
+    <script src="/static/js/verdicts.js"></script>
+</body>
+</html>

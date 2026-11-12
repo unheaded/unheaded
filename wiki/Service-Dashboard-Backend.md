@@ -5,7 +5,7 @@ Real-time metrics aggregation and WebSocket push for the dashboard UI. Bridges e
 | | |
 |---|---|
 | Container | `unheaded-dashboard` (live on west), port 20000 |
-| Pages | overview (req/s, 5xx %, p50/p95/p99 from `/api/v1/metrics/summary`), flow graph, latency, logs (live tail), `compliance.html` |
+| Pages | overview (req/s, 5xx %, p50/p95/p99 from `/api/v1/metrics/summary`), flow graph, latency, logs (live tail), `compliance.html`, `verdicts.html` (`/verdicts`: the third-party inventory with Stevie's verdict on each item, read-only; data from `GET /api/v1/verdicts`, which is the dated record `docs/policy/third-party-inventory-2026-10-29.md` embedded in the binary and held to it by a test, ADR-113) |
 | Live view | every viewer sees the same live events, one copy per message, no replay on connect |
 | Writes to The Well | `ops_writer`: Akira's health state (`service_health_current` / `_transitions`) |
 | Memory | `GOMEMLIMIT` set; ~210-235 MiB plateau after the 2026-09 OOM fixes |

@@ -34,6 +34,8 @@
 //   - POST /auth/login, GET /auth/me, POST /auth/logout - browser login
 //     (AUTH_ENABLED=true with AUTH_ISSUER_URL; pkg/bff, ADR-103 §4)
 //   - POST /api/v1/compliance/profile - bind a host to a profile (operator)
+//   - GET /api/v1/verdicts - third-party inventory with its verdicts
+//     (read-only, embedded; ADR-113)
 package main
 
 import (
