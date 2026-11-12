@@ -30,9 +30,11 @@ Environment=GOMEMLIMIT=460MiB
 StateDirectory=unheaded/vor
 StateDirectoryMode=0750
 WorkingDirectory=/var/lib/unheaded/vor
-ExecStartPre=/usr/bin/mkdir -p /var/lib/unheaded/vor/.config/cs/sources
-ExecStartPre=/usr/bin/ln -sfn /var/zhen/vor-source/unheaded /var/lib/unheaded/vor/.config/cs/sources/unheaded
-ExecStartPre=/usr/bin/ln -sfn /var/zhen/projects/zhen-taught /var/lib/unheaded/vor/.config/cs/sources/zhen-taught
+# vor reads ~/.config/vor/sources since its May 2026 rename from cs (no
+# fallback to ~/.config/cs); a vor built before the rename reads the old path.
+ExecStartPre=/usr/bin/mkdir -p /var/lib/unheaded/vor/.config/vor/sources
+ExecStartPre=/usr/bin/ln -sfn /var/zhen/vor-source/unheaded /var/lib/unheaded/vor/.config/vor/sources/unheaded
+ExecStartPre=/usr/bin/ln -sfn /var/zhen/projects/zhen-taught /var/lib/unheaded/vor/.config/vor/sources/zhen-taught
 # vor binds 127.0.0.1 itself; the argument is the port (ports.ZhenVor).
 ExecStart=/usr/local/bin/vor serve 20110
 Restart=on-failure
