@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-11-11
-**Total:** 140 entries (ADR-001 to ADR-143, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 141 entries (ADR-001 to ADR-144, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -16,12 +16,12 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked)).
 
 | Status | Count |
 |--------|-------|
 | Accepted | 63 |
-| Proposed | 40 |
+| Proposed | 41 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -34,7 +34,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **140** |
+| **Total** | **141** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -203,3 +203,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [141](ADR-141-chaos-controller-always-on.md) | The chaos controller runs all the time, slowly, after 1.0.0: a random allowlisted fault every n minutes inside the ADR-107 envelope, a recovery record per fault, stop and page when something does not come back | **Proposed** (parked) | 2026-11-12 |
 | [142](ADR-142-wotan-as-a-redis-class-store.md) | Wotan made fast and lean enough to stand beside Redis: measure first, bounded memory, a short list of data shapes with a first-party caller each, no Redis protocol, edge cryptography never traded for speed | **Proposed** (parked) | 2026-11-12 |
 | [143](ADR-143-terraform-multi-cloud-template.md) | A Terraform template that stands the whole kingdom up on AWS, Azure, GCP, LXD or Docker from a released, verified tag; an empty skeleton repository only, opens when 1.0.0 is tagged | **Proposed** (parked) | 2026-11-12 |
+| [144](ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west (trace collector 70% of all CPU: two readers walk an ever-growing BPF latency map key by key; east's has averaged 1.5 cores for 20 days), then a target for a small host and a budget gate | **Proposed** (parked; the trace collector item is a defect and can go first) | 2026-11-12 |
