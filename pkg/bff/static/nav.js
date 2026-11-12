@@ -17,6 +17,9 @@
 // textContent only; nothing from the page is interpreted as markup.
 (function () {
   'use strict';
+  // The placeholder below is replaced with the menu when the script is served
+  // (pkg/bff.ServeNavJS); it must stay the only place its name is written.
+  // eslint-disable-next-line no-undef
   var apps = __NAV__;
   var host = location.hostname;
   if (!host) {
