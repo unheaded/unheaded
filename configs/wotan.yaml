@@ -33,6 +33,7 @@ topics:
     - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
     - "ebpf-collector"       # ebpf.packet.events / ebpf.latency.events (cmd/ebpf-collector, Rust; no unit or compose service yet)
+    - "gateway"              # gateway.requests and the alerts.critical subscription every service keeps (services/gateway)
     - "heimdall"             # drift.detected.<node> (signed; drift. keys decide what is taken)
     - "kanban-app"
     - "kev-poller"           # threats.cisa-kev.{updates,delta} (ADR-055)
@@ -47,6 +48,7 @@ topics:
     - "unheaded-baseline"    # compliance.deviation.<host> from the host baseline agent (ADR-098)
     - "unheaded-cli"
     - "unheaded-daemon"      # Cuirass: cuirass.drift / cuirass.metrics / cuirass.chaos
+    - "upc-cartridgectl"     # upc.cart.weights.<model>: signed int8 weights for the anomaly cartridge (weights publish|fetch, ADR-108)
     - "zhen-agentd"          # zhen.llm.requests / zhen.audit.toolcalls / zhen.confirm.pending (S-TWO-BRAINS)
     - "zhen-claude"          # same topics, the Claude side
 
@@ -168,9 +170,8 @@ topics:
       ebpf-collector:
         publish: ["ebpf.packet.events", "ebpf.latency.events"]
       gateway:
-        # On AUTH_ALLOW_CALLERS but not on auto_approve (found 2026-11-11):
-        # its subscriptions stay pending today. Listed so that the day it is
-        # approved its access is already bounded.
+        # On auto_approve since 2026-11-12 (Stevie); before that its
+        # subscriptions stayed pending.
         subscribe: ["alerts.critical"]
         publish: ["gateway.requests"]
       heimdall:
@@ -189,7 +190,10 @@ topics:
       perf-benchmark:
         publish: ["bench.perf.packet"]
       sophia:
-        subscribe: ["alerts.critical"]
+        # knowledge.shared: sophia joins it at start (no handler reads it
+        # yet). Left off the first list, so from the 2026-11-12 enforce
+        # every restart of sophia was refused it every 30 s.
+        subscribe: ["alerts.critical", "knowledge.shared"]
         publish: ["sophia.wisdom", "system.discovery", "system.health.reports", "logs.sophia.*"]
       sword:
         publish: ["deploy.started", "deploy.progress", "deploy.succeeded", "deploy.failed", "deploy.rolled_back", "system.discovery", "system.health.reports"]
@@ -207,8 +211,9 @@ topics:
       unheaded-daemon:
         publish: ["cuirass.drift", "cuirass.metrics", "cuirass.chaos", "system.discovery", "system.health.reports", "logs.unheaded-daemon.*"]
       upc-cartridgectl:
-        # weights subcommand only; not on auto_approve or AUTH_ALLOW_CALLERS
-        # today (found 2026-11-11), so this is for when it is.
+        # weights subcommand only: publish writes a model's topic and fetch
+        # reads it back (a service may read what it may publish). On
+        # auto_approve and AUTH_ALLOW_CALLERS since 2026-11-12 (Stevie).
         publish: ["upc.cart.weights.*"]
       zhen-agentd:
         publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending", "zhen.agent.report", "zhen.agent.runs", "zhen.scheduler.heartbeat", "runbooks.progress"]
