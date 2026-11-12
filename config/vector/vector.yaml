@@ -333,3 +333,9 @@ sinks:
     # (60) drops a unit that logs less than once a minute, which would read
     # as a counter reset and hide exactly the silence the alerts look for.
     flush_period_secs: 86400
+    # No timestamps on the exposed samples: with them, Prometheus stamps each
+    # series at the time Vector last updated it, and a series quiet for a
+    # while (a unit that logs rarely, kept by flush_period_secs above) is
+    # refused as "too old" (about 100 samples dropped per scrape on west,
+    # seen 2026-11-11). Prometheus's scrape time is the right time.
+    suppress_timestamp: true
