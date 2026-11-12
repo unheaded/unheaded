@@ -57,7 +57,7 @@ hosts).
 ### Secrets Management
 
 - **Credentials are never stored in the repo**: not in code, manifests, scripts, docs or test fixtures.
-- They come from environment variables with fail-loud guards (`${VAR:?...}` in compose, a startup error in Go), never a shipped default. On west they live in the repo-root `.env` (0600, gitignored) and per-service env files such as `/etc/huginn.env` (root 0600).
+- They come from environment variables with fail-loud guards (`${VAR:?...}` in compose, a startup error in Go), never a shipped default. On west they live outside the checkout since 2026-11-12, all root 0600 under `/etc/unheaded/`: `compose.env` (the main stack; the repo-root `.env` is a symlink to it, which compose follows under `sudo`), `monitoring.env` (`monitoring/.env` is a symlink) and `huginn.env` (`/etc/huginn.env` is a symlink), so a secrets file cannot ride along in a push, an archive or an image build context; other per-service env files sit beside them.
 - Enforced by CI: `gitleaks` on every push, `scripts/check-secrets-baseline.sh` (`.gitleaksignore` may only shrink), `trivy --scanners secret`.
 - The Well's passwords were all rotated on 2026-10-15; backup sets carry no password hashes.
 

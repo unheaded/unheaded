@@ -36,3 +36,14 @@ bin/
 /monad
 /wiki-server
 /huginn
+
+# Secrets and key material, all gitignored: no image build needs them (CI
+# builds from a clean checkout that has none), and `COPY . .` in the builder
+# stage would otherwise put them in the build context and a cached layer.
+.env
+.env.*
+!.env.example
+**/.env
+configs/keys/
+configs/certs/
+configs/auth/
