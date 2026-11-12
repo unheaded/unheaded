@@ -520,6 +520,190 @@ func TestScheduler_UpdateAndPersist(t *testing.T) {
 	}
 }
 
+const catchUpJobs = `version: 1
+jobs:
+  - name: nightly
+    runbook: observe/service-health-sweep
+    every: daily@02:00
+    catch_up: true
+  - name: plain
+    runbook: observe/approved-one
+    every: daily@02:00
+`
+
+// A catch_up job does not lose a slot to downtime: never run, it is due at
+// the first tick; started again after its slot went by, it is due at once;
+// started again before the slot, it waits for it. A job without catch_up
+// skips the missed slot, as it always did.
+func TestScheduler_CatchUpRunsAMissedSlot(t *testing.T) {
+	f := newFakeSchedChampion()
+	cfg := writeSchedules(t, catchUpJobs)
+	state := filepath.Join(t.TempDir(), "state.json")
+	clk := &clock{t: t0} // 2026-10-27 10:00 UTC
+	mk := func() *scheduler {
+		s, err := newScheduler(context.Background(), schedulerConfig{Champion: f, Path: cfg, StatePath: state, Runs: zhenagent.NewMemStore(),
+			Now: clk.now, Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	ctx := context.Background()
+	runs := func() int {
+		n := 0
+		for _, rb := range f.executed() {
+			if rb == "observe/service-health-sweep" {
+				n++
+			}
+		}
+		return n
+	}
+	tick := func(s *scheduler) { s.tick(ctx); s.wait() }
+
+	// First start, never run: due now. The plain job waits for 02:00.
+	s := mk()
+	tick(s)
+	if runs() != 1 {
+		t.Fatalf("never-run catch_up job: %d runs at the first tick, want 1", runs())
+	}
+	for _, rb := range f.executed() {
+		if rb == "observe/approved-one" {
+			t.Fatal("a job without catch_up ran at start")
+		}
+	}
+	// Still up an hour later: not due again before the slot.
+	clk.set(t0.Add(time.Hour))
+	tick(s)
+	if runs() != 1 {
+		t.Fatalf("ran again before its slot: %d", runs())
+	}
+
+	// Down over 02:00, back at 03:40 the next day: due at once.
+	clk.set(time.Date(2026, 10, 28, 3, 40, 0, 0, time.UTC))
+	s = mk()
+	tick(s)
+	if runs() != 2 {
+		t.Fatalf("missed slot not caught up: %d runs, want 2", runs())
+	}
+	for _, rb := range f.executed() {
+		if rb == "observe/approved-one" {
+			t.Fatal("a job without catch_up caught up a missed slot")
+		}
+	}
+
+	// Restarted the same evening, before the next slot: nothing is owed.
+	clk.set(time.Date(2026, 10, 28, 22, 0, 0, 0, time.UTC))
+	s = mk()
+	tick(s)
+	if runs() != 2 {
+		t.Fatalf("ran with no slot missed: %d", runs())
+	}
+	// Up through 02:00: the slot itself.
+	clk.set(time.Date(2026, 10, 29, 2, 0, 0, 0, time.UTC))
+	tick(s)
+	if runs() != 3 {
+		t.Fatalf("the slot did not run: %d", runs())
+	}
+
+	// A recorded start in the future (a clock that was wrong) is not
+	// believed: the job waits for its next slot instead of never running
+	// or running on every start.
+	clk.set(time.Date(2026, 10, 29, 3, 0, 0, 0, time.UTC))
+	b, err := os.ReadFile(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var st scheduleState
+	if err := json.Unmarshal(b, &st); err != nil {
+		t.Fatal(err)
+	}
+	st.LastStarted["nightly"] = time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	b, _ = json.Marshal(st)
+	if err := os.WriteFile(state, b, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s = mk()
+	if got, want := s.view().Jobs[0].NextDue, time.Date(2026, 10, 30, 2, 0, 0, 0, time.UTC); !got.Equal(want) {
+		t.Fatalf("future last start: next due %v, want %v", got, want)
+	}
+	if !s.view().Jobs[0].CatchUp || s.view().Jobs[1].CatchUp {
+		t.Errorf("catch_up not shown per job: %+v", s.view().Jobs)
+	}
+}
+
+// Each job's last success is a gauge that survives a restart; a job that
+// has never succeeded counts from when the scheduler first saw it, and a
+// failed run does not move it.
+func TestScheduler_LastSuccessSurvivesRestart(t *testing.T) {
+	f := newFakeSchedChampion()
+	cfg := writeSchedules(t, `version: 1
+jobs:
+  - name: lastok
+    runbook: observe/service-health-sweep
+    every: 1h
+`)
+	state := filepath.Join(t.TempDir(), "state.json")
+	clk := &clock{t: t0}
+	mk := func() *scheduler {
+		s, err := newScheduler(context.Background(), schedulerConfig{Champion: f, Path: cfg, StatePath: state, Runs: zhenagent.NewMemStore(),
+			Now: clk.now, Log: slog.New(slog.NewTextHandler(io.Discard, nil))})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	ctx := context.Background()
+	// The gauge's value as a Unix time, or "" when the series is absent.
+	gauge := func() string {
+		line := grepMetric(scrape(t), `zhen_scheduler_job_last_success_timestamp_seconds{schedule="lastok"}`)
+		if line == "" {
+			return ""
+		}
+		v, err := strconv.ParseFloat(line[strings.LastIndex(line, " ")+1:], 64)
+		if err != nil {
+			t.Fatalf("gauge line %q: %v", line, err)
+		}
+		return strconv.FormatInt(int64(v), 10)
+	}
+	want := func(at time.Time) string { return strconv.FormatInt(at.Unix(), 10) }
+
+	s := mk()
+	if got := gauge(); got != want(t0) {
+		t.Fatalf("never succeeded: %q, want first-seen %q", got, want(t0))
+	}
+	ok := t0.Add(time.Hour)
+	clk.set(ok)
+	s.tick(ctx)
+	s.wait()
+	if got := gauge(); got != want(ok) {
+		t.Fatalf("after a success: %q, want %q", got, want(ok))
+	}
+	// A failed run leaves it where it was.
+	f.mu.Lock()
+	f.exits["observe/service-health-sweep"] = 1
+	f.mu.Unlock()
+	clk.set(t0.Add(2 * time.Hour))
+	s.tick(ctx)
+	s.wait()
+	if got := gauge(); got != want(ok) {
+		t.Fatalf("after a failure: %q, want still %q", got, want(ok))
+	}
+	// A restart days later still says when it last succeeded.
+	clk.set(t0.Add(72 * time.Hour))
+	mk()
+	if got := gauge(); got != want(ok) {
+		t.Fatalf("after a restart: %q, want %q", got, want(ok))
+	}
+	// Removed, the series goes: a job that is gone must not alarm.
+	s = mk()
+	if _, err := s.UpdateSchedule(ctx, "remove", map[string]any{"name": "lastok"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := gauge(); got != "" {
+		t.Fatalf("after remove: %q, want no series", got)
+	}
+}
+
 // failingRuns is a Well that refuses every insert.
 type failingRuns struct{ *zhenagent.MemStore }
 

@@ -46,6 +46,14 @@ import (
 // next job but never the heartbeat, and a job is never run twice at once.
 // A job that came due while another ran starts on the next tick.
 //
+// A job with catch_up: true does not lose a slot to downtime: the time of
+// its last run is kept in -schedules-state, and when the daemon starts
+// after a slot went by (the host was off at 02:00), the job runs at the
+// first tick. Without it a missed slot is skipped, as before. Each job's
+// last success is kept the same way and exported
+// (zhen_scheduler_job_last_success_timestamp_seconds), so "this job has not
+// succeeded for N days" survives restarts.
+//
 // Each run: one Kanban card (type scheduled-run, owner zhen-scheduler,
 // through kanban_create), one zhen_agent_runs row (mode scheduled,
 // migration 037; in memory when the Well is down or the card could not be
@@ -82,6 +90,12 @@ var (
 		Name: "zhen_scheduler_runs_total",
 		Help: "Scheduled runbook runs by job and outcome (succeeded, failed).",
 	}, []string{"job", "outcome"})
+	// The label is "schedule", not "job": Prometheus keeps "job" for the
+	// scrape job and would rename ours to exported_job.
+	schedulerLastSuccess = auto.NewGaugeVec(prom.GaugeOpts{
+		Name: "zhen_scheduler_job_last_success_timestamp_seconds",
+		Help: "Unix time of a scheduled job's last successful run, kept across restarts. For a job that has never succeeded: when the scheduler first loaded it.",
+	}, []string{"schedule"})
 	schedulerRecordFailures = auto.NewCounterVec(prom.CounterOpts{
 		Name: "zhen_scheduler_record_failures_total",
 		Help: "Scheduled-run records the Well or the board refused, by what (run, finish, card); the run itself still ran.",
@@ -100,6 +114,8 @@ type scheduleJob struct {
 	Runbook string `yaml:"runbook" json:"runbook"`
 	Every   string `yaml:"every" json:"every"`
 	Enabled *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`
+	// CatchUp runs a slot the daemon was down for at the next start.
+	CatchUp bool `yaml:"catch_up,omitempty" json:"catch_up,omitempty"`
 }
 
 func (j scheduleJob) isEnabled() bool { return j.Enabled == nil || *j.Enabled }
@@ -281,11 +297,15 @@ type jobState struct {
 	lastStarted time.Time
 }
 
-// scheduleState is the -schedules-state overlay.
+// scheduleState is the -schedules-state overlay, and what the scheduler
+// remembers across restarts: when each job last started (catch_up) and
+// last succeeded (the last-success gauge).
 type scheduleState struct {
-	Added   []scheduleJob `json:"added,omitempty"`
-	Removed []string      `json:"removed,omitempty"`
-	Paused  bool          `json:"paused,omitempty"`
+	Added       []scheduleJob        `json:"added,omitempty"`
+	Removed     []string             `json:"removed,omitempty"`
+	Paused      bool                 `json:"paused,omitempty"`
+	LastStarted map[string]time.Time `json:"last_started,omitempty"`
+	LastSuccess map[string]time.Time `json:"last_success,omitempty"`
 }
 
 type scheduler struct {
@@ -360,7 +380,7 @@ func newScheduler(ctx context.Context, cfg schedulerConfig) (*scheduler, error) 
 			return nil, fmt.Errorf("job %s: %w", j.Name, err)
 		}
 		cad, _ := parseCadence(j.Every)
-		s.jobs[j.Name] = &jobState{scheduleJob: j, cad: cad, source: "config", next: cad.next(now)}
+		s.jobs[j.Name] = &jobState{scheduleJob: j, cad: cad, source: "config", next: s.firstDue(j, cad, now)}
 	}
 	// Added jobs were checked when added; one whose runbook is no longer
 	// schedulable is skipped (logged), not fatal: the file is the base.
@@ -374,10 +394,70 @@ func newScheduler(ctx context.Context, cfg schedulerConfig) (*scheduler, error) 
 			continue
 		}
 		cad, _ := parseCadence(j.Every)
-		s.jobs[j.Name] = &jobState{scheduleJob: j, cad: cad, source: "added", next: cad.next(now)}
+		s.jobs[j.Name] = &jobState{scheduleJob: j, cad: cad, source: "added", next: s.firstDue(j, cad, now)}
 	}
 	s.paused = s.state.Paused
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.rememberLocked(now) {
+		if err := s.persistLocked(); err != nil {
+			cfg.Log.Warn("scheduler_state_not_saved", "error", err.Error())
+		}
+	}
 	return s, nil
+}
+
+// firstDue is when a job loaded at now first comes due. Normally the next
+// slot after now. A catch_up job counts from its last recorded start, so a
+// slot that passed while the daemon was down is due at once; one that has
+// never run is due at once too. A recorded start in the future (the clock
+// was wrong then or is wrong now) is ignored.
+func (s *scheduler) firstDue(j scheduleJob, cad cadence, now time.Time) time.Time {
+	if !j.CatchUp {
+		return cad.next(now)
+	}
+	last, ok := s.state.LastStarted[j.Name]
+	if !ok {
+		return now
+	}
+	if last.After(now) {
+		return cad.next(now)
+	}
+	return cad.next(last)
+}
+
+// rememberLocked brings the remembered times in line with the jobs held:
+// entries of jobs that are gone are dropped, a job seen for the first time
+// gets now as the start of its "not succeeded since", and every job's
+// gauge is set. It reports whether the state changed.
+func (s *scheduler) rememberLocked(now time.Time) bool {
+	changed := false
+	for name := range s.state.LastStarted {
+		if s.jobs[name] == nil {
+			delete(s.state.LastStarted, name)
+			changed = true
+		}
+	}
+	for name := range s.state.LastSuccess {
+		if s.jobs[name] == nil {
+			delete(s.state.LastSuccess, name)
+			schedulerLastSuccess.DeletePartialMatch(prom.Labels{"schedule": name})
+			changed = true
+		}
+	}
+	for name := range s.jobs {
+		t, ok := s.state.LastSuccess[name]
+		if !ok || t.After(now) {
+			if s.state.LastSuccess == nil {
+				s.state.LastSuccess = map[string]time.Time{}
+			}
+			t = now
+			s.state.LastSuccess[name] = t
+			changed = true
+		}
+		schedulerLastSuccess.WithLabelValues(name).Set(float64(t.Unix()))
+	}
+	return changed
 }
 
 // checkRunbook reads the runbook through the Champion (path rules, symlink
@@ -552,6 +632,23 @@ func (s *scheduler) runJob(ctx context.Context, j dueJob) {
 	if js := s.jobs[j.name]; js != nil {
 		js.lastRun, js.lastStatus, js.lastStarted = runID, status, started
 		js.lastError = errText
+		// Remembered across restarts: the start for catch_up, a success
+		// for the gauge. A state file that cannot be written costs the
+		// memory, not the run.
+		if s.state.LastStarted == nil {
+			s.state.LastStarted = map[string]time.Time{}
+		}
+		s.state.LastStarted[j.name] = started.UTC()
+		if runErr == nil {
+			if s.state.LastSuccess == nil {
+				s.state.LastSuccess = map[string]time.Time{}
+			}
+			s.state.LastSuccess[j.name] = started.UTC()
+			schedulerLastSuccess.WithLabelValues(j.name).Set(float64(started.Unix()))
+		}
+		if err := s.persistLocked(); err != nil {
+			log.Warn("scheduler_state_not_saved", "error", err.Error())
+		}
 	}
 	s.mu.Unlock()
 }
@@ -611,6 +708,7 @@ type jobView struct {
 	Runbook     string     `json:"runbook"`
 	Every       string     `json:"every"`
 	Enabled     bool       `json:"enabled"`
+	CatchUp     bool       `json:"catch_up,omitempty"`
 	Source      string     `json:"source"` // config or added
 	NextDue     time.Time  `json:"next_due"`
 	LastRun     string     `json:"last_run,omitempty"`
@@ -642,7 +740,7 @@ func (s *scheduler) view() schedulerView {
 }
 
 func (j *jobState) viewLocked() jobView {
-	jv := jobView{Name: j.Name, Runbook: j.Runbook, Every: j.Every, Enabled: j.isEnabled(), Source: j.source, NextDue: j.next,
+	jv := jobView{Name: j.Name, Runbook: j.Runbook, Every: j.Every, Enabled: j.isEnabled(), CatchUp: j.CatchUp, Source: j.source, NextDue: j.next,
 		LastRun: j.lastRun, LastStatus: j.lastStatus, LastError: j.lastError}
 	if !j.lastStarted.IsZero() {
 		t := j.lastStarted
@@ -652,8 +750,8 @@ func (j *jobState) viewLocked() jobView {
 }
 
 // UpdateSchedule implements champion.ScheduleUpdater: schedule_update
-// after the gate. add {name, runbook?, every, enabled?}, remove {name},
-// pause {paused}.
+// after the gate. add {name, runbook?, every, enabled?, catch_up?},
+// remove {name}, pause {paused}.
 func (s *scheduler) UpdateSchedule(ctx context.Context, op string, args map[string]any) (any, error) {
 	str := func(k string) string { v, _ := args[k].(string); return strings.TrimSpace(v) }
 	switch op {
@@ -661,6 +759,9 @@ func (s *scheduler) UpdateSchedule(ctx context.Context, op string, args map[stri
 		j := scheduleJob{Name: str("name"), Runbook: str("runbook"), Every: str("every")}
 		if v, ok := args["enabled"].(bool); ok {
 			j.Enabled = &v
+		}
+		if v, ok := args["catch_up"].(bool); ok {
+			j.CatchUp = v
 		}
 		if strings.Contains(j.Name, "/") && j.Runbook == "" {
 			j.Runbook, j.Name = j.Name, j.Name[strings.LastIndex(j.Name, "/")+1:]
@@ -688,6 +789,7 @@ func (s *scheduler) UpdateSchedule(ctx context.Context, op string, args map[stri
 		s.jobs[j.Name] = js
 		s.state.Added = append(withoutJob(s.state.Added, j.Name), j)
 		s.state.Removed = withoutName(s.state.Removed, j.Name)
+		s.rememberLocked(s.cfg.Now())
 		if err := s.persistLocked(); err != nil {
 			return nil, err
 		}
@@ -705,6 +807,7 @@ func (s *scheduler) UpdateSchedule(ctx context.Context, op string, args map[stri
 		if js.source == "config" {
 			s.state.Removed = append(withoutName(s.state.Removed, name), name)
 		}
+		s.rememberLocked(s.cfg.Now())
 		if err := s.persistLocked(); err != nil {
 			return nil, err
 		}

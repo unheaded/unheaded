@@ -142,7 +142,7 @@
     "/api/v1/scheduler/add": {
       "post": {
         "summary": "Add or replace a scheduled runbook job",
-        "description": "Schedules an approved runbook (status approved, or no status) on a cadence: <N>m or <N>h (5m..744h), daily@HH:MM, weekly@<sun..sat>@HH:MM. A bare runbook name resolves to its one category/name. Persists to -schedules-state. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct-user justification gets a 403 with a pending_token, and the change happens when that token is redeemed at /api/v1/agent/confirm by the same principal; an agent loop gets no token.",
+        "description": "Schedules an approved runbook (status approved, or no status) on a cadence: <N>m or <N>h (5m..744h), daily@HH:MM, weekly@<sun..sat>@HH:MM; with catch_up a slot the daemon was down for runs at the next start. A bare runbook name resolves to its one category/name. Persists to -schedules-state. Runs the mutating tool schedule_update through the Champion gate exactly as /api/v1/tool/exec does: a direct-user justification gets a 403 with a pending_token, and the change happens when that token is redeemed at /api/v1/agent/confirm by the same principal; an agent loop gets no token.",
         "security": [
           {
             "ApiKey": []
@@ -189,6 +189,10 @@
                   },
                   "enabled": {
                     "type": "boolean"
+                  },
+                  "catch_up": {
+                    "type": "boolean",
+                    "description": "Run a slot the daemon was down for at the next start instead of skipping it."
                   }
                 }
               }
@@ -482,6 +486,9 @@
                           "enabled": {
                             "type": "boolean"
                           },
+                          "catch_up": {
+                            "type": "boolean"
+                          },
                           "source": {
                             "type": "string",
                             "enum": [
@@ -573,6 +580,9 @@
                             "type": "string"
                           },
                           "enabled": {
+                            "type": "boolean"
+                          },
+                          "catch_up": {
                             "type": "boolean"
                           },
                           "source": {

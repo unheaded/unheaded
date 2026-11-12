@@ -16,7 +16,7 @@ import (
 // UI's `schedule`, `unschedule`, `list schedules` and `emergency stop`
 // commands call these on loopback with the daemon's auth.
 //
-//	POST /api/v1/scheduler/add    {name, runbook?, every, enabled?, justification, emitted_by?}
+//	POST /api/v1/scheduler/add    {name, runbook?, every, enabled?, catch_up?, justification, emitted_by?}
 //	POST /api/v1/scheduler/remove {name, justification, emitted_by?}
 //	POST /api/v1/scheduler/pause  {paused, justification, emitted_by?}
 //	GET|POST /api/v1/scheduler/list
@@ -31,7 +31,7 @@ import (
 
 // schedulerOps are the args each change op takes from the body.
 var schedulerOps = map[string][]string{
-	"add":    {"name", "runbook", "every", "enabled"},
+	"add":    {"name", "runbook", "every", "enabled", "catch_up"},
 	"remove": {"name"},
 	"pause":  {"paused"},
 }
