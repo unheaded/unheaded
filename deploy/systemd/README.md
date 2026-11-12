@@ -206,8 +206,11 @@ login, `pkg/bff`; the issuer must list the audience `wiki-server`); a browser
 without one gets the page shell with the login panel. Without that line
 reads stay open, as the wiki was before 2026-11-11, and the unit logs a
 warning. The issuer is reached by name through the deployment CA: on a
-host that runs the compose stack, a hosts line for `auth` (see next.md,
-question 22) until the issuer has a host address of its own.
+host that runs the compose stack, compose publishes the issuer on
+`127.0.0.1:19020` and the host has the line `127.0.0.1 auth` in
+`/etc/hosts` (2026-11-12). The name must stay `auth`: it is the issuer
+string in every token and a name on its certificate. A container address
+in that line stops working whenever the container gets another one.
 
 Publishing: the unit binds `127.0.0.1:20002`. A host that shows the wiki on
 a LAN address or to the compose scrapes adds a drop-in with one `--listen

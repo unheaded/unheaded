@@ -10,7 +10,7 @@
 | Port | 19020 (`pkg/ports.Auth`) |
 | Account | `unheaded-auth`, uid 16735 (`pkg/uids.Auth`), nologin |
 | Host unit | `deploy/systemd/unheaded-auth.service` (not installed anywhere yet) |
-| Compose | service `auth` on the `data` network, no host port, `https://auth:19020` with a dev certificate (`scripts/gen-dev-certs.sh`) |
+| Compose | service `auth` on the `data` network, `https://auth:19020` with a dev certificate (`scripts/gen-dev-certs.sh`); published on the host's loopback only (`127.0.0.1:19020`) for host units and host processes that log people in (wiki server, Zhen web UI, zhen-agentd). Such a host carries `127.0.0.1 auth` in `/etc/hosts`: the name is the issuer string in every token and on the certificate |
 | Signing key | `/etc/unheaded/keys/unheaded-auth.key` (0400, `unheaded-keygen -owner unheaded-auth unheaded-auth`); compose: secret `svc_key_unheaded-auth` |
 | Users file | `/etc/unheaded/auth/users.json` (0600, owned by `unheaded-auth`); compose: `configs/auth/dev-users.json` |
 
