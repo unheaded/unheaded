@@ -2,11 +2,11 @@
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2026 Stevie Bellis.
 -->
-# S-WIKI-VOR BATTLE PLAN: 10 Phases, 142 Steps
+# S-WIKI-VOR BATTLE PLAN: 10 Phases, 148 Steps
 
 **Date**: 2026-11-12
 **Sprint**: S-WIKI-VOR, bundle 2 of `docs/sweeps/BACKLOG-SWEEP-2026-11-12.md` (rows D-09 to D-12). The goal is one vor client, exact topic lookups, wiki links that resolve, and a vor corpus that follows develop.
-**Prerequisite**: west is up; vor answers on `127.0.0.1:20110`; both repositories are clean (`~/tmp/unheaded` on `develop`, `~/tmp/projects/vor` on `main`). The code phases (1-7) need no answer from Stevie. Phase 8 is attended, because it installs binaries and units on west with sudo.
+**Prerequisite**: west is up; vor answers on `127.0.0.1:20110`; both repositories are clean (`~/tmp/unheaded` on `develop`, `~/tmp/projects/vor` on `main`). No decision is open (D1 answered 2026-11-12). Phase 8 is attended, because it installs binaries, an account, a polkit rule and units on west with sudo.
 **Target**: every sheet built into vor is reachable from the wiki under its own category, and an unknown topic is a 404 everywhere. No wiki page links to a page that 404s. No Go code outside `pkg/vorclient` builds a vor URL by hand. A commit on develop is searchable in vor within a minute, with no manual step.
 **Estimated duration**: 6-8 h over 2 sessions (Phases 1-7 unattended, about 5 h; Phase 8 attended, about 45 min; Phase 9, 15 min).
 **Agent strategy**: Phases 1-2 (vor repo) run before Phase 3 (the client depends on the new API). Phases 4 and 5 can run in parallel after Phase 3; they touch different files. Phase 6 is independent and can run any time after Phase 0. Phase 7 follows 4-6. Phase 8 is the coordinator with Stevie present.
@@ -32,10 +32,10 @@ Checked on 2026-11-12 against `develop` `a31be33b` and vor `main` `ff4c7e4` (sig
 
 **Skill passes:**
 - **Marshal** (scope): in scope are D-09 to D-12 as corrected above. Parked as adjacent: the wiki's own copy at `/usr/share/unheaded/wiki` is also a snapshot (same class as D-12, needs root, not in the row); the top-bar links are literal LAN addresses; `docs/LIVE-PATHS.md` lists `cmd/wiki-server` as ORPHAN; wiki-server listens on all interfaces when given `--listen`; 41 dead sheet links in vor's `coding-problems/`; `vor search` (CLI) keeps substring matching. The Zhen callers stay on substring search; switching them would change Zhen's answers and needs the runbook eval (ADR-024). `pkg/zhenrag/prompt.go` "cs" wording belongs to S-RESIDUE D-19.
-- **Busboy** (coordination): `wiki/Systemd-Units.md`'s missing `unheaded-vor.service` row is S-RESIDUE D-28. This plan adds rows only for its own new units, and Step 133 adds the vor row if S-RESIDUE has not landed it yet. S-ZHEN-FRONT D-06 (the source viewer shows the nearest sheet) is fixed upstream by Phase 1 here: whichever plan runs second re-checks D-06. `wiki/Zhen-AI.md:97` says `cs serve`; this plan edits only the export sentence on that line.
+- **Busboy** (coordination): `wiki/Systemd-Units.md`'s missing `unheaded-vor.service` row is S-RESIDUE D-28. This plan adds rows only for its own new units, and Step 138 adds the vor row if S-RESIDUE has not landed it yet. S-ZHEN-FRONT D-06 (the source viewer shows the nearest sheet) is fixed upstream by Phase 1 here: whichever plan runs second re-checks D-06. `wiki/Zhen-AI.md:97` says `cs serve`; this plan edits only the export sentence on that line.
 - **Micromanager** (QA): TDD for every code change, with `-race`. Every phase gate is a command with a number. Live acceptance bars are in Phase 8: 0 wiki links that 404; every canonical sheet answers 200 under its own category; `/sheets` count equals vor's canonical count; an unknown topic is 404; a develop commit is in vor within 60 s.
 - **Librarian** (ripple): vor `README.md` (API table), `pkg/vorclient` package doc, `wiki/Microservices.md` (wiki-server row), `wiki/Zhen-AI.md:97` (export), `deploy/systemd/README.md` (vor refresh), `wiki/Systemd-Units.md` (new units). No CLAUDE.md, README or THIRD_PARTY change: no capability or dependency changes.
-- **Security note** (for Stevie at Phase 8): the refresh service runs `systemctl try-restart unheaded-vor.service` as root with an empty capability set. govan can trigger it by writing the stamp. govan already owns the corpus vor serves, so this adds only "restart vor", rate-limited by `StartLimitBurst`. The alternative is a dedicated account plus a polkit rule for that one unit. **Decision D1 at Step 118: root with no capabilities (recommended) or polkit.**
+- **Security note, D1 ANSWERED 2026-11-12 (Stevie): its own account with a polkit rule, not root.** The refresh service runs as `unheaded-vor-refresh` (nologin, uid 16758, the next free Kingdom number per `pkg/uids/uids.go`'s "Next free: 16758", and not in `deploy/sysusers.d/unheaded.conf` or west's passwd on 2026-11-12), with no capabilities. `deploy/polkit/61-unheaded-vor-refresh.rules` allows that one user the verb `try-restart` on `unheaded-vor.service` and nothing else; everything else is left to the rest of policy, so it is refused (the pattern of `deploy/polkit/60-unheaded-chaos.rules.tmpl`). govan can trigger the service by writing the stamp. govan already owns the corpus vor serves, so this adds only "restart vor", rate-limited by `StartLimitBurst`. Step 143 proves the account can restart nothing else.
 
 **Rules carried in:** no new third-party code. Dated records are never edited (the sweep is not touched; progress goes to a new progress file). No `pkill -f`. Never print secrets. Runbook manifest is `--write` only. Say "VictoriaMetrics", never "the store". Sysadmin knowledge goes in vor sheets, Unheaded facts in the wiki.
 
@@ -330,7 +330,7 @@ Paths: `U=/home/govan/tmp/unheaded`, `V=/home/govan/tmp/projects/vor`, `S=/home/
   - T5: an unknown ref exits non-zero and leaves the old export and stamp untouched.
 - [ ] **Step 116** [B]: `bash scripts/test-vor-export-source.sh 2>&1 | tail -6` → RED.
 - [ ] **Step 117** [W] ~15m: `scripts/vor-export-source.sh`: optional second argument `ref` (default `HEAD`), resolved once with `git rev-parse --verify "$ref^{commit}"`; archive that hash; write it into `.vor-export`; after the `mv`, write `${dest}.exported` via a temp file and `mv`. Usage line updated.
-- [ ] **Step 118** [V]: rerun Step 116; GREEN. **D1 recorded** in `S` as "pending, Stevie at Step 136"; the unit below is written for the recommended choice.
+- [ ] **Step 118** [V]: rerun Step 116; GREEN. Record in `S`: D1 answered 2026-11-12, own account plus polkit (Steps 125-130).
 - [ ] **Step 119** [W] ~10m: tests first in `scripts/git-hooks/test-post-commit.sh`: T5, a commit on develop with `VOR_EXPORT_DEST` pointing at an earlier temp export, runs the export (the stamp changes within 5 s); T6, on another branch nothing is exported; T7, `VOR_EXPORT_DEST` that is not an export leaves the commit exiting 0 and writes nothing.
 - [ ] **Step 120** [B]: `bash scripts/git-hooks/test-post-commit.sh 2>&1 | tail -8` → RED on T5.
 - [ ] **Step 121** [W] ~10m: `scripts/git-hooks/post-commit`: after the code-index line, if `${VOR_EXPORT_DEST:-/var/zhen/vor-source/unheaded}/.vor-export` exists, `nohup nice -n 19 "$top/scripts/vor-export-source.sh" "$dest" develop >/dev/null 2>&1 &`. Header comment names both jobs.
@@ -340,14 +340,30 @@ Paths: `U=/home/govan/tmp/unheaded`, `V=/home/govan/tmp/projects/vor`, `S=/home/
   ```bash
   git add scripts/vor-export-source.sh scripts/test-vor-export-source.sh scripts/git-hooks/post-commit scripts/git-hooks/test-post-commit.sh && git commit -S -m "feat(vor): develop's export refreshes itself from the post-commit hook, with a stamp"
   ```
-- [ ] **Step 125** [W] ~10m: `deploy/systemd/unheaded-vor-refresh.path`: `PathChanged=/var/zhen/vor-source/unheaded.exported`, `Unit=unheaded-vor-refresh.service`, `WantedBy=paths.target`. `deploy/systemd/unheaded-vor-refresh.service`: `Type=oneshot`, `ExecStart=/usr/bin/systemctl try-restart unheaded-vor.service`, `StartLimitIntervalSec=10min`, `StartLimitBurst=6`, `CapabilityBoundingSet=`, `NoNewPrivileges=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`, `PrivateNetwork=yes`, `RestrictAddressFamilies=AF_UNIX`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`. Header: what it does, the install lines, and the D1 note (root with no capabilities; polkit alternative).
-- [ ] **Step 126** [B] ~2m: `systemd-analyze verify deploy/systemd/unheaded-vor-refresh.path deploy/systemd/unheaded-vor-refresh.service 2>&1 | grep -v 'unheaded-vor.service' | head`
-- [ ] **Step 127** [V]: no errors (a warning about the not-installed target unit is expected).
-- [ ] **Step 128** [B] ~3m: run the repo's unit gates if they exist (`ls scripts | grep -i -E 'unit|systemd'`, e.g. a sandbox-directive check over `deploy/systemd/`), and the sysusers check if it lists units.
-- [ ] **Step 129** [V]: green, or the new units are added to the gate's list the way neighbours are.
-- [ ] **Step 130** [C]: **PHASE 6 EXIT GATE**: both test scripts green.
+- [ ] **Step 125** [W] ~5m: tests first for the account (D1, answered 2026-11-12): in `U/pkg/uids/uids_test.go`, `Lookup("vor-refresh")` is `16758` and differs from `Lookup("vor")`; `Validate()` stays green (no duplicate, inside the range, never root). Before writing, re-check that 16758 is still free: `grep -n '16758' pkg/uids/uids.go deploy/sysusers.d/unheaded.conf; getent passwd 16758` must print only the "Next free: 16758" comment. If something took it, use the next number that all three lack and carry it through Steps 127-130.
+- [ ] **Step 126** [B] ~1m: `go test -race -count=1 ./pkg/uids/ 2>&1 | tail -5` → RED (`vor-refresh` unknown).
+- [ ] **Step 127** [W] ~5m: `pkg/uids/uids.go`: `VorRefresh = 16758` after `WikiServer`, commented "the vor refresh oneshot (S-WIKI-VOR): host unit unheaded-vor-refresh.service only (account unheaded-vor-refresh); its only power is a polkit rule for `try-restart` of unheaded-vor.service", the map entry `"vor-refresh": VorRefresh`, and the "Next free" comment moved to the next number free in uids.go, sysusers and passwd. `deploy/sysusers.d/unheaded.conf`: `u     unheaded-vor-refresh   16758 "Unheaded vor refresh (restarts vor)"  /    /usr/sbin/nologin` (column-aligned with its neighbours). No group membership: it reads nothing and writes nothing.
+- [ ] **Step 128** [V]: `go test -race -count=1 ./pkg/uids/... ./cmd/unheaded-baseline/... 2>&1 | tail -5` GREEN (the baseline's test reads the sysusers file).
+- [ ] **Step 129** [W] ~10m: `deploy/polkit/61-unheaded-vor-refresh.rules` (a static file, GPL header; header comment: what it allows, D1 2026-11-12, install path `/etc/polkit-1/rules.d/`):
+  ```javascript
+  polkit.addRule(function(action, subject) {
+      if (action.id != "org.freedesktop.systemd1.manage-units") { return polkit.Result.NOT_HANDLED; }
+      if (subject.user != "unheaded-vor-refresh") { return polkit.Result.NOT_HANDLED; }
+      if (action.lookup("unit") == "unheaded-vor.service" && action.lookup("verb") == "try-restart") {
+          return polkit.Result.YES;
+      }
+      return polkit.Result.NOT_HANDLED;
+  });
+  ```
+  NOT_HANDLED (never NO) for everything else, like the chaos rule: the account has no session, so the default policy refuses it.
+- [ ] **Step 130** [W] ~10m: `deploy/systemd/unheaded-vor-refresh.path`: `PathChanged=/var/zhen/vor-source/unheaded.exported`, `Unit=unheaded-vor-refresh.service`, `WantedBy=paths.target`. `deploy/systemd/unheaded-vor-refresh.service`: `Type=oneshot`, `User=unheaded-vor-refresh`, `Group=unheaded-vor-refresh`, `ExecStart=/usr/bin/systemctl --no-ask-password try-restart unheaded-vor.service`, `StartLimitIntervalSec=10min`, `StartLimitBurst=6`, `MemoryMax=32M`, `CapabilityBoundingSet=`, `AmbientCapabilities=`, `NoNewPrivileges=yes`, `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`, `PrivateNetwork=yes`, `RestrictAddressFamilies=AF_UNIX`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectControlGroups=yes`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`. Header: what it does, D1 (own account plus polkit, 2026-11-12), and the install lines (sysusers, polkit rule, units).
+- [ ] **Step 131** [B] ~2m: `systemd-analyze verify deploy/systemd/unheaded-vor-refresh.path deploy/systemd/unheaded-vor-refresh.service 2>&1 | grep -v -e 'unheaded-vor.service' -e 'unheaded-vor-refresh.*user' | head`
+- [ ] **Step 132** [V]: no errors (warnings about the not-installed target unit and the not-yet-created user are expected).
+- [ ] **Step 133** [B] ~3m: the unit gates: `bash scripts/check-systemd-units.sh 2>&1 | tail -10; bash scripts/check-unit-ceilings.sh 2>&1 | tail -5`.
+- [ ] **Step 134** [V]: green. `check-systemd-units.sh` reads the sysusers file, so a `User=` it does not know fails here; if a gate keeps a list of units, add the new ones the way neighbours are.
+- [ ] **Step 135** [C]: **PHASE 6 EXIT GATE**: both test scripts, `pkg/uids` and the unit gates green.
   ```bash
-  git add deploy/systemd/unheaded-vor-refresh.path deploy/systemd/unheaded-vor-refresh.service && git commit -S -m "feat(deploy): unheaded-vor-refresh path unit restarts vor on a new export"
+  git add pkg/uids/uids.go pkg/uids/uids_test.go deploy/sysusers.d/unheaded.conf deploy/polkit/61-unheaded-vor-refresh.rules deploy/systemd/unheaded-vor-refresh.path deploy/systemd/unheaded-vor-refresh.service && git commit -S -m "feat(deploy): unheaded-vor-refresh restarts vor on a new export, as its own account through one polkit rule"
   ```
 
 ---
@@ -357,24 +373,30 @@ Paths: `U=/home/govan/tmp/unheaded`, `V=/home/govan/tmp/projects/vor`, `S=/home/
 **Goal**: every doc that names the changed behaviour says the new thing.
 **Prerequisite**: Phases 4-6. **Time**: 20 min. **Agent**: Solo.
 
-- [ ] **Step 131** [W] ~5m: `wiki/Microservices.md` wiki-server row: sheets are `/sheet/<category>/<name>` (the old form still answers for unique names); `Page.md` links open the page; search matches words.
-- [ ] **Step 132** [W] ~5m: `wiki/Zhen-AI.md:97`, the export sentence only: develop's export refreshes itself after every commit or merge on develop (post-commit hook), and `unheaded-vor-refresh.path` restarts vor; by hand it is still `scripts/vor-export-source.sh <dest> develop`. `deploy/systemd/README.md`: a "vor refresh" section with the same facts and the install lines.
-- [ ] **Step 133** [W] ~5m: `wiki/Systemd-Units.md`: add `unheaded-vor-refresh.path` / `.service` under "Installed on west" **after** Phase 8 installs them, with the date. If S-RESIDUE has not yet added the `unheaded-vor.service` row (D-28), add it here and note it in `S` so S-RESIDUE skips it.
-- [ ] **Step 134** [B] ~2m: `go test -race -count=1 -run TestEveryWikiLinkResolves ./cmd/wiki-server/ && bash scripts/check-js-lint.sh >/dev/null 2>&1; echo lint=$?`
-- [ ] **Step 135** [C]: **PHASE 7 EXIT GATE**: link gate green.
+- [ ] **Step 136** [W] ~5m: `wiki/Microservices.md` wiki-server row: sheets are `/sheet/<category>/<name>` (the old form still answers for unique names); `Page.md` links open the page; search matches words.
+- [ ] **Step 137** [W] ~5m: `wiki/Zhen-AI.md:97`, the export sentence only: develop's export refreshes itself after every commit or merge on develop (post-commit hook), and `unheaded-vor-refresh.path` restarts vor; by hand it is still `scripts/vor-export-source.sh <dest> develop`. `deploy/systemd/README.md`: a "vor refresh" section with the same facts, the account `unheaded-vor-refresh` (uid 16758) and its one polkit rule, and the install lines.
+- [ ] **Step 138** [W] ~5m: `wiki/Systemd-Units.md`: add `unheaded-vor-refresh.path` / `.service` (as `unheaded-vor-refresh`, uid 16758, polkit `try-restart` of `unheaded-vor.service` only) under "Installed on west" **after** Phase 8 installs them, with the date. If S-RESIDUE has not yet added the `unheaded-vor.service` row (D-28), add it here and note it in `S` so S-RESIDUE skips it.
+- [ ] **Step 139** [B] ~2m: `go test -race -count=1 -run TestEveryWikiLinkResolves ./cmd/wiki-server/ && bash scripts/check-js-lint.sh >/dev/null 2>&1; echo lint=$?`
+- [ ] **Step 140** [C]: **PHASE 7 EXIT GATE**: link gate green.
   ```bash
   git add wiki/Microservices.md wiki/Zhen-AI.md deploy/systemd/README.md && git commit -S -m "docs(wiki): sheet URLs, vor follows develop"
   ```
 
 ---
 
-## PHASE 8: INSTALL ON WEST (Steps 136-139) [ATT][S]
+## PHASE 8: INSTALL ON WEST (Steps 141-145) [ATT][S]
 
-**Goal**: the new vor, wiki-server, wiki copy and refresh units run on west, and the live bars pass.
-**Prerequisite**: Phases 1-7 green; Stevie present; D1 answered. **Time**: 45 min. **Agent**: Coordinator with Stevie.
+**Goal**: the new vor, wiki-server, wiki copy, refresh account, polkit rule and refresh units run on west, the account can restart nothing but vor, and the live bars pass.
+**Prerequisite**: Phases 1-7 green; Stevie present. **Time**: 50 min. **Agent**: Coordinator with Stevie.
 
-- [ ] **Step 136** [ATT]: ask D1 (root with no capabilities, recommended, or polkit). With polkit, write the rule and account first as a sub-step list in `S` and re-verify Step 126.
-- [ ] **Step 137** [S][ATT] ~15m: install, each with its backup.
+- [ ] **Step 141** [S][ATT] ~5m: the account and its rule (D1, answered 2026-11-12).
+  ```bash
+  cd /home/govan/tmp/unheaded && sudo install -m 0644 deploy/sysusers.d/unheaded.conf /usr/lib/sysusers.d/unheaded.conf && sudo systemd-sysusers
+  getent passwd unheaded-vor-refresh
+  sudo install -m 0644 deploy/polkit/61-unheaded-vor-refresh.rules /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules
+  ```
+  Check first that `/usr/lib/sysusers.d/unheaded.conf` is the file west uses (`ls /usr/lib/sysusers.d/ /etc/sysusers.d/ | grep unheaded`); if the host's copy is elsewhere, install there. Expect `unheaded-vor-refresh:x:16758:16758::/:/usr/sbin/nologin`. polkitd reads `rules.d` on change; `journalctl -u polkit -n 5` shows the rule loaded, with no JavaScript error.
+- [ ] **Step 142** [S][ATT] ~15m: install, each with its backup.
   ```bash
   cd /home/govan/tmp/projects/vor && make build && sudo cp -p /usr/local/bin/vor /var/backups/vor-ff4c7e4.bak && sudo install -m 0755 vor /usr/local/bin/vor
   cd /home/govan/tmp/unheaded && go build -trimpath -o /tmp/claude-1000/wiki-server ./cmd/wiki-server && sudo cp -p /usr/local/bin/wiki-server /var/backups/wiki-server-2026-11-11.bak && sudo install -m 0755 /tmp/claude-1000/wiki-server /usr/local/bin/wiki-server
@@ -384,37 +406,53 @@ Paths: `U=/home/govan/tmp/unheaded`, `V=/home/govan/tmp/projects/vor`, `S=/home/
   bash scripts/vor-export-source.sh /var/zhen/vor-source/unheaded develop
   sudo systemctl restart unheaded-wiki-server
   ```
-  Then wait for the path unit to restart vor: `systemctl show unheaded-vor -p ActiveEnterTimestamp`.
-- [ ] **Step 138** [V][ATT] ~15m: **LIVE BARS** (each recorded in `S` with its number):
+  Then wait for the path unit to restart vor: `systemctl show unheaded-vor -p ActiveEnterTimestamp`, and `systemctl show unheaded-vor-refresh.service -p Result` → `success` (a polkit refusal shows here as `exit-code` with "Access denied" in its journal).
+- [ ] **Step 143** [V][S][ATT] ~5m: **THE ACCOUNT CAN RESTART VOR AND NOTHING ELSE.** Every call runs as the account with no password prompt. The refused cases use units that are inactive or harmless, so a wrong YES would do no damage:
+  ```bash
+  as() { sudo -u unheaded-vor-refresh /usr/bin/systemctl --no-ask-password "$@"; echo "rc=$?"; }
+  as try-restart unheaded-vor.service                 # allowed: rc=0, vor's ActiveEnterTimestamp moves
+  as restart unheaded-vor.service                     # other verb: refused
+  as stop unheaded-vor.service                        # other verb: refused
+  as try-restart unheaded-well-offsite.service        # other unit (static, inactive): refused
+  as try-restart unheaded-upc-bootctl@xv6.service     # other unit (installed, not running): refused
+  as start unheaded-vor-refresh.service               # itself: refused
+  as daemon-reload                                    # other action: refused
+  as enable unheaded-vor.service                      # unit files: refused
+  ```
+  Pass: the first line is `rc=0` and every other line is non-zero with "Access denied" or "Interactive authentication required". Record all eight in `S`.
+  - If any other line passes → `sudo rm /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules` at once, `sudo systemctl disable --now unheaded-vor-refresh.path`, and return to Step 129. A rule that grants more than this does not stay installed.
+  - If the first line is refused → `journalctl -u polkit -n 20` (rule loaded? JS error?) and `pkaction --action-id org.freedesktop.systemd1.manage-units --verbose`; the verb systemd sends for a try-restart may differ on this systemd version. Fix the rule in the repo (Step 129) and reinstall, never by hand on the host.
+- [ ] **Step 144** [V][ATT] ~15m: **LIVE BARS** (each recorded in `S` with its number):
   1. `curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:20110/api/topics/nosuchtopicxyz` → `404` (was 200).
   2. For `testing/chaos-engineering`, `security/sbom`, `patterns/distributed-systems`, `auth/saml`, `cloud/vpc`: `GET /api/topics/<n>?category=<c>` → that category, canonical.
   3. Through the wiki, logged in as `dev` (cookie from the login, as in the night session's checks): `/sheet/<c>/<n>` → 200 for all five; `/sheets` shows the canonical count from Step 9 (844 or today's number), not 3-5 fewer.
   4. A crawl of every `/wiki/<page>` as `dev`: every `href` starting `/wiki/` or `/sheet/` answers 200. Count of failures = **0** (was 136 `Page.md` links).
   5. `/search?q=ccna` lists no Kerberos sheet; `/search?q=wotan` still lists Service-Wotan.
-  6. `systemctl is-enabled unheaded-vor-refresh.path` → enabled; `.vor-export` holds develop's hash.
-  - If any fails → Step 139.
-- [ ] **Step 139** [D][ATT]: roll back only the failing piece from its backup (`/var/backups/vor-ff4c7e4.bak`, `/var/backups/wiki-server-2026-11-11.bak`, `systemctl disable --now unheaded-vor-refresh.path`), record the failure in `S`, and return to the phase that owns it. Never leave a half-installed host: either the bar passes or the backup is back.
+  6. `systemctl is-enabled unheaded-vor-refresh.path` → enabled; `.vor-export` holds develop's hash; `systemctl show unheaded-vor-refresh.service -p User -p Result` → `User=unheaded-vor-refresh`, `Result=success`.
+  - If any fails → Step 145.
+- [ ] **Step 145** [D][ATT]: roll back only the failing piece from its backup (`/var/backups/vor-ff4c7e4.bak`, `/var/backups/wiki-server-2026-11-11.bak`, `systemctl disable --now unheaded-vor-refresh.path`, `rm /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules`), record the failure in `S`, and return to the phase that owns it. The account stays (sysusers never deletes; an unused nologin account holds no power once its rule is gone). Never leave a half-installed host: either the bar passes or the backup is back.
 
 ---
 
-## PHASE 9: CLOSE-OUT (Steps 140-142)
+## PHASE 9: CLOSE-OUT (Steps 146-148)
 
 **Goal**: the record is complete and the refresh is proven by a real commit.
 **Prerequisite**: Phase 8. **Time**: 15 min. **Agent**: Solo.
 
-- [ ] **Step 140** [W][C]: finish `S` (every step, its result, before/after numbers). Add Step 133's Systemd-Units rows. Commit both on develop: `git add docs/battle-plans/progress/S-WIKI-VOR-progress.md wiki/Systemd-Units.md && git commit -S -m "docs(s-wiki-vor): progress record; refresh units installed on west"`. **This commit is the live proof of D-12:** within 60 s, `.vor-export` holds its hash, vor's `ActiveEnterTimestamp` is newer than the commit, and `curl -s 'http://127.0.0.1:20110/api/search?q=S-WIKI-VOR&limit=1'` finds the progress file.
-- [ ] **Step 141** [V]: Step 140's proof holds. If not: `journalctl -u unheaded-vor-refresh.service -n 20`, `systemctl status unheaded-vor-refresh.path`, and check the hook symlink (`ls -l .git/hooks/post-commit`).
-- [ ] **Step 142** [W]: `~/tmp/next.md`: S-WIKI-VOR done (or STUCK report), the parked items from the Grounding (wiki copy snapshot, LAN literal links, ORPHAN listing, 41 dead vor sheet links, CLI word search), and "push develop and vor main" for Stevie. The sweep file is a dated record and is not edited.
+- [ ] **Step 146** [W][C]: finish `S` (every step, its result, before/after numbers). Add Step 138's Systemd-Units rows. Commit both on develop: `git add docs/battle-plans/progress/S-WIKI-VOR-progress.md wiki/Systemd-Units.md && git commit -S -m "docs(s-wiki-vor): progress record; refresh units installed on west"`. **This commit is the live proof of D-12:** within 60 s, `.vor-export` holds its hash, vor's `ActiveEnterTimestamp` is newer than the commit, and `curl -s 'http://127.0.0.1:20110/api/search?q=S-WIKI-VOR&limit=1'` finds the progress file.
+- [ ] **Step 147** [V]: Step 146's proof holds. If not: `journalctl -u unheaded-vor-refresh.service -n 20` ("Access denied" points at the polkit rule, Step 143), `systemctl status unheaded-vor-refresh.path`, and check the hook symlink (`ls -l .git/hooks/post-commit`).
+- [ ] **Step 148** [W]: `~/tmp/next.md`: S-WIKI-VOR done (or STUCK report), the parked items from the Grounding (wiki copy snapshot, LAN literal links, ORPHAN listing, 41 dead vor sheet links, CLI word search), and "push develop and vor main" for Stevie. The sweep file is a dated record and is not edited.
 
 ---
 
 ## Appendix A: Emergency procedures
 
-1. **vor will not start after the install** (Step 137): `journalctl -u unheaded-vor -n 30`; restore `/var/backups/vor-ff4c7e4.bak` to `/usr/local/bin/vor`; `sudo systemctl restart unheaded-vor`. The wiki shows its "vor is down" page until vor is back, and Zhen's `/ready` reports `vor_reachable: false`.
-2. **The path unit restarts vor in a loop**: `StartLimitBurst=6` per 10 min stops it. `sudo systemctl disable --now unheaded-vor-refresh.path`, look at what writes the stamp (`ls -l --time-style=full-iso /var/zhen/vor-source/`), then fix the writer, not the limit.
-3. **A commit hangs or fails after `make install-hooks`**: the hook backgrounds both jobs and exits 0; if a commit waits, the hook was edited wrongly. `ln -sf ../../scripts/git-hooks/post-commit .git/hooks/post-commit` points it back; `git commit --no-verify` does NOT skip post-commit, so fix the script.
-4. **Wiki pages 500 after the new wiki-server**: restore `/var/backups/wiki-server-2026-11-11.bak`; the wiki copy at `/usr/share/unheaded/wiki` is plain files and needs no rollback.
-5. **Zhen answers change after Phase 5**: compare Step 112's two runs; the only intended difference is the category pick for shared names. Anything else is a regression in the migration: revert that caller's commit, not the client.
+1. **vor will not start after the install** (Step 142): `journalctl -u unheaded-vor -n 30`; restore `/var/backups/vor-ff4c7e4.bak` to `/usr/local/bin/vor`; `sudo systemctl restart unheaded-vor`. The wiki shows its "vor is down" page until vor is back, and Zhen's `/ready` reports `vor_reachable: false`.
+2. **The refresh service fails with "Access denied"**: the polkit rule did not match (not loaded, or this systemd sends another verb). `journalctl -u polkit -n 20`; rerun Step 143. Until fixed, vor still serves the previous export, and a manual `sudo systemctl restart unheaded-vor` picks up the new one.
+3. **The path unit restarts vor in a loop**: `StartLimitBurst=6` per 10 min stops it. `sudo systemctl disable --now unheaded-vor-refresh.path`, look at what writes the stamp (`ls -l --time-style=full-iso /var/zhen/vor-source/`), then fix the writer, not the limit.
+4. **A commit hangs or fails after `make install-hooks`**: the hook backgrounds both jobs and exits 0; if a commit waits, the hook was edited wrongly. `ln -sf ../../scripts/git-hooks/post-commit .git/hooks/post-commit` points it back; `git commit --no-verify` does NOT skip post-commit, so fix the script.
+5. **Wiki pages 500 after the new wiki-server**: restore `/var/backups/wiki-server-2026-11-11.bak`; the wiki copy at `/usr/share/unheaded/wiki` is plain files and needs no rollback.
+6. **Zhen answers change after Phase 5**: compare Step 112's two runs; the only intended difference is the category pick for shared names. Anything else is a regression in the migration: revert that caller's commit, not the client.
 
 ## Appendix B: Agent assignment matrix
 
@@ -426,9 +464,9 @@ Paths: `U=/home/govan/tmp/unheaded`, `V=/home/govan/tmp/projects/vor`, `S=/home/
 | 3 client + blob constant | Solo | no | 2 | 45 min |
 | 4 wiki links | Solo | with 5 | 3 | 1.5 h |
 | 5 one vor client | Solo | with 4 | 3 | 1.5 h |
-| 6 export refresh | Solo | with 1-5 | 0 | 1 h |
+| 6 export refresh, account, polkit rule | Solo | with 1-5 | 0 | 1.25 h |
 | 7 docs | Solo | no | 4, 5, 6 | 20 min |
-| 8 install on west | Coordinator + Stevie | no | 7, D1 | 45 min |
+| 8 install on west | Coordinator + Stevie | no | 7 | 50 min |
 | 9 close-out | Solo | no | 8 | 15 min |
 
 Critical path: 0 → 1 → 2 → 3 → 4 (or 5) → 7 → 8 → 9, about 6.5 h.
@@ -444,12 +482,14 @@ Critical path: 0 → 1 → 2 → 3 → 4 (or 5) → 7 → 8 → 9, about 6.5 h.
 | Sheet URL | `/sheet/<category>/<name>` (old `/sheet/<name>` still answers for unique names) |
 | Export | `scripts/vor-export-source.sh /var/zhen/vor-source/unheaded develop`; stamp `/var/zhen/vor-source/unheaded.exported` |
 | Refresh units | `unheaded-vor-refresh.path` → `unheaded-vor-refresh.service` (`systemctl try-restart unheaded-vor`) |
+| Refresh account | `unheaded-vor-refresh`, uid 16758, nologin (`pkg/uids` `VorRefresh`, `deploy/sysusers.d/unheaded.conf`); D1 answered 2026-11-12 |
+| Polkit rule | `deploy/polkit/61-unheaded-vor-refresh.rules` → `/etc/polkit-1/rules.d/`: `try-restart` of `unheaded-vor.service` only |
 | Hook | `scripts/git-hooks/post-commit` (also `post-merge`), `make install-hooks` |
-| Wiki copy served | `/usr/share/unheaded/wiki` (root; refreshed by hand with rsync in Step 137) |
+| Wiki copy served | `/usr/share/unheaded/wiki` (root; refreshed by hand with rsync in Step 142) |
 | Backups made in Phase 8 | `/var/backups/vor-ff4c7e4.bak`, `/var/backups/wiki-server-2026-11-11.bak` |
 | Collisions on 2026-11-12 | `chaos-engineering` testing/wiki, `sbom` security/external, `distributed-systems` cs-theory/patterns, `saml` auth/security, `vpc` networking/cloud |
 
 ---
 
 *S-WIKI-VOR Battle Plan, forged 2026-11-12*
-*10 Phases. 142 Steps. One client, exact names, links that go somewhere.*
+*10 Phases. 148 Steps. One client, exact names, links that go somewhere.*
