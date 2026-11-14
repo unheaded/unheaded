@@ -470,7 +470,7 @@ Every row was checked against `develop` at `a31be33b` (2026-11-12). Where the sw
   cd /home/govan/tmp/wt/s-zhen-front && PATH="$PATH:/var/tmp/unheaded-sprint/civenv/bin" bash scripts/ci-local.sh 2>&1 | tail -15
   ```
 - [ ] **Step 140** [V] ~2m: Read each gate's result on its own line. Any FAIL → fix on the branch first; INCONCLUSIVE because ruff or pip-audit is missing → note it (D-32, S-RESIDUE).
-- [ ] **Step 141** [STEVIE] ~1m: Ask once, before any host step: "Enable the two new units now (they would start at the next boot, which ends the pause at that boot), or install them disabled and enable them when you lift the pause?" Record the answer in the progress file. Default without an answer: install disabled.
+- [ ] **Step 141** [STEVIE] ~1m: Ask once, before any host step: "Enable the two new units now (they would start at the next boot, which ends the pause at that boot), or install them disabled and enable them when you lift the pause?" Record the answer in the progress file. Default without an answer: install disabled. **Answered 2026-11-13: install disabled; Stevie enables them when he lifts the pause.**
 - [ ] **Step 142** [B][C] ~3m: Merge, signed, no fast-forward.
   ```bash
   cd /home/govan/tmp/unheaded && git merge --no-ff -S sprint/s-zhen-front -m "Merge sprint/s-zhen-front: Zhen front closed before login, units, compliance from the Well" && git log --oneline -1
