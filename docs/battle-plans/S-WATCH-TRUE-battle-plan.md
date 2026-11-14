@@ -6,7 +6,7 @@ Copyright (c) 2026 Stevie Bellis.
 
 **Date**: 2026-11-12
 **Sprint**: S-WATCH-TRUE. Every scrape job, alert and panel matches something that runs. The trace collector stops burning a core. Backlog sweep bundle 3, rows D-13 to D-18 (`docs/sweeps/BACKLOG-SWEEP-2026-11-12.md`).
-**Prerequisite**: Stevie's answers of 2026-11-12, all in hand: A-22 fix the trace collector (freeze lifted for ADR-144 item 1 only) and record it in the findings register; A-18 add the Wotan refusal alert with its runbook; A-17 option (A), Vector counters by kind. Four smaller defaults are confirmed at Step 3 (table W1-W4). They are not blocking.
+**Prerequisite**: Stevie's answers of 2026-11-12, all in hand: A-22 fix the trace collector (freeze lifted for ADR-144 item 1 only) and record it in the findings register; A-18 add the Wotan refusal alert with its runbook; A-17 option (A), Vector counters by kind. W1-W4 answered 2026-11-12 (table below; W4 overrides the default for `lxd/telemetry`). W5's default stands unless Stevie tunes it at Step 3.
 **Target**: On west, the trace collector holds under 0.05 of a core and its CPU no longer grows with uptime. It makes under 2,000 `bpf()` calls a second and publishes latency events again. VictoriaMetrics has no down target that nothing is meant to run. `WotanTopicPermissionRefused` and the new ioc-audit readings are live and tested. Every row D-13 to D-18 is closed or has a named reason.
 **Estimated duration**: 9-12 h over 2-3 sessions. Phases 1-3, 5-9 are code (no stack needed). Phase 4 and the live halves of 5-9 need west's stack and sudo. East (Phase 4B) is attended.
 **Agent strategy**: Coordinator for Phases 0, 4, 4B and 10. Phases 1-3 are one chain (trace collector). Phases 5, 6, 7, 8 and 9 are independent of it and of each other, and can run as `[P]` agents in separate worktrees. They merge one at a time.
@@ -29,7 +29,7 @@ Every row was checked against the tree and the live west. What changed from the 
 | D-14 | `09_compliance` 0 of 8 until `cmd/unheaded-baseline` emits | The timer runs on west (`unheaded-baseline.timer`, every ~5 min), but the unit runs without `-textfile-dir` (`deploy/systemd/unheaded-baseline.service:57`). No `unheaded_baseline_*` series exists in VictoriaMetrics. The textfile directory huginn reads is `/var/lib/unheaded/textfile` (root 0755). `unheaded-ci-status` writes there through a per-user ACL, the house pattern. | `-textfile-dir` plus an ACL. |
 | D-15 | Gates miss `haproxy:2.9.15-alpine` x2 and `unheaded-sword` | `docker/docker-compose.loadbalancers.yml` has haproxy x2 **and `nginx:1.25.5-alpine` x6**, none with a digest. `check-image-digests.sh` reads only `docker-compose.yml` and `monitoring/docker-compose.yml`, on purpose (ADR-102, Decision 4 "stands everywhere else"). ADR-102's 2026-11-07 update records Stevie's 2026-11-06 answer, "pin the digest the registry serves". `unheaded-sword` is built here, so it is out of the digest rule by definition: that half of the row is dropped. | Pin the eight lines and widen the gate (ADR-102 dated section). |
 | D-15 | Untracked `docker-compose.override.yml` | Gitignored (`.gitignore:273`), dated 2026-09-29, 19 services. **Compose merges it automatically into every `docker compose` run on west.** No secret-like key names in it. | Record what it overrides (key names only). The file is Stevie's (W3, record only). |
-| D-15 | `bootstrap-llm-lab.sh` pulls `:latest`; `lxd/telemetry` downloads archives | True: `scripts/bootstrap-llm-lab.sh:979-981` (prometheus, grafana, **loki**: Loki left with ADR-117). `lxd/telemetry/grafana-lxd.yaml:55` fetches Grafana 10.2.2 with no checksum; the directory predates ADR-117. | W4. |
+| D-15 | `bootstrap-llm-lab.sh` pulls `:latest`; `lxd/telemetry` downloads archives | True: `scripts/bootstrap-llm-lab.sh:979-981` (prometheus, grafana, **loki**: Loki left with ADR-117). `lxd/telemetry/grafana-lxd.yaml:55` fetches Grafana 10.2.2 with no checksum; the directory predates ADR-117. `lxd/Makefile` has a `launch-telemetry` target and help lines that run it. | W4 (answered): pin and drop Loki in the script; delete `lxd/telemetry/` and every live reference. |
 | D-16 | Alert on refusals; needs a runbook | Counter `unheaded_wotan_topic_permission_refusals_total{action,outcome}` (`services/wotan/internal/api/topic_permissions.go:185`). West reads `subscribe denied = 2`, flat for 16 h (the Sophia refusals before `90e45458`'s SIGHUP). No label says **who** was refused. | Alert plus runbook, and a bounded `caller` label. |
 | D-18 | Vector counters by kind | `config/vector/vector.yaml` counts `unheaded_auth_failures_total{kind=ssh|sudo|pam}` and `unheaded_ssh_accepted_total`. Nothing counts account changes, sudo commands, crontab edits or kernel lines. Journal shapes checked on west: `sudo` lines are `_UID=0 _TRANSPORT=syslog`, "`<user> : ... COMMAND=`"; kernel lines are `_TRANSPORT=kernel` with no `_UID`; crontab lines exist; no `useradd` line in the retained journal. | New trusted-field transform, one metric, ioc-audit reads it. |
 
@@ -39,14 +39,14 @@ Every row was checked against the tree and the live west. What changed from the 
 
 **Busboy (handoffs).** S-RESIDUE (written in parallel) owns doc residue D-28; the latency-probe "per-flow" comments are D-17 and stay here. Touching Vector restarts it during the **log store week (S-E1-LIVE Step 284, ends ~2026-11-17)**. Vector resumes from `vector-data`, so no row is lost, but note the restart time in `docs/battle-plans/progress/S-E1-LIVE-progress.md` the way the Well restart of 06:40Z was noted. `ioc-audit` stays `status: draft` until Stevie approves it (A-1). This plan changes its bytes, so the manifest is rewritten (`--write` only; the seal is Stevie's). FND-044 goes in the register here; S-EVIDENCE-RUNS later settles E-01 (FND-043's missing `resolved` block), not this plan.
 
-## Decisions (defaults stand unless Stevie says otherwise at Step 3)
+## Decisions (W1-W4 answered by Stevie 2026-11-12; W5 is a default)
 
-| # | Question | Default | Without an answer |
+| # | Question | Ruling | Status |
 |---|---|---|---|
-| W1 | `sword` is scraped every 10 s and is down except during a deploy. No rule, SLO or panel reads `sword_*`. | **Remove the job** from `config/victoria/scrape.yml`. It returns with a deploy-window step if one is ever wanted. | Default applies |
-| W2 | heimdall: two alert rules and two scrape jobs for a daemon no host runs | **Park, as decision 25 did for monad.yml**: delete the `heimdall` rule group, its tests and both scrape jobs, and keep the runbooks. A rule returns with its producer and a test. | Default applies |
-| W3 | `docker-compose.override.yml` on west (gitignored, merged into every compose run) | **Record only**: list what it overrides, key names only, in the progress file and "For Stevie". Folding it into the tracked file or deleting it is Stevie's call. | Default applies |
-| W4 | `bootstrap-llm-lab.sh` `:latest` x3 and `lxd/telemetry` (Grafana 10.2.2 tarball, no checksum, pre-ADR-117) | **Pin** the two the stack still uses to compose's exact tags. Drop the Loki pull. Give `lxd/telemetry` a header saying it is not deployed and superseded by ADR-117, plus a sha256 check on the download. Nothing is deleted. | Default applies |
+| W1 | `sword` is scraped every 10 s and is down except during a deploy. No rule, SLO or panel reads `sword_*`. | **Remove the job** from `config/victoria/scrape.yml`. Sword's code and runbooks stay. | Answered 2026-11-12 |
+| W2 | heimdall: two alert rules and two scrape jobs for a daemon no host runs | **Remove** the `heimdall` rule group, its tests and both scrape jobs (Prometheus and VictoriaMetrics). Keep heimdall's code and runbooks. A rule returns with its producer and a test (decision 25). | Answered 2026-11-12 |
+| W3 | `docker-compose.override.yml` on west (gitignored, merged into every compose run) | **Record only**: list what it overrides, key names only, in the progress file and "For Stevie". Nothing is changed. | Answered 2026-11-12 |
+| W4 | `bootstrap-llm-lab.sh` `:latest` x3 and `lxd/telemetry` (Grafana 10.2.2 tarball, no checksum, pre-ADR-117) | **Script**: pin the two the stack still uses to compose's exact tags; drop the Loki pull. **`lxd/telemetry/`: delete outright** (git history keeps it), with `lxd/Makefile`'s `launch-telemetry` target, its `.PHONY` entry and help lines, and every live reference in docs and wiki. Dated records are not edited. | Answered 2026-11-12 (replaces the pin-and-sha256 default) |
 | W5 | ioc-audit judgment for the new kinds | **Indicators** (the run fails): an account change, a crontab edit, an unsigned or out-of-tree module load. **Notes** (the run passes): sudo command counts per host and user, kernel OOM kills and segfaults. Tunable by parameter, like the existing limits. | Default applies |
 
 ---
@@ -80,7 +80,7 @@ Every row was checked against the tree and the live west. What changed from the 
   ```bash
   cd /home/govan/tmp/unheaded && git switch develop && git worktree add /home/govan/tmp/wt/S-WATCH-TRUE -b sprint/s-watch-true develop && git -C /home/govan/tmp/wt/S-WATCH-TRUE log --oneline -1
   ```
-- [ ] **Step 3** [STEVIE] ~5m: If Stevie is present, ask W1-W4 as one AskUserQuestion round (four questions, defaults first, marked Recommended). W5 goes in the next round only if he wants to tune it. Record the answers verbatim under "Decisions" in `$PROG`. If he is away, the defaults stand: write "defaults, Stevie away" there.
+- [ ] **Step 3** [W] ~3m: Copy the rulings for W1-W4 (answered 2026-11-12, table above) verbatim under "Decisions" in `$PROG`. If Stevie is present, ask whether he wants to tune W5 (one AskUserQuestion, default first, marked Recommended). If he is away, write "W5 default, Stevie away".
 - [ ] **Step 4** [W] ~3m: Create `$PROG`: header, Decisions, a Log section, and a "For Stevie" section.
 - [ ] **Step 5** [V] ~1m: `test -s /home/govan/tmp/wt/S-WATCH-TRUE/docs/battle-plans/progress/S-WATCH-TRUE-progress.md && grep -c '^## ' $_` prints at least 3.
 - [ ] **Step 6** [B] ~1m: Tools present (never run a missing one; `lxc` installs a snap).
@@ -443,8 +443,8 @@ Every row was checked against the tree and the live west. What changed from the 
 **Time**: 45 min.
 **Agent**: Agent `[P]`, worktree `-p6`.
 
-- [ ] **Step 143** [W] ~5m: W1 (default): delete the `sword` job and its comment from `config/victoria/scrape.yml`. First confirm nothing reads it: `grep -rn 'sword_\|job="sword"' config/grafana monitoring/prometheus/rules observability` prints nothing.
-- [ ] **Step 144** [W] ~10m: W2 (default): delete the `heimdall` group from `monitoring/prometheus/rules/collector.yml` and its cases from `tests/collector_test.yml`. Delete the `heimdall` job from `config/victoria/scrape.yml` and `monitoring/prometheus/prometheus.yml`. In `collector.yml`'s header, add: "heimdall's two rules were removed 2026-11-12 (S-WATCH-TRUE, W2): no host runs heimdall-daemon. A rule returns with its producer and a test (decision 25). Runbooks kept." Keep `runbooks/infra/heimdall-*.yaml`.
+- [ ] **Step 143** [W] ~5m: W1 (answered 2026-11-12): delete the `sword` job and its comment from `config/victoria/scrape.yml`. First confirm nothing reads it: `grep -rn 'sword_\|job="sword"' config/grafana monitoring/prometheus/rules observability` prints nothing.
+- [ ] **Step 144** [W] ~10m: W2 (answered 2026-11-12; heimdall's code stays): delete the `heimdall` group from `monitoring/prometheus/rules/collector.yml` and its cases from `tests/collector_test.yml`. Delete the `heimdall` job from `config/victoria/scrape.yml` and `monitoring/prometheus/prometheus.yml`. In `collector.yml`'s header, add: "heimdall's two rules were removed 2026-11-12 (S-WATCH-TRUE, W2): no host runs heimdall-daemon. A rule returns with its producer and a test (decision 25). Runbooks kept." Keep `runbooks/infra/heimdall-*.yaml`.
 - [ ] **Step 145** [W] ~3m: `scrape.yml`'s "three below read up == 0" comment: syslog-relay is up since 2026-11-12 (`8efe36e2`) and zhen-agentd is up since 2026-11-12. Rewrite the comment to say what is true now. With heimdall gone, no job is expected down.
 - [ ] **Step 146** [W] ~10m: `zhen.yml`: split `ZhenSchedulerStalled` into two rules with the same alert name, one with `labels: {reason: absent}` (`absent_over_time(...[15m])`) and one with `labels: {reason: stale}` (the `time() - max ... > 900` arm). Descriptions say which. In the runbook's notes, the first step reads `reason`.
 - [ ] **Step 147** [W] ~5m: `tests/zhen_test.yml`: the existing stale case expects `reason: stale`; add an absent case expecting `reason: absent`.
@@ -500,7 +500,7 @@ Every row was checked against the tree and the live west. What changed from the 
 
 ## PHASE 8: WHAT THE GATES DO NOT READ (D-15) (Steps 173-184) [P]
 
-**Goal**: The load-balancer compose file names its bytes and the digest gate reads it. The two `:latest`/no-checksum spots are fixed per W4. The override file is on record.
+**Goal**: The load-balancer compose file names its bytes and the digest gate reads it. `bootstrap-llm-lab.sh` is pinned, and `lxd/telemetry/` is gone with every live reference to it (W4). The override file is on record (W3).
 **Prerequisite**: Phase 0 gate (W3, W4). Network to the registry for the digests.
 **Time**: 1 h.
 **Agent**: Agent `[P]`, worktree `-p8`.
@@ -515,9 +515,23 @@ Every row was checked against the tree and the live west. What changed from the 
 - [ ] **Step 176** [W] ~10m: `scripts/check-image-digests.sh`: `files=(docker-compose.yml monitoring/docker-compose.yml docker/docker-compose.loadbalancers.yml)`, and the header comment updated. Add a red-then-green case in `tests/scripts/test_image_digests.py`: the load-balancer file's third-party images all carry a digest. ADR-102: a `## Update 2026-11-12` section saying the load-balancer file is now read, and why: Stevie's 11-06 answer covers compose files, and the registry digest was read, not chosen. Dockerfile `FROM` lines and sophia-eye/telemetry compose stay out, as Decision 4 says.
 - [ ] **Step 177** [B] ~3m: `bash scripts/check-image-digests.sh 2>&1 | tail -2; bash scripts/check-image-tags.sh 2>&1 | tail -1; /var/tmp/unheaded-sprint/civenv/bin/pytest -q tests/scripts/test_image_digests.py 2>&1 | tail -1; bash scripts/check-haproxy-cfg.sh 2>&1 | tail -1`
 - [ ] **Step 178** [V] ~1m: All pass.
-- [ ] **Step 179** [W] ~10m: W4 (default): in `scripts/bootstrap-llm-lab.sh` lines 979-981, prometheus and grafana go to the exact `tag@sha256` that `monitoring/docker-compose.yml` uses (copy, don't re-resolve). Drop the Loki pull line and any later use of that image in the script: read the script around the line first; if Loki is used beyond the pull, `[STUCK]` and ask. In `lxd/telemetry/`, add a `README.md`: "Not deployed. Superseded by ADR-117 (one Grafana, VictoriaMetrics in compose, Loki removed). Kept for reference." In `grafana-lxd.yaml`, add a `sha256sum -c` line after the download, with the published checksum for `grafana-10.2.2.linux-amd64.tar.gz` read from grafana.com's release page and pasted in.
-- [ ] **Step 180** [B] ~2m: `bash -n scripts/bootstrap-llm-lab.sh && grep -n ':latest' scripts/bootstrap-llm-lab.sh | head; python3 -c 'import yaml,sys; [yaml.safe_load(open(f)) for f in sys.argv[1:]]' lxd/telemetry/*.yaml && echo yaml-ok`
-- [ ] **Step 181** [V] ~1m: Syntax ok, no `:latest` among the three, yaml-ok.
+- [ ] **Step 179** [W] ~15m: W4 (answered 2026-11-12).
+  - `scripts/bootstrap-llm-lab.sh` lines 979-981: prometheus and grafana go to the exact `tag@sha256` that `monitoring/docker-compose.yml` uses (copy, don't re-resolve). Drop the Loki pull line and any later use of that image in the script. Read the script around the line first; if Loki is used beyond the pull, `[STUCK]` and ask.
+  - Delete `lxd/telemetry/` outright: `git rm -r lxd/telemetry` (history keeps it).
+  - `lxd/Makefile`: remove the `launch-telemetry` target (lines 104-106), its `.PHONY` entry (line 5) and both help lines (32, 58). Renumber the "3. Run:" list if a step number is left out.
+  - Live references found 2026-11-12: `lxd/README.md` (81-82, 119, the "Telemetry Stack Issues" section from 488), `lxd/FILES_SUMMARY.txt` (10, 32, 95, 131, 160) and `lxd/NEW_FILES_CREATED.md` (13, 64-78, 211, 271, 281, 354, 377-378). Remove those lines or sections. If a file is a dated record (a date in its name or its header), don't edit it: add a one-line "superseded 2026-11-12: lxd/telemetry deleted (S-WATCH-TRUE W4)" note at the top instead.
+  - The `unheaded-telemetry` LXD **profile** (`lxd/deploy.sh:134`, `lxd/LAUNCH_EXAMPLES.sh`, `lxd/hosts/`) is not one of the deleted files. Leave it.
+- [ ] **Step 180** [B] ~2m: Syntax and target checks.
+  ```bash
+  cd /home/govan/tmp/wt/S-WATCH-TRUE-p8 && bash -n scripts/bootstrap-llm-lab.sh && grep -n ':latest' scripts/bootstrap-llm-lab.sh | head; test ! -e lxd/telemetry && echo gone; make -C lxd -n help >/dev/null && echo make-ok; make -C lxd -n launch-telemetry 2>&1 | grep -c 'No rule'
+  ```
+  Expected: no `:latest` among the three lines, `gone`, `make-ok`, `1`.
+- [ ] **Step 181** [V] ~2m: **No live reference to the deleted files.** Dated records and generated scans are excluded: `docs/sweeps/`, the `docs/policy/*-2026-*` inventories, `docs/legal/scancode-full.json`, `docs/archive/`, and the plans and progress files that describe this change.
+  ```bash
+  cd /home/govan/tmp/wt/S-WATCH-TRUE-p8 && git grep -n -E 'lxd/telemetry|telemetry/setup-telemetry|setup-telemetry\.sh|launch-telemetry|(grafana|loki|prometheus|victoriametrics)-lxd\.yaml' -- . ':!docs/sweeps' ':!docs/policy/*-2026-*' ':!docs/legal/scancode-full.json' ':!docs/archive' ':!docs/battle-plans' | wc -l
+  ```
+  Must print `0`.
+  - Anything else → remove that reference, or add a superseded note if the file is a dated record, and rerun.
 - [ ] **Step 182** [B] ~5m: W3: what the override changes, key names only (no values printed).
   ```bash
   cd /home/govan/tmp/unheaded && python3 - <<'PY'
@@ -529,7 +543,7 @@ Every row was checked against the tree and the live west. What changed from the 
   ```
   Then `sudo docker compose config --hash '*' > /tmp/claude-swt/with.txt && sudo docker compose -f docker-compose.yml config --hash '*' > /tmp/claude-swt/without.txt && diff /tmp/claude-swt/with.txt /tmp/claude-swt/without.txt | grep -c '^<'` gives the number of services the override really changes.
 - [ ] **Step 183** [W] ~3m: Log in `$PROG` "For Stevie": the per-service key list and the count. The ask: fold the needed keys into the tracked compose file or delete the override. Nothing is changed.
-- [ ] **Step 184** [C][V] ~1m: **PHASE 8 EXIT GATE**: gates green with the load-balancer file read; W4 applied; the override recorded. **COMMIT** `docker/docker-compose.loadbalancers.yml scripts/check-image-digests.sh tests/scripts/test_image_digests.py docs/adr/ADR-102-*.md scripts/bootstrap-llm-lab.sh lxd/telemetry/README.md lxd/telemetry/grafana-lxd.yaml docs/battle-plans/progress/S-WATCH-TRUE-progress.md`.
+- [ ] **Step 184** [C][V] ~1m: **PHASE 8 EXIT GATE**: gates green with the load-balancer file read; W4 applied (Step 181 prints 0); the override recorded. **COMMIT** `docker/docker-compose.loadbalancers.yml scripts/check-image-digests.sh tests/scripts/test_image_digests.py docs/adr/ADR-102-*.md scripts/bootstrap-llm-lab.sh lxd/Makefile lxd/README.md lxd/FILES_SUMMARY.txt lxd/NEW_FILES_CREATED.md docs/battle-plans/progress/S-WATCH-TRUE-progress.md`. The `lxd/telemetry/` removal is already staged by `git rm`; check that `git status --short lxd/telemetry` shows only `D` lines before committing.
 
 ---
 
@@ -676,5 +690,5 @@ Every row was checked against the tree and the live west. What changed from the 
 
 ---
 
-*S-WATCH-TRUE Battle Plan, forged 2026-11-12*
+*S-WATCH-TRUE Battle Plan, forged 2026-11-12; amended 2026-11-12 with Stevie's rulings on W1-W4 (W4: lxd/telemetry deleted)*
 *12 Phases. 226 Steps. The watch reads what runs, and the watcher stops eating the house.*
