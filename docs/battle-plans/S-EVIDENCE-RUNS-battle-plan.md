@@ -2,11 +2,11 @@
 SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2026 Stevie Bellis.
 -->
-# S-EVIDENCE-RUNS BATTLE PLAN: 12 Phases, 236 Steps
+# S-EVIDENCE-RUNS BATTLE PLAN: 12 Phases, 262 Steps
 
 **Date**: 2026-11-12
 **Sprint**: S-EVIDENCE-RUNS. Compliance reads what runs on the hosts. The findings register and the crypto inventory match the evidence. Enforcing mode gets a measured path to its flip. Backlog sweep bundle 4: rows D-20, D-21, D-22 and D-34, settling E-01 to E-07 on the way (`docs/sweeps/BACKLOG-SWEEP-2026-11-12.md`).
-**Prerequisite**: develop at `59a8fbd2` or later. Stevie answers DE1-DE7 at Phase 0. Phases 1-7 are code and register work on west. Phase 9 (east window) needs S-E1-LIVE Evening 10B done: Step 218, its exit gate, which is sweep row B-11. Phase 10 (west window) needs Phase 9.
+**Prerequisite**: develop at `59a8fbd2` or later. DE1-DE7 were all answered on 2026-11-13. Phases 1-7 are code and register work on west. Phase 9 (east window) needs S-E1-LIVE Evening 10B done: Step 218, its exit gate, which is sweep row B-11. Phase 10 (west window) needs Phase 9.
 **Target**:
 - Every E-01 to E-07 row is either closed against evidence that can be rerun, or carries a dated line saying why it stays open.
 - `compliance-evidence findings` shows 0 untriaged rows and an empty "remove from the register" list.
@@ -14,7 +14,7 @@ Copyright (c) 2026 Stevie Bellis.
 - The CBOM inventories AEADs, KDFs, hashes and the hand-written SHA-256.
 - AIDE and auditd rules are journaled on both hosts.
 - Both hosts run the 7-day soak on a sealed snapshot, with a readiness report naming what still blocks the enforcing flip. The flip itself is not in this plan.
-**Estimated duration**: 14-18 h over 4-5 sessions plus the 7-day soak. Phases 1-7 take about 9 h unattended. Phases 8-10 are attended windows of about 1.5 h each. Phase 11 runs on days 1-7 of the soak.
+**Estimated duration**: 20-26 h over 5-6 sessions plus the 7-day soak. Phases 1-7 take about 12 h unattended. Phase 8 is a 45-minute attended window. Phases 9 and 10 are attended windows of about 4-5 h each, mostly idle-class AIDE runs (init, two checks, the once-only drill on east). Phase 11 runs on days 1-7 of the soak.
 **Agent strategy**: Coordinator for Phases 0, 1, 8, 9, 10 and 11. Phases 2, 3, 4, 5, 6 and 7 are code, independent of each other, and can run as `[P]` agents in their own worktrees, merged one at a time into `sprint/evidence-runs`. Each of those phases touches `compliance/findings/register.yaml` only in its final record step, so register edits never run in parallel.
 **Commit cadence**: every 5 steps, at every exit gate and before every skip. Commits are signed. If gpg-agent has timed out and Stevie is away, use `--no-gpg-sign` and log it for `scripts/resign-unpushed.py`. Stage named files only, never `git add -A`. Stevie pushes.
 **Stuck protocol**: skip after 3× the step estimate or two failed debug attempts. Mark the step `[STUCK]` and its dependents `[BLOCKED]`, commit, and move to the next independent phase.
@@ -37,7 +37,7 @@ East was not contacted.
 | Row | Sweep says | Found at `59a8fbd2` | Plan does |
 |---|---|---|---|
 | D-20 | Add the host-side evidence kind; east must be redeployed first | Holds. `check-service-auth.sh` **fails today** (exit 1, "overdue"): `logstore-writer` (S-E1-LIVE Step 277) has no `AUTH_ENABLED`, but it checks its own bearer token (`LOGSTORE_INGEST_TOKEN`), so the gate reads a closed service as open. Eight catalog controls carry `declared:`; FND-037 names UH-AUTHN-01. | Phase 2 teaches the gate token-auth services. Phase 5 builds `host-service` for UH-AUTHN-01: west now, east after B-11. The other seven declared controls are listed in Appendix C, not planned. |
-| D-21 | AIDE on both hosts, auditd rules on west, east's lab fixes journaled | East's journal is **13 of 15**: only `aide-install` and `apparmor-enforce` are not applied (`host-journal:east` detail). West has `auditd` installed (dpkg `ii`); only the rules are missing (1 rule line). The register plan for AIDE says to exclude `/var/lib/docker`, LXD storage and build trees, but **the `aide-install` fix has no exclude action**. **AIDE has no third-party approval**: DP-09's batch named it, but the answer line names only the journald caps, the ROCm chmod and the `remediate.sh` retirement. Moving west to `lab-hardened` also turns on `sshd-safe` (risk high, B-08's evening) and `apparmor-enforce`. | DE1 (AIDE), DE4 (west profile), DE7 (east AppArmor). Phase 7 adds the excludes. Phases 9 and 10 are the host windows. |
+| D-21 | AIDE on both hosts, auditd rules on west, east's lab fixes journaled | East's journal is **13 of 15**: only `aide-install` and `apparmor-enforce` are not applied (`host-journal:east` detail). West has `auditd` installed (dpkg `ii`); only the rules are missing (1 rule line). The register plan for AIDE says to exclude `/var/lib/docker`, LXD storage and build trees, but **the `aide-install` fix has no exclude action**. **AIDE has no third-party approval**: DP-09's batch named it, but the answer line names only the journald caps, the ROCm chmod and the `remediate.sh` retirement. Moving west to `lab-hardened` also turns on `sshd-safe` (risk high, B-08's evening) and `apparmor-enforce`. | DE1 (AIDE), DE4 (west profile), DE7 (east AppArmor). Phase 7 builds AIDE quiet by design (DE1, answered 2026-11-13). Phases 9 and 10 are the host windows. |
 | D-22 | Build enforcing: typed actions, breaker, preinst gate, soak, Lich campaign | **The code is built** (`836a52ba`, S-WELL-SPRING Steps 276-279): enforce path, flapping breaker, preinst gate, soak clock, soak doc, LICH-017 harness (green today, 0.6 s). What is missing: no host has a sealed snapshot (`/etc/unheaded/compliance/` is absent on west), so the soak clock never starts (LICH-017 case T6). **Nobody owns the seal key**: `compliance-evidence snapshot -key SEED` names no custody, and the TTL is 7 d by default, 31 d at most. ADR-098 condition 3 (zero open findings in enforceable classes) is blocked by the firewall rows (B-06, B-07), the sudo rows (A-43) and the sshd rows (B-08). West's baseline unit has no `--textfile-dir`, so the soak metrics are not exported (S-WATCH-TRUE Phase 7 adds it). | DE3 (seal custody). Phase 6 (readiness report), Phase 8 (key and snapshots), the live LICH-017 drill in Phase 9, the soak in Phase 11. The flip stays Stevie's: condition 4, `compliance/hosts/<host>.yaml`. |
 | D-34 | CBOM lacks ChaCha20-Poly1305, HKDF, AES-GCM, x25519-dalek, BLAKE3 | The gap is a **whole class**: `cmd/crypto-inventory` knows only signature, KEM, key-agreement, TLS, SSH and GODEBUG kinds. It also misses SHA-3 (`age.go`, `envelope.go`). Rust crypto crates are seen only through rustls/pqcrypto lock entries. | Phase 4 adds the `aead`, `kdf`, `hash` and `own-primitive` kinds for Go and Rust, plus a SHA-256 round-constant tripwire. The notice text is `[BLOCKED]` on A-25. |
 | E-01 | FND-043 fixed, no `resolved` block | Holds. `24025056` and `90e45458` exist. Tests `TestPermissions_GRPCStreamAndPublish`, `TestShippedAllowlistCoversDeployedSubscribers` and `TestEveryWotanClientIdentityIsAllowedAndApproved` exist. `configs/wotan.yaml` has `mode: enforce`, `unlisted: deny`. | Phase 1: run the tests, read the live refusal counter, add the `resolved` block. |
@@ -82,19 +82,46 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
 
 ---
 
-## Decisions for Stevie (Phase 0 asks these in rounds of four)
+## Decisions for Stevie (all answered 2026-11-13)
 
-| # | Question | Recommendation | Without an answer |
+| # | Question | Recommendation | Answer |
 |---|---|---|---|
-| DE1 | Install AIDE (Ubuntu `aide`, no recommends) on both hosts: weekly check, excludes for Docker, LXD pools and build trees. It is a new distro package, and DP-09's answer did not name it. | **Yes.** It is SI-7 file integrity and is already in the `lab-hardened` model. The excludes keep the weekly report readable. | Steps on `aide-install` are `[BLOCKED]`; the four AIDE rows stay open |
-| DE2 | Remove every register row the findings report lists as passing (`remove from the register`), as the register header prescribes. Today that is 7 rows; more will come during the plan. Sweep row A-51. | **Yes, all of them.** Each removal names its source and the observation time in the commit body. | Rows stay, with a dated "passes since" note |
-| DE3 | Who seals the compliance snapshots a host's root acts on? | **A dedicated ML-DSA-65 key on west** under a nologin account `unheaded-compliance-seal` (DP-06 daemon-key rule), with the public half in the repo, a 31-day TTL and a monthly reseal at your hands. The alternative is the B-10 build key at a ceremony each month. | Phase 8 and the soak are `[BLOCKED]` |
-| DE4 | West's profile. `lab-hardened` also turns on `sshd-safe` (risk high) and `apparmor-enforce`. | **New profile `lab-audited`** = `lab` + `auditd-rules` + `aide-install` + `rocm-log-perms`. West moves to `lab-hardened` at B-08 (sshd) and after B-18 (the X server purge). | `auditd-rules` on west is `[BLOCKED]` |
-| DE5a | Fix in the host windows: `dot-files` (both hosts; chmod g-w on govan's own files), west `root-path` (remove the empty `/root/.vector`), purge the ftp and telnet clients (both), trial `/dev/shm` noexec (both) and east `/tmp` noexec. | **Yes to all.** Each has a dry run and a rollback. | Those rows stay open |
-| DE5b | Accept 90 days, "revisit before real data or internet exposure": west `home-{nodev,nosuid,separate}`, `var-log-{noexec,separate}`, `var-log-audit-{noexec,separate}`, `var-tmp-{noexec,separate}` (9 rows). `/home` lives on `/`, and `/var` holds Docker, so noexec there breaks it. This is the west twin of DP-25.11. | **Accept.** | They stay open and overdue |
-| DE5c | `var-log-perms` (west 235 files, east 66, Ubuntu's 0644 defaults): a `fileperm` fix in the model (enforceable, so it counts for condition 3; rotation recreates the modes and enforcing re-fixes them), or accept. | **Fix** (`var-log-modes`) | Stays open; condition 3 stays blocked by it |
-| DE6 | FND-009, WireGuard root by necessity: accept for 90 days (cap_drop ALL + NET_ADMIN, read-only, deployed on neither host), or rewrite its verify to "WireGuard is the only entry". | **Accept**, reason as written | Row stays open with no next action |
-| DE7 | East: apply `apparmor-enforce` (the Xorg profile from complain to enforce; no Xorg runs on east) through the executor, so east's journal reads 15 of 15. | **Yes** | `host-journal:east` stays failing |
+| DE1 | Install AIDE (Ubuntu `aide`, no recommends) on both hosts. It is a new distro package, and DP-09's answer did not name it. | **Yes.** It is SI-7 file integrity and is already in the `lab-hardened` model. | **ANSWERED 2026-11-13: yes, both hosts**, in Stevie's words "set up carefully. Ensure no spam or useless disk io is being used". The design that follows is in "AIDE, quiet by design" below: a tight include list, an idle-scheduled weekly timer, no package cron, no mail, one notification per new diff, init and updates only after an attended review, and a measured first-run gate. |
+| DE2 | Remove every register row the findings report lists as passing (`remove from the register`), as the register header prescribes. Today that is 7 rows; more will come during the plan. Sweep row A-51. | **Yes, all of them.** Each removal names its source and the observation time in the commit body. | **ANSWERED 2026-11-13: yes, remove passing rows.** |
+| DE3 | Who seals the compliance snapshots a host's root acts on? | **A dedicated ML-DSA-65 key on west** under a nologin account `unheaded-compliance-seal` (DP-06 daemon-key rule), with the public half in the repo, a 31-day TTL and a monthly reseal at your hands. The alternative is the B-10 build key at a ceremony each month. | **ANSWERED 2026-11-13: the dedicated ML-DSA-65 key on west, as recommended.** |
+| DE4 | West's profile. `lab-hardened` also turns on `sshd-safe` (risk high) and `apparmor-enforce`. | **New profile `lab-audited`** = `lab` + `auditd-rules` + `aide-install` + `rocm-log-perms`. West moves to `lab-hardened` at B-08 (sshd) and after B-18 (the X server purge). | **ANSWERED 2026-11-13: `lab-audited`, as recommended.** |
+| DE5a | Fix in the host windows: `dot-files` (both hosts; chmod g-w on govan's own files), west `root-path` (remove the empty `/root/.vector`), purge the ftp and telnet clients (both), trial `/dev/shm` noexec (both) and east `/tmp` noexec. | **Yes to all.** Each has a dry run and a rollback. | **ANSWERED 2026-11-13: yes, fix them** (round 7). |
+| DE5b | Accept 90 days, "revisit before real data or internet exposure": west `home-{nodev,nosuid,separate}`, `var-log-{noexec,separate}`, `var-log-audit-{noexec,separate}`, `var-tmp-{noexec,separate}` (9 rows). `/home` lives on `/`, and `/var` holds Docker, so noexec there breaks it. This is the west twin of DP-25.11. | **Accept.** | **ANSWERED 2026-11-13: accept the 9 west rows for 90 days** (round 7). |
+| DE5c | `var-log-perms` (west 235 files, east 66, Ubuntu's 0644 defaults): a `fileperm` fix in the model (enforceable, so it counts for condition 3; rotation recreates the modes and enforcing re-fixes them), or accept. | **Fix** (`var-log-modes`) | **ANSWERED 2026-11-13: fix, `var-log-modes`** (round 7). |
+| DE6 | FND-009, WireGuard root by necessity: accept for 90 days (cap_drop ALL + NET_ADMIN, read-only, deployed on neither host), or rewrite its verify to "WireGuard is the only entry". | **Accept**, reason as written | **ANSWERED 2026-11-13: accept for 90 days, reason as written** (round 7). |
+| DE7 | East: apply `apparmor-enforce` (the Xorg profile from complain to enforce; no Xorg runs on east) through the executor, so east's journal reads 15 of 15. | **Yes** | **ANSWERED 2026-11-13: yes, through the executor, attended** (round 7). |
+
+### AIDE, quiet by design (DE1, 2026-11-13)
+
+Stevie's bar is "set up carefully. Ensure no spam or useless disk io is being used". Every AIDE step below serves these rules:
+
+1. **Include list, not "everything minus excludes".** Our own standalone config, `/etc/aide/aide-unheaded.conf`. It does not `@@include` the package's `aide.conf.d`, so none of Ubuntu's default selection rules apply.
+   - **Watched:** `/usr/bin`, `/usr/sbin`, `/usr/lib` (minus the bulk trees below), `/usr/local/bin`, `/usr/local/sbin`, `/etc`, `/boot`, `/lib/systemd/system`, `/etc/systemd/system`, `/opt/unheaded` if it exists, `/usr/share/unheaded`, `/usr/local/lib/unheaded`.
+   - **Never watched** (`!` lines, so a later include cannot pull them back in): `/var/lib` (Docker, containerd, LXD pools, every `/var/lib/*`, including `/var/lib/govan-cold`), `/var/log`, `/var/cache`, `/var/tmp`, `/tmp`, `/home`, `/root`, `/nix/store`, `/opt/rocm*`, `/usr/local/lib/python3*`, `/usr/local/lib/ollama`, `/usr/lib/python3/dist-packages/__pycache__`, `/var/snap`, `/snap`, `/var/zhen`, the model caches, and `/etc/aide` itself (the database lives under `/var/lib/aide`).
+   - Rules: content `sha512`, plus `p+i+n+u+g+s+m+c+acl+xattrs`. No `atime`, so reading a file is never a change.
+2. **Our timer only.** `unheaded-aide-check.timer` runs weekly with `RandomizedDelaySec=6h` and `Persistent=true`. Its service has:
+   - `Nice=19`, `IOSchedulingClass=idle`, `CPUSchedulingPolicy=idle`, `IOWeight=10`;
+   - `IOAccounting=yes` and `CPUAccounting=yes`, so `IOReadBytes` can be measured;
+   - `MemoryMax=512M` and `TimeoutStartSec=3h`.
+
+   The package's own paths are switched off and checked: `dailyaidecheck.timer` is masked, and its cron script (`/etc/cron.daily/aide` or `dailyaidecheck`, whichever the package ships) is diverted with `dpkg-divert --local --rename`, so upgrades keep it off. No other AIDE run exists.
+3. **No mail, ever.** No MTA is installed (no recommends), and nothing in our unit mails. A clean run writes **one** journal line (`aide: clean entries=<n> secs=<s> read=<bytes>`) and the textfile metrics `unheaded_aide_last_run_timestamp_seconds`, `unheaded_aide_entries`, `unheaded_aide_changed_entries`, `unheaded_aide_run_seconds`, `unheaded_aide_exit_code` and `unheaded_aide_new_diff` (0 or 1).
+4. **A change is reported once.** The wrapper `unheaded-aide` (new first-party Go binary, standard library, ADR-111 command line) normalises the change report (paths and attributes, no timestamps) and hashes it.
+   - A hash not seen before sets `unheaded_aide_new_diff 1` for that run (one alert, ticket urgency, so one digest line) and writes `/var/lib/unheaded/aide/state.json`.
+   - The same unchanged diff on a later run sets `new_diff 0`: no second alert, no new row.
+   - The probe `host-probe:<host>:aide-unreviewed` fails while `state.json` holds a diff no one has reviewed. That is one findings row per host, never one per run.
+5. **Init and updates only after an attended review.**
+   - `unheaded-aide init` writes `aide.db.new` and prints a summary. `unheaded-aide promote` moves it to `aide.db`, only after Stevie reads that summary.
+   - `unheaded-aide review` prints the pending diff. `unheaded-aide accept <hash>` runs `aide --update`, promotes the new database and marks the diff reviewed, only on his word.
+   - The executor fix never runs `aideinit`, and no timer ever updates the database.
+6. **A measured gate on the first run.** Before init, measure the include set (`du -sbx` and the file count, S and N). Read wall time and `IOReadBytes` from the unit's accounting, and the database size.
+   - Pass bar: wall ≤ 45 min, `IOReadBytes` ≤ 1.25 × S, and database ≤ 256 MiB and ≤ 1 KiB per file.
+   - A second clean run must produce no notification.
 
 ---
 
@@ -123,10 +150,10 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
 **Agent**: Coordinator.
 
 - [ ] **Step 1** [R] ~10m: Read the Grounding sources above. As a minimum: ADR-098 §2, `docs/compliance/enforcing-soak.md`, FND-037's entry, and this plan's Decisions table.
-- [ ] **Step 2** [STEVIE] ~5m: First AskUserQuestion round: DE1, DE2, DE3, DE4.
-- [ ] **Step 3** [STEVIE] ~5m: Second round: DE5a, DE5b, DE5c, DE6. Third round: DE7.
+- [ ] **Step 2** [R] ~2m: DE1-DE4 were answered on 2026-11-13 (Decisions table). Copy them verbatim into `$PROG` at Step 4. Don't ask any DE again.
+- [ ] **Step 3** [R] ~2m: DE5a-DE7 were answered on 2026-11-13 (round 7, every call to its recommendation). Copy them verbatim into `$PROG` at Step 4 with DE1-DE4. Nothing is left to ask.
 - [ ] **Step 4** [W] ~5m: Create `$PROG` with the sections Decisions (answers verbatim, dated), Step log, E-row outcomes (one line each for E-01 to E-07, empty), and Stuck.
-- [ ] **Step 5** [V] ~1m: Every DE has an answer, or is "not yet" with the steps it blocks marked `[BLOCKED]` in `$PROG`.
+- [ ] **Step 5** [V] ~1m: `$PROG` holds all nine answers (DE1-DE4, DE5a, DE5b, DE5c, DE6, DE7), each dated 2026-11-13. No step is blocked on a decision.
 - [ ] **Step 6** [B] ~1m: Create the branch and the scratch area.
   ```bash
   cd /home/govan/tmp/unheaded && git switch develop && git switch -c sprint/evidence-runs && mkdir -p /tmp/claude-1000/s-evidence-runs
@@ -220,12 +247,12 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
   [print(k, best[k]["verdict"], best[k]["observed_at"]) for k in sorted(best)]' var/compliance/evidence.json $SCR/remove.txt
   ```
 - [ ] **Step 29** [V] ~1m: Every source row's **newest** record reads `pass`. Use the newest by `observed_at`, never the last in file order: that was S-HOST-TIDY Step 121's trap. FND ids with a `resolved` block (FND-032, FND-038, and FND-043/FND-025 from above) are listed by design.
-- [ ] **Step 30** [W] ~10m: DE2 = yes → delete exactly the entries in `$SCR/remove.txt`, one by one, by name. DE2 = no → under each, add a plan line "<date>: passes since <observed_at>; kept at Stevie's word (DE2)".
+- [ ] **Step 30** [W] ~10m: DE2 (answered 2026-11-13: remove passing rows). Delete exactly the entries in `$SCR/remove.txt`, one by one, by name.
 - [ ] **Step 31** [B] ~1m: Rerun the report.
   ```bash
   go test -count=1 ./pkg/compliance/crosswalk/ 2>&1 | tail -1; go run ./cmd/compliance-evidence findings | grep -c 'remove from the register'
   ```
-- [ ] **Step 32** [V] ~1m: `0` (DE2 yes) or the same count (DE2 no). Write the E-04 outcome line in `$PROG`.
+- [ ] **Step 32** [V] ~1m: `0` (DE2 answered yes). Write the E-04 outcome line in `$PROG`.
 - [ ] **Step 33** [C] ~1m: Commit `compliance/findings/register.yaml $PROG`. The body lists each removed source with its observation time.
 
 ### E-03: FND-009
@@ -235,7 +262,7 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
   cat docs/security/compose-hardening-baseline-alt.txt; ./scripts/check-compose-hardening.sh 2>&1 | tail -2
   ```
 - [ ] **Step 35** [V] ~1m: One entry (WireGuard) and the gate passes. Anything else → a new finding; record it, don't fold it into FND-009.
-- [ ] **Step 36** [W] ~3m: Following DE6, either add `accepted: {reason: "WireGuard needs root (EPERM otherwise, measured 2026-10-20); deployed on neither host", compensating: "cap_drop ALL + NET_ADMIN and the four s6 init caps, read-only, the gate keeps any other service from joining", accepted_on: <today>, until: <today+90d>}`, or rewrite `verify` as Stevie worded it. Then rerun Step 23's test.
+- [ ] **Step 36** [W] ~3m: DE6 (answered 2026-11-13: accept). Add `accepted: {reason: "WireGuard needs root (EPERM otherwise, measured 2026-10-20); deployed on neither host", compensating: "cap_drop ALL + NET_ADMIN and the four s6 init caps, read-only, the gate keeps any other service from joining", accepted_on: 2026-11-13, until: 2027-02-11}` to FND-009. Then rerun Step 23's test.
 
 ### E-05: the six SLO rows
 
@@ -274,7 +301,7 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
       step: 4
       plan: "chmod g-w /home/govan/.gitconfig on east (0660 today); S-EVIDENCE-RUNS Phase 9 (DE5a)"
   ```
-- [ ] **Step 46** [W] ~15m: Following DE5b, add an `accepted:` block to each accepted row, using the exact list Stevie gave: reason "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating "LAN and P2P only; revisit before real data or internet exposure", `until` today+90d. Rows in DE5a and DE5c get a plan line naming the Phase 9 or 10 step. The six `var-log*`/`var-tmp` nodev+nosuid rows get "clears with B-18 (S-E1-LIVE 292-295)".
+- [ ] **Step 46** [W] ~15m: DE5b (answered 2026-11-13: accept). Add an `accepted:` block (`accepted_on: 2026-11-13`, `until: 2027-02-11`) to each of the 9 west rows named in DE5b: reason "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating "LAN and P2P only; revisit before real data or internet exposure", Rows in DE5a and DE5c (both answered 2026-11-13: fix) get a plan line naming the Phase 9 or 10 step. The six `var-log*`/`var-tmp` nodev+nosuid rows get "clears with B-18 (S-E1-LIVE 292-295)".
 - [ ] **Step 47** [B] ~1m: Validate and rerun.
   ```bash
   go test -count=1 ./pkg/compliance/crosswalk/ 2>&1 | tail -1; go run ./cmd/compliance-evidence findings | grep -cE '^\| UNTRIAGED'
@@ -375,12 +402,12 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
   ```
 - [ ] **Step 85** [V] ~1m: `ok` and `0`.
 - [ ] **Step 86** [C] ~1m: Commit `compliance/findings/register.yaml $PROG`.
-- [ ] **Step 87** [STEVIE] ~?: Push develop after the merge in Step 233. CI's main workflow stays off until B-02 (FND-027). The security and static-analysis workflows ran on 2026-11-11, so they run on push.
+- [ ] **Step 87** [STEVIE] ~?: Push develop after the merge in Step 259. CI's main workflow stays off until B-02 (FND-027). The security and static-analysis workflows ran on 2026-11-11, so they run on push.
 - [ ] **Step 88** [S] ~5m: After that run, collect.
   ```bash
   sudo systemctl start unheaded-compliance-evidence.service && go run ./cmd/compliance-evidence findings | grep -E 'github-job' | cut -c1-160
   ```
-- [ ] **Step 89** [V] ~1m: The four jobs pass, so they fall under DE2 removal at Step 230. Still red → read the run's annotations (`curl -s https://api.github.com/repos/unheaded/unheaded/check-runs/<id>/annotations`) and repeat that job's steps.
+- [ ] **Step 89** [V] ~1m: The four jobs pass, so they fall under DE2 removal at Step 256. Still red → read the run's annotations (`curl -s https://api.github.com/repos/unheaded/unheaded/check-runs/<id>/annotations`) and repeat that job's steps.
 - [ ] **Step 90** [V] ~1m: **PHASE 3 EXIT GATE**: all four are green in the clean clone (code half). The live half is marked "after push" in `$PROG`.
 
 ---
@@ -524,7 +551,7 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
 - [ ] **Step 142** [W] ~3m: Add a dated line to FND-037's plan: "<date>: host-service reads west's services (all pass); east waits on S-E1-LIVE Step 218".
 - [ ] **Step 143** [C] ~1m: Commit the register and `$PROG`.
 - [ ] **Step 144** [V] ~1m: **West half of the exit gate**: the table, kind and tests are green; the live trial passes; the secret sweep reads 0.
-- [ ] **Step 145** [BLOCKED: S-E1-LIVE Step 218] ~10m: Add east entries to the table and catalog, for what Step 211 enabled on east.
+- [ ] **Step 145** [BLOCKED: S-E1-LIVE Step 218] ~10m: Add east entries to the table and catalog, for what S-E1-LIVE Step 211 enabled on east.
 - [ ] **Step 146** [BLOCKED: S-E1-LIVE Step 218] ~10m: Run Step 136's trial against east.
 - [ ] **Step 147** [BLOCKED: S-E1-LIVE Step 218] ~1m: Every east entry passes.
 - [ ] **Step 148** [BLOCKED: S-E1-LIVE Step 218] ~5m: Remove `declared:` from UH-AUTHN-01. Give FND-037 a `resolved` block naming the test command and the record times on both hosts. `check-service-auth.sh` then falls to DE2 removal when it passes.
@@ -561,233 +588,343 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
 
 ---
 
-## PHASE 7: THE MODEL BEFORE THE HOST WINDOWS (Steps 161-180) [P]
+## PHASE 7: THE MODEL BEFORE THE HOST WINDOWS (Steps 161-191) [P]
 
-**Goal**: The fixes the windows will apply exist in the model, tested: AIDE with excludes (DE1), the `lab-audited` profile (DE4) and `var-log-modes` (DE5c).
-**Prerequisite**: DE1, DE4, DE5c answered; any "no" marks its steps `[BLOCKED]`.
-**Time**: 2 h.
+**Goal**: The fixes the windows will apply exist in the model, tested: AIDE quiet by design (DE1: include list, idle timer, package paths off, `unheaded-aide`, once-only alert), the `lab-audited` profile (DE4) and `var-log-modes` (DE5c).
+**Prerequisite**: Phase 0. DE1, DE4 and DE5c were answered on 2026-11-13, all yes.
+**Time**: 5 h (AIDE quiet design and `unheaded-aide` add about 3 h).
 **Agent**: Agent [P].
 
 - [ ] **Step 161** [R] ~10m: In `compliance/remediation/fixes.yaml`, read `aide-install`, `rocm-log-perms` and the `mode` action. In `pkg/compliance/executor/`, read the run allowlist and the `validate` action. Read the Ansible renderer drift test in `pkg/iac` (what it says to run when the model changes).
-- [ ] **Step 162** [W] ~15m: Test first (`pkg/compliance/remediation/model_test.go` and the executor tests). `aide-install` writes `/etc/aide/aide.conf.d/70_unheaded_excludes` (mode 0644) **before** `aideinit`, then validates with `aide --config-check`; `aide --config-check` is on the run allowlist. Exclude lines (`!/path`):
-  - Both hosts: `/var/lib/docker`, `/var/lib/containerd`, `/var/snap/lxd/common/lxd/storage-pools`, `/var/lib/unheaded/baseline`, `/var/lib/unheaded/remediate`, `/tmp`, `/var/tmp`, `/var/log/journal`.
-  - West part only (`hosts: [west]`): `/home/govan/tmp`, `/home/govan/go`, `/home/govan/.cache`, `/home/govan/.venv`, `/var/lib/govan-cold`, `/var/zhen`.
-- [ ] **Step 163** [B] ~1m: Red.
+- [ ] **Step 162** [B] ~3m: Find out what the package ships, without installing it: download `aide` and `aide-common` into `$SCR`, then list their contents. This tells us the real cron script name, the timer name and the default paths.
+  ```bash
+  cd /tmp/claude-1000/s-evidence-runs && apt-get download aide aide-common 2>&1 | tail -2 && for d in aide*.deb; do dpkg-deb -c "$d" | awk '{print $NF}' | grep -E 'cron|systemd|/etc/aide|/var/lib/aide|default'; done
+  ```
+- [ ] **Step 163** [V] ~1m: Write down in `$PROG` the cron script path(s), the timer and service names, and the `/etc/default/aide` keys. Every later step uses these exact names.
+- [ ] **Step 164** [W] ~25m: Model tests first (`pkg/compliance/remediation/model_test.go` and the executor tests). `aide-install` must do the following, in this order:
+  1. Install package `aide` with no recommends.
+  2. Write `/etc/aide/aide-unheaded.conf` (0600 root), the standalone include-list config from "AIDE, quiet by design" rule 1. The test asserts that it has no `@@include` line, carries every never-watched `!` line, and has no `atime` rule.
+  3. Write `/etc/systemd/system/unheaded-aide-check.service` and `.timer` with the properties from rule 2. The test asserts `Nice=19`, `IOSchedulingClass=idle`, `CPUSchedulingPolicy=idle`, `IOWeight=10`, `IOAccounting=yes`, `RandomizedDelaySec=6h` and `OnCalendar=weekly`.
+  4. `systemctl daemon-reload`.
+  5. Mask the package's timer.
+  6. Divert the package's cron script(s) from Step 163 with `dpkg-divert --local --rename --add`.
+  7. Validate with `aide --config=/etc/aide/aide-unheaded.conf --config-check`.
+  8. Enable and start `unheaded-aide-check.timer`.
+
+  The fix **never** runs `aideinit` or `aide --init`: a test asserts that the run allowlist refuses both. Undo must reverse each of these: remove our files, unmask, and `dpkg-divert --rename --remove`. If the executor cannot undo a `run` action, add typed `mask` and `divert` actions with their own undo, test first.
+- [ ] **Step 165** [B] ~1m: Red.
   ```bash
   go test -count=1 ./pkg/compliance/... ./cmd/unheaded-remediate/... 2>&1 | grep -v '^ok' | head
   ```
-- [ ] **Step 164** [W] ~15m: The model and the allowlist. The fix note says why each exclude is there, and that undo removes the file.
-- [ ] **Step 165** [B] ~5m: Green, including `TestExecutorMatchesRetiredScript` (aide-install was never in the retired script, so its parity data must not change) and the renderer drift test. Regenerate the rendered Ansible the way the failing test's message says.
-- [ ] **Step 166** [C] ~1m: Commit the model, executor, rendered Ansible and tests: `[PLAN S-EVIDENCE-RUNS] Steps 161-166: aide-install excludes`.
-- [ ] **Step 167** [W] ~10m: Following DE4, add to `compliance/profiles/profiles.yaml` a `lab-audited` profile: description "west until B-08 and B-18 (Stevie <date>, DE4)", fixes = `lab` + `auditd-rules`, `aide-install`, `rocm-log-perms`. The profile loader test gains the name.
-- [ ] **Step 168** [B] ~2m: Green. `compliance-evidence profile -h` says how a profile reaches the Well; record that for Phase 10 (the runbook `runbooks/security/compliance-profile-switch.yaml` is the switch).
-- [ ] **Step 169** [W] ~20m: Following DE5c, test first, then add the `var-log-modes` fix: class fileperm, risk none, `closes: ["host-probe:*:var-log-perms"]`. It uses a `mode` action on `/var/log` files looser than 0640 (o-r), with the same exceptions the probe allows; read the probe at `cisprobes.go` first so the fix and the check agree exactly. The note says that rotation recreates some files at 0644, and enforcing would re-fix them.
-- [ ] **Step 170** [B] ~3m: Green. Add `var-log-modes` to `lab-audited` and `lab-hardened`; the profile tests pass.
-- [ ] **Step 171** [C] ~1m: Commit.
-- [ ] **Step 172** [B] ~3m: `baseline.yaml` and the snapshot schema are untouched by profile and fix additions. A test failing here means `compliance-evidence baseline` must be rerun; do it and commit the regenerated file.
+- [ ] **Step 166** [W] ~30m: Implement the model, the actions and the allowlist. The fix note quotes DE1 and explains why each never-watched tree is there.
+- [ ] **Step 167** [B] ~5m: Green, including `TestExecutorMatchesRetiredScript` and the renderer drift test. `aide-install` was never in the retired script, so its parity data must not change. Regenerate the rendered Ansible the way the failing test's message says.
+- [ ] **Step 168** [C] ~1m: Commit the model, executor, rendered Ansible and tests: `[PLAN S-EVIDENCE-RUNS] Steps 161-168: aide-install, include list, idle timer, package paths off`.
+- [ ] **Step 169** [W] ~30m: Tests first for `cmd/unheaded-aide`, a new first-party binary (standard library, `cmdline.Parse` per ADR-111). Subcommands: `check`, `init`, `promote`, `review` and `accept <hash>`.
+  - **`check`** maps aide's exit code: 0 is clean, 1-7 are change bits, 14 and above are errors. It writes exactly one stdout line per run, plus the six metrics from rule 3, atomically, to `--textfile-dir`. It also maintains `state.json` (0600) under `--state` (default `/var/lib/unheaded/aide`).
+  - Normalisation: two reports that differ only in timestamps and run times hash the same.
+  - Once-only: a new hash gives `new_diff 1`. The same hash on the next run gives `new_diff 0` and keeps it pending. A clean run clears the pending diff, because the tree matches the database again.
+  - `check` never passes `--init` or `--update` to aide (the test fakes the aide binary and records its argv).
+  - **`init`** writes `aide.db.new` and prints the entry count, its size and the top 10 directories by entry count.
+  - **`promote`** refuses when there is no `aide.db.new`.
+  - **`accept`** refuses a hash that is not the pending one.
+  - Errors leave `state.json` untouched.
+- [ ] **Step 170** [B] ~1m: Red.
+  ```bash
+  go test -count=1 ./cmd/unheaded-aide/ 2>&1 | tail -5
+  ```
+- [ ] **Step 171** [W] ~45m: Implement it. Our `unheaded-aide-check.service` runs `unheaded-aide check`, so update the Step 164 unit text and its test. Add `MemoryMax=512M` with `GOMEMLIMIT` (unit-ceiling ratchet) and a man page (`gen-man.sh`).
+- [ ] **Step 172** [B] ~5m: Green with race. Run the ratchets the new binary meets.
+  ```bash
+  go test -race -count=1 ./cmd/unheaded-aide/ 2>&1 | tail -1; ./scripts/check-version-flag.sh 2>&1 | tail -2; ./scripts/check-unit-ceilings.sh 2>&1 | tail -2
+  ```
+- [ ] **Step 173** [C] ~1m: Commit `cmd/unheaded-aide`, the unit and the man page.
+- [ ] **Step 174** [W] ~25m: Probe tests first, in `collect/cisprobes.go`:
+  - `aide-unreviewed` passes when `state.json` has no pending diff **and** the last run was under 8 days ago. Otherwise it fails with "unreviewed diff <first 12 hex> since <date>", one row per host whatever the run count.
+  - `aide-quiet` passes when the package timer is masked or absent, no package cron script is undiverted, and our service shows `Nice=19` and `IOSchedulingClass=idle`.
+  - The existing `aide-installed` probe still finds `/var/lib/aide/aide.db`, so our config uses that path.
+
+  Add both new probes to UH-FIM-01 in the catalog. Add register source rows for both hosts (low, class package, plan "S-EVIDENCE-RUNS Phase 9 or 10"), so they are triaged from the first observation.
+- [ ] **Step 175** [B] ~3m: Red, implement, then green.
+  ```bash
+  go test -race -count=1 ./pkg/compliance/... ./cmd/compliance-evidence/... 2>&1 | grep -v '^ok' | head
+  ```
+- [ ] **Step 176** [W] ~20m: Alerts, test first with promtool cases in `monitoring/prometheus/rules/tests/`. Both are ticket urgency in `observability/alerting/policy.yaml`, and each has a runbook draft.
+  - `AIDEChangeDetected`: `unheaded_aide_new_diff == 1`. It fires on the run that saw a new diff, so the daily digest carries one line. It stays silent while `new_diff` is 0, including when an old diff is still pending.
+  - `AIDECheckStale`: `time() - unheaded_aide_last_run_timestamp_seconds > 8*86400`.
+
+  Run `./scripts/check-prometheus-rules.sh` and `scripts/runbook-manifest.sh --write`. Sealing is Stevie's.
+- [ ] **Step 177** [C] ~1m: Commit the probes, catalog, register rows, rules, tests, policy and runbooks: `[PLAN S-EVIDENCE-RUNS] Steps 169-177: unheaded-aide, quiet probes, once-only alert`.
+- [ ] **Step 178** [W] ~10m: Following DE4, add to `compliance/profiles/profiles.yaml` a `lab-audited` profile: description "west until B-08 and B-18 (Stevie <date>, DE4)", fixes = `lab` + `auditd-rules`, `aide-install`, `rocm-log-perms`. The profile loader test gains the name.
+- [ ] **Step 179** [B] ~2m: Green. `compliance-evidence profile -h` says how a profile reaches the Well; record that for Phase 10 (the runbook `runbooks/security/compliance-profile-switch.yaml` is the switch).
+- [ ] **Step 180** [W] ~20m: Following DE5c, test first, then add the `var-log-modes` fix: class fileperm, risk none, `closes: ["host-probe:*:var-log-perms"]`. It uses a `mode` action on `/var/log` files looser than 0640 (o-r), with the same exceptions the probe allows; read the probe at `cisprobes.go` first so the fix and the check agree exactly. The note says that rotation recreates some files at 0644, and enforcing would re-fix them.
+- [ ] **Step 181** [B] ~3m: Green. Add `var-log-modes` to `lab-audited` and `lab-hardened`; the profile tests pass.
+- [ ] **Step 182** [C] ~1m: Commit.
+- [ ] **Step 183** [B] ~3m: `baseline.yaml` and the snapshot schema are untouched by profile and fix additions. A test failing here means `compliance-evidence baseline` must be rerun; do it and commit the regenerated file.
   ```bash
   go test -count=1 ./cmd/compliance-evidence/ -run Baseline 2>&1 | tail -2
   ```
-- [ ] **Step 173** [B] ~5m: A dry run of every changed fix against a scratch root.
+- [ ] **Step 184** [B] ~5m: A dry run of every changed fix against a scratch root.
   ```bash
   for f in aide-install var-log-modes; do go run ./cmd/unheaded-remediate --root $SCR/root-$f --model compliance/remediation/fixes.yaml --host west plan $f 2>&1 | tail -8; done
   ```
-- [ ] **Step 174** [V] ~2m: The plans read as intended: excludes before aideinit, modes only on files looser than 0640.
-- [ ] **Step 175** [W] ~5m: Update `compliance/hosts/west.yaml` to `profile: lab-audited` **only in Phase 10** after the runbook. Nothing changes here; write this note in `$PROG` so no one moves it early.
-- [ ] **Step 176** [B] ~10m: Full package tests with race.
+- [ ] **Step 185** [V] ~2m: The plans read as intended:
+  - `aide-install`: the package, the include-list config, our units, the package timer masked, its cron diverted, and the config check. No `aideinit` anywhere.
+  - `var-log-modes`: modes changed only on files looser than 0640.
+- [ ] **Step 186** [W] ~5m: Update `compliance/hosts/west.yaml` to `profile: lab-audited` **only in Phase 10** after the runbook. Nothing changes here; write this note in `$PROG` so no one moves it early.
+- [ ] **Step 187** [B] ~10m: Full package tests with race.
   ```bash
   go test -race -count=1 ./pkg/compliance/... ./cmd/unheaded-remediate/... ./cmd/unheaded-baseline/... ./cmd/compliance-evidence/... ./pkg/iac/... 2>&1 | grep -v '^ok' | head
   ```
-- [ ] **Step 177** [V] ~1m: No FAIL.
-- [ ] **Step 178** [C] ~1m: Commit any regenerated files and `$PROG`.
-- [ ] **Step 179** [B] ~2m: The merge order of the `[P]` phases into `sprint/evidence-runs` is 2, 3, 4, 5, 6, 7. After each merge, run Step 176's tests on the sprint branch.
-- [ ] **Step 180** [V] ~1m: **PHASE 7 EXIT GATE**: every code phase is merged on the sprint branch and green.
+- [ ] **Step 188** [V] ~1m: No FAIL.
+- [ ] **Step 189** [C] ~1m: Commit any regenerated files and `$PROG`.
+- [ ] **Step 190** [B] ~2m: The merge order of the `[P]` phases into `sprint/evidence-runs` is 2, 3, 4, 5, 6, 7. After each merge, run Step 187's tests on the sprint branch.
+- [ ] **Step 191** [V] ~1m: **PHASE 7 EXIT GATE**: every code phase is merged on the sprint branch and green.
 
 ---
 
-## PHASE 8: SEAL KEY AND EAST'S SNAPSHOT (DE3) (Steps 181-194)
+## PHASE 8: SEAL KEY AND EAST'S SNAPSHOT (DE3) (Steps 192-205)
 
 **Goal**: A custodied key seals east's snapshot; west's is sealed in Phase 10 after its profile changes.
-**Prerequisite**: DE3 answered; Phase 7.
+**Prerequisite**: Phase 7. DE3 was answered on 2026-11-13: the dedicated key.
 **Time**: 45 min, attended for the key.
 **Agent**: Coordinator.
 
-- [ ] **Step 181** [R] ~3m: Read `go run ./cmd/unheaded-keygen -h` (the ML-DSA-65 seed form and owner flag), and `go run ./cmd/compliance-evidence snapshot -h`.
-- [ ] **Step 182** [W] ~10m: DE3 = dedicated key:
+- [ ] **Step 192** [R] ~3m: Read `go run ./cmd/unheaded-keygen -h` (the ML-DSA-65 seed form and owner flag), and `go run ./cmd/compliance-evidence snapshot -h`.
+- [ ] **Step 193** [W] ~10m: DE3 (answered 2026-11-13: the dedicated key on west):
   - Give `unheaded-compliance-seal` a uid in `pkg/uids`; the uniqueness test covers it.
   - Add a line in `deploy/sysusers.d/unheaded.conf`: nologin, home `/var/lib/unheaded-compliance-seal`.
   - Test first: `go test ./pkg/uids/...`.
-  - DE3 = build key → skip to Step 186 and follow B-10's custody instead.
-- [ ] **Step 183** [C] ~1m: Commit.
-- [ ] **Step 184** [STEVIE][S] ~10m: Create the account and the key, unseen.
+- [ ] **Step 194** [C] ~1m: Commit.
+- [ ] **Step 195** [STEVIE][S] ~10m: Create the account and the key, unseen.
   ```bash
   sudo systemd-sysusers /home/govan/tmp/unheaded/deploy/sysusers.d/unheaded.conf && sudo install -d -o unheaded-compliance-seal -g unheaded-compliance-seal -m 0700 /var/lib/unheaded-compliance-seal
   ```
-  Then run the seed-file command from Step 181 as that account, writing into that directory. The seed never leaves it.
-- [ ] **Step 185** [V] ~2m: The seed is 0400 and owned by the account. Copy the public half to `configs/keys/compliance-seal.pub` (public, DP-06).
+  Then run the seed-file command from Step 192 as that account, writing into that directory. The seed never leaves it.
+- [ ] **Step 196** [V] ~2m: The seed is 0400 and owned by the account. Copy the public half to `configs/keys/compliance-seal.pub` (public, DP-06).
   ```bash
   sudo stat -c '%a %U %n' /var/lib/unheaded-compliance-seal/*
   ```
-- [ ] **Step 186** [C] ~1m: Commit `configs/keys/compliance-seal.pub`.
-- [ ] **Step 187** [S] ~5m: Seal east's snapshot with a 31-day TTL. Build the binary once and run it as root, so it reads the seed in place. `-from-yaml` is used when the Well is not reachable from root's environment, and the snapshot records it.
+- [ ] **Step 197** [C] ~1m: Commit `configs/keys/compliance-seal.pub`.
+- [ ] **Step 198** [S] ~5m: Seal east's snapshot with a 31-day TTL. Build the binary once and run it as root, so it reads the seed in place. `-from-yaml` is used when the Well is not reachable from root's environment, and the snapshot records it.
   ```bash
   cd /home/govan/tmp/unheaded && go build -o $SCR/compliance-evidence ./cmd/compliance-evidence
   sudo $SCR/compliance-evidence snapshot -repo-dir . -host east -key /var/lib/unheaded-compliance-seal/<seed> -ttl 744h -model-commit $(git rev-parse HEAD) -from-yaml -out $SCR/east.snapshot.json
   sudo chown govan: $SCR/east.snapshot.json
   ```
-- [ ] **Step 188** [V] ~2m: It verifies with the public key and lists east's profile fixes.
+- [ ] **Step 199** [V] ~2m: It verifies with the public key and lists east's profile fixes.
   ```bash
   go run ./cmd/unheaded-remediate --snapshot $SCR/east.snapshot.json --pubkey configs/keys/compliance-seal.pub --host east list 2>&1 | head -20
   ```
-- [ ] **Step 189** [D] ~5m: Refused → read the reason (another host or key, expired, downgrade) and reseal. Don't edit the file.
-- [ ] **Step 190** [W] ~10m: Record the ops facts in the wiki (`wiki/Compliance-Paperwork.md`, "Snapshot seal"): where the key lives, who reseals, the 31-day TTL, the reseal command, the host paths (`/etc/unheaded/compliance/snapshot.json` and `snapshot.pub`), and what an expired snapshot does (the soak clock restarts; LICH-017 T6).
-- [ ] **Step 191** [W] ~2m: Add a "reseal by <date+31d>" line to `$PROG` and to `~/tmp/next.md`'s recurring list.
-- [ ] **Step 192** [C] ~1m: Commit the wiki and `$PROG`.
-- [ ] **Step 193** [B] ~1m: `shred -u` nothing: the snapshot is public data. The seed never left its directory; check with `ls $SCR`.
-- [ ] **Step 194** [V] ~1m: **PHASE 8 EXIT GATE**: the key is custodied, the public half is published, and east's snapshot verifies.
+- [ ] **Step 200** [D] ~5m: Refused → read the reason (another host or key, expired, downgrade) and reseal. Don't edit the file.
+- [ ] **Step 201** [W] ~10m: Record the ops facts in the wiki (`wiki/Compliance-Paperwork.md`, "Snapshot seal"): where the key lives, who reseals, the 31-day TTL, the reseal command, the host paths (`/etc/unheaded/compliance/snapshot.json` and `snapshot.pub`), and what an expired snapshot does (the soak clock restarts; LICH-017 T6).
+- [ ] **Step 202** [W] ~2m: Add a "reseal by <date+31d>" line to `$PROG` and to `~/tmp/next.md`'s recurring list.
+- [ ] **Step 203** [C] ~1m: Commit the wiki and `$PROG`.
+- [ ] **Step 204** [B] ~1m: `shred -u` nothing: the snapshot is public data. The seed never left its directory; check with `ls $SCR`.
+- [ ] **Step 205** [V] ~1m: **PHASE 8 EXIT GATE**: the key is custodied, the public half is published, and east's snapshot verifies.
 
 ---
 
-## PHASE 9: EAST HOST WINDOW (ATTENDED; after S-E1-LIVE Step 218) (Steps 195-216)
+## PHASE 9: EAST HOST WINDOW (ATTENDED; after S-E1-LIVE Step 218) (Steps 206-238)
 
 **Goal**: East's journal is 15 of 15. AIDE runs. The DE5a rows are fixed. The live LICH-017 drill passes. East's soak clock is running. FND-037's east half is read.
-**Prerequisite**: S-E1-LIVE Step 218 passed; Phase 8; DE1, DE5a, DE7.
-**Time**: 1.5 h, off-hours for `aideinit`.
+**Prerequisite**: S-E1-LIVE Step 218 passed; Phase 8. DE1, DE5a and DE7 were answered on 2026-11-13, all yes.
+**Time**: 5 h, off-hours for the AIDE init and checks (idle class, so they yield to everything else).
 **Agent**: Coordinator, Stevie present.
 
-- [ ] **Step 195** [V] ~2m: Step 218 has passed (`$PROG` from Step 14, rechecked), and east runs the current `unheaded-baseline` and `unheaded-remediate`.
+- [ ] **Step 206** [V] ~2m: Step 218 has passed (`$PROG` from Step 14, rechecked), and east runs the current `unheaded-baseline` and `unheaded-remediate`.
   ```bash
   ssh east 'dpkg-query -W -f "\${Package} \${Version}\n" "unheaded-*" | sort; unheaded-remediate -V'
   ```
-- [ ] **Step 196** [STEVIE][S] ~2m: Silence first (`maintenance.sh 120m`), and keep a second terminal on east.
-- [ ] **Step 197** [S] ~3m: Install the snapshot and public key on east.
+- [ ] **Step 207** [STEVIE][S] ~2m: Silence first (`maintenance.sh 120m`), and keep a second terminal on east.
+- [ ] **Step 208** [S] ~3m: Install the snapshot and public key on east.
   ```bash
   scp $SCR/east.snapshot.json /home/govan/tmp/unheaded/configs/keys/compliance-seal.pub east:/tmp/
   ssh east 'sudo install -d -o root -g root -m 0755 /etc/unheaded/compliance && sudo install -o root -g root -m 0644 /tmp/east.snapshot.json /etc/unheaded/compliance/snapshot.json && sudo install -o root -g root -m 0644 /tmp/compliance-seal.pub /etc/unheaded/compliance/snapshot.pub && rm /tmp/east.snapshot.json /tmp/compliance-seal.pub'
   ```
-- [ ] **Step 198** [V] ~1m: The snapshot loads on east.
+- [ ] **Step 209** [V] ~1m: The snapshot loads on east.
   ```bash
   ssh east 'sudo unheaded-remediate --snapshot /etc/unheaded/compliance/snapshot.json list | head'
   ```
-- [ ] **Step 199** [S] ~3m: Plan `aide-install` (DE1).
+- [ ] **Step 210** [S] ~3m: Install the `unheaded-aide` binary on east, from Step 171's build.
+  ```bash
+  scp /home/govan/tmp/unheaded/bin/unheaded-aide east:/tmp/ && ssh east 'sudo install -o root -g root -m 0755 /tmp/unheaded-aide /usr/local/bin/unheaded-aide && rm /tmp/unheaded-aide && unheaded-aide --version'
+  ```
+- [ ] **Step 211** [B] ~5m: The size of east's include set before anything runs: S in bytes and N in files. Write both in `$PROG`.
+  ```bash
+  ssh east 'sudo du -sbx /usr/bin /usr/sbin /usr/lib /usr/local/bin /usr/local/sbin /etc /boot /usr/share/unheaded 2>/dev/null | awk "{s+=\$1} END{print \"S=\" s}"; sudo find /usr/bin /usr/sbin /usr/lib /usr/local/bin /usr/local/sbin /etc /boot -xdev -not -path "/usr/lib/python3/dist-packages/__pycache__*" 2>/dev/null | wc -l'
+  ```
+- [ ] **Step 212** [S] ~3m: Plan `aide-install` (DE1). Read it in full.
   ```bash
   ssh east 'sudo unheaded-remediate --snapshot /etc/unheaded/compliance/snapshot.json plan aide-install'
   ```
-- [ ] **Step 200** [STEVIE][S] ~20m: Apply. `aideinit` hashes the filesystem minus the excludes, and takes minutes.
+- [ ] **Step 213** [STEVIE][S] ~5m: Apply. This installs the package, config and units, masks and diverts the package's own paths, and does not init.
   ```bash
-  ssh east 'sudo unheaded-remediate --snapshot /etc/unheaded/compliance/snapshot.json apply aide-install 2>&1 | tail -5; sudo aide --config-check && echo CONFIG-OK; systemctl is-enabled dailyaidecheck.timer'
+  ssh east 'sudo unheaded-remediate --snapshot /etc/unheaded/compliance/snapshot.json apply aide-install 2>&1 | tail -5'
   ```
-- [ ] **Step 201** [V] ~1m: `CONFIG-OK` and `enabled`, and `check aide-install` exits 0. Fail → Step 202.
-- [ ] **Step 202** [D] ~10m: The executor restored the files. Read the journal tail and the backup directory it printed. `undo` it if anything is half-applied. Leave the row open and record the cause.
-- [ ] **Step 203** [STEVIE][S] ~5m: `apparmor-enforce` (DE7), plan then apply. Then `ssh east 'sudo aa-status --json | jq -r ".profiles.Xorg"'`.
-- [ ] **Step 204** [V] ~1m: `enforce`, and `check apparmor-enforce` exits 0.
-- [ ] **Step 205** [C] ~1m: Commit `$PROG`: `[PLAN S-EVIDENCE-RUNS] Steps 195-205: east aide-install + apparmor-enforce journaled`.
-- [ ] **Step 206** [B] ~2m: DE5a on east:
+- [ ] **Step 214** [V] ~2m: Quiet by construction. `check aide-install` exits 0, then check each item:
+  ```bash
+  ssh east 'sudo aide --config=/etc/aide/aide-unheaded.conf --config-check && echo CONFIG-OK; systemctl is-enabled unheaded-aide-check.timer dailyaidecheck.timer 2>&1; systemctl show unheaded-aide-check.service -p Nice,IOSchedulingClass,CPUSchedulingPolicy,IOWeight,IOAccounting; dpkg-divert --list | grep -i aide; ls /var/lib/aide/; command -v sendmail || echo no-mta'
+  ```
+  Expect:
+  - `CONFIG-OK`;
+  - `enabled` for ours and `masked` for the package timer;
+  - `Nice=19`, `IOSchedulingClass=3` (idle), `CPUSchedulingPolicy=5` (idle), `IOWeight=10`, `IOAccounting=yes`;
+  - one diversion line per cron script from Step 163;
+  - no `aide.db` yet;
+  - `no-mta`.
+
+  Any miss → Step 215.
+- [ ] **Step 215** [D] ~10m: The executor restored the files. Read the journal tail and the backup directory it printed. `undo` it if anything is half-applied. Leave the row open and record the cause.
+- [ ] **Step 216** [STEVIE][S] ~45m: Init, with the same scheduling as the timer, so the measurement is honest. Run it off-hours. `systemd-run --wait` prints the wall time and the IO read when it exits.
+  ```bash
+  ssh east 'sudo systemd-run --wait --collect --unit=unheaded-aide-init -p Nice=19 -p IOSchedulingClass=idle -p CPUSchedulingPolicy=idle -p IOWeight=10 -p IOAccounting=yes -p MemoryMax=512M /usr/local/bin/unheaded-aide init 2>&1 | tail -8; sudo stat -c "%s %n" /var/lib/aide/aide.db.new'
+  ```
+- [ ] **Step 217** [V] ~3m: **AIDE FIRST-RUN GATE (east)**. Record wall time, IO read bytes, database size and entry count in `$PROG`, and test them against the DE1 bar:
+  - wall ≤ 45 min;
+  - IO read ≤ 1.25 × S (Step 211);
+  - `aide.db.new` ≤ 256 MiB and ≤ 1 KiB × N.
+
+  Any miss → Appendix A1: tighten the include list and init again. No promote on a failed gate.
+- [ ] **Step 218** [STEVIE] ~10m: **Attended review.** Stevie reads `init`'s summary: entry count, and the top 10 directories by entries. Anything bulky or high-churn in that list goes to the never-watched list before promoting (Phase 7, test first), then repeat Step 216. Once he says yes:
+  ```bash
+  ssh east 'sudo /usr/local/bin/unheaded-aide promote && ls -l /var/lib/aide/'
+  ```
+- [ ] **Step 219** [S] ~45m: The first check, through our unit. It counts its own IO.
+  ```bash
+  ssh east 'sudo systemctl start unheaded-aide-check.service; journalctl -u unheaded-aide-check --since -2h --no-pager -o cat | grep -c "^aide:"; systemctl show unheaded-aide-check.service -p IOReadBytes,ExecMainStatus; cat /var/lib/prometheus/node-exporter/unheaded_aide.prom 2>/dev/null || sudo find / -xdev -name unheaded_aide.prom 2>/dev/null | head -1'
+  ```
+  Read the metrics from the textfile directory the unit's `--textfile-dir` names.
+- [ ] **Step 220** [V] ~2m: Exactly one `aide:` journal line reading `clean`; `ExecMainStatus=0`; `IOReadBytes` ≤ 1.25 × S; `unheaded_aide_changed_entries 0` and `unheaded_aide_new_diff 0`. Record `IOReadBytes` in `$PROG`.
+- [ ] **Step 221** [S] ~45m: A second clean run, unchanged tree.
+  ```bash
+  ssh east 'sudo systemctl start unheaded-aide-check.service; journalctl -u unheaded-aide-check --since -1h --no-pager -o cat | grep "^aide:"'
+  ```
+- [ ] **Step 222** [V] ~3m: **NO NOTIFICATION ON A CLEAN RUN.** Check all of the following:
+  - The run produced one `clean` journal line and `new_diff 0`.
+  - No `AIDEChangeDetected` alert: `curl -s http://127.0.0.1:9093/api/v2/alerts | jq '[.[] | select(.labels.alertname | test("AIDE"))] | length'` reads `0`.
+  - The alert mailer's outbox holds no AIDE entry.
+  - `host-probe:east:aide-unreviewed` and `aide-quiet` pass in the next collector run.
+- [ ] **Step 223** [S] ~50m: The once-only drill.
+  1. `ssh east 'echo canary | sudo tee /etc/unheaded/aide-canary >/dev/null'`, then run the check. Expect `new_diff 1`, one `AIDEChangeDetected` and `aide-unreviewed` failing (one row).
+  2. Run the check again without review. Expect `new_diff 0`, no second alert or digest line, and still one row.
+  3. `sudo rm /etc/unheaded/aide-canary`, then run again. The tree matches the database, so the run is `clean` and the pending diff clears.
+- [ ] **Step 224** [V] ~2m: Each of the three readings is as written in Step 223. Anything else is a defect in `unheaded-aide`: fix it test first (Step 169's cases), redeploy and rerun the drill. Write the readings in `$PROG`.
+- [ ] **Step 225** [STEVIE][S] ~5m: `apparmor-enforce` (DE7, answered 2026-11-13: yes, through the executor, attended), plan then apply. Then `ssh east 'sudo aa-status --json | jq -r ".profiles.Xorg"'`.
+- [ ] **Step 226** [V] ~1m: `enforce`, and `check apparmor-enforce` exits 0.
+- [ ] **Step 227** [C] ~1m: Commit `$PROG`: `[PLAN S-EVIDENCE-RUNS] Steps 206-227: east aide-install + apparmor-enforce journaled`.
+- [ ] **Step 228** [B] ~2m: DE5a on east:
   - `ssh east 'chmod g-w /home/govan/.gitconfig && stat -c %a /home/govan/.gitconfig'`.
   - Dry-run the purge: `ssh east 'sudo apt-get -s purge ftp tnftp inetutils-telnet telnet | grep -E "^(Purg|Remv)"'`.
-- [ ] **Step 207** [STEVIE][S] ~3m: If the dry run lists only those four packages, purge them; never `autoremove`. Any other package in the list → stop and ask.
-- [ ] **Step 208** [S] ~10m: The east `/tmp` and `/dev/shm` noexec trial. Remount live, run east's timers that write there, then read the result.
+- [ ] **Step 229** [STEVIE][S] ~3m: If the dry run lists only those four packages, purge them; never `autoremove`. Any other package in the list → stop and ask.
+- [ ] **Step 230** [S] ~10m: The east `/tmp` and `/dev/shm` noexec trial. Remount live, run east's timers that write there, then read the result.
   ```bash
   ssh east 'sudo mount -o remount,noexec /tmp && sudo mount -o remount,noexec /dev/shm && sudo systemctl start unheaded-baseline.service && systemctl is-failed unheaded-baseline.service; findmnt -no OPTIONS /tmp /dev/shm'
   ```
-- [ ] **Step 209** [V] ~2m: The baseline run is `active` or `inactive`, not `failed`, and both mounts show `noexec`. A failure → roll back at once (`remount,exec` on both) and record it.
-- [ ] **Step 210** [STEVIE][W] ~5m: Make it permanent. For `/tmp` (east's `tmp.mount` unit), add a drop-in `/etc/systemd/system/tmp.mount.d/60-noexec.conf` with `[Mount]` and `Options=mode=1777,strict,nosuid,nodev,noexec`, reading the unit's current `Options=` first and keeping it. For `/dev/shm`, add an fstab line `tmpfs /dev/shm tmpfs defaults,nosuid,nodev,noexec 0 0`, then `sudo findmnt --verify`. Reboot proof is S-E1-LIVE Step 301.
-- [ ] **Step 211** [S] ~5m: The live LICH-017 drill on east (cases T2 and T5). The snapshot is installed but the soak is under 7 days.
+- [ ] **Step 231** [V] ~2m: The baseline run is `active` or `inactive`, not `failed`, and both mounts show `noexec`. A failure → roll back at once (`remount,exec` on both) and record it.
+- [ ] **Step 232** [STEVIE][W] ~5m: Make it permanent. For `/tmp` (east's `tmp.mount` unit), add a drop-in `/etc/systemd/system/tmp.mount.d/60-noexec.conf` with `[Mount]` and `Options=mode=1777,strict,nosuid,nodev,noexec`, reading the unit's current `Options=` first and keeping it. For `/dev/shm`, add an fstab line `tmpfs /dev/shm tmpfs defaults,nosuid,nodev,noexec 0 0`, then `sudo findmnt --verify`. Reboot proof is S-E1-LIVE Step 301.
+- [ ] **Step 233** [S] ~5m: The live LICH-017 drill on east (cases T2 and T5). The snapshot is installed but the soak is under 7 days.
   ```bash
   ssh east 'echo mode=enforcing | sudo tee /etc/unheaded/baseline.conf >/dev/null; sleep 20; sudo journalctl -u unheaded-baseline --since -2min --no-pager | grep -E "CRITICAL|SUMMARY" | tail -3; sudo jq -r .mode_effective /var/lib/unheaded/baseline/report.json; sudo rm /etc/unheaded/baseline.conf'
   ```
-- [ ] **Step 212** [V] ~1m: There is a `CRITICAL enforcing requested ... not in effect` line, `mode_effective` reads `audit`, and the mode file is gone afterwards. Enforcing in effect → **P1**: stop. Every host stays audit (enforcing-soak.md "Undo"), and Stevie is told.
-- [ ] **Step 213** [V] ~2m: The soak clock started: `ssh east 'sudo jq . /var/lib/unheaded/baseline/soak.json'` shows `clean_since` today. Write it in `$PROG`. Note that Step 211's swap restarted it once; that is expected.
-- [ ] **Step 214** [S] ~5m: Collect, then read east's rows.
+- [ ] **Step 234** [V] ~1m: There is a `CRITICAL enforcing requested ... not in effect` line, `mode_effective` reads `audit`, and the mode file is gone afterwards. Enforcing in effect → **P1**: stop. Every host stays audit (enforcing-soak.md "Undo"), and Stevie is told.
+- [ ] **Step 235** [V] ~2m: The soak clock started: `ssh east 'sudo jq . /var/lib/unheaded/baseline/soak.json'` shows `clean_since` today. Write it in `$PROG`. Note that Step 233's swap restarted it once; that is expected.
+- [ ] **Step 236** [S] ~5m: Collect, then read east's rows.
   ```bash
   sudo systemctl start unheaded-compliance-evidence.service; go run ./cmd/compliance-evidence findings | grep -E 'east:(aide|dot-files|pkg-(ftp|telnet)|mount-(tmp|dev-shm)-noexec|apply-journal)' | cut -c1-140
   ```
-- [ ] **Step 215** [V] ~1m: None of those is listed (all pass). `host-journal:east:apply-journal` passes. Now run Steps 145-149 (FND-037's east half).
-- [ ] **Step 216** [C][V] ~2m: **PHASE 9 EXIT GATE**: commit `$PROG` and any Phase 5 east work. East's journal is complete, the drill passed and the soak is running.
+- [ ] **Step 237** [V] ~1m: None of those is listed (all pass). `host-journal:east:apply-journal` passes. Now run Steps 145-149 (FND-037's east half).
+- [ ] **Step 238** [C][V] ~2m: **PHASE 9 EXIT GATE**: commit `$PROG` and any Phase 5 east work. East's journal is complete, the drill passed and the soak is running.
 
 ---
 
-## PHASE 10: WEST HOST WINDOW (ATTENDED) (Steps 217-226)
+## PHASE 10: WEST HOST WINDOW (ATTENDED) (Steps 239-252)
 
 **Goal**: West moves to `lab-audited`. AIDE and auditd rules are journaled. The DE5a rows are fixed. West's soak clock is running.
 **Prerequisite**: Phase 9 exit (east first, ADR-098 §4); DE4; not during S-E1-LIVE Evening 17.
-**Time**: 1.5 h, off-hours for `aideinit`.
+**Time**: 4.5 h, off-hours for the AIDE init and checks.
 **Agent**: Coordinator, Stevie present.
 
-- [ ] **Step 217** [R] ~5m: Read `runbooks/security/compliance-profile-switch.yaml` all the way through. Run its plan steps for west to `lab-audited`, as it says.
-- [ ] **Step 218** [STEVIE][W] ~5m: Switch per the runbook: `compliance/hosts/west.yaml` `profile: lab-audited`, and the Well row through the runbook's command. Commit the YAML.
-- [ ] **Step 219** [S] ~5m: Seal west's snapshot (Step 187 with `-host west`, then Step 188), and install it as in Step 197 but locally (`sudo install ...`).
-- [ ] **Step 220** [STEVIE][S] ~10m: `auditd-rules`, plan then apply. Then build something and measure the noise.
+- [ ] **Step 239** [R] ~5m: Read `runbooks/security/compliance-profile-switch.yaml` all the way through. Run its plan steps for west to `lab-audited`, as it says.
+- [ ] **Step 240** [STEVIE][W] ~5m: Switch per the runbook: `compliance/hosts/west.yaml` `profile: lab-audited`, and the Well row through the runbook's command. Commit the YAML.
+- [ ] **Step 241** [S] ~5m: Seal west's snapshot (Step 198 with `-host west`, then Step 199), and install it as in Step 208 but locally (`sudo install ...`).
+- [ ] **Step 242** [STEVIE][S] ~10m: `auditd-rules`, plan then apply. Then build something and measure the noise.
   ```bash
   sudo unheaded-remediate --snapshot /etc/unheaded/compliance/snapshot.json apply auditd-rules 2>&1 | tail -3; sudo auditctl -l | wc -l
   ( cd /home/govan/tmp/unheaded && go build ./cmd/compliance-evidence ) ; sudo ausearch -ts recent -k access 2>/dev/null | grep -c '^type=SYSCALL'
   ```
   The rule count should be at least 40 (east has 42). The access-key count after one build is the noise figure; write it in `$PROG`. More than 1,000 → Appendix A2.
-- [ ] **Step 221** [STEVIE][S] ~25m: Apply `aide-install` (excludes, then `aideinit`), then `aide --config-check`. Then `rocm-log-perms` (`check`, else `-record-existing` with `-applied-by "installer modes (2026-10-27)"`, 28 characters, under the 30 cap) and `var-log-modes` (DE5c).
-- [ ] **Step 222** [B] ~3m: DE5a on west:
+- [ ] **Step 243** [STEVIE][S] ~15m: AIDE on west, as on east: Steps 210 and 211 locally (west's include set, S and N, into `$PROG`), then plan and apply `aide-install`, then Step 214's quiet-by-construction checks. Expect a larger S than east's: `/usr/lib` holds ROCm-adjacent libraries. `/usr/local/lib/python3*`, `/usr/local/lib/ollama` and `/opt/rocm*` are never watched.
+- [ ] **Step 244** [STEVIE][S] ~60m: Init with the timer's scheduling (Step 216's command, run locally), off-hours. **AIDE FIRST-RUN GATE (west)** against Step 217's bar, then the attended review and `promote` (Step 218). A failed gate → Appendix A1; no promote.
+- [ ] **Step 245** [S] ~90m: Two clean checks through our unit (Steps 219 and 221, locally).
+- [ ] **Step 246** [V] ~3m: Step 220's readings and **NO NOTIFICATION ON A CLEAN RUN** (Step 222), for west. The once-only drill is not repeated: it is the same binary and was proven on east.
+- [ ] **Step 247** [STEVIE][S] ~10m: `rocm-log-perms`: `check`, else `-record-existing` with `-applied-by "installer modes (2026-10-27)"` (28 characters, under the 30 cap). Then `var-log-modes` (DE5c), plan then apply.
+- [ ] **Step 248** [B] ~3m: DE5a on west:
   - `chmod g-w /home/govan/.gitconfig /home/govan/.wget-hsts /home/govan/.zshrc`.
   - Root's PATH line: `sudo grep -n vector /root/.profile /root/.bashrc`, then remove that line and `sudo rm -rf /root/.vector` (empty; Vector runs in compose).
-  - Dry-run the ftp/telnet purge as in Step 206.
-- [ ] **Step 223** [STEVIE][S] ~15m: The purge, if the dry run is clean. Then the `/dev/shm` noexec trial with the stack running. Check `docker ps` health, a Zhen and llama start if they are running, `go test ./pkg/uids/...` and one Python multiprocessing call (`python3 -I -c 'import multiprocessing as m; print(m.Pool(2).map(abs,[-1,-2]))'`). Roll back on any failure; the fstab line is as in Step 210.
-- [ ] **Step 224** [S] ~5m: Collect and read west's rows (Step 214 with `west:`), then `findings -enforce-ready west`.
-- [ ] **Step 225** [V] ~2m: These pass: aide x2, `auditd-rules-loaded`, `dot-files`, `root-path`, `pkg-ftp`/`pkg-telnet`, `mount-dev-shm-noexec`, `var-log-perms`, and `host-journal:west`. West's soak clock started (`soak.json`).
-- [ ] **Step 226** [C][V] ~2m: **PHASE 10 EXIT GATE**: commit `$PROG` and `compliance/hosts/west.yaml`.
+  - Dry-run the ftp/telnet purge as in Step 228.
+- [ ] **Step 249** [STEVIE][S] ~15m: The purge, if the dry run is clean. Then the `/dev/shm` noexec trial with the stack running. Check `docker ps` health, a Zhen and llama start if they are running, `go test ./pkg/uids/...` and one Python multiprocessing call (`python3 -I -c 'import multiprocessing as m; print(m.Pool(2).map(abs,[-1,-2]))'`). Roll back on any failure; the fstab line is as in Step 232.
+- [ ] **Step 250** [S] ~5m: Collect and read west's rows (Step 236 with `west:`), then `findings -enforce-ready west`.
+- [ ] **Step 251** [V] ~2m: These pass: aide x2, `auditd-rules-loaded`, `dot-files`, `root-path`, `pkg-ftp`/`pkg-telnet`, `mount-dev-shm-noexec`, `var-log-perms`, and `host-journal:west`. West's soak clock started (`soak.json`).
+- [ ] **Step 252** [C][V] ~2m: **PHASE 10 EXIT GATE**: commit `$PROG` and `compliance/hosts/west.yaml`.
 
 ---
 
-## PHASE 11: SOAK, READINESS, RECORDS AND CLOSE (Steps 227-236)
+## PHASE 11: SOAK, READINESS, RECORDS AND CLOSE (Steps 253-262)
 
 **Goal**: Seven clean days on both hosts, read. The register matches the evidence. Docs and the handoff are written, and everything is merged.
 **Prerequisite**: Phases 9 and 10.
 **Time**: 10 min a day for 7 days, then 1 h.
 **Agent**: Coordinator.
 
-- [ ] **Step 227** [B] ~5m: Daily, for 7 days: read both soak clocks and the would-enforce lines.
+- [ ] **Step 253** [B] ~5m: Daily, for 7 days: read both soak clocks and the would-enforce lines.
   ```bash
   for h in west east; do c="sudo jq -r .clean_since /var/lib/unheaded/baseline/soak.json; sudo journalctl -u unheaded-baseline --since -1d --no-pager | grep -c would_enforce="; [ $h = west ] && bash -c "$c" || ssh east "$c"; done
   ```
   With S-WATCH-TRUE's textfile-dir in place, use the PromQL in `enforcing-soak.md` instead.
-- [ ] **Step 228** [V] ~2m: `clean_since` has not moved, and there are 0 `would_enforce=` lines per day. If the clock restarted, follow Appendix A5, and the 7 days restart. Write a dated line in `$PROG` each day.
-- [ ] **Step 229** [W] ~10m: Day 7. Run `findings -enforce-ready` for both hosts, and put the blockers into `$PROG` "For Stevie":
+- [ ] **Step 254** [V] ~2m: `clean_since` has not moved, and there are 0 `would_enforce=` lines per day. If the clock restarted, follow Appendix A5, and the 7 days restart. Write a dated line in `$PROG` each day.
+- [ ] **Step 255** [W] ~10m: Day 7. Run `findings -enforce-ready` for both hosts, and put the blockers into `$PROG` "For Stevie":
   - The soak passed on both hosts.
   - The flip needs condition 3: the listed rows and their owners.
   - It also needs condition 4: his signature in `compliance/hosts/<host>.yaml`.
   - The flip recipe stays `enforcing-soak.md` "The flip", east first.
-- [ ] **Step 230** [W] ~10m: Final register pass:
+- [ ] **Step 256** [W] ~10m: Final register pass:
   - Rerun the findings report into `var/compliance/findings-s-evidence-runs-after.md`.
   - Under DE2, remove every source now in the "remove" list.
   - Fill the E-row outcome lines in `$PROG`.
   - Add a dated section to `docs/compliance/enforcing-soak.md`: the soak result, the live drill, and seal custody.
-- [ ] **Step 231** [B] ~30m: Full checks on the sprint branch, with the CI venv last on PATH as in Step 79.
+- [ ] **Step 257** [B] ~30m: Full checks on the sprint branch, with the CI venv last on PATH as in Step 79.
   ```bash
   go test -race -count=1 ./pkg/compliance/... ./cmd/compliance-evidence/... ./cmd/crypto-inventory/... ./cmd/unheaded-baseline/... ./cmd/unheaded-remediate/... ./tomb/lich/LICH-017-baseline-agent/... 2>&1 | grep -v '^ok' | head
   ./scripts/check-gates-can-fail.sh 2>&1 | tail -5
   ```
-- [ ] **Step 232** [V] ~2m: Check:
+- [ ] **Step 258** [V] ~2m: Check:
   - No FAIL, and every gate bites.
   - `findings` shows 0 untriaged and an empty remove list (or only DE2-held rows).
   - Every E row has an outcome line.
-- [ ] **Step 233** [C] ~6m: Guarded merge:
+- [ ] **Step 259** [C] ~6m: Guarded merge:
   ```bash
   git switch sprint/evidence-runs && git merge --no-ff develop && go build ./... && git switch develop && git merge --no-ff sprint/evidence-runs -m "[PLAN S-EVIDENCE-RUNS] merge"
   ```
   This merges develop into the sprint branch, builds and gates, then merges the sprint into develop. The main checkout is never left half-merged.
-- [ ] **Step 234** [W] ~10m: Librarian ripple:
+- [ ] **Step 260** [W] ~10m: Librarian ripple:
   - `wiki/Compliance-Paperwork.md` (host-service, readiness, AIDE schedule, seal).
   - The ADR-097 section linked from the wiki ADR index.
   - `docs/sweeps/` is not edited (dated): add the plan's outcome to `~/tmp/next.md` instead.
-- [ ] **Step 235** [W] ~10m: Write the `~/tmp/next.md` handoff: E-row outcomes, what waits on Stevie (the flip, A-25, the push of Step 87), the reseal date, and the soak result.
-- [ ] **Step 236** [V] ~2m: **FINAL GATE**: Steps 231-232 are green on develop after the merge, `$PROG` has every outcome, and next.md is written.
+- [ ] **Step 261** [W] ~10m: Write the `~/tmp/next.md` handoff: E-row outcomes, what waits on Stevie (the flip, A-25, the push of Step 87), the reseal date, and the soak result.
+- [ ] **Step 262** [V] ~2m: **FINAL GATE**: Steps 257-258 are green on develop after the merge, `$PROG` has every outcome, and next.md is written.
 
 ---
 
 ## Appendix A: Emergency procedures
 
-**A1. `aideinit` runs long or fills the disk.**
-1. Check with `df -h /var/lib/aide /` and `pgrep -a aide`.
-2. If `/` passes 85 %, stop it (`sudo kill <pid>`, by pid, never `pkill -f`).
-3. `undo` the fix through the backup directory the apply printed.
-4. Find the large tree with `sudo du -xh --max-depth=2 / | sort -h | tail`, add it to the excludes (Phase 7, test first) and reseal.
+**A1. AIDE init or check misses its bar, runs long or fills the disk.**
+1. Check with `df -h /var/lib/aide /` and `systemctl status unheaded-aide-init unheaded-aide-check`.
+2. If `/` passes 85 % or the wall time passes 45 min, stop the unit: `sudo systemctl stop unheaded-aide-init` (or `-check`). Never `pkill -f`.
+3. Remove the partial `aide.db.new`. Never promote it.
+4. Find the bulk among the watched trees: `sudo du -xh --max-depth=3 /usr /etc /boot | sort -h | tail -15`, and the top directories in the init summary.
+5. Add each bulk or high-churn tree to the never-watched list (Phase 7, Step 164's test first), reseal the snapshot, reapply `aide-install`, and init again under the gate.
+6. A check that keeps reporting the same churny path is handled the same way, and its pending diff is cleared by the next clean run.
+7. Never weaken the bar to pass: a changed bar is Stevie's call.
 
 **A2. auditd floods after `auditd-rules`.**
 1. `sudo ausearch -ts recent --raw | awk '{print $NF}' | sort | uniq -c | sort -n | tail` names the key.
@@ -829,10 +966,10 @@ No new Well schema: DE4's recommendation is a profile, not per-host `off` lists,
 | 4 CBOM | Agent | [P] | 0 | 2 h |
 | 5 host-service | Agent, then Coordinator | [P] | 2 | 3.5 h (east half after B-11) |
 | 6 Readiness | Agent | [P] | 0 | 1 h |
-| 7 Model | Agent | [P] | DE1, DE4, DE5c | 2 h |
-| 8 Seal key, east snapshot | Coordinator + Stevie | no | 7, DE3 | 0.75 h |
-| 9 East window | Coordinator + Stevie | no | 8, S-E1-LIVE 218 | 1.5 h |
-| 10 West window | Coordinator + Stevie | no | 9 | 1.5 h |
+| 7 Model | Agent | [P] | 0 (DE1, DE4, DE5c answered 2026-11-13) | 5 h |
+| 8 Seal key, east snapshot | Coordinator + Stevie | no | 7 (DE3 answered 2026-11-13) | 0.75 h |
+| 9 East window | Coordinator + Stevie | no | 8, S-E1-LIVE 218 | 5 h |
+| 10 West window | Coordinator + Stevie | no | 9 | 4.5 h |
 | 11 Soak and close | Coordinator | no | 10 | 7 d + 1 h |
 
 The critical path is 0 → 7 → 8 → 9 → 10 → 11, gated outside this plan by S-E1-LIVE Step 218. Phases 1-6 fill the wait.
@@ -850,6 +987,12 @@ The critical path is 0 → 7 → 8 → 9 → 10 → 11, gated outside this plan 
   - Mode file `/etc/unheaded/baseline.conf` (missing = audit).
   - State in `/var/lib/unheaded/baseline/{report.json,soak.json}`.
   - Snapshot at `/etc/unheaded/compliance/{snapshot.json,snapshot.pub}`.
+- **AIDE:**
+  - Config `/etc/aide/aide-unheaded.conf` (an include list); database `/var/lib/aide/aide.db`.
+  - Units `unheaded-aide-check.{service,timer}` (weekly, idle IO and CPU); the package timer is masked and its cron diverted.
+  - `unheaded-aide check|init|promote|review|accept <hash>`; state in `/var/lib/unheaded/aide/state.json`.
+  - Probes `aide-installed`, `aide-timer`, `aide-unreviewed` and `aide-quiet`; alerts `AIDEChangeDetected` (once per new diff) and `AIDECheckStale`.
+  - Init and accept happen only after Stevie's review.
 - **Snapshot:** `compliance-evidence snapshot -host H -key SEED -out F [-ttl 744h] [-from-yaml] [-model-commit C]`. The TTL is at most 31 days.
 - **Profiles:** `none`, `lab` (east was here before 10-12), `lab-hardened` (east), `lab-audited` (west, new), `cis-l1-server`, `all`.
 - **The other DECLARED controls** (not this plan; FND-037 names UH-AUTHN-01): UH-CFG-01, UH-CFG-02, UH-CTR-01, UH-EVID-01, UH-LIC-01, UH-PQC-02, UH-TLS-01. Each needs its own reading of what runs; one row each for the next sweep.
@@ -857,5 +1000,5 @@ The critical path is 0 → 7 → 8 → 9 → 10 → 11, gated outside this plan 
 
 ---
 
-*S-EVIDENCE-RUNS Battle Plan, forged 2026-11-12.*
-*12 phases, 236 steps. The evidence stops reading the paper and starts reading the hosts.*
+*S-EVIDENCE-RUNS Battle Plan, forged 2026-11-12, amended 2026-11-14 (DE1-DE7 all answered 2026-11-13; AIDE quiet by design).*
+*12 phases, 262 steps. The evidence stops reading the paper and starts reading the hosts.*
