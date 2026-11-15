@@ -94,6 +94,49 @@ fn kernel_user_pointer_ceiling_is_bpfs() {
     assert!(bpf <= rust_const(&rs, "SLICE_STRIDE"));
 }
 
+/// Security pass review, finding 1 (2026-11-15): the loader refuses a
+/// `--userland` `.data` record outside the window the kernel accepts for slot
+/// 0's image, and a resident program's record outside the slice a child maps.
+/// The loader's two ceilings are cited copies, so they are pinned here.
+#[test]
+fn loader_sidecar_windows_are_the_kernels() {
+    let opscan = read("cmd/upc-bootctl/src/opscan.rs");
+    let loader = |name: &str| {
+        let l = opscan
+            .lines()
+            .find(|l| l.starts_with(&format!("pub const {name}: u32 = ")))
+            .unwrap_or_else(|| panic!("{name} not in opscan.rs"));
+        l.split('=')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .trim_end_matches(';')
+            .to_string()
+    };
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(
+        parse(&loader("USERLAND_SIDECAR_CEILING")),
+        c_define(&h, "UPC_INIT_IMAGE_HI")
+    );
+    // The CSR region and the kernel image sit above the userland window.
+    assert!(c_define(&h, "UPC_INIT_IMAGE_HI") <= 0xF000);
+    // The resident ceiling is spelled as the geometry constant, which
+    // parity_slice_constants pins to the interpreter's.
+    assert_eq!(
+        loader("RESIDENT_SIDECAR_CEILING"),
+        "geometry::XV6_SLICE_LEN"
+    );
+    let geo = read("cmd/upc-bootctl/src/geometry.rs");
+    let slice_len = geo
+        .lines()
+        .find(|l| l.starts_with("pub const XV6_SLICE_LEN: u32 = "))
+        .expect("XV6_SLICE_LEN not in geometry.rs");
+    assert_eq!(
+        parse(slice_len.split('=').nth(1).unwrap()),
+        c_define(&h, "UPC_USER_VA_CEILING")
+    );
+}
+
 /// ADR-135 D21 (rungs 5+6): the kernel's `#define UPC_RUNG56` must say what BPF's
 /// `const UPC_RUNG56` says. With them apart the two sides number fds differently
 /// (the kernel from 0 or from 16) and one of them keeps a table the other ignores;

@@ -503,6 +503,7 @@ fn load_resident_program(
         .iter()
         .map(|c| relocate_call_word(u32::from_le_bytes(*c), rom_base))
         .collect();
+    opscan::scan_loaded_user_image(name, &words)?;
 
     // rv2mbc: values shifted by rom_base (RV word → that program's ROM slot);
     // loaded at index base rv2mbc_base so each program owns a disjoint region.
@@ -693,6 +694,9 @@ fn boot_prepare(
         .iter()
         .map(|c| u32::from_le_bytes(*c))
         .collect();
+    // The words about to be written are the ones scanned (the scan by path
+    // ran before the object was opened).
+    opscan::scan_privileged_image("kernel", &mbc_words)?;
 
     // BootParams v3 carries the kernel .rv2mbc SHA-256 that check_all verified.
     // A live boot always has it: check_all refuses a missing kernel .rv2mbc,
@@ -745,6 +749,7 @@ fn boot_prepare(
             .iter()
             .map(|c| u32::from_le_bytes(*c))
             .collect();
+        opscan::scan_privileged_image("bootstub", &bs_words)?;
         runner.populate_rom_at(0x4000, &bs_words)?;
         runner.populate_rom_at(0x8000, &mbc_words)?;
         println!(
@@ -873,6 +878,7 @@ fn boot_prepare(
                 relocate_call_word(w, USER_ROM_BASE)
             })
             .collect();
+        opscan::scan_loaded_user_image("userland", &words)?;
         let n_words = words.len();
 
         // Userland rv2mbc: each entry maps a user RV word to an MBC PC inside
@@ -959,12 +965,14 @@ fn boot_prepare(
                 user_data_path.display()
             );
         }
-        runner.load_data_image(&user_data_path).with_context(|| {
-            format!(
-                "UserSidecarBad: userland data at {} failed to load",
-                user_data_path.display()
-            )
-        })?;
+        runner
+            .load_user_data_image(&user_data_path)
+            .with_context(|| {
+                format!(
+                    "UserSidecarBad: userland data at {} failed to load",
+                    user_data_path.display()
+                )
+            })?;
         println!(
             "  Userland data: loaded {} (.rodata/.data into RAM_MAP)",
             user_data_path.display()
@@ -1128,7 +1136,9 @@ fn cmd_boot(
         allow_unverified_rv2mbc,
         dry_run,
     )?;
-    // ADR-135 D17: no atomic and no privileged return in a user image.
+    // ADR-135 D17: no atomic and no privileged return in a user image; no
+    // atomic and no stack or interrupt opcode in the kernel or the bootstub.
+    opscan::scan_privileged_images(&kernel, bootstub.as_deref())?;
     opscan::scan_user_images(userland.as_deref(), &rv)?;
     // A-61: a bad or missing user .data sidecar refuses the boot.
     opscan::check_user_sidecars(userland.as_deref(), &rv)?;
@@ -1442,7 +1452,9 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
         false,
         false,
     )?;
-    // ADR-135 D17: no atomic and no privileged return in a user image.
+    // ADR-135 D17: no atomic and no privileged return in a user image; no
+    // atomic and no stack or interrupt opcode in the kernel or the bootstub.
+    opscan::scan_privileged_images(&o.kernel, o.bootstub.as_deref())?;
     opscan::scan_user_images(o.userland.as_deref(), &rv)?;
     // A-61: a bad or missing user .data sidecar refuses the boot.
     opscan::check_user_sidecars(o.userland.as_deref(), &rv)?;

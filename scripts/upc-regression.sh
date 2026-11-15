@@ -423,6 +423,53 @@ if python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --wor
     fail "sidecar check (a missing or truncated .data sidecar was not refused, or a good one was)"
     note "$(grep -ho 'UserSidecar[A-Za-z]*' <<<"$SM$SB$SG" | tr '\n' ' ')"
   fi
+  # Security pass review, finding 1 (2026-11-15): a sidecar's records must point
+  # into the image's own memory. The loader writes the --userland image's records
+  # at their raw addresses (physical, for slot 0) and exec copies a resident
+  # program's span to slice base + address. Three dry runs: a record in the
+  # kernel's .data, a record whose end wraps, and a resident program ("sh", a
+  # copy of the same clean image) whose two records are over 256 KiB apart.
+  tlv() { python3 -c 'import struct,sys
+a=[int(x,0) for x in sys.argv[2:]]
+b=struct.pack("<I",len(a)//2)
+for i in range(0,len(a),2):
+    b+=struct.pack("<II",a[i],a[i+1])+bytes([0xAA])*a[i+1]
+    b+=bytes(-len(b)%4)
+open(sys.argv[1],"wb").write(b)' "$@"; }
+  tlv "$OPD/sc/hostile_atomic.data" 0x00100000 4
+  SK="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  tlv "$OPD/sc/hostile_atomic.data" 0xFFFFFFF0 0x20
+  SW="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  cp "$K/hostile_atomic.data" "$OPD/sc/hostile_atomic.data"
+  for e in mbc rv2mbc rv2mbc.sha256; do cp "$K/hostile_atomic.$e" "$OPD/sc/sh.$e"; done
+  tlv "$OPD/sc/sh.data" 0x1000 4 0x50000 4
+  SS="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  cp "$K/hostile_atomic.data" "$OPD/sc/sh.data"
+  SI="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  if grep -q 'UserSidecarBad: .*hostile_atomic.data: record 0 .* is outside the image.s window' <<<"$SK" \
+     && grep -q 'UserSidecarBad: .*hostile_atomic.data: record 0 .* wraps the address space' <<<"$SW" \
+     && grep -q 'UserSidecarBad: .*sh.data: the records span 0x4F004 bytes' <<<"$SS" \
+     && ! grep -q 'UserSidecar' <<<"$SI" && grep -q '\.data sidecars: 2 user image' <<<"$SI"; then
+    pass "sidecar check refuses a record in kernel memory, one that wraps and a resident span over the staging stride (review finding 1)"
+  else
+    fail "sidecar bounds (a record outside its image's window, a wrap or an oversized span was not refused, or good ones were)"
+    note "$(grep -ho 'UserSidecarBad: [^;]*' <<<"$SK$SW$SS$SI" | cut -c1-120 | head -3 | tr '\n' ' ')"
+  fi
+  # Security pass review, finding 2 (2026-11-15): U-mode can jump to any ROM
+  # word, so the kernel image holds none of the eight opcodes that address
+  # physical memory (it keeps MRET and SRET). A copy of the kernel with one PUSH
+  # word appended, a dry run; then the kernel itself.
+  mkdir "$OPD/kx" && for e in mbc rv2mbc rv2mbc.sha256 data; do cp "$K/xv6-mbc.$e" "$OPD/kx/" 2>/dev/null; done
+  printf '\x00\x00\x00\x1a' >> "$OPD/kx/xv6-mbc.mbc"
+  KX="$(cd "$EBPF" && "$BC" boot --kernel "$OPD/kx/xv6-mbc.mbc" --userland "$K/hostile_atomic.mbc" --dry-run 2>&1)"
+  KC="$(scan_of "$K/hostile_atomic.mbc")"
+  if grep -q 'KernelImageOpcode: xv6-mbc: word [0-9]* (0x1A000000) is PUSH' <<<"$KX" \
+     && ! grep -q 'KernelImageOpcode' <<<"$KC" && grep -q 'opcode scan: 1 privileged image' <<<"$KC"; then
+    pass "opcode scan refuses a kernel image with PUSH and passes the kernel (review finding 2)"
+  else
+    fail "opcode scan (a kernel image with PUSH was not refused, or the kernel was)"
+    note "$(grep -ho 'KernelImageOpcode: [^;]*' <<<"$KX$KC" | cut -c1-120 | head -2 | tr '\n' ' ')"
+  fi
 else
   fail "opcode scan (could not make the patched image from $K/hostile_atomic.mbc)"
 fi

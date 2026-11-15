@@ -206,3 +206,85 @@ fn the_probe_hatch_admits_privileged_returns_and_never_an_atomic() {
     );
     assert!(!o.status.success(), "{}", out(&o));
 }
+
+// ── Security pass review, finding 2 (2026-11-15): the kernel and the bootstub ──
+// U-mode can jump to any ROM word (a tagged RET), and the atomic, stack and
+// interrupt opcodes have no privilege test in the interpreter. The kernel and
+// the bootstub need MRET and SRET; they need none of the other eight.
+
+fn dry_run_with_bootstub(kernel: &Path, bootstub: &Path, userland: &Path) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_upc-bootctl"))
+        .args([
+            "boot",
+            "--kernel",
+            kernel.to_str().unwrap(),
+            "--bootstub",
+            bootstub.to_str().unwrap(),
+            "--userland",
+            userland.to_str().unwrap(),
+            "--dry-run",
+            "--allow-unverified-rv2mbc",
+        ])
+        .env_remove("UPC_DEMO_MODE")
+        .env_remove("UPC_RV2MBC_SHA")
+        .env_remove("UPC_ALLOW_USER_PRIVRET")
+        .env("MONAD_CPU_EBPF_OBJ", "/nonexistent/monad-cpu-ebpf")
+        .output()
+        .expect("run upc-bootctl")
+}
+
+#[test]
+fn each_non_return_opcode_in_the_kernel_image_is_refused_and_named() {
+    for (opcode, name) in [
+        (op::XCHG, "XCHG"),
+        (op::CAS, "CAS"),
+        (op::LR_W, "LR_W"),
+        (op::SC_W, "SC_W"),
+        (op::PUSH, "PUSH"),
+        (op::POP, "POP"),
+        (op::INT, "INT"),
+        (op::IRET, "IRET"),
+    ] {
+        let f = Fixture::new(&format!("kernel-{name}"));
+        let mut kernel = vec![0u32; 16];
+        kernel[3] = insn(op::MRET, 0, 0, 0);
+        kernel[9] = insn(op::SRET, 0, 0, 0);
+        kernel[12] = insn(opcode, 1, 2, 0);
+        f.image("xv6-mbc", &kernel);
+        f.image_with("init", 0, insn(op::LD, 3, 4, 8));
+        // The hatch is for user images and returns; it admits nothing here.
+        for envs in [&[][..], &[("UPC_ALLOW_USER_PRIVRET", "1")][..]] {
+            let o = dry_run(&f.path("xv6-mbc"), &f.path("init"), envs);
+            let e = out(&o);
+            assert!(!o.status.success(), "{name} in the kernel must refuse: {e}");
+            assert!(e.contains("KernelImageOpcode"), "{e}");
+            assert!(e.contains(name) && e.contains("word 12"), "{e}");
+        }
+    }
+}
+
+#[test]
+fn a_bootstub_with_an_atomic_is_refused_and_one_with_mret_passes() {
+    let f = Fixture::new("bootstub");
+    f.image_with("init", 0, insn(op::LD, 3, 4, 8));
+    f.image(
+        "upc-bootstub",
+        &[insn(op::LD, 1, 2, 4), insn(op::MRET, 0, 0, 0)],
+    );
+    let o = dry_run_with_bootstub(&f.path("xv6-mbc"), &f.path("upc-bootstub"), &f.path("init"));
+    let e = out(&o);
+    assert!(o.status.success(), "{e}");
+    assert!(!e.contains("KernelImageOpcode"), "{e}");
+
+    f.image(
+        "upc-bootstub",
+        &[insn(op::LD, 1, 2, 4), insn(op::XCHG, 1, 2, 0)],
+    );
+    let o = dry_run_with_bootstub(&f.path("xv6-mbc"), &f.path("upc-bootstub"), &f.path("init"));
+    let e = out(&o);
+    assert!(!o.status.success(), "must refuse: {e}");
+    assert!(
+        e.contains("KernelImageOpcode: upc-bootstub") && e.contains("XCHG"),
+        "{e}"
+    );
+}

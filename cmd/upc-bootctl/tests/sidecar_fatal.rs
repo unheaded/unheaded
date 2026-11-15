@@ -138,3 +138,115 @@ fn a_resident_program_with_a_bad_sidecar_refuses_the_boot() {
     assert!(!o.status.success(), "must refuse: {e}");
     assert!(e.contains("UserSidecarBad") && e.contains("sh.data"), "{e}");
 }
+
+// ── Security pass review, finding 1 (2026-11-15): where a record points ──────
+// The check used to look at a sidecar's shape only. The loader writes the
+// `--userland` image's records at their raw addresses, which for slot 0 are
+// physical, and exec copies a resident program's span to slice base + address.
+
+/// One record: `addr`, then `len` bytes of 0xAA.
+fn record_at(addr: u32, len: u32) -> Vec<u8> {
+    let mut b = Vec::new();
+    b.extend_from_slice(&1u32.to_le_bytes());
+    b.extend_from_slice(&addr.to_le_bytes());
+    b.extend_from_slice(&len.to_le_bytes());
+    b.extend(std::iter::repeat_n(0xAAu8, len as usize));
+    while b.len() % 4 != 0 {
+        b.push(0);
+    }
+    b
+}
+
+/// Two four-byte records at `a` and `b`.
+fn two_records(a: u32, b: u32) -> Vec<u8> {
+    let mut v = Vec::new();
+    v.extend_from_slice(&2u32.to_le_bytes());
+    for addr in [a, b] {
+        v.extend_from_slice(&addr.to_le_bytes());
+        v.extend_from_slice(&4u32.to_le_bytes());
+        v.extend_from_slice(&[0xAA; 4]);
+    }
+    v
+}
+
+fn refused_with(tag: &str, userland_data: &[u8], sh_data: Option<&[u8]>, want: &str) {
+    let f = Fixture::new(tag);
+    f.image("init");
+    f.data("init", userland_data);
+    if let Some(d) = sh_data {
+        f.image("sh");
+        f.data("sh", d);
+    }
+    let o = dry_run(&f.path("xv6-mbc"), &f.path("init"));
+    let e = out(&o);
+    assert!(!o.status.success(), "must refuse: {e}");
+    assert!(e.contains("UserSidecarBad"), "{e}");
+    assert!(e.contains(want), "want {want:?} in: {e}");
+}
+
+#[test]
+fn a_userland_record_in_kernel_memory_refuses_the_boot() {
+    // 0x100000 is the kernel's .data; 0xF000 the CSR region.
+    refused_with("kdata", &record_at(0x0010_0000, 4), None, "outside");
+    refused_with("csr", &record_at(0x0000_F000, 4), None, "outside");
+    // The last byte below the window's top passes; one more does not.
+    refused_with("top", &record_at(0x0000_BFFC, 8), None, "outside");
+}
+
+#[test]
+fn a_userland_record_below_the_floor_refuses_the_boot() {
+    // 0x100 is BootParams.
+    refused_with("floor", &record_at(0x0000_0100, 4), None, "outside");
+}
+
+#[test]
+fn a_record_whose_end_wraps_refuses_the_boot() {
+    refused_with("wrap-init", &record_at(0xFFFF_FFF0, 0x20), None, "wraps");
+    refused_with(
+        "wrap-sh",
+        EMPTY_TLV,
+        Some(&record_at(0xFFFF_FFF0, 0x20)),
+        "wraps",
+    );
+}
+
+#[test]
+fn a_resident_record_past_the_slice_refuses_the_boot() {
+    // 0x800000 is the next slot's first byte.
+    refused_with(
+        "next-slot",
+        EMPTY_TLV,
+        Some(&record_at(0x0080_0000, 4)),
+        "outside",
+    );
+    refused_with(
+        "straddle",
+        EMPTY_TLV,
+        Some(&record_at(0x007F_FFFC, 8)),
+        "outside",
+    );
+}
+
+#[test]
+fn a_resident_span_over_the_staging_stride_refuses_the_boot() {
+    // 0x1000 to 0x50004: over 256 KiB, the next program's staged data.
+    refused_with(
+        "span",
+        EMPTY_TLV,
+        Some(&two_records(0x0000_1000, 0x0005_0000)),
+        "span",
+    );
+}
+
+#[test]
+fn records_inside_the_windows_pass() {
+    let f = Fixture::new("inside");
+    f.image("init");
+    f.data("init", &record_at(0x0000_BFFC, 4)); // the window's last word
+    f.image("sh");
+    f.data("sh", &two_records(0x0000_1000, 0x0004_0FFC)); // a span of exactly the stride
+    let o = dry_run(&f.path("xv6-mbc"), &f.path("init"));
+    let e = out(&o);
+    assert!(o.status.success(), "{e}");
+    assert!(!e.contains("UserSidecar"), "{e}");
+}
