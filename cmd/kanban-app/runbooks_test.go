@@ -341,6 +341,7 @@ func (f fakeRunStore) LatestAgentRun(_ context.Context, cardID string) (*AgentRu
 }
 
 func TestGetTask_CarriesTheAgentRun(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	base := newTestSQLiteStore(t)
 	if err := base.SaveTask(&Task{ID: "card-1", Title: "Fix it", Status: "review", Type: "task", Owner: "zhen"}); err != nil {
 		t.Fatal(err)

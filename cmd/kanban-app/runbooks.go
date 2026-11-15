@@ -52,6 +52,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/modules"
 	"unheaded/pkg/zhenagent"
 )
 
@@ -472,6 +473,9 @@ func (r *AgentRun) sanitize() {
 var agentRunWarned atomic.Bool
 
 func (s *Server) agentRunFor(ctx context.Context, cardID string) *AgentRun {
+	if !modules.Enabled("zhen") {
+		return nil // the module is off: no query, no warning (ADR-149)
+	}
 	src, ok := s.store.(agentRunSource)
 	if !ok {
 		return nil
@@ -634,13 +638,16 @@ type taskDetail struct {
 	RunbookProgress *RunbookProgress `json:"runbook_progress,omitempty"`
 	AgentRun        *AgentRun        `json:"agent_run,omitempty"`
 	ZhenOptIn       *ZhenOptIn       `json:"zhen_opt_in,omitempty"`
+	// ZhenModule is set while the Zhen module is on (ADR-149): the modal shows
+	// its Zhen section only then.
+	ZhenModule bool `json:"zhen_module,omitempty"`
 	// CardSHA256 is this card's text as served here, what an opt-in must name.
 	CardSHA256 string `json:"card_sha256"`
 }
 
 func (s *Server) writeTaskDetail(w http.ResponseWriter, r *http.Request, t *Task) {
 	d := taskDetail{Task: t, Runbook: runbookRefOf(t), AgentRun: s.agentRunFor(r.Context(), t.ID), ZhenOptIn: s.zhenOptInFor(r.Context(), t),
-		CardSHA256: zhenagent.CardSHA256(t.Title, t.Description)}
+		CardSHA256: zhenagent.CardSHA256(t.Title, t.Description), ZhenModule: modules.Enabled("zhen")}
 	if d.Runbook != "" {
 		d.RunbookProgress, _ = s.runbookProgress().Get(d.Runbook)
 	}

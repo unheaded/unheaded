@@ -86,6 +86,7 @@ func optInSend(s *Server, id *auth.Identity, method, card, body string) *httptes
 
 // H4: an operator's login hands a card over, and the record says who and what.
 func TestZhenOptIn_AnOperatorHandsACardOver(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	s, st := optInServer()
 	for _, role := range []string{auth.RoleOperator, auth.RoleAdmin} {
 		rec := optInCall(s, &auth.Identity{Subject: "stevie", Roles: []string{role}}, http.MethodPost, "card-1")
@@ -108,6 +109,7 @@ func TestZhenOptIn_AnOperatorHandsACardOver(t *testing.T) {
 // Only a person with an operator's role: no anonymous caller, no read-only
 // login, and no service, whoever that service says it acts for.
 func TestZhenOptIn_NobodyElseCan(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	for name, id := range map[string]*auth.Identity{
 		"no identity": nil,
 		"viewer":      {Subject: "watcher", Roles: []string{auth.RoleViewer}},
@@ -131,6 +133,7 @@ func TestZhenOptIn_NobodyElseCan(t *testing.T) {
 }
 
 func TestZhenOptIn_OnlyZhensCardsAndOnlyRealOnes(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	s, st := optInServer()
 	op := &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}
 	if rec := optInCall(s, op, http.MethodPost, "card-2"); rec.Code != http.StatusConflict {
@@ -147,6 +150,7 @@ func TestZhenOptIn_OnlyZhensCardsAndOnlyRealOnes(t *testing.T) {
 // What is recorded is what the operator read: an edit that landed after they
 // read the card is refused, not approved in their name.
 func TestZhenOptIn_TheCardMustBeTheOneTheyRead(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	op := &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}
 	read := zhenagent.CardSHA256("t", "do the thing")
 	for name, edit := range map[string]func(*Task){
@@ -166,6 +170,7 @@ func TestZhenOptIn_TheCardMustBeTheOneTheyRead(t *testing.T) {
 }
 
 func TestZhenOptIn_ItMustNameWhatWasRead(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	op := &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}
 	for name, body := range map[string]string{
 		"no body":   "",
@@ -185,6 +190,7 @@ func TestZhenOptIn_ItMustNameWhatWasRead(t *testing.T) {
 
 // The modal gets the hash to send from the card it fetched, and sends it.
 func TestZhenOptIn_ThePageSendsWhatItFetched(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	s, _ := optInServer()
 	rec := httptest.NewRecorder()
 	s.handleTaskByID(rec, httptest.NewRequest(http.MethodGet, "/api/v1/tasks/card-1", nil))
@@ -208,6 +214,7 @@ func TestZhenOptIn_ThePageSendsWhatItFetched(t *testing.T) {
 
 // A store without the table (SQLite, a dev board) has no opt-in to give.
 func TestZhenOptIn_NeedsTheWell(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	s := &Server{store: &stubStore{tasks: []Task{{ID: "card-1", Status: "todo", Owner: zhenagent.Owner}}}, ctx: context.Background()}
 	rec := optInCall(s, &auth.Identity{Subject: "stevie", Roles: []string{auth.RoleOperator}}, http.MethodPost, "card-1")
 	if rec.Code != http.StatusServiceUnavailable {
@@ -217,6 +224,7 @@ func TestZhenOptIn_NeedsTheWell(t *testing.T) {
 
 // The card modal shows the opt-in, and whether it still covers the card.
 func TestZhenOptIn_TheModalSeesIt(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	s, st := optInServer()
 	st.rows["card-1"] = ZhenOptIn{CardSHA256: zhenagent.CardSHA256("t", "something older"), By: "stevie", At: time.Now()}
 	rec := httptest.NewRecorder()
@@ -235,6 +243,7 @@ func TestZhenOptIn_TheModalSeesIt(t *testing.T) {
 // Wotan reaches a card, never the opt-in: nothing a tasks.* message says about
 // it lands anywhere, and a forged edit leaves a record that no longer matches.
 func TestZhenOptIn_NoWotanMessageSetsIt(t *testing.T) {
+	dirWithZhen(t) // the Zhen module is on (ADR-149)
 	st := &optInStore{rows: map[string]ZhenOptIn{}}
 	st.tasks = []Task{{ID: "card-1", Title: "t", Status: "todo", Owner: zhenagent.Owner}}
 	tm := &TaskManager{store: st, tasks: map[string]*Task{}, broadcast: func(string, interface{}) {}}
