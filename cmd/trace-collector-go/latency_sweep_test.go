@@ -17,9 +17,9 @@ import (
 	ciliumebpf "github.com/cilium/ebpf"
 )
 
-// fakeLatencyMap is LATENCY_MAP without a kernel: entries handed out in
+// fakeBatchedMap is LATENCY_MAP without a kernel: entries handed out in
 // batches of batchSize, or one at a time through walk.
-type fakeLatencyMap struct {
+type fakeBatchedMap struct {
 	keys, values [][]byte
 	batchSize    int
 
@@ -34,7 +34,7 @@ type fakeLatencyMap struct {
 
 var errMidSweep = errors.New("map changed under the read")
 
-func (f *fakeLatencyMap) batch(first bool, visit func(key, value []byte)) (bool, error) {
+func (f *fakeBatchedMap) batch(first bool, visit func(key, value []byte)) (bool, error) {
 	f.batchCalls++
 	if f.batchErr != nil {
 		return false, f.batchErr
@@ -53,7 +53,7 @@ func (f *fakeLatencyMap) batch(first bool, visit func(key, value []byte)) (bool,
 	return f.pos == len(f.keys), nil
 }
 
-func (f *fakeLatencyMap) walk(visit func(key, value []byte)) error {
+func (f *fakeBatchedMap) walk(visit func(key, value []byte)) error {
 	f.walkCalls++
 	for i := range f.keys {
 		visit(f.keys[i], f.values[i])
@@ -77,7 +77,7 @@ func latencyEntries(n, keySize int, samples uint64) (keys, values [][]byte) {
 }
 
 // newTestSweeper returns a sweeper over m that collects what it publishes.
-func newTestSweeper(m latencyMap) (*latencySweeper, *[][]byte) {
+func newTestSweeper(m batchedMap) (*latencySweeper, *[][]byte) {
 	var published [][]byte
 	s := newLatencySweeper(m, func(p []byte) { published = append(published, p) })
 	s.now = func() time.Time { return time.Unix(1_700_000_000, 0) }
@@ -88,7 +88,7 @@ func newTestSweeper(m latencyMap) (*latencySweeper, *[][]byte) {
 // calls: the old sweep made two bpf() calls per entry, every 200 ms (FND-044).
 func TestSweepBatches(t *testing.T) {
 	keys, values := latencyEntries(10_000, LatencyTraceKeySize, 1)
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 	s, published := newTestSweeper(m)
 
 	if err := s.sweep(context.Background()); err != nil {
@@ -106,11 +106,11 @@ func TestSweepBatches(t *testing.T) {
 // once, not on every sweep.
 func TestSweepFallsBackWhenBatchUnsupported(t *testing.T) {
 	keys, values := latencyEntries(50, LatencyTraceKeySize, 1)
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch,
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch,
 		batchErr: fmt.Errorf("map batch lookup: %w", ciliumebpf.ErrNotSupported)}
 	s, published := newTestSweeper(m)
 	warned := 0
-	s.onFallback = func(error) { warned++ }
+	s.w.onFallback = func(error) { warned++ }
 
 	for range 3 {
 		if err := s.sweep(context.Background()); err != nil {
@@ -136,7 +136,7 @@ func TestSweepFallsBackWhenBatchUnsupported(t *testing.T) {
 // counted it.
 func TestSweepCountsDecodeErrors(t *testing.T) {
 	keys, values := latencyEntries(7, 40, 1)
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 	s, published := newTestSweeper(m)
 	before := latencyDecodeErrors.Value()
 
@@ -153,7 +153,7 @@ func TestSweepCountsDecodeErrors(t *testing.T) {
 	// A short value is a decode error too.
 	keys, values = latencyEntries(2, LatencyTraceKeySize, 1)
 	values[1] = values[1][:32]
-	m = &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+	m = &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 	s, published = newTestSweeper(m)
 	before = latencyDecodeErrors.Value()
 	if err := s.sweep(context.Background()); err != nil {
@@ -168,7 +168,7 @@ func TestSweepCountsDecodeErrors(t *testing.T) {
 // forget the ones it missed: they would all look new on the next sweep.
 func TestSweepPartialErrorKeepsTracker(t *testing.T) {
 	keys, values := latencyEntries(10_000, LatencyTraceKeySize, 1)
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 	s, published := newTestSweeper(m)
 	if err := s.sweep(context.Background()); err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestSweepPartialErrorKeepsTracker(t *testing.T) {
 // A cancelled sweep is a partial sweep.
 func TestSweepStopsOnCancel(t *testing.T) {
 	keys, values := latencyEntries(10_000, LatencyTraceKeySize, 1)
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 	s, _ := newTestSweeper(m)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -217,7 +217,7 @@ func TestSweepStopsOnCancel(t *testing.T) {
 // by threads x sweeps.
 func TestSweepPublishesOnlyFresh(t *testing.T) {
 	keys, values := latencyEntries(4, LatencyTraceKeySize, 1)
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 	s, published := newTestSweeper(m)
 
 	if err := s.sweep(context.Background()); err != nil {
@@ -252,7 +252,7 @@ func TestSweepPublishesOnlyFresh(t *testing.T) {
 
 func TestSweepSetsEntriesGauge(t *testing.T) {
 	keys, values := latencyEntries(321, LatencyTraceKeySize, 0) // no samples: nothing is published
-	m := &fakeLatencyMap{keys: keys, values: values, batchSize: 100}
+	m := &fakeBatchedMap{keys: keys, values: values, batchSize: 100}
 	s, published := newTestSweeper(m)
 	if err := s.sweep(context.Background()); err != nil {
 		t.Fatal(err)
@@ -291,7 +291,7 @@ func TestSweepRealLRUMap(t *testing.T) {
 
 	seen := map[string]bool{}
 	s := newLatencySweeper(newEBPFLatencyMap(km), func([]byte) {})
-	s.onFallback = func(err error) { t.Fatalf("this kernel refused the batch read: %v", err) }
+	s.w.onFallback = func(err error) { t.Fatalf("this kernel refused the batch read: %v", err) }
 	tids := 0
 	s.publish = func(p []byte) { seen[string(p)] = true; tids++ }
 	if err := s.sweep(context.Background()); err != nil {

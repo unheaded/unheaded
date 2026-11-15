@@ -3767,6 +3767,36 @@ func (l *NativeLoader) GetMap(ctx context.Context, programName, mapName string) 
 	return &info, nil
 }
 
+// DupMapFD returns a new file descriptor for a loaded map, close-on-exec.
+// The caller owns it and closes it; the loader keeps its own. It exists so a
+// reader can use kernel calls this loader does not wrap (a batch lookup reads
+// thousands of entries per call, where IterateMap makes two calls per entry).
+func (l *NativeLoader) DupMapFD(programName, mapName string) (int, error) {
+	if err := l.checkClosed(); err != nil {
+		return -1, err
+	}
+
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	loaded, exists := l.programs[programName]
+	if !exists {
+		return -1, ErrProgramNotFound
+	}
+	m, exists := loaded.maps[mapName]
+	if !exists {
+		return -1, ErrMapNotFound
+	}
+	if m.fd < 0 {
+		return -1, fmt.Errorf("%w: map %s of %s has no file descriptor", ErrMapNotFound, mapName, programName)
+	}
+	fd, err := unix.FcntlInt(uintptr(m.fd), unix.F_DUPFD_CLOEXEC, 0)
+	if err != nil {
+		return -1, fmt.Errorf("duplicate the descriptor of map %s: %w", mapName, err)
+	}
+	return fd, nil
+}
+
 // ListMaps returns all maps for a program
 func (l *NativeLoader) ListMaps(ctx context.Context, programName string) ([]*MapInfo, error) {
 	if err := l.checkClosed(); err != nil {

@@ -410,7 +410,7 @@ class RAGPipeline:
         and IGNORED — vor is the retrieval substrate now.
 
         New keyword args:
-            vor_url:        cs serve REST endpoint (default :20110).
+            vor_url:        vor serve REST endpoint (default :20110).
             inference_url:  llama-server endpoint (default :8081).
             agentd_url:     zhen-agentd endpoint (Phase 2 proxy target).
             model_name:     model identifier sent to /v1/chat/completions.
@@ -1024,12 +1024,17 @@ class RAGPipeline:
         if not answer:
             answer = "(empty answer from zhen-agentd)"
 
-        # The daemon doesn't surface a token count today; use 0.
+        # Completion tokens summed over the ask's model calls, the same
+        # meaning as the direct path's tokens_used. A daemon older than the
+        # field, or a value that is not a count, reads as 0.
+        tokens_out = body.get("tokens_output")
+        if isinstance(tokens_out, bool) or not isinstance(tokens_out, int) or tokens_out < 0:
+            tokens_out = 0
         # The model id is annotated with @agentd so the audit trail in
         # zhen_conversations records the gate-protected path.
         return {
             "answer":      answer,
-            "tokens_used": 0,
+            "tokens_used": tokens_out,
             "model":       f"{self.model_name}@agentd",
             # Pass through useful daemon-side metadata for the caller.
             "agent_trace":  body.get("trace", []),
@@ -1078,7 +1083,7 @@ class RAGPipeline:
     #
     # The legacy implementation appended chunks to the live FAISS index +
     # ring_all.jsonl. With vor as substrate, "teaching" means writing a
-    # markdown file under ~/.config/vor/sources/<source>/ which cs picks
+    # markdown file under ~/.config/vor/sources/<source>/ which vor picks
     # up on its next index sweep.
     #
     # This stays a stub: teaching goes through zhen-cli /teach and the
@@ -1093,7 +1098,7 @@ class RAGPipeline:
             "reason": (
                 "WAVE15 rewire: 'teach' is no longer wired to a live index. "
                 "vor is the retrieval substrate; to add content, drop a markdown "
-                "file under ~/.config/vor/sources/<source>/. cs picks it up on "
+                "file under ~/.config/vor/sources/<source>/. vor picks it up on "
                 "the next index sweep."
             ),
             "received_chars": len(text or ""),

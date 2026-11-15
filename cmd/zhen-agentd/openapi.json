@@ -57,6 +57,8 @@
           "turns_used": {"type": "integer"},
           "budget_hit": {"type": "boolean"},
           "session_id": {"type": "string"},
+          "tokens_input": {"type": "integer", "description": "Prompt tokens summed over this ask's model calls; 0 when the model reported none"},
+          "tokens_output": {"type": "integer", "description": "Completion tokens summed over this ask's model calls; 0 when the model reported none"},
           "trace": {"type": "array", "items": {"$ref": "#/components/schemas/TraceEntry"}}
         }
       },

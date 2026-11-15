@@ -956,3 +956,140 @@ func TestErrorLogWriterDoesNotFlood(t *testing.T) {
 		t.Errorf("the message was lost: %s", buf.String())
 	}
 }
+
+// lockedBuffer is a log sink the test reads while run() still writes.
+type lockedBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (l *lockedBuffer) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.Write(p)
+}
+
+func (l *lockedBuffer) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.b.String()
+}
+
+// A LAN address that is not on the host yet must not take loopback down
+// (D-05): the address can arrive after the unit, from a drop-in or a link
+// that is late at boot. The front binds it with FREEBIND, says so once, and
+// keeps serving. 192.0.2.1 and 2001:db8::1 are documentation addresses, never
+// on a host.
+func TestFreebindMissingAddressKeepsLoopback(t *testing.T) {
+	for _, tc := range []struct{ name, loopback, missing string }{
+		{"ipv4", "127.0.0.1", "192.0.2.1"},
+		{"ipv6", "::1", "2001:db8::1"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probe, err := net.Listen("tcp", net.JoinHostPort(tc.loopback, "0"))
+			if err != nil {
+				t.Skipf("no %s loopback here: %v", tc.name, err)
+			}
+			listen := probe.Addr().String()
+			_ = probe.Close()
+			_, port, err := net.SplitHostPort(listen)
+			if err != nil {
+				t.Fatal(err)
+			}
+			opsLn, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			ops := opsLn.Addr().String()
+			_ = opsLn.Close()
+
+			app := startApp(t, 0o600)
+			cert := pqtest.SelfSigned(t)
+			certFile, keyFile := pqtest.WritePEM(t, t.TempDir(), cert)
+			t.Setenv(pqtls.EnvCert, certFile)
+			t.Setenv(pqtls.EnvKeyFile, keyFile)
+
+			missing := net.JoinHostPort(tc.missing, port)
+			cfg, err := parseFlags([]string{"--listen", listen, "--listen", missing, "--metrics", ops, "--socket", app.socket}, io.Discard, io.Discard)
+			if err != nil {
+				t.Fatal(err)
+			}
+			logs := &lockedBuffer{}
+			ctx, cancel := context.WithCancel(context.Background())
+			done := make(chan error, 1)
+			go func() { done <- run(ctx, cfg, zerolog.New(logs)) }()
+
+			hc := &http.Client{Timeout: 5 * time.Second, Transport: &http.Transport{
+				TLSClientConfig:   &tls.Config{RootCAs: pqtest.Pool(cert), ServerName: "localhost", MinVersion: tls.VersionTLS13},
+				DisableKeepAlives: true,
+			}}
+			var resp *http.Response
+			for range 100 {
+				select {
+				case err := <-done:
+					cancel()
+					t.Fatalf("run stopped with a listen address missing: %v", err)
+				default:
+				}
+				if resp, err = hc.Get("https://" + listen + "/x"); err == nil {
+					break
+				}
+				time.Sleep(20 * time.Millisecond)
+			}
+			if err != nil {
+				cancel()
+				t.Fatalf("loopback never answered: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusTeapot {
+				t.Errorf("status %d on loopback", resp.StatusCode)
+			}
+			cancel()
+			select {
+			case err := <-done:
+				if err != nil {
+					t.Errorf("run returned %v after cancel", err)
+				}
+			case <-time.After(10 * time.Second):
+				t.Fatal("run did not return after cancel")
+			}
+
+			var warnings int
+			for _, line := range strings.Split(logs.String(), "\n") {
+				if strings.Contains(line, `"level":"warn"`) && strings.Contains(line, tc.missing) {
+					warnings++
+				}
+			}
+			if warnings != 1 {
+				t.Errorf("%d warnings name %s, want 1:\n%s", warnings, tc.missing, logs.String())
+			}
+			if strings.Contains(logs.String(), `"level":"warn"`) && strings.Contains(logs.String(), `"addr":"`+listen+`"`) {
+				t.Errorf("the loopback address was warned about:\n%s", logs.String())
+			}
+		})
+	}
+}
+
+// Loopback is never bound with FREEBIND: a loopback address that cannot be
+// bound is a real fault, and the start still fails on it.
+func TestFreebindDoesNotExcuseLoopback(t *testing.T) {
+	taken, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = taken.Close() }()
+	cert := pqtest.SelfSigned(t)
+	certFile, keyFile := pqtest.WritePEM(t, t.TempDir(), cert)
+	t.Setenv(pqtls.EnvCert, certFile)
+	t.Setenv(pqtls.EnvKeyFile, keyFile)
+	cfg, err := parseFlags([]string{"--listen", taken.Addr().String(), "--metrics", "[::1]:0", "--socket", "/nonexistent/app.sock"}, io.Discard, io.Discard)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = run(ctx, cfg, zerolog.Nop())
+	if err == nil || !strings.Contains(err.Error(), "listen") {
+		t.Fatalf("run: %v, want a listen error for the taken loopback port", err)
+	}
+}

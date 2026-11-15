@@ -1,26 +1,27 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-11-05 (132 entries)
+**Last synced from canonical:** 2026-11-15 (141 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
-| Accepted | 60 |
-| Proposed | 34 |
+| Accepted | 66 |
+| Proposed | 38 |
 | Planned | 10 |
 | In Progress | 1 |
-| Deferred | 3 |
-| Pipe Dream | 5 |
+| Deferred | 2 |
+| Pipe Dream | 4 |
+| Active | 1 |
 | PoC / Research | 2 |
-| Superseded / Deprecated | 10 |
+| Superseded / Deprecated | 9 |
 | Acknowledged | 1 |
-| Implemented | 2 |
+| Implemented | 3 |
 | Partially implemented | 1 |
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **132** |
+| **Total** | **141** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -41,7 +42,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [014](../docs/adr/ADR-014-ipv6-fragmentation-support.md) | [IPv6 Fragmentation](ADR-014-IPv6-Fragmentation-Support) | Accepted (Deferred) | 2026-02-20 |
 | [015](../docs/adr/ADR-015-go-fiber-http-layer.md) | [Go-Fiber HTTP Layer](ADR-015-Go-Fiber-HTTP-Layer) | **Superseded** (Fiber never started; stdlib net/http + pkg/httputil) | 2026-02-20 |
 | [016](../docs/adr/ADR-016-postgres-the-well.md) | [PostgreSQL — The Well (+ RPO 24 h amendment 2026-10-15)](ADR-016-Postgres-The-Well) | Accepted | 2026-03-15 |
-| [017](../docs/adr/ADR-017-zhen-hybrid-inference.md) | [Zhen Hybrid Inference](ADR-017-Zhen-Hybrid-Inference) | Accepted (Claude API → MCP) | 2026-03-16 |
+| [017](../docs/adr/ADR-017-zhen-hybrid-inference.md) | [Zhen Hybrid Inference](ADR-017-Zhen-Hybrid-Inference) | Accepted (Claude API → MCP; direct Claude API revived by ADR-104) | 2026-03-16 |
 | [018](../docs/adr/ADR-018-zhen-raft-training-battle-plan.md) | [RAFT Training Pipeline](ADR-018-Zhen-RAFT-Training-Battle-Plan) | **Superseded** by ADR-030 (forge) + ADR-036 (distillation) | 2026-03-16 |
 | [019](../docs/adr/ADR-019-zhen-champion-agent.md) | [Zhen Champion Agent](ADR-019-Zhen-Champion-Agent) | Accepted (Phase 1+2; Level 2 amendment accepted 2026-11-03) | 2026-03-16 |
 | [020](../docs/adr/ADR-020-kanban-bug-fixes.md) | [Kanban Bug Fixes](ADR-020-Kanban-Bug-Fixes) | Accepted (All 8 fixed) | 2026-03-19 |
@@ -52,8 +53,8 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [025](../docs/adr/ADR-025-kanban-mobile-app.md) | [Kanban Mobile App](ADR-025-Kanban-Mobile-App) | **Pipe Dream (Age 4+)** | 2026-04-03 |
 | [026](../docs/adr/ADR-026-deb-packaging-ci-pipeline.md) | [.deb Packaging + CI/CD](ADR-026-DEB-Packaging-CI-Pipeline) | Accepted | 2026-04-03 |
 | [027](../docs/adr/ADR-027-zhenai-conversation-memory.md) | [Zhenai Conversation Memory](ADR-027-Zhenai-Conversation-Memory) | Accepted (semantic recall + browser) | 2026-04-04 |
-| [028](../docs/adr/ADR-028-zhenai-scheduler-heartbeat.md) | [Zhenai Scheduler + Heartbeat](ADR-028-Zhenai-Scheduler-Heartbeat) | Accepted (Sprint C complete) | 2026-04-04 |
-| [029](../docs/adr/ADR-029-wotan-consensus-health-remediation.md) | [Wotan Consensus Health (Akira)](ADR-029-Wotan-Consensus-Health-Remediation) | **Partially implemented** (2026-09-29: Akira consensus side; remediation off by default) | 2026-04-04 |
+| [028](../docs/adr/ADR-028-zhenai-scheduler-heartbeat.md) | [Zhenai Scheduler + Heartbeat](ADR-028-Zhenai-Scheduler-Heartbeat) | **Superseded** by zhen-agentd `-scheduler` (S-CHAMPION-HARDENING Step 160, 2026-10-27) | 2026-04-04 |
+| [029](../docs/adr/ADR-029-wotan-consensus-health-remediation.md) | [Wotan Consensus Health (Akira)](ADR-029-Wotan-Consensus-Health-Remediation) | **Partially implemented** (2026-09-29: Akira consensus side; remediation off by default; 2026-10-27: every discovered service reports itself, advisory `system.health.remediate`; cross-host ballot pending E-D) | 2026-04-04 |
 | [030](../docs/adr/ADR-030-zhenai-forge-rust-training.md) | [Zhenai Forge (Rust LoRA training)](ADR-030-Zhenai-Forge-Rust-Training) | **Accepted** (forge pipeline; kingdom-v5 run 2026-04-06) | 2026-04-04 |
 | [031](../docs/adr/ADR-031-hybrid-model-handoff.md) | [Hybrid Model Handoff](ADR-031-Hybrid-Model-Handoff) | **Superseded** by ADR-104/106 | 2026-04-03 |
 | [032](../docs/adr/ADR-032-python-to-go-rust-migration.md) | [Python → Go/Rust Migration](ADR-032-Python-to-Go-Rust-Migration) | Planned | 2026-04-03 |
@@ -62,8 +63,8 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [Wotan Active-Passive Redundancy](ADR-035-Wotan-Active-Passive-Redundancy) | **Accepted** (reinstated by DP-214, 2026-11-03; PostgreSQL persistence withdrawn 2026-11-09) | 2026-04-05 |
 | [036](../docs/adr/ADR-036-claude-distillation-training.md) | [Claude Distillation Training Data](ADR-036-Claude-Distillation-Training) | **Withdrawn** | 2026-04-05 |
 | [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | Planned | 2026-04-05 |
-| [038](../docs/adr/ADR-038-kanban-git-audit-trail.md) | [Kanban GUID → Git Commit Audit](ADR-038-Kanban-Git-Audit-Trail) | Accepted | 2026-04-05 |
-| [69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md) | [BGP Sleipnir + Unheaded OS](ADR-69420-Kingdom-BGP-and-Unheaded-OS) | **Deferred to Q4 2026** | 2026-03-18 |
+| [038](../docs/adr/ADR-038-kanban-git-audit-trail.md) | [Kanban GUID → Git Commit Audit](ADR-038-Kanban-Git-Audit-Trail) | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
+| [69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md) | [BGP Sleipnir + Unheaded OS](ADR-69420-Kingdom-BGP-and-Unheaded-OS) | **Accepted**; Phase 1 deferred to end of Age 2 (Q4 2026) | 2026-03-18 |
 | [039](../docs/adr/ADR-039-cs-precision-reference-service.md) | [CS Precision Reference Service](ADR-039-CS-Precision-Reference-Service) | In Progress | 2026-04-05 |
 | [040](../docs/adr/ADR-040-kubernetes-ecosystem-strategy.md) | [Kubernetes Ecosystem Strategy](ADR-040-Kubernetes-Ecosystem-Strategy) | **Deferred** (ADR-047; decision 43) | 2026-04-05 |
 | [041](../docs/adr/ADR-041-kanban-timeline-sync.md) | [Kanban ↔ Timeline Bidirectional Sync](ADR-041-Kanban-Timeline-Sync) | Planned | 2026-04-05 |
@@ -78,13 +79,13 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [050](../docs/adr/ADR-050-wave12-gpu-resident-activations.md) | [WAVE12 — GPU-Resident Forge Activations + Kingdom RAFT LoRA](ADR-050-Wave12-GPU-Resident-Activations) | Accepted | 2026-04-23 |
 | [051](../docs/adr/ADR-051-wave13-generate-path.md) | [WAVE13 — Forge generate-gemma4 path + KV-cache deferral](ADR-051-Wave13-Generate-Path) | **Accepted** (verdict: RETRAIN) | 2026-04-28 |
 | [052](../docs/adr/ADR-052-timeline-and-battleplan-source-of-truth.md) | [Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only)](ADR-052-Timeline-and-Battleplan-Source-of-Truth) | **Accepted** (CI gate live) | 2026-04-27 |
-| [053](../docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md) | [Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing)](ADR-053-Hybrid-Claude-Zhenai-Workflow-Templates) | **Pipe Dream** (activates on cost/quality/strategic/personal trigger) | 2026-04-27 |
-| [055](../docs/adr/ADR-055-kev-poller-always-on-service.md) | [KEV Poller — Always-On Kingdom Service + K8s Cross-Host Pilot (CISA KEV + NIST NVD parity)](ADR-055-KEV-Poller-Always-on-Service) | **Planned**; Phase 1 built 2026-10-19 (`cmd/kev-poller`), Phase 2 manifests written, nothing deployed | 2026-04-27 |
+| [053](../docs/adr/ADR-053-hybrid-claude-zhenai-workflow-templates.md) | [Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing)](ADR-053-Hybrid-Claude-Zhenai-Workflow-Templates) | **Active** (2026-10-23, activation criterion 4: Stevie wants it; routing thresholds measured in `eval/two-brains`; was Pipe Dream) | 2026-04-27 |
+| [055](../docs/adr/ADR-055-kev-poller-always-on-service.md) | [KEV Poller — Always-On Kingdom Service + K8s Cross-Host Pilot (CISA KEV + NIST NVD parity)](ADR-055-KEV-Poller-Always-on-Service) | **Planned**; Phase 2 (NVD/GHSA pollers) closed KEV-only 2026-10-27; Phase 1 built 2026-10-19 (`cmd/kev-poller`), Phase 2 manifests written, nothing deployed | 2026-04-27 |
 | [056](../docs/adr/ADR-056-pgvector-auxiliary-corpus-sharding.md) | [pgvector Auxiliary Corpus Sharding for Trust-Tagged Retrieval (Wikipedia / Stack Overflow / RFCs / source code)](ADR-056-Pgvector-Auxiliary-Corpus-Sharding) | **Proposed** (gated on WAVE15 H0 passing) | 2026-05-02 |
 | [057](../docs/adr/ADR-057-unheaded-source-code-indexing.md) | [Unheaded Source Code Indexing for Semantic Retrieval (AST chunks + code-specialized embedder, first instance of ADR-056 pattern)](ADR-057-Unheaded-Source-Code-Indexing) | **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance) | 2026-05-02 |
 | [058](../docs/adr/ADR-058-gcp-cost-alarm-bellis-tech.md) | [GCP Cost & API Utilization Alarms for bellis.tech (EDoS / cost-amplification DoS defense — free-tier project)](ADR-058-GCP-Cost-Alarm-Bellis-Tech) | **Planned** (~30 min of console work; no code dependencies) | 2026-05-02 |
-| [059](../docs/adr/ADR-059-zhenai-interactive-cli.md) | [Zhenai Interactive CLI (`cmd/zhen-cli`) — terminal REPL counterpart of the web UI; same Champion-gated mutation path](ADR-059-Zhenai-Interactive-CLI) | **Phase 1 Shipped** (2026-05-03; Phase 2-3 Planned) | 2026-05-02 |
-| [060](../docs/adr/ADR-060-zhenai-multi-model-selector.md) | [Zhenai Multi-Model Selector — UI dropdown + Champion-gated `model_switch` handler; T11-T20 threat catalog + LICH-013 pre-registered](ADR-060-Zhenai-Multi-Model-Selector) | **Accepted** — Implemented 2026-05-04 (8623c864); LICH-013 + swap metrics open | 2026-05-04 |
+| [059](../docs/adr/ADR-059-zhenai-interactive-cli.md) | [Zhenai Interactive CLI (`cmd/zhen-cli`) — terminal REPL counterpart of the web UI; same Champion-gated mutation path](ADR-059-Zhenai-Interactive-CLI) | **Shipped** — Phase 1 2026-05-03, Phase 2 2026-05-06, Phases 2b/3 2026-10-27 (S-CHAMPION-HARDENING Phase 11) | 2026-05-02 |
+| [060](../docs/adr/ADR-060-zhenai-multi-model-selector.md) | [Zhenai Multi-Model Selector — UI dropdown + Champion-gated `model_switch` handler; T11-T20 threat catalog + LICH-013 pre-registered](ADR-060-Zhenai-Multi-Model-Selector) | **Accepted** — tail closed 2026-10-27 (`--json`, swap metrics, rollback); Implemented 2026-05-04 (8623c864); LICH-013 + swap metrics open | 2026-05-04 |
 | [061](../docs/adr/ADR-061-cloud-rented-training-purpose-built-coding-model.md) | [Cloud-Rented Training for Purpose-Built Unheaded Coding Model — pivot from off-the-shelf search to bespoke LoRA on rented A100/H100](ADR-061-Cloud-Rented-Training-Purpose-Built-Coding-Model) | **Research / Pipe Dream** (~$5-50 budget when activated; gated on WAVE13 RETRAIN clearing first) | 2026-05-04 |
 | [062](../docs/adr/ADR-062-fuzz-redteam-pentest-framework.md) | [Fuzz / Red-Team / Pentest Framework (Lich Codified) — three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules](ADR-062-Fuzz-Redteam-Pentest-Framework) | **Accepted** (existing pattern ratified; new campaigns slot in) | 2026-05-04 |
 | [063](../docs/adr/ADR-063-akira-summons-lich-randomized-ctf.md) | [Akira Randomly Summons the Lich for CTF Mode — bounded, opt-in, randomized adversarial probing of live Kingdom services](ADR-063-Akira-Summons-LICH-Randomized-CTF) | **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days) | 2026-05-04 |
@@ -96,7 +97,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [073](../docs/adr/ADR-073-lint-policy-zero-findings.md) | [Lint Policy: Zero Findings as the New Floor — triage protocol; 12 CVE-class fixes shipped during the 2026-05-11 drain](ADR-073-Lint-Policy-Zero-Findings) | **Accepted** (`golangci-lint run ./...` returns 0 issues; CI ratchet) | 2026-05-11 |
 | [074](../docs/adr/ADR-074-phase12-page-table-model.md) | ASCEND-LINUX Phase 1.2 Page-Table Model — Option A per-pid pgd, VA[0,8MiB) → disjoint physical slices via two 4 MiB superpages | **Accepted** (Phase 1.2 IMPL closed 2026-05-13) | 2026-05-11 |
 | [075](../docs/adr/ADR-075-phase13-process-model.md) | ASCEND-LINUX Phase 1.3 Process Model — PROC_TABLE 4→8, ZOMBIE exit, LR.W/SC.W reservation-clear, RV2MBC SHA-256 gate | **Accepted** | 2026-05-13 |
-| [076](../docs/adr/ADR-076-topology-map-single-source-of-truth.md) | Single Source of Truth for the Live Topology Map | **Proposed** (planning) | 2026-06-02 |
+| [076](../docs/adr/ADR-076-topology-map-single-source-of-truth.md) | Single Source of Truth for the Live Topology Map | **Proposed**, re-scoped 2026-10-27 to one dashboard-backend endpoint over ClickHouse + `pkg/discovery` | 2026-06-02 |
 | [077](../docs/adr/ADR-077-phase17-rv2mbc-base-feature-gated-abi-fork.md) | ASCEND-LINUX Phase 1.7 Gate B — feature-gated MbcCpuState ABI fork; per-process rv2mbc_base routes each pid's indirect branches (exec → live `$`) | **Accepted** (shipped 2026-06-19) | 2026-06-18 |
 | [078](../docs/adr/ADR-078-gate-d-fs-reader-and-exec-argv-abi.md) | ASCEND-LINUX Phase 1.7 Gate D — in-BPF FS reader (Design A: open/read/fstat walk fs.img inodes directly), ilp32e struct-stat truth, exec argv frame ABI at VA 0x600000, a2/a3 re-entry register protocol | **Accepted** (shipped 2026-07-02) | 2026-07-02 |
 | [079](../docs/adr/ADR-079-ret-address-tagging.md) | RET return-address tagging — CALL/CALLR tag MBC PCs with bit 31 so RET distinguishes them from raw RV addresses without the fragile magnitude floor; retires RET_RV_FLOOR, unblocks Linux-scale images, makes the Doom [0x10000,0x151BF] misparse impossible (verifier +0.03%) | **Accepted** (Phase 2.0 substrate prereq #1; xv6 corpus green 2026-07-02) | 2026-07-02 |
@@ -106,11 +107,11 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [083](../docs/adr/ADR-083-terminology-conventions.md) | Terminology conventions (rolling) — internal "zero user data access" vs user-facing "NIST 800-207 Zero Trust Architecture" | **Accepted** (rolling) | 2026-07-19 |
 | [084](../docs/adr/ADR-084-huginn-host-metrics-agent.md) | Huginn — host metrics agent | **Accepted** (implemented 2026-10-25: `cmd/huginn`) | 2026-07-24 |
 | [085](../docs/adr/ADR-085-cicd-artifact-layout.md) | CI/CD pipeline polish — canonical artifact layout | **Planned** | 2026-07-24 |
-| [086](../docs/adr/ADR-086-muninn-observability-pipeline.md) | Muninn — observability fan-out pipeline | **Planned** | 2026-07-24 |
+| [086](../docs/adr/ADR-086-muninn-observability-pipeline.md) | Muninn — observability fan-out pipeline | **Superseded** by Vector, 2026-10-27 | 2026-07-24 |
 | [087](../docs/adr/ADR-087-noc-network-device-monitoring.md) | NOC — network device monitoring and configuration management | **Planned** | 2026-07-24 |
-| [088](../docs/adr/ADR-088-kubernetes-service-orchestration.md) | Kingdom Deployment Substrate Ladder — K8s / Terraform / Ansible / NixOS / packaging as a learning ladder over 56 real service components | **Planned** | 2026-07-24 |
+| [088](../docs/adr/ADR-088-kubernetes-service-orchestration.md) | Kingdom Deployment Substrate Ladder — K8s / Terraform / Ansible / NixOS / packaging as a learning ladder over 56 real service components | **Planned**. LXD substrate in use: Sword deploys into LXD through Cuirass, live on west since 2026-10-26 (S-REAL-STEEL) | 2026-07-24 |
 | [089](../docs/adr/ADR-089-dev-staging-main-promotion-workflow.md) | `develop` → `staging` → `main` promotion workflow — one reviewable unit per commit, never promote red, ratchet by rule ID, revert not force-push | **Accepted** (Stevie's call) | 2026-08-03 |
-| [090](../docs/adr/ADR-090-total-source-sweep-slop-removal.md) | The Total Source Sweep — read all tracked source files once, fixed order, resumable TSV ledger, explicit "NOT slop" list | **Proposed** (activates after the Staging Ladder sprint) | 2026-08-03 |
+| [090](../docs/adr/ADR-090-total-source-sweep-slop-removal.md) | The Total Source Sweep — read all tracked source files once, fixed order, resumable TSV ledger, explicit "NOT slop" list | **Accepted** (2026-10-26, S-REAL-STEEL E1; first tranche applied, file ledger created) | 2026-08-03 |
 | [091](../docs/adr/ADR-091-the-well-initdb-ordering.md) | The Well — one orchestrator in `/docker-entrypoint-initdb.d`, migrations mounted read-only elsewhere; never nest a bind mount inside another's mountpoint | **Accepted** | 2026-08-04 |
 | [092](../docs/adr/ADR-092-var-log-discipline-and-rotation.md) | Every service logs to `/var/log/unheaded/<service>/` — per-service logrotate budgets, capped container log drivers, `copytruncate` banned, `/var/log` on its own filesystem | **Accepted** (Stevie, 2026-11-03)| 2026-09-22 |
 | [093](../docs/adr/ADR-093-what-shape-is-this-thing.md) | What shape is this thing we build? — a protocol with three faucets (computer, platform, substrate ladder) and a workshop around it; 10 of 44 binaries run, so the default failure is a correct mechanism nothing reaches (8 instances catalogued) | **Proposed** | 2026-09-23 |
@@ -137,11 +138,11 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [114](../docs/adr/ADR-114-user-authentication-for-every-web-page.md) | User authentication for every web page, one login for all (recommended: central IdP + one gate in front of every page + signed per-app passport + pushed revocation, after Google IAP/BeyondCorp, Netflix Passport, Microsoft CAE); BFF/gate/OIDC code flow per page type; outside-library decision per need (recommendation: zero new modules; WebAuthn native-minimal vs go-webauthn open) | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [115](../docs/adr/ADR-115-smallest-install-for-a-shop-owner.md) | The smallest install a shop owner can run ("Unheaded Shop", name TBD): an aid, not a promise; preflight keeps a badly configured app offline; gate, firewall, egress allowlist, sandbox, change detection, updates, backups, plain report; one binary + one deb | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [116](../docs/adr/ADR-116-monitor-the-monitors.md) | Monitor the monitors: every expected signal has a stated expectation and its absence is an alert; expectations registry + CI gate, out-of-stack wardens with mutual heartbeats, proven alert delivery, volume-drop and artifact-freshness checks (high emphasis) | **Proposed** (pitch, parked under ADR-112) | 2026-10-31 |
-| [117](../docs/adr/ADR-117-one-grafana-one-metrics-store-one-log-store.md) | One Grafana, one metrics store, one log store: converge the duplicated observability stores (two Grafanas, Prometheus + two VictoriaMetrics, Loki + ClickHouse) before Studio is sized | **Proposed** (parked under ADR-112; from ADR-115 Q7) | 2026-11-03 |
+| [117](../docs/adr/ADR-117-one-grafana-one-metrics-store-one-log-store.md) | One Grafana, one metrics store, one log store: converge the duplicated observability stores (two Grafanas, Prometheus + two VictoriaMetrics, Loki + ClickHouse) before Studio is sized | **Accepted** for work, in part (Stevie 2026-11-11; built on `sprint/s-one-grafana`, applied to no host; Prometheus stays as rule evaluator, open question) | 2026-11-03 |
 | [118](../docs/adr/ADR-118-pi-hole-twice-behind-one-front.md) | Pi-hole twice (Docker and LXD) behind one DNS front on west: two instances yes; HAProxy only for 53/tcp and 853 (it does not balance UDP); a native UDP front with health checks (B) or nft two-backend DNAT (A) for the UDP path; never 0.0.0.0:53 (LXD dnsmasq) | **Proposed** (pitch, parked under ADR-112) | 2026-11-03 |
 | [119](../docs/adr/ADR-119-shield-xdp-pqc-fast-path-design.md) | Shield XDP post-quantum signature fast path, designed with both ends (userspace ML-DSA-65 verifier as the only map writer, PQC_SIG_STATUS contract, OFF/OPTIMISTIC/PESSIMISTIC states, verifier budget, threat model, four stages behind a cargo feature); nothing built | **Proposed** (parked under ADR-112; Stevie 2026-11-03: design it properly, build after the freeze) | 2026-11-03 |
 | [120](../docs/adr/ADR-120-estimated-energy-per-llm-request.md) | Estimated energy per LLM request in the Well: sampled GPU power integrated per local request, NULL for Claude until a defensible published figure exists; joules per answer beside quality in the routing evals | **Proposed** (Stevie's word 2026-11-04; carried by S-ZHEN-POLISH) | 2026-11-04 |
-| [121](../docs/adr/ADR-121-a-future-waf.md) | A future WAF: idea only, lowest priority | Proposed (parked) | 2026-11-04 |
+| [121](../docs/adr/ADR-121-a-future-waf.md) | A future WAF: idea only, lowest priority | **Proposed** (parked) | 2026-11-04 |
 | [122](../docs/adr/ADR-122-go-embed-service.md) | Go embedding path on llama-server, parked: the Python embedder stays; measured limits on file | Proposed (parked) | 2026-11-04 |
 | [123](../docs/adr/ADR-123-uniform-logs-and-columns-at-the-sink.md) | Uniform log output, columns at the sink, and watching the sink: one log contract, a hello per service, a watcher with a read-only SQL user; on hold until the Well is stashing logs | Proposed (parked) | 2026-11-04 |
 | [124](../docs/adr/ADR-124-native-syslog-relay.md) | Native syslog relay `cmd/syslog-relay`: RFC 5424/3164 over UDP and TCP into the journal's native protocol, so Vector ships it; `sources.yaml` allowlist, per-sender token bucket, capped frames, control bytes escaped | **Proposed** (D2 answered native 2026-11-03; carried by S-LOG-HARVEST Phase 5) | 2026-11-04 |
@@ -158,7 +159,13 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF | **Proposed** | 2026-11-05 |
 | [136](../docs/adr/ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down CA for lab names (YubiKey root, rotated working certificates) | **Proposed** (parked) | 2026-11-06 |
 | [137](../docs/adr/ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` | **Proposed** (parked) | 2026-11-06 |
-| [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Accepted** (built 2026-11-10, installed nowhere) | 2026-11-09 |
+| [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Accepted** (Stevie's answer #32, 2026-11-09; built 2026-11-10, installed nowhere) | 2026-11-09 |
+| [139](../docs/adr/ADR-139-shared-admin-page.md) | One administration page shared by dashboard, Kanban and Zhen (users, roles, password resets, mail settings) | **Proposed** (parked) | 2026-11-11 |
+| [140](../docs/adr/ADR-140-notifications-and-messages.md) | Notifications and messages across the web pages | **Proposed** (parked) | 2026-11-11 |
+| [141](../docs/adr/ADR-141-chaos-controller-always-on.md) | The chaos controller runs all the time, slowly, after 1.0.0 | **Proposed** (parked) | 2026-11-12 |
+| [142](../docs/adr/ADR-142-wotan-as-a-redis-class-store.md) | Wotan made fast and lean enough to stand beside Redis | **Proposed** (parked) | 2026-11-12 |
+| [143](../docs/adr/ADR-143-terraform-multi-cloud-template.md) | A Terraform template that stands the kingdom up on AWS, Azure, GCP, LXD or Docker from a verified tag | **Proposed** (parked) | 2026-11-12 |
+| [144](../docs/adr/ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west, a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east) | 2026-11-12 |
 
 ---
 
