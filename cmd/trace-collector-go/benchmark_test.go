@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"net"
 	"testing"
@@ -209,3 +210,49 @@ func BenchmarkBatchProcessingPipeline(b *testing.B) {
 }
 
 // ── Benchmark: StatsEntry decode ────────────────────────────────────────────
+
+// ── Benchmark: one sweep of a full LATENCY_MAP ──────────────────────────────
+
+// BenchmarkSweepLatency65536 is one sweep of a full map (65,536 entries, 17
+// batches) against the fake map: the userspace half of the cost, with no
+// system calls. "stale" is the steady state, where no thread took a new sample
+// since the last sweep and nothing is published. "fresh" is the worst case,
+// every entry new, so every one is decoded, marshalled and published.
+func BenchmarkSweepLatency65536(b *testing.B) {
+	const n = 65536
+	keys, values := latencyEntries(n, LatencyTraceKeySize, 1)
+	ctx := context.Background()
+
+	b.Run("stale", func(b *testing.B) {
+		m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+		s := newLatencySweeper(m, func([]byte) {})
+		if err := s.sweep(ctx); err != nil { // the first sweep sees every entry as new
+			b.Fatal(err)
+		}
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			if err := s.sweep(ctx); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("fresh", func(b *testing.B) {
+		m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+		published := 0
+		s := newLatencySweeper(m, func([]byte) { published++ })
+		b.ReportAllocs()
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			s.rtts = newRTTTracker() // forget everything: each entry is new again
+			if err := s.sweep(ctx); err != nil {
+				b.Fatal(err)
+			}
+		}
+		b.StopTimer()
+		if published != n*b.N {
+			b.Fatalf("published %d, want %d", published, n*b.N)
+		}
+	})
+}

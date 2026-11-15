@@ -57,7 +57,30 @@ Other services' traffic to Wotan is still traced: it is real Kingdom traffic.
 - **trace_id**: packet_marker reads it from a TCP option (kind 253, 18 bytes) or, failing that, an IPv4 option (type 0x1F, 18 bytes), copying the option area onto the stack with `bpf_xdp_load_bytes` (S-TRUE-WIRE Step 217; it was disabled as `TODO(E1)` because the pointer walk could not be verified). Packets without either option, and every IPv6 packet (packet_marker is IPv4-only), still carry all zeros; nothing writes `TRACE_INJECT` yet. The dashboard treats all zeros as no trace ID.
 - **flow_key from flow_tracker is normalized** (both directions share one key, ordered by address then port), not client to server; `packets_out` counts src to dst. The dashboard's flow graph keys packets by their own direction, so one connection can appear under both orders.
 - **Correlated RTT** is first response minus first request of a 5-tuple pair, emitted once per pair. packet_marker sees ingress only, so a pair matches only where both directions arrive on the traced interface (loopback on east).
-- **Latency** is the time spent inside `tcp_sendmsg`/`tcp_recvmsg`/`tcp_connect` (kprobe to kretprobe), not a network RTT. latency-probe's `LATENCY_MAP` is keyed by (trace ID, pid & 0xffff, tid & 0xffff), with send, recv and connect merged under one key, so the collector cannot tell which operation a sample came from (it labels all `tcp_send`) and publishes no `flow_key` for it.
+- **Latency** is the time spent inside `tcp_sendmsg`/`tcp_recvmsg`/`tcp_connect` (kprobe to kretprobe), not a network RTT. latency-probe's `LATENCY_MAP` is keyed by (trace ID, pid, tid), 24 bytes, one entry per thread under one trace ID, with send, recv and connect merged under one key, so the collector cannot tell which operation a sample came from (it labels all `tcp_send`) and publishes no `flow_key` for it.
+
+## The latency sweep
+
+`LATENCY_MAP` is an LRU hash of 65,536 entries: when it is full the kernel evicts the least recently used entry, so a thread that exited makes room for a new one. `trace-collector-go` reads it in batches of 4,096 every `--latency-sweep-interval` (default `2s`, refused under `500ms`) and publishes only the entries that took a new sample since the last sweep. Until 2026-11-12 the map was a plain hash read two system calls per entry every 200 ms (FND-044, ADR-144): it filled, refused every new thread without a word, and cost most of a core.
+
+The probe and the collector ship together. The collector checks the object's `LATENCY_MAP` before loading it (LRU hash, 24-byte key, 40-byte value) and refuses any other layout with one error at start: `programs_loaded{program="latency_probe"}` stays 0 and the log names the sizes. To check a built object without root:
+
+```
+LATENCY_PROBE_OBJ=<path to latency-probe> go test ./cmd/trace-collector-go -run TestBuiltLatencyProbeSpec -count=1
+```
+
+Series on the collector's `/metrics`:
+
+| Series | Reads as |
+|---|---|
+| `trace_collector_latency_sweep_seconds` | histogram, the time one complete sweep took |
+| `trace_collector_latency_map_entries` | entries in the map at the last complete sweep; 65,536 is full, which is normal for an LRU after some days |
+| `trace_collector_latency_decode_errors_total` | entries whose key or value was not the size the binary reads; anything but 0 means the object and the binary are from different builds |
+| `trace_collector_latency_probe_events_total{stat}` | the probe's own counters (`LATENCY_STATS`), read at scrape time: `send_enter`, `send_exit`, `recv_enter`, `recv_exit`, `connect_enter`, `connect_exit`, `events_sent`, `events_dropped`, `map_updates`, `map_insert_failed` |
+| `trace_collector_latency_stats_read_errors_total` | scrapes that could not read `LATENCY_STATS` (the family is left out of that scrape) |
+| `latency_reader_errors_total{operation="sweep"}` | sweeps that did not finish; the next one starts over |
+
+Reading `map_insert_failed`: with the LRU it should stay 0, because a full map evicts instead of refusing. A rising value means the kernel refused inserts for another reason (memory pressure on the map's allocator) and new threads are losing samples. `events_dropped` rises steadily today: the probe also writes every sample to the `LATENCY_EVENTS` ring buffer, which no program reads, so it is full (parked in ADR-144's 2026-11-12 update).
 
 ## Verifier gates
 

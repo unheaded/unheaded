@@ -1,4 +1,4 @@
-.TH TRACE\-COLLECTOR\-GO 1 "2026-11-09" "unheaded 6406e83b" "Unheaded Kingdom"
+.TH TRACE\-COLLECTOR\-GO 1 "2026-11-15" "unheaded 481b664e" "Unheaded Kingdom"
 .SH NAME
 trace\-collector\-go \- Collect BPF trace events from the Kingdom's ring buffers and publish them to Wotan.
 .SH SYNOPSIS
@@ -37,6 +37,9 @@ HTTP listen addresses for health/metrics, comma\-separated; off loopback needs A
 .TP
 .B \-\-interface \fISTRING\fR
 Network interface to attach BPF programs (default lo)
+.TP
+.B \-\-latency\-sweep\-interval \fIDURATION\fR
+How often to read latency_probe's LATENCY_MAP (unified mode; at least 500ms) (default 2s)
 .TP
 .B \-\-log\-json
 Use JSON log format
