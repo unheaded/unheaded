@@ -52,3 +52,19 @@ Gains: no image runner to choose or keep; works on a stock Debian or Ubuntu host
 3. Does `unheaded-baseline` overwrite site settings (conffiles prompt) or only add drop-ins that sort last?
 4. SELinux (task #66) or AppArmor profiles?
 5. Order against ADR-147's series (this is not in it).
+
+## Update 2026-11-15: ways to make the PXE seed image (Stevie: it may live outside the repo, as a side project under `~/tmp/projects`)
+
+| Way | What it builds | Needs a VM? | New tools (each needs Stevie's yes) | Fits |
+|---|---|---|---|---|
+| A. Stock Debian netboot installer + preseed | Nothing to build: Debian's own `netboot.tar.gz` and one preseed file that partitions, adds our apt source and installs `unheaded-baseline` | no | none beyond Debian's own files; a TFTP/HTTP server | Smallest. Installs to disk, so partitions and LUKS are covered. Not an image: every node runs the installer |
+| B. `mmdebstrap` → squashfs + kernel + initrd, booted by iPXE over HTTP (`live-boot`, `fetch=`) | A root filesystem image built in a user namespace, no root, no VM; reproducible with `SOURCE_DATE_EPOCH` | no | `mmdebstrap`, `ipxe` (both Debian packages; `debootstrap` and `squashfs-tools` are already on west) | **Recommended.** A real seed image, diskless or installer, built by a script and a timer. Gungnir seals its manifest; the initrd checks the seal before switching root |
+| C. `mkosi` (systemd's image builder) with UKI + dm-verity, updates by `systemd-sysupdate` | A signed, read-only image with A/B updates | no | `mkosi` (Python) | Strongest immutability story; more moving parts than B |
+| D. `live-build` | ISO and netboot artefacts from a config tree | no | `live-build` | Debian's own, but heavier and slower than B for the same output |
+| E. NixOS netboot (`system.build.netbootRamdisk`) | A reproducible ramdisk from `nix/` | no | none new (Nix is already used) | Very reproducible, but it leaves the Debian anchor of ADR-69420 |
+| F. Packer, as scaffolded | ISO/qcow2 from a VM | yes (QEMU) | packer (BSL licence), QEMU, a runner | What exists; the heaviest, and it has no runner |
+
+Serving side for any of them: iPXE chain-loaded by the router's or a proxy DHCP (`dnsmasq --dhcp-range=...,proxy` so the router keeps DHCP), files over HTTP from the apt repo's nginx. iPXE can check a signature (`imgverify`, X.509) but not ML-DSA-65: the Gungnir check belongs in the initrd.
+
+Proposed home: a sibling project `~/tmp/projects/unheaded-seed` (like `unheaded-waf`, `unheaded-forge`, `unheaded-terraform`): the build script, the preseed or image config, the iPXE script, a README. Unheaded keeps `unheaded-baseline` and the apt repo; the seed project only consumes them.
+
