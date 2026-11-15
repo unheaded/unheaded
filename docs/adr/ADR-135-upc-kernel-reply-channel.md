@@ -402,6 +402,8 @@ independent; those eleven findings, F1-F11, are in `references/s-stage-2b-log.md
 `4cc7577e`, nothing built or booted, and closes Step 119. Its ids carry `R-` here because its numbers overlap the
 self-review's.
 
+F7 and F8 of that first review are parked as ADR-145 and ADR-146 (2026-11-12, Stevie; written 2026-11-15, S-STAGE-2C).
+
 Verdict: no blocker against D1; sbrk, kill and pause land as designed. Each finding was re-read in the tree before its
 disposition. Text fixes are in this ADR. A code fix named below is outside the rungs, so it is a For Stevie line in
 `docs/battle-plans/progress/S-STAGE-2B-progress.md`, not landed work.

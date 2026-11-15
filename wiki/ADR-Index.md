@@ -7,7 +7,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | Status | Count |
 |--------|-------|
 | Accepted | 60 |
-| Proposed | 34 |
+| Proposed | 36 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 3 |
@@ -20,7 +20,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **132** |
+| **Total** | **134** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -159,6 +159,8 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [136](../docs/adr/ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down CA for lab names (YubiKey root, rotated working certificates) | **Proposed** (parked) | 2026-11-06 |
 | [137](../docs/adr/ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` | **Proposed** (parked) | 2026-11-06 |
 | [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Accepted** (built 2026-11-10, installed nowhere) | 2026-11-09 |
+| [145](../docs/adr/ADR-145-upc-user-image-ceiling-check.md) | UPC user images are checked against the heap window's floor | **Proposed** (parked) | 2026-11-15 |
+| [146](../docs/adr/ADR-146-upc-scrub-slice-at-reap.md) | A UPC slot's slice is scrubbed when its process is reaped | **Proposed** (parked) | 2026-11-15 |
 
 ---
 
