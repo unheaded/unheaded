@@ -168,6 +168,13 @@ const (
 	Kenoma     = 16761
 	Pleroma    = 16762
 	Yaldabaoth = 16763 // chaos-controller (host account unheaded-chaos)
+	// ZhenApp is the Zhen web UI's Flask app (raft/zhen_app.py): host unit
+	// unheaded-zhen-app.service only (account unheaded-zhen-app; S-ZHEN-FRONT,
+	// D-05). It is a Kingdom service, but that tier (16720-16759) is full:
+	// S-WIKI-VOR took its last number, 16758, for unheaded-vor-refresh on the
+	// same day. This is the next free number, checked in this file, sysusers
+	// and west's and east's passwd on 2026-11-15. Next free after it: 16765.
+	ZhenApp = 16764
 )
 
 // Infrastructure tier (16780-16799). Workloads that hold host-level access —
@@ -189,6 +196,11 @@ const (
 	OpenWebUI  = 16789
 	// 16790 is planned for unheaded-doom (S-DOOM-LAST Step 31).
 	UPC = 16791 // upc-bootctl, host account unheaded-upc (S-ASCEND-2 Item 2)
+	// Llama is llama-server for Zhen (S-ZHEN-FRONT, D-05): host unit
+	// unheaded-llama.service only (account unheaded-llama). It holds the GPU,
+	// so it is in the groups render (992) and video (44), like the reserved
+	// vLLM 16781, and has no other access.
+	Llama = 16792
 )
 
 // Third-party image UIDs. These are NOT ours to choose: each image ships data
@@ -270,10 +282,12 @@ var Registry = map[string]int{
 	"kenoma":           Kenoma,
 	"pleroma":          Pleroma,
 	"chaos-controller": Yaldabaoth,
+	"zhen-app":         ZhenApp,
 
 	"void-collector":    VoidCollector,
 	"vllm":              VLLM,
 	"upc-bootctl":       UPC,
+	"llama":             Llama,
 	"wireguard":         WireGuard,
 	"traefik":           Traefik,
 	"coredns":           CoreDNS,
