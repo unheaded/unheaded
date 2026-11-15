@@ -1394,6 +1394,16 @@ sources:
     owner: architect
     status: "blocked:FND-001"
     note: "boot-time nft load; one line per boot"
+  - id: west/unheaded-host-settings
+    host: west
+    kind: journal-unit
+    match: unheaded-host-settings.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily timer; HostSettingsCheckStale is the alert"
+    owner: architect
+    status: gap
+    note: "S-WEST-GROUND drift check; installed in its Phase 8 (attended); prints verdicts and paths only"
   - id: west/unheaded-upc-netns
     host: west
     kind: journal-unit

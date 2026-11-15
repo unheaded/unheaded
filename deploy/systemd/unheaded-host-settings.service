@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: compare the host's settings with their files in the repository
+# (S-WEST-GROUND, ADR-147; Architect A5, A12) and write the result for
+# node_exporter's textfile collector. Drift is a reading, not a unit failure:
+# the metric unheaded_host_settings_drift_files and the alert HostSettingsDrift
+# carry it (monitoring/prometheus/rules/host-settings.yml).
+#
+# The script is a root-owned copy; the checkout is read as data only.
+# Install (S-WEST-GROUND Phase 8, attended):
+#   sudo install -m 0755 -o root -g root scripts/check-host-settings.sh /usr/local/lib/unheaded/check-host-settings.sh
+#   sudo install -m 0644 deploy/systemd/unheaded-host-settings.service deploy/systemd/unheaded-host-settings.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-host-settings.timer
+# Root, because /etc/wireguard and /etc/frr are root only; it keeps one
+# capability, to read, and writes only the textfile directory.
+
+[Unit]
+Description=Unheaded: host settings against their repository files (drift check)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-147-every-service-earns-its-place.md
+ConditionPathExists=/home/govan/tmp/unheaded/deploy/host-settings/west.tsv
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded --textfile /var/lib/unheaded/textfile
+SuccessExitStatus=1 3
+Nice=10
+IOSchedulingClass=idle
+
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/unheaded/textfile
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+MemoryMax=64M
+TasksMax=32

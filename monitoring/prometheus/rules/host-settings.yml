@@ -1,0 +1,43 @@
+# Prometheus alert rules - host settings against their repository files (S-WEST-GROUND)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Producer: scripts/check-host-settings.sh --host <host> --textfile, run daily
+# and ten minutes after boot by unheaded-host-settings.timer (root, one read
+# capability). It writes unheaded_host_settings.prom into
+# /var/lib/unheaded/textfile after every completed check; huginn's textfile
+# collector (cmd/huginn/textfile.go) forwards it to Prometheus.
+#
+# Why: every setting S-WEST-GROUND puts on west (sysctls, the database volume's
+# fstab lines and Docker's mount requirement, the slices, the input filter,
+# WireGuard and FRR, no swap on sdb) has one file in the repository
+# (deploy/host-settings/<host>.tsv). A host that drifts from its files is a
+# host nobody can rebuild from the repository (ADR-147, Architect A5 and A12).
+# A check that stops running reads the same as a host with no drift, so the
+# timestamp has its own alert.
+
+groups:
+  - name: host-settings
+    interval: 1m
+    rules:
+      - alert: HostSettingsDrift
+        expr: unheaded_host_settings_drift_files > 0
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $value }} host setting(s) on {{ $labels.host }} differ from the repository"
+          description: "sudo /usr/local/lib/unheaded/check-host-settings.sh --host {{ $labels.host }} --repo /home/govan/tmp/unheaded lists the DRIFT lines"
+          runbook_url: "runbooks/infra/host-settings-drift.yaml"
+
+      - alert: HostSettingsCheckStale
+        expr: time() - unheaded_host_settings_checked_timestamp_seconds > 172800
+        for: 1h
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "The host-settings check on {{ $labels.host }} has not completed for over two days"
+          description: "Last completed {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-host-settings"
+          runbook_url: "runbooks/infra/host-settings-drift.yaml"

@@ -104,6 +104,18 @@ promote:
     urgency: ticket
     reason: >-
       DP-710: outbound mail is watched. No SLO sees the mailer's own volume.
+  - alert: HostSettingsDrift
+    urgency: ticket
+    reason: >-
+      S-WEST-GROUND (ADR-147): a host that differs from its files in the
+      repository cannot be rebuilt from them, and every service stays healthy
+      while it drifts. Checked once a day, so a daily digest line is the most
+      it costs.
+  - alert: HostSettingsCheckStale
+    urgency: ticket
+    reason: >-
+      A drift check that has stopped running looks the same as a host with no
+      drift. No SLO sees a timer that does not fire.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the

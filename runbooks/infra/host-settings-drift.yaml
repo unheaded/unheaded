@@ -1,0 +1,68 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: host-settings-drift
+  description: A host setting differs from its file in the repository (HostSettingsDrift, HostSettingsCheckStale)
+  owner: architect
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_host_settings_drift.py
+
+notes: |
+  S-WEST-GROUND (ADR-147; Architect A5, A12). Every host setting that plan
+  touches has one file in the repository, listed with its host path and a
+  mode in deploy/host-settings/<host>.tsv. unheaded-host-settings.timer runs
+  /usr/local/lib/unheaded/check-host-settings.sh daily and writes
+  unheaded_host_settings_drift_files; HostSettingsDrift fires when it stays
+  above 0 for 30 minutes, HostSettingsCheckStale when no check has completed
+  for two days. The check prints verdicts and paths only, never a line of a
+  file: WireGuard and FRR files hold keys and passwords. No step changes a
+  file by itself: deciding which side is right is a person's call.
+
+steps:
+  - name: list-drift-unprivileged
+    action: shell
+    command: "scripts/check-host-settings.sh --host west --allow-skip; echo rc=$?"
+    description: "From the checkout, as yourself: OK, DRIFT or SKIP, the mode, the host path (or the sysctl key, mount target, swap list). Root-only files (WireGuard, FRR) read SKIP here; the next step reads them. rc 1 = drift, 2 = a broken manifest."
+
+  - name: list-drift-as-root
+    action: manual
+    command: "sudo /usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded; echo rc=$?"
+    description: "The same check as the timer runs it, root-only files included. rc 3 = a file could not be read."
+
+  - name: see-the-difference
+    action: manual
+    command: |
+      # For one DRIFT line: H is the host path, R the repository file named for it in deploy/host-settings/west.tsv.
+      # exact (never for a file that holds a key; use the redact line):
+      sudo diff -u H R
+      # contains: prints the repository lines the host lacks
+      sudo grep -vxF -f H <(grep -v -E '^[[:space:]]*(#|$)' R)
+      # redact: keys and passwords masked on both sides before the diff
+      sudo diff <(sudo sed -E 's/^([[:space:]]*(PrivateKey|PresharedKey|PublicKey))[[:space:]]*=.*/\1 = <redacted>/; s/(password)[[:space:]]+[^[:space:]]+/\1 <redacted>/' H | grep -v -E '^[[:space:]]*(#|!|$)') <(sed -E 's/^([[:space:]]*(PrivateKey|PresharedKey|PublicKey))[[:space:]]*=.*/\1 = <redacted>/; s/(password)[[:space:]]+[^[:space:]]+/\1 <redacted>/' R | grep -v -E '^[[:space:]]*(#|!|$)')
+      # absent: the path that should not exist
+      ls -l H
+      # sysctl: the running value against the line for KEY in R
+      sysctl -n KEY
+      # mount: what is (not) mounted at TARGET
+      findmnt TARGET
+      # swap: the active list
+      cat /proc/swaps
+      # HostSettingsCheckStale:
+      systemctl status unheaded-host-settings.timer; journalctl -u unheaded-host-settings -n 50
+    description: "See one difference without printing a key."
+
+  - name: decide-and-change
+    action: manual
+    command: |
+      Decide which side is right (S-WEST-GROUND decision WG6: for WireGuard
+      and FRR the host wins; for sysctl the host wins except vm.nr_hugepages).
+      Change that side only: a commit for the repository, or an attended host
+      change with its rollback written beside it. Then rerun
+      list-drift-as-root and expect no DRIFT line.
+    description: "A person decides; nothing changes by itself."
