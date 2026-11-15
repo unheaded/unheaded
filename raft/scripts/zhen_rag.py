@@ -410,7 +410,7 @@ class RAGPipeline:
         and IGNORED — vor is the retrieval substrate now.
 
         New keyword args:
-            vor_url:        cs serve REST endpoint (default :20110).
+            vor_url:        vor serve REST endpoint (default :20110).
             inference_url:  llama-server endpoint (default :8081).
             agentd_url:     zhen-agentd endpoint (Phase 2 proxy target).
             model_name:     model identifier sent to /v1/chat/completions.
@@ -1083,7 +1083,7 @@ class RAGPipeline:
     #
     # The legacy implementation appended chunks to the live FAISS index +
     # ring_all.jsonl. With vor as substrate, "teaching" means writing a
-    # markdown file under ~/.config/vor/sources/<source>/ which cs picks
+    # markdown file under ~/.config/vor/sources/<source>/ which vor picks
     # up on its next index sweep.
     #
     # This stays a stub: teaching goes through zhen-cli /teach and the
@@ -1098,7 +1098,7 @@ class RAGPipeline:
             "reason": (
                 "WAVE15 rewire: 'teach' is no longer wired to a live index. "
                 "vor is the retrieval substrate; to add content, drop a markdown "
-                "file under ~/.config/vor/sources/<source>/. cs picks it up on "
+                "file under ~/.config/vor/sources/<source>/. vor picks it up on "
                 "the next index sweep."
             ),
             "received_chars": len(text or ""),
