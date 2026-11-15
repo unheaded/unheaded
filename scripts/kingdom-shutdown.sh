@@ -117,6 +117,10 @@ BINARIES=(
 log_info "Phase 0: Silencing pages and tickets for 30m..."
 run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/maintenance.sh" 30m "kingdom-shutdown" >/dev/null 2>&1 ||
     log_warn "  Alertmanager not reachable; nothing silenced"
+# ADR-147 decision 4: a planned stop spends no error budget. The mark runs
+# 30d; kingdom-startup.sh replaces it with its 15m warm-up.
+run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/planned-stop.sh" all 30d >/dev/null 2>&1 ||
+    log_warn "  planned-stop mark not written: the SLO budgets will burn while the stack is down"
 
 # ── Phase 1: Graceful SIGTERM to Go services ──────────────────────────
 log_info "Phase 1: Sending SIGTERM to Unheaded services..."

@@ -8,8 +8,15 @@
 # exists to prevent.
 #
 #   scripts/monitoring/maintenance.sh 30m "reboot west for the kernel"
+#   scripts/monitoring/maintenance.sh --planned 30m "reboot west"         # also a planned-stop mark, scope all
+#   scripts/monitoring/maintenance.sh --planned=wotan 1h "wotan upgrade"  # mark one SLO or container
 #   scripts/monitoring/maintenance.sh --list
-#   scripts/monitoring/maintenance.sh --end      # end every maintenance silence now
+#   scripts/monitoring/maintenance.sh --end      # end every maintenance silence (and planned-stop mark) now
+#
+# A silence only stops mail; the SLO budgets still burn. --planned also
+# writes a planned-stop mark for the work's duration (planned-stop.sh,
+# ADR-147 decision 4): every SLO counts those minutes as good, and
+# ContainerStopped stays quiet for the marked scope.
 #
 # Silences urgency page and ticket (urgency none notifies no one anyway).
 # Alerts still fire and show in Alertmanager and Grafana; only mail stops.
@@ -41,6 +48,8 @@ for s in json.load(sys.stdin):
         print(s["id"], "until", s["endsAt"], "by", s["createdBy"], "-", s["comment"])' "$PREFIX"
 	;;
 --end)
+	"$(dirname "$0")/planned-stop.sh" --end >/dev/null 2>&1 && echo "[ok] ended every planned-stop mark" ||
+		echo "[warn] planned-stop marks not ended (planned-stop.sh --end needs sudo)"
 	ids="$(silences | python3 -c '
 import json, sys
 for s in json.load(sys.stdin):
@@ -53,10 +62,15 @@ for s in json.load(sys.stdin):
 	[[ -n "$ids" ]] || echo "[ok] no maintenance silence active"
 	;;
 "" | -h | --help)
-	sed -n '5,22p' "$0"
+	sed -n '5,30p' "$0"
 	;;
 *)
-	duration="$1"
+	planned=""
+	case "$1" in
+	--planned) planned=all; shift ;;
+	--planned=*) planned="${1#--planned=}"; shift ;;
+	esac
+	duration="${1:-}"
 	reason="${2:-}"
 	[[ "$duration" =~ ^[0-9]+[mh]$ ]] || die "duration like 30m or 2h, got '$duration'"
 	[[ -n "$reason" ]] || die "say why: maintenance.sh $duration \"reason\""
@@ -83,6 +97,10 @@ PY
 	pid="$(silence page $((secs + PAGE_TAIL_MIN * 60)))"
 	tid="$(silence ticket $((secs + TICKET_TAIL_MIN * 60)))"
 	echo "[ok] silenced for $duration of work: pages +${PAGE_TAIL_MIN}m ($pid), tickets +$((TICKET_TAIL_MIN / 60))h ($tid): $reason"
+	if [[ -n "$planned" ]]; then
+		"$(dirname "$0")/planned-stop.sh" "$planned" "$duration" ||
+			die "silenced, but the planned-stop mark was not written: the SLO budgets will burn (run planned-stop.sh with sudo)"
+	fi
 	echo "     end early: $0 --end"
 	;;
 esac
