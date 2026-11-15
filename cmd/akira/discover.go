@@ -8,7 +8,10 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
@@ -72,16 +75,70 @@ func startDiscovery(ctx context.Context, c discovery.Streamer, subnets []netip.P
 		log.Warn().Err(err).Msg("service discovery: not reading")
 		return
 	}
-	akira.SetDiscovered(func() []health.ServiceTarget {
-		entries := reg.ResolveAll()
-		out := make([]health.ServiceTarget, 0, len(entries))
-		for _, e := range entries {
-			// The ballot name, so a configured target ("dashboard") and its
-			// announcement ("dashboard-backend") are one entry; the
-			// announced name is the TLS server name.
-			out = append(out, health.ServiceTarget{Name: healthreport.BallotNameOf(e.Name), Host: e.Address, Port: e.Port, ServerName: e.Name})
-		}
-		return out
-	})
+	mem := newDiscoverMemory(time.Now, func(format string, args ...any) { log.Warn().Msgf(format, args...) })
+	akira.SetDiscovered(func() []health.ServiceTarget { return mem.targets(reg.ResolveAll()) })
 	log.Info().Int("subnets", len(subnets)).Msg("service discovery: checking admitted announcements too")
+}
+
+// discoverKeep is how long a discovered service that stopped announcing
+// (and was reaped from the registry after discovery.DefaultTTL) is still
+// checked at its last address: a dead one fails its checks and goes red
+// instead of vanishing from the sweep. Then it is dropped, with a log line.
+const discoverKeep = 10 * discovery.DefaultTTL
+
+// discoverMemory remembers each discovered target's last announcement, at
+// most discovery.MaxDiscovered (the oldest goes first).
+type discoverMemory struct {
+	now  func() time.Time
+	logf func(format string, args ...any)
+
+	mu   sync.Mutex
+	seen map[string]rememberedTarget // by ballot name
+}
+
+type rememberedTarget struct {
+	t    health.ServiceTarget
+	last time.Time
+}
+
+func newDiscoverMemory(now func() time.Time, logf func(string, ...any)) *discoverMemory {
+	return &discoverMemory{now: now, logf: logf, seen: map[string]rememberedTarget{}}
+}
+
+// targets is the sweep's discovered list: the live announcements, plus
+// the ones reaped less than discoverKeep ago at their last address.
+func (m *discoverMemory) targets(live []discovery.ServiceEntry) []health.ServiceTarget {
+	now := m.now()
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	for _, e := range live {
+		// The ballot name, so a configured target ("dashboard") and its
+		// announcement ("dashboard-backend") are one entry; the announced
+		// name is the TLS server name.
+		name := healthreport.BallotNameOf(e.Name)
+		m.seen[name] = rememberedTarget{t: health.ServiceTarget{Name: name, Host: e.Address, Port: e.Port, ServerName: e.Name}, last: now}
+	}
+	for name, r := range m.seen {
+		if gone := now.Sub(r.last); gone >= discoverKeep {
+			delete(m.seen, name)
+			m.logf("service discovery: %s (%s at %s) has not announced for %s; no longer checked", name, r.t.ServerName, r.t.Host, gone.Truncate(time.Second))
+		}
+	}
+	if over := len(m.seen) - discovery.MaxDiscovered; over > 0 {
+		names := make([]string, 0, len(m.seen))
+		for n := range m.seen {
+			names = append(names, n)
+		}
+		sort.Slice(names, func(i, j int) bool { return m.seen[names[i]].last.Before(m.seen[names[j]].last) })
+		for _, n := range names[:over] {
+			m.logf("service discovery: %s (%s) dropped: more than %d discovered services", n, m.seen[n].t.ServerName, discovery.MaxDiscovered)
+			delete(m.seen, n)
+		}
+	}
+	out := make([]health.ServiceTarget, 0, len(m.seen))
+	for _, r := range m.seen {
+		out = append(out, r.t)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
 }

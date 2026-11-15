@@ -61,7 +61,10 @@ Each refusal is counted in `unheaded_discovery_refused_total{reason}`
 reaped. Every sweep checks each admitted service the config does not list,
 at `https://<ip>:<port>/health` with the announced name as the TLS server
 name, under its ballot name (`dashboard-backend` is `dashboard`); its
-verdict in `GET /api/v1/status` carries `"source":"discovered"`. No subnets
+verdict in `GET /api/v1/status` carries `"source":"discovered"`. A
+discovered service that stops announcing is still checked at its last
+address for 5 min (10 TTLs), so a dead one goes red instead of leaving the
+sweep; then it is dropped with one log line. No subnets
 (the default) is off: discovery stays announce-only. The compose config
 admits the `data` network, `172.28.1.0/24`.
 
