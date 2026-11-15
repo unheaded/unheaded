@@ -47,7 +47,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -56,6 +55,7 @@ import (
 	"time"
 
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 	"unheaded/pkg/zhenrag"
 )
@@ -84,22 +84,6 @@ const (
 // Wire types — duplicated from cmd/zhen-rag/main.go to keep zhen-cli
 // stdlib-only and shippable without refactoring zhen-rag. Phase 3 will
 // extract a shared pkg/zhenrag/ when consolidating.
-
-type vorSearchHit struct {
-	Topic       string `json:"topic"`
-	Category    string `json:"category"`
-	SourceTrust string `json:"source_trust"`
-	SourceLabel string `json:"source_label,omitempty"`
-}
-
-type vorTopic struct {
-	Name        string `json:"name"`
-	Category    string `json:"category"`
-	Title       string `json:"title"`
-	Content     string `json:"content"`
-	SourceTrust string `json:"source_trust"`
-	SourceLabel string `json:"source_label,omitempty"`
-}
 
 type chatMessage struct {
 	Role    string `json:"role"`
@@ -183,7 +167,8 @@ type session struct {
 	errOut io.Writer // nil: os.Stderr
 
 	client *http.Client
-	index  *vorquery.Index // vor topic names, built on first ask
+	vor    *vorclient.Client // built on first use; see vorClient
+	index  *vorquery.Index   // vor topic names, built on first ask
 }
 
 func main() {
@@ -418,7 +403,14 @@ func (s *session) handleSource(args []string) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	t, err := s.vorTopicFetch(ctx, args[0])
+	vor, err := s.vorClient()
+	if err != nil {
+		s.errf("/source: %v", err)
+		return
+	}
+	// The name is exact, as vor's API is: a near miss is "not found", not
+	// the nearest topic.
+	t, err := vor.Topic(ctx, args[0])
 	if err != nil {
 		s.errf("/source: %v", err)
 		return
@@ -645,29 +637,39 @@ func (s *session) askLLM(q string) (answer string, refs []string, err error) {
 	ctx, cancel := context.WithTimeout(context.Background(), httpTimeout)
 	defer cancel()
 
+	vor, err := s.vorClient()
+	if err != nil {
+		return "", nil, fmt.Errorf("vor search: %w", err)
+	}
 	terms := vorquery.SearchTerms(q)
-	hits, err := s.vorSearch(ctx, strings.Join(terms, " "))
+	hits, err := vor.Search(ctx, strings.Join(terms, " "), vorclient.SearchOptions{})
 	if err != nil {
 		return "", nil, fmt.Errorf("vor search: %w", err)
 	}
 	searched := make([]vorquery.Topic, len(hits))
+	hitCategory := make(map[string]string) // topic name to the category of its first hit
 	for i, h := range hits {
 		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+		if _, seen := hitCategory[h.Topic]; !seen {
+			hitCategory[h.Topic] = h.Category
+		}
 	}
 	if s.index == nil {
-		s.index = vorquery.NewIndex(s.client, s.vorURL)
+		s.index = vorquery.NewIndex(vor)
 	}
 	// A listing error only loses the name matches; vor's order stands.
 	order, _ := s.index.Order(ctx, terms, searched)
 
 	seen := make(map[string]struct{})
-	var topics []vorTopic
+	var topics []vorclient.Topic
 	for _, name := range order {
 		if _, ok := seen[name]; ok {
 			continue
 		}
 		seen[name] = struct{}{}
-		t, err := s.vorTopicFetch(ctx, name)
+		// The hit says which category its topic is in, so a hit is never
+		// answered with the text of another topic of the same name.
+		t, err := vor.TopicFor(ctx, hitCategory[name], name)
 		if err != nil {
 			continue
 		}
@@ -722,46 +724,19 @@ func systemPrompt() string {
 	return zhenrag.SystemPrompt(zhenrag.Chat)
 }
 
-// HTTP helpers — same shapes as cmd/zhen-rag.
+// HTTP helpers.
 
-func (s *session) vorSearch(ctx context.Context, q string) ([]vorSearchHit, error) {
-	endpoint := fmt.Sprintf("%s/api/search?q=%s",
-		strings.TrimRight(s.vorURL, "/"), url.QueryEscape(q))
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
+// vorClient returns the client for vor at s.vorURL (pkg/vorclient: a
+// deadline on every call, a bound on every body), built on first use.
+func (s *session) vorClient() (*vorclient.Client, error) {
+	if s.vor == nil {
+		vor, err := vorclient.New(s.vorURL, s.client)
+		if err != nil {
+			return nil, err
+		}
+		s.vor = vor
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var hits []vorSearchHit
-	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return hits, nil
-}
-
-func (s *session) vorTopicFetch(ctx context.Context, name string) (*vorTopic, error) {
-	endpoint := fmt.Sprintf("%s/api/topics/%s",
-		strings.TrimRight(s.vorURL, "/"), url.PathEscape(name))
-	req, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	resp, err := s.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var t vorTopic
-	if err := json.NewDecoder(resp.Body).Decode(&t); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return &t, nil
+	return s.vor, nil
 }
 
 func (s *session) llamaChat(ctx context.Context, req chatRequest) (string, error) {

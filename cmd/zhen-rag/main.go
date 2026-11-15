@@ -36,12 +36,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 	"unheaded/pkg/zhenrag"
 )
@@ -55,39 +55,6 @@ const (
 	defaultMaxTopicChars = 10000
 	httpTimeout          = 5 * time.Minute
 )
-
-// vorSearchHit matches one row of vor's GET /api/search response.
-// Source: cmd/vor/main.go — fields topic/category/section/line plus
-// the B1 source-provenance fields (source_kind, source_trust,
-// source_path, source_label) added 2026-05-02.
-type vorSearchHit struct {
-	Topic       string `json:"topic"`
-	Category    string `json:"category"`
-	Section     string `json:"section"`
-	Line        string `json:"line"`
-	SourceKind  string `json:"source_kind"`
-	SourceTrust string `json:"source_trust"`
-	SourcePath  string `json:"source_path,omitempty"`
-	SourceLabel string `json:"source_label,omitempty"`
-}
-
-// vorTopic matches GET /api/topics/<name> response shape, including
-// B1 source-provenance fields. SourceTrust is the consumer-facing
-// trust label (canonical | local | external) and the one we surface
-// to the model via the references-block prefix.
-type vorTopic struct {
-	Name        string   `json:"name"`
-	Category    string   `json:"category"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Content     string   `json:"content"`
-	SeeAlso     []string `json:"see_also"`
-	HasDetail   bool     `json:"has_detail"`
-	SourceKind  string   `json:"source_kind"`
-	SourceTrust string   `json:"source_trust"`
-	SourcePath  string   `json:"source_path,omitempty"`
-	SourceLabel string   `json:"source_label,omitempty"`
-}
 
 type chatMessage struct {
 	Role    string `json:"role"`
@@ -169,26 +136,40 @@ func main() {
 	// 1. retrieve search hits. vorquery drops question words and
 	// punctuation (vor returns null for a query ending in `?`, `!`, `.`);
 	// the full question still goes to the LLM.
+	// vor is read through pkg/vorclient: a deadline on every call and a
+	// bound on every body.
+	vor, err := vorclient.New(vorURL, client)
+	if err != nil {
+		fatal("%v", err)
+	}
 	terms := vorquery.SearchTerms(q)
-	hits, err := vorSearch(ctx, client, vorURL, strings.Join(terms, " "))
+	hits, err := vor.Search(ctx, strings.Join(terms, " "), vorclient.SearchOptions{})
 	if err != nil {
 		fatal("vor search: %v", err)
+	}
+	hitCategory := make(map[string]string) // topic name to the category of its first hit
+	for _, h := range hits {
+		if _, seen := hitCategory[h.Topic]; !seen {
+			hitCategory[h.Topic] = h.Category
+		}
 	}
 
 	// 2. fetch full content for top-K unique topics: topics named by the
 	// question interleaved with vor's hits (see pkg/vorquery).
-	order, err := vorquery.NewIndex(client, vorURL).Order(ctx, terms, hitTopics(hits))
+	order, err := vorquery.NewIndex(vor).Order(ctx, terms, hitTopics(hits))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "zhen-rag: topic listing: %v\n", err)
 	}
 	seen := make(map[string]struct{})
-	var topics []vorTopic
+	var topics []vorclient.Topic
 	for _, name := range order {
 		if _, ok := seen[name]; ok {
 			continue
 		}
 		seen[name] = struct{}{}
-		t, err := vorTopicFetch(ctx, client, vorURL, name)
+		// The hit says which category its topic is in, so a hit is never
+		// answered with the text of another topic of the same name.
+		t, err := vor.TopicFor(ctx, hitCategory[name], name)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "zhen-rag: skip topic %q: %v\n", name, err)
 			continue
@@ -274,52 +255,6 @@ func main() {
 	fmt.Println(answer)
 }
 
-// vorSearch queries GET /api/search?q=<q>.
-func vorSearch(ctx context.Context, c *http.Client, base, q string) ([]vorSearchHit, error) {
-	endpoint := fmt.Sprintf("%s/api/search?q=%s", strings.TrimRight(base, "/"), url.QueryEscape(q))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var hits []vorSearchHit
-	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return hits, nil
-}
-
-// vorTopicFetch queries GET /api/topics/<name>.
-func vorTopicFetch(ctx context.Context, c *http.Client, base, name string) (*vorTopic, error) {
-	endpoint := fmt.Sprintf("%s/api/topics/%s", strings.TrimRight(base, "/"), url.PathEscape(name))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var t vorTopic
-	if err := json.NewDecoder(resp.Body).Decode(&t); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return &t, nil
-}
-
 // llamaChat POSTs /v1/chat/completions and returns the assistant's reply.
 func llamaChat(ctx context.Context, c *http.Client, base string, req chatRequest) (string, error) {
 	body, err := json.Marshal(req)
@@ -384,7 +319,7 @@ func clipContent(s string, maxChars int) string {
 }
 
 // hitTopics returns each search hit's topic and category, in vor's order.
-func hitTopics(hits []vorSearchHit) []vorquery.Topic {
+func hitTopics(hits []vorclient.Hit) []vorquery.Topic {
 	out := make([]vorquery.Topic, len(hits))
 	for i, h := range hits {
 		out[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}

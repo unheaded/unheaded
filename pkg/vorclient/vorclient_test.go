@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -237,16 +238,30 @@ func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { retu
 // does: ?category= picks the sheet. It counts requests and keeps the last
 // request URI.
 type categoryVor struct {
+	mu       sync.Mutex
 	requests int
 	last     string
+}
+
+func (f *categoryVor) saw(r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.requests++
+	f.last = r.URL.RequestURI()
+}
+
+// seen returns how many requests came and the URI of the last.
+func (f *categoryVor) seen() (int, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.requests, f.last
 }
 
 func (f *categoryVor) client(t *testing.T) *Client {
 	t.Helper()
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/topics/", func(w http.ResponseWriter, r *http.Request) {
-		f.requests++
-		f.last = r.URL.RequestURI()
+		f.saw(r)
 		name := strings.TrimPrefix(r.URL.Path, "/api/topics/")
 		category := r.URL.Query().Get("category")
 		switch {
@@ -266,8 +281,7 @@ func (f *categoryVor) client(t *testing.T) *Client {
 		}
 	})
 	mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
-		f.requests++
-		f.last = r.URL.RequestURI()
+		f.saw(r)
 		_, _ = w.Write([]byte("null"))
 	})
 	srv := httptest.NewServer(mux)
@@ -288,8 +302,8 @@ func TestTopicIn(t *testing.T) {
 	if err != nil || got.Category != "auth" || got.Name != "saml" {
 		t.Fatalf("TopicIn(auth, saml) = %+v, %v", got, err)
 	}
-	if f.last != "/api/topics/saml?category=auth" {
-		t.Errorf("request = %s, want /api/topics/saml?category=auth", f.last)
+	if _, last := f.seen(); last != "/api/topics/saml?category=auth" {
+		t.Errorf("request = %s, want /api/topics/saml?category=auth", last)
 	}
 	got, err = c.TopicIn(ctx, "security", "saml")
 	if err != nil || got.Category != "security" {
@@ -334,8 +348,8 @@ func TestTopicIn_RefusesWithoutARequest(t *testing.T) {
 			t.Errorf("TopicIn(%q, %q) = %v, want ErrNotFound", p[0], p[1], err)
 		}
 	}
-	if f.requests != 0 {
-		t.Errorf("%d requests sent, want none", f.requests)
+	if n, _ := f.seen(); n != 0 {
+		t.Errorf("%d requests sent, want none", n)
 	}
 }
 
@@ -347,13 +361,60 @@ func TestSearch_Words(t *testing.T) {
 	if _, err := c.Search(ctx, "ccna", SearchOptions{Words: true}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(f.last, "match=word") {
-		t.Errorf("Words: request = %s, want match=word", f.last)
+	if _, last := f.seen(); !strings.Contains(last, "match=word") {
+		t.Errorf("Words: request = %s, want match=word", last)
 	}
 	if _, err := c.Search(ctx, "ccna", SearchOptions{Category: "certs"}); err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(f.last, "match") {
-		t.Errorf("no Words: request = %s, want no match parameter", f.last)
+	if _, last := f.seen(); strings.Contains(last, "match") {
+		t.Errorf("no Words: request = %s, want no match parameter", last)
+	}
+}
+
+func TestTopicFor(t *testing.T) {
+	var mu sync.Mutex
+	var requests []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/topics/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests = append(requests, r.URL.RequestURI())
+		mu.Unlock()
+		name := strings.TrimPrefix(r.URL.Path, "/api/topics/")
+		category := r.URL.Query().Get("category")
+		if category == "" {
+			category = "docs/adr" // what vor has under the bare name
+		}
+		_, _ = w.Write([]byte(`{"name":"` + name + `","category":"` + category + `"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c, err := New(srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	for _, tc := range []struct{ category, name, wantRequest, wantCategory string }{
+		// One segment: asked by category.
+		{"auth", "saml", "/api/topics/saml?category=auth", "auth"},
+		// A directory, the top of a directory, or nothing: by name alone.
+		{"docs/adr", "ADR-001", "/api/topics/ADR-001", "docs/adr"},
+		{".", "README", "/api/topics/README", "docs/adr"},
+		{"", "README", "/api/topics/README", "docs/adr"},
+		{"a/../b", "x", "/api/topics/x", "docs/adr"},
+	} {
+		mu.Lock()
+		requests = nil
+		mu.Unlock()
+		got, err := c.TopicFor(ctx, tc.category, tc.name)
+		if err != nil || got.Category != tc.wantCategory {
+			t.Errorf("TopicFor(%q, %q) = %+v, %v; want category %q", tc.category, tc.name, got, err, tc.wantCategory)
+		}
+		mu.Lock()
+		if len(requests) != 1 || requests[0] != tc.wantRequest {
+			t.Errorf("TopicFor(%q, %q) asked %q, want %q", tc.category, tc.name, requests, tc.wantRequest)
+		}
+		mu.Unlock()
 	}
 }

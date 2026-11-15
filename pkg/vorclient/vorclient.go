@@ -20,6 +20,11 @@
 // Search. vor matches substrings by default ("ccna" finds KRB5CCNAME).
 // SearchOptions.Words asks for "match=word": a term must start a word. A
 // vor from before 2026-11-12 ignores it.
+//
+// Every read of vor's search and topics by Go code in this repository goes
+// through this package (the wiki server, zhen-agentd, zhen-agent, zhen-cli,
+// zhen-mcp, zhen-rag, pkg/vorquery). Only liveness pings of /api/health are
+// written where they are used.
 package vorclient
 
 import (
@@ -223,6 +228,22 @@ func (c *Client) TopicIn(ctx context.Context, category, name string) (*Topic, er
 		return nil, ErrNotFound
 	}
 	return &t, nil
+}
+
+// TopicFor returns the topic a search hit or a listing row names: the topic
+// called name in category when vor can be asked by category, and the topic
+// vor gives for the bare name when it cannot.
+//
+// vor takes a category of one path segment. A file of a directory vor was
+// pointed at has its directory as its category ("docs/adr", or "." at the
+// top), which ?category= refuses; such a topic, and one with no category
+// given, is read by name alone, as every topic was before 2026-11-12. Two
+// such files of one name in two directories are still one name to vor.
+func (c *Client) TopicFor(ctx context.Context, category, name string) (*Topic, error) {
+	if plainName(category) {
+		return c.TopicIn(ctx, category, name)
+	}
+	return c.Topic(ctx, name)
 }
 
 // plainName reports whether s can be a topic name or a category. "", "."
