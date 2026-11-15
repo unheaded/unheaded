@@ -77,6 +77,10 @@ type OutboxEntry struct {
 
 const outboxKeep = 50
 
+// pipelineOverCapPerDay bounds the alert-pipeline mails (silent, back) that
+// may go past a spent cap in one day: two outages, each mailed and answered.
+const pipelineOverCapPerDay = 4
+
 // state survives restarts (state.json in the state dir): a restart must not
 // reset the daily cap or forget the open tickets.
 type state struct {
@@ -90,10 +94,11 @@ type state struct {
 	Tickets         map[string]Alert `json:"tickets"`           // open tickets by fingerprint
 	Resolved        []string         `json:"resolved"`          // tickets resolved since the last digest
 	Outbox          []OutboxEntry    `json:"outbox"`
-	PageFiring      []string         `json:"page_firing"`      // SLOs the last page mail reported burning
-	PageMailedAt    time.Time        `json:"page_mailed_at"`   // when
-	PipelineLast    time.Time        `json:"pipeline_last"`    // last pipeline receipt from Alertmanager
-	PipelineAlerted bool             `json:"pipeline_alerted"` // the silent mail went out; the back mail is owed
+	PageFiring      []string         `json:"page_firing"`       // SLOs the last page mail reported burning
+	PageMailedAt    time.Time        `json:"page_mailed_at"`    // when
+	PipelineLast    time.Time        `json:"pipeline_last"`     // last pipeline receipt from Alertmanager
+	PipelineAlerted bool             `json:"pipeline_alerted"`  // the silent mail went out; the back mail is owed
+	PipelineOverCap int              `json:"pipeline_over_cap"` // pipeline mails sent past a spent cap today
 }
 
 // Mailer turns Alertmanager webhooks into at most Settings.MaxPerDay mails a
@@ -136,7 +141,7 @@ func (m *Mailer) today() string { return m.now().In(m.cfg.Loc).Format("2006-01-0
 // rollDay resets the cap at local midnight.
 func (m *Mailer) rollDay() {
 	if d := m.today(); d != m.st.Day {
-		m.st.Day, m.st.Sent, m.st.Held = d, 0, 0
+		m.st.Day, m.st.Sent, m.st.Held, m.st.PipelineOverCap = d, 0, 0, 0
 	}
 }
 
@@ -185,25 +190,47 @@ func (m *Mailer) record(msg Message, outcome string) {
 // returns the outcome. A send error is returned, uncounted, so Alertmanager
 // retries the webhook. Called with m.mu held.
 func (m *Mailer) deliver(msg Message) (string, error) {
+	return m.deliverCapped(msg, false)
+}
+
+// deliverPipeline is deliver for the alert-pipeline mails. Nothing retries
+// them (Alertmanager is the thing that is down), and a cap spent by the
+// incident's own pages would lose the one mail that says no alert can reach
+// you (review 2026-11-15, REV-1). They go past a spent cap, still counted,
+// at most pipelineOverCapPerDay a day. Called with m.mu held.
+func (m *Mailer) deliverPipeline(msg Message) (string, error) {
+	m.rollDay()
+	return m.deliverCapped(msg, m.st.PipelineOverCap < pipelineOverCapPerDay)
+}
+
+// deliverCapped is deliver; pastCap sends even when a cap is spent.
+func (m *Mailer) deliverCapped(msg Message, pastCap bool) (string, error) {
 	m.rollDay()
 	m.rollHour()
 	maxDay, maxHour := m.caps()
-	if maxHour > 0 && m.st.HourSent >= maxHour {
+	overHour := maxHour > 0 && m.st.HourSent >= maxHour
+	overDay := m.st.Sent >= maxDay
+	if overHour && !pastCap {
 		m.st.Held++
 		m.st.HeldSinceDigest++
 		m.record(msg, "capped-hour")
 		return "capped-hour", m.save()
 	}
-	if m.st.Sent >= maxDay {
+	if overDay && !pastCap {
 		m.st.Held++
 		m.st.HeldSinceDigest++
 		m.record(msg, "capped")
 		return "capped", m.save()
 	}
+	over := overHour || overDay
 	n := m.st.Sent + 1
-	msg.Body += fmt.Sprintf("\n--\nMail %d of at most %d today (%s).", n, maxDay, m.cfg.Mode)
-	if n == maxDay {
-		msg.Body += " This is the last one: anything else today is held back and counted in the next digest."
+	if over {
+		msg.Body += fmt.Sprintf("\n--\nMail %d today, past the cap of %d (%s): the alert path itself is the news.", n, maxDay, m.cfg.Mode)
+	} else {
+		msg.Body += fmt.Sprintf("\n--\nMail %d of at most %d today (%s).", n, maxDay, m.cfg.Mode)
+		if n == maxDay {
+			msg.Body += " This is the last one: anything else today is held back and counted in the next digest."
+		}
 	}
 	outcome := "dry-run"
 	if m.cfg.Mode == "send" {
@@ -216,6 +243,9 @@ func (m *Mailer) deliver(msg Message) (string, error) {
 	}
 	m.st.Sent = n
 	m.st.HourSent++
+	if over {
+		m.st.PipelineOverCap++
+	}
 	m.record(msg, outcome)
 	return outcome, m.save()
 }
@@ -315,7 +345,7 @@ func (m *Mailer) PipelineSeen() error {
 	m.st.PipelineLast = now
 	if m.st.PipelineAlerted {
 		m.st.PipelineAlerted = false
-		if _, err := m.deliver(Message{Urgency: "page", Subject: "[page] alert pipeline back",
+		if _, err := m.deliverPipeline(Message{Urgency: "page", Subject: "[page] alert pipeline back",
 			Body: fmt.Sprintf("alert pipeline back: receipts from Alertmanager resumed at %s.\n\n%s",
 				now.In(m.cfg.Loc).Format("Jan 2 15:04 MST"), footer)}); err != nil {
 			m.st.PipelineAlerted = true // owed again: the next receipt retries
@@ -353,7 +383,7 @@ func (m *Mailer) pipelineCheck() error {
 	if !m.st.PipelineLast.IsZero() {
 		last = m.st.PipelineLast.In(m.cfg.Loc).Format("Jan 2 15:04 MST")
 	}
-	_, err := m.deliver(Message{Urgency: "page", Subject: "[page] alert pipeline silent",
+	_, err := m.deliverPipeline(Message{Urgency: "page", Subject: "[page] alert pipeline silent",
 		Body: fmt.Sprintf("alert pipeline silent: no heartbeat from Alertmanager since %s; Prometheus, Alertmanager or the route is down.\n"+
 			"Until it is back, no alert can reach you.\n  Runbook: runbooks/observe/alert-pipeline-silent.yaml\n\n%s", last, footer)})
 	if err != nil {

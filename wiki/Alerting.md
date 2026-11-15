@@ -192,7 +192,7 @@ Off until configured. To turn it on (the E-D host window):
 
 Runbook: `runbooks/observe/heartbeat-missing.yaml`.
 
-**The pipeline's own receipt (ADR-147, ADR-116 R4).** A rule cannot report that its own evaluator is down, so the mailer does: Alertmanager hands it `AlertPipelineHeartbeat` every 5 minutes (`POST /v1/alerts/pipeline`, the first route in `alertmanager.yml`, from `pipeline: silent_after: 20m` in the policy). With no receipt for 20 minutes it mails "alert pipeline silent" once (Prometheus, Alertmanager or the route is down), and "alert pipeline back" once when receipts return. Both count against the caps. `unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds` is the last receipt. Runbook: `runbooks/observe/alert-pipeline-silent.yaml`.
+**The pipeline's own receipt (ADR-147, ADR-116 R4).** A rule cannot report that its own evaluator is down, so the mailer does: Alertmanager hands it `AlertPipelineHeartbeat` every 5 minutes (`POST /v1/alerts/pipeline`, the first route in `alertmanager.yml`, from `pipeline: silent_after: 20m` in the policy). With no receipt for 20 minutes it mails "alert pipeline silent" once (Prometheus, Alertmanager or the route is down), and "alert pipeline back" once when receipts return. Both count against the caps, and both go out even when a cap is spent (nothing else would retry them; review 2026-11-15), at most four such mails a day. `unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds` is the last receipt. Runbook: `runbooks/observe/alert-pipeline-silent.yaml`.
 
 ## Containers, resources and the watchers (ADR-147)
 

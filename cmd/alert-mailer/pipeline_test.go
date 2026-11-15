@@ -139,27 +139,80 @@ func TestPipelineStatePersists(t *testing.T) {
 	}
 }
 
-func TestPipelineMailRespectsCap(t *testing.T) {
+// outcomeOf is the outcome of the newest outbox entry whose subject holds s.
+func outcomeOf(m *Mailer, s string) string {
+	var outcome string
+	for _, e := range m.Status(true).Outbox {
+		if strings.Contains(e.Subject, s) {
+			outcome = e.Outcome
+		}
+	}
+	return outcome
+}
+
+// The silent mail is the one that says no other alert can reach you, so a
+// cap spent by the incident's own pages must not hold it: nothing retries it
+// (review 2026-11-15, REV-1; was TestPipelineMailRespectsCap). It and its
+// back mail go past the cap, still counted, at most pipelineOverCapPerDay a
+// day so a flapping pipeline cannot flood the relay (DP-710).
+func TestPipelineSilentMailGoesPastTheCap(t *testing.T) {
 	c := &clock{t0}
 	m, f := pipelineTest(t, t.TempDir(), 1, c)
 	if err := page(m, alert("firing", "slo-a", "fast")); err != nil { // the day's one mail
 		t.Fatal(err)
 	}
 	tickTo(t, m, c, t0.Add(30*time.Minute))
-	if got := subjects(f); len(got) != 1 {
-		t.Fatalf("the silent mail went past the cap: %q", got)
+	got := subjects(f)
+	if len(got) != 2 || !strings.Contains(got[1], "alert pipeline silent") {
+		t.Fatalf("want the page, then the silent mail past the cap; got %q", got)
 	}
-	var outcome string
-	for _, e := range m.Status(true).Outbox {
-		if strings.Contains(e.Subject, "alert pipeline silent") {
-			outcome = e.Outcome
-		}
+	if o := outcomeOf(m, "alert pipeline silent"); o != "sent" {
+		t.Fatalf("silent mail outcome %q, want sent", o)
 	}
-	if outcome != "capped" {
-		t.Fatalf("silent mail outcome %q, want capped", outcome)
+	if !strings.Contains(f.sent[1].Body, "past the cap") {
+		t.Fatalf("the silent mail does not say it went past the cap:\n%s", f.sent[1].Body)
 	}
-	if s := m.Status(false); s.HeldToday != 1 {
-		t.Fatalf("held %d, want 1", s.HeldToday)
+	if s := m.Status(false); s.SentToday != 2 || s.HeldToday != 0 {
+		t.Fatalf("sent %d held %d, want 2 and 0 (counted, not held)", s.SentToday, s.HeldToday)
+	}
+	// A page past the cap is still held.
+	if err := page(m, alert("firing", "slo-b", "fast")); err != nil {
+		t.Fatal(err)
+	}
+	if o := outcomeOf(m, "slo-b"); o != "capped" {
+		t.Fatalf("a page past the cap: %q, want capped", o)
+	}
+	// The back mail answers it, also past the cap.
+	m.PipelineSeen()
+	if got := subjects(f); len(got) != 3 || !strings.Contains(got[2], "alert pipeline back") {
+		t.Fatalf("want the back mail past the cap; got %q", got)
+	}
+}
+
+// Past pipelineOverCapPerDay over-cap mails in a day the caps hold again.
+func TestPipelineOverCapIsBounded(t *testing.T) {
+	c := &clock{t0}
+	m, f := pipelineTest(t, t.TempDir(), 1, c)
+	if err := page(m, alert("firing", "slo-a", "fast")); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 3; i++ { // three outages: 25 minutes silent, then a receipt
+		tickTo(t, m, c, c.t.Add(25*time.Minute))
+		m.PipelineSeen()
+	}
+	if got := len(subjects(f)); got != 1+pipelineOverCapPerDay {
+		t.Fatalf("%d mails, want the page and %d over the cap: %q", got, pipelineOverCapPerDay, subjects(f))
+	}
+	if o := outcomeOf(m, "alert pipeline silent"); o != "capped" {
+		t.Fatalf("the third outage's silent mail: %q, want capped", o)
+	}
+	// A new day: the allowance is back.
+	c.t = t0.Add(24 * time.Hour)
+	m.PipelineSeen()
+	n := len(subjects(f))
+	tickTo(t, m, c, c.t.Add(25*time.Minute))
+	if got := subjects(f); !strings.Contains(strings.Join(got[n:], "\n"), "alert pipeline silent") {
+		t.Fatalf("next day: want a silent mail; got %q", got[n:])
 	}
 }
 
