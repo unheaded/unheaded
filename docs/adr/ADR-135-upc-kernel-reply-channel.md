@@ -500,10 +500,10 @@ disposition. Text fixes are in this ADR. A code fix named below is outside the r
 |---|---|---|---|
 | R-F1 | High, pre-existing | `MRET` and `SRET` have no privilege check, so D6 does not confine a child | Accepted. Claim restated in Security notes. Fix (reject at priv 3) open, For Stevie: it must pair with any D6 flip. **Closed 2026-11-15, S-STAGE-2C Phase 2** |
 | R-F2 | Medium | The wipe has three bypasses, and a forger gets more than the channel's three flags | Fixed in D1 and Security notes. "Exactly one flag" is now "at most one", stated as unenforced. No code: the `sret` route closes with R-F1 |
-| R-F3 | Low | "Fork overwrites the whole low band" is false with D6 off | Fixed in Security notes. Tagged-cursor fix open, For Stevie |
+| R-F3 | Low | "Fork overwrites the whole low band" is false with D6 off | Fixed in Security notes. Tagged-cursor fix open, For Stevie. **Closed 2026-11-15, S-STAGE-2C Phase 6 (D18): the first entry is read from a BPF-owned mark, not from pde 0 and not from a register** |
 | R-F4 | Low, pre-existing | Exec does not scrub | Fixed in Security notes as a fourth bullet |
 | R-F5 | Low to Medium, pre-existing | `open` and `exec` read user paths with no bound, D6 on or off | Fixed in Security notes. Routing through `user_phys` open, For Stevie: verifier cost unmeasured. **Closed 2026-11-15, S-STAGE-2C Phase 3 (D16)** |
-| R-F6 | Low, forward | I9's failure description is incomplete, and nothing enforces it | Fixed in I9, Step 156's stale note included. Tripwire open, For Stevie |
+| R-F6 | Low, forward | I9's failure description is incomplete, and nothing enforces it | Fixed in I9, Step 156's stale note included. Tripwire open, For Stevie. **Closed 2026-11-15, S-STAGE-2C Phase 6 (D18): a compile-time assertion; the slot is marked from the first copy tick, the scan skip and death clear wait on preemption (over budget)** |
 | R-F7 | Low | D3's `vmfault` and D6's first-page statements do not match `uvm.c` | Fixed in D3 and D6 |
 | R-F8 | Low to Medium, plan conflict | D14's bare tag can lose a reply | Fixed as a D1 rule that Step 220 must follow. Plan text unchanged, For Stevie |
 | R-F9 | Low | The hostile probes never reach the real table | Recorded in Security notes for Phase 21. Correction: the plan does have such a step, 258, and it has this gap |

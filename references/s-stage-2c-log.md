@@ -11,6 +11,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | bounded paths | 893507 | 895768 | +2261 | 25268 | paths-after |
 | atomics: scan only (translate stuck) | 895768 | 895768 | +0 | 25268 | atomics-after |
 | bss + sidecar (SRET mask) | 895768 | 895767 | -1 | 25269 | bss-after |
+| fork key + I9 tripwire | 895767 | 895936 | +169 | 25100 | fork-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -121,3 +122,4 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 119, D6 on: three `=yes`, `done`.
 - Step 120, new fork code with D6 off for the experiment: `copy-complete=yes`, `pde-plant-dropped=no` (the plant landed and did not matter), `a2-ignored=yes`. D6 back on: 895936.
 - Step 121: with `TIMER_SWITCH` forced true the ascend build fails, the message naming ADR-135 I9 (2 hits); restored, 895936.
+- Gate `fork-after`: `same=12 diff=0 rc=0 doom=1 ascend=895936`; `forkloop`, `gate_nway`, `gate2`, the four `ut_*` probes and `hostile_fork: 3 checks` PASS.
