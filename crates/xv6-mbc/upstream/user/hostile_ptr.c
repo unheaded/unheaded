@@ -17,6 +17,12 @@ main(void)
     SAY("HU: ceiling-refused", mkdir((char *)0x00800000) == -1);
     SAY("HU: kernel-refused", mkdir((char *)0x00F00000) == -1);
     SAY("HU: wrap-refused", mkdir((char *)0xFFFFFFF0) == -1);
+    // S-STAGE-2C Phase 8 (A-62): the other calls that take a path.
+    char *bad = (char *)0x00800000;
+    SAY("HU: unlink-bad", unlink(bad) == -1);
+    SAY("HU: link-old-bad", link(bad, "x") == -1 && open("x", 0) == -1);
+    SAY("HU: link-new-bad", link("README", bad) == -1);
+    SAY("HU: chdir-bad", chdir(bad) == -1);
     SAY("HU: alive", getpid() == 2);
     exit(0);
   }

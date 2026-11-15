@@ -184,3 +184,21 @@ Run under Step 30's override, ahead of Phase 7 and with the fork mark off: the o
 - Order reached: Stop A, Stop B, rung 3 (the plan's Stop E, Phase 9), then Stop C (Phase 7 and the fork mark). Phase 8 (Stop D) and Phase 10 are not started.
 - Atomics, for the record: the shared-arm translation measured +16,855 and the headroom is 14,471, so it still does not fit, by 2,384. The linear-map form (+3,263) and a U-mode refusal (a few hundred) do.
 
+## Phase 8, the A-62 probes (2026-11-15)
+
+Inherited from the stalled shift and kept: the edits to `rmprobe`, `lnprobe`, `sleepprobe`, `hostile_ptr`, the new `bigprobe`, and the asserter's `a7=16` line. Each matches Steps 140-144. The resume gate ran on the committed tree first (`gate resume`: `same=12 diff=0 rc=0 doom=1 ascend=885529`), with the edits set aside as a patch.
+
+No BPF change: `vcount` 885,529 before and after (`bpf-unchanged`).
+
+| Probe | Lines | Result |
+|---|---|---|
+| `rmprobe` | RM 8 → 11 | `file-with-data-unlinked`, `gone`, `blocks-reused-clean` all yes |
+| `lnprobe` | LN 9 → 12 | `nlink-two`, `nlink-one`, `bytes-after-unlink` all yes |
+| `sleepprobe` | SL 4 → 5 | `pause-ticks=yes`; note `late-by=323` (a pause of 50 woke 323 ticks late on this boot) |
+| `bigprobe` (new) | BG 3 | `size`, `read-back`, `trunc` yes: 14,000 bytes, past the 12 direct blocks into the single-indirect block |
+| `hostile_ptr` | HU 5 → 9 | `unlink-bad`, `link-old-bad`, `link-new-bad`, `chdir-bad` all yes |
+
+**Finding, from `rmprobe`'s first run (`blocks-reused-clean=no`).** The read-back was right; the probe's own source buffer had been overwritten. BPF's file read (`main.rs`, the `FD_INODE` branch of `read`, H-FS6) copies a fixed 16-byte chunk into the user buffer whatever count it returns, so the last short read of a file writes up to 15 bytes past the end of what it reports. Here: file of 2,500 bytes, last read asked for 4, got 4, and 12 more bytes landed after the buffer, in the next array. The bytes come from the data block past the file's size (zeros in this run; block residue in general). The write is bounded to the caller's own slice (`user_phys(pid, buf_va, READ_CHUNK)`), so it does not cross a slot. The comment in the code calls it harmless because "our inode readers always pass buffers ≥ READ_CHUNK"; a program that reads into an exact-size buffer is not such a reader. Not fixed in BPF: the guarded copy is what "doubled verifier states" when it was tried (the comment says so), and rungs 5+6 move file reads to the kernel, where `readi` copies exactly n. The probe now reads into a buffer with a 32-byte guard after it and prints the count as a note, `RM: read-past-end=12`; it reads 0 once the kernel serves the read. `lnprobe`'s 8-byte read buffer was on the stack for the same reason and is 32 bytes now. Filed For Stevie.
+
+**The asserter and rung 3.** The S-STAGE-2B decoder (`ugl`) dropped NULs and matched tokens. With rung 3 on, every character a user program prints is a tagged trap, and the probe kernel prints a `UT:` line on each, so the two writers interleave character by character and the old decode shreds both (first try: `RUNG0-ASSERT fail 1 fork notes for 0 forks`). Kernel `printf` stores a word per character (the character and two NULs on the ring); a user write is one byte. `scripts/upc-tty-split.py` splits on that and gives each writer its text back. The awk also learned the two programs the plan names: `GF: fork-ret=N` (getpidfork) counts as a fork return, and `FL: child` (forkloop, which prints no pid) counts toward the fork total, which is what the fork-note mode checks. By hand: getpidfork `pass 89`, forkloop `pass 52`, both `pass 141`; one `pid=2` changed to `pid=5` gives `fail pid 5 for slot 1`. The probe kernel is built from a copy in a temp dir (the make rules write objects beside the sources), so the tree's kernel and `$K/xv6-mbc.mbc` are untouched.
+

@@ -207,24 +207,65 @@ rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes l
 rung_gate UPC_RUNG_SBRK sbrkprobe 4000000 SB 13
 rung_gate UPC_RUNG_KILL killprobe 3000000 KL 12
 rung_gate UPC_RUNG_MKDIR mkprobe 4000000 MK 7
-rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 8
-rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 9
+rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 11
+rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 12
 rung_gate UPC_RUNG_FD fdprobe 5000000 FD 51
 rung_gate UPC_RUNG_CHDIR chdirprobe 5000000 CD 24
 rung_gate UPC_RUNG_PIPE pipeprobe 8000000 PI 20
-rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5
+rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 9
 rung_gate UPC_D6_MISS_FAULT hostile_path 4000000 HQ 6
 rung_gate UPC_RUNG_SBRK bssprobe 6000000 BS 2
 rung_gate UPC_D6_MISS_FAULT hostile_fork 4000000 HF 3
 rung_gate UPC_D6_MISS_FAULT hostile_block 4000000 HB 3
 rung_gate UPC_RUNG3 conprobe 4000000 CW 4
+rung_gate UPC_RUNG_FD bigprobe 8000000 BG 3
 if rung_on UPC_RUNG_SLEEP; then
   SLL="$(probe_lines sleepprobe 3000000 SL)"
-  if [ "$(grep -c '=yes$' <<<"$SLL")" = 4 ] && ! grep -q '=no$' <<<"$SLL" \
+  if [ "$(grep -c '=yes$' <<<"$SLL")" = 5 ] && ! grep -q '=no$' <<<"$SLL" && grep -q '^SL: pause-ticks=yes$' <<<"$SLL" \
     && [ "$(grep -n 'parent-ran' <<<"$SLL" | cut -d: -f1)" -lt "$(grep -n 'child-woke' <<<"$SLL" | cut -d: -f1)" ]; then
     pass "sleepprobe: pause(n) waits, a sibling runs meanwhile (UPC_RUNG_SLEEP)"; else fail "sleepprobe (UPC_RUNG_SLEEP)"; fi
 else
   note "sleepprobe gate skipped: UPC_RUNG_SLEEP is off"
+fi
+
+# S-STAGE-2C Phase 8 (A-62): the rung 0 asserter (ADR-109 I1-I8) against a
+# probe kernel. The kernel is built with -DUPC_STAGE2_PROBE from a copy in a
+# temp dir (the make rules write objects beside the sources, so the copy keeps
+# the tree's own kernel and $K/xv6-mbc.mbc untouched). getpidfork and forkloop
+# boot on it; scripts/upc-tty-split.py gives the kernel's UT: lines and the
+# programs' fork lines back as two streams; the awk judges them. The mutant is
+# the same input with one pid changed: it must fail.
+if rung_on UPC_RUNG0; then
+  PKD="$(mktemp -d)"
+  if mkdir -p "$PKD/xv6-mbc/upstream" \
+     && cp -a "$ROOT/crates/xv6-mbc/adapters" "$PKD/xv6-mbc/" \
+     && cp -a "$ROOT/crates/xv6-mbc/upstream/kernel" "$PKD/xv6-mbc/upstream/" \
+     && ln -s "$ROOT/crates/monad-mbc" "$PKD/monad-mbc" \
+     && find "$PKD/xv6-mbc" \( -name '*.o' -o -name '*.d' -o -name 'kernel.elf' -o -name 'kernel.asm' \) -delete \
+     && sed -i 's/^CFLAGS = /CFLAGS = -DUPC_STAGE2_PROBE /' "$PKD/xv6-mbc/adapters/Makefile.mbc" \
+     && ( cd "$PKD/xv6-mbc/upstream" && make -f ../adapters/Makefile.mbc kernel >/dev/null 2>&1 ) \
+     && [ -s "$PKD/xv6-mbc/upstream/target/xv6-mbc.mbc" ]; then
+    PKK="$PKD/xv6-mbc/upstream/target/xv6-mbc.mbc"
+    : > "$PKD/tokens.txt"
+    for prog in getpidfork forkloop; do
+      (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$PKK" \
+        --ramdisk "$K/fs.img" --userland "$K/$prog.mbc" --triggers 1500000 --instance 111 2>&1) \
+        | python3 "$ROOT/scripts/upc-tty-split.py" >> "$PKD/tokens.txt"
+    done
+    RA="$(awk -f "$ROOT/scripts/upc-rung0-assert.awk" "$PKD/tokens.txt")"
+    RM="$(sed -E '0,/pid=2;/s/pid=2;/pid=5;/' "$PKD/tokens.txt" | awk -f "$ROOT/scripts/upc-rung0-assert.awk")"
+    if grep -qE '^RUNG0-ASSERT pass [1-9][0-9]*$' <<<"$RA" && grep -q '^RUNG0-ASSERT fail pid 5 for slot 1$' <<<"$RM" \
+       && [ "$(grep -c '^G[LMXF]: fork-ret=\|^FL: child$' "$PKD/tokens.txt")" = 4 ]; then
+      pass "rung 0 asserter: ${RA#RUNG0-ASSERT } tagged traps on a probe kernel, 4 forks; a changed pid fails"
+    else
+      fail "rung 0 asserter"; note "$RA / $RM"
+    fi
+  else
+    fail "rung 0 asserter (the probe kernel did not build)"
+  fi
+  rm -rf "$PKD"
+else
+  note "rung 0 asserter skipped: UPC_RUNG0 is off"
 fi
 
 # ADR-109 D6 (M-247): a child stores to slot 0's pgd (15 MiB up, a page-walk
