@@ -13,21 +13,32 @@
 # A publish passes when the address written in the file, or the default of the
 # variable there, is the gateway. Reads the files as written, as
 # check-compose-publish-bind.sh does.
+#
+# A host unit can answer at the gateway too: it is not in the compose file, it
+# binds the address itself. Its listener counts when a tracked unit or drop-in
+# under deploy/systemd says so, in one of two ways:
+#   ExecStart=... --listen 172.17.0.1:PORT       the unit as the repo ships it
+#   X-Unheaded-Listen=172.17.0.1:PORT            a drop-in whose ExecStart is
+#                                                kept on the host (systemd
+#                                                ignores X- options)
+# The second is a statement about a host file this script cannot read. What
+# proves it on the host is the target itself: up == 1 in VictoriaMetrics.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 COMPOSE="${SCRAPE_PUBLISH_COMPOSE:-${REPO_ROOT}/docker-compose.yml}"
+UNITS="${SCRAPE_PUBLISH_UNITS:-${REPO_ROOT}/deploy/systemd}"
 if [[ $# -gt 0 ]]; then
 	configs=("$@")
 else
 	configs=("${REPO_ROOT}/config/victoria/scrape.yml" "${REPO_ROOT}/monitoring/prometheus/prometheus.yml")
 fi
 
-python3 - "$COMPOSE" "${configs[@]}" <<'PY'
-import re, sys, yaml
+python3 - "$COMPOSE" "$UNITS" "${configs[@]}" <<'PY'
+import os, re, sys, yaml
 
 GATEWAY = "172.17.0.1"
-compose, configs = sys.argv[1], sys.argv[2:]
+compose, units, configs = sys.argv[1], sys.argv[2], sys.argv[3:]
 
 
 def split_short(entry):
@@ -63,6 +74,24 @@ for spec in services.values():
         if len(parts) == 3 and address_of(parts[0]) == GATEWAY:
             on_gateway.add(parts[1])
 
+# Host units that bind the gateway themselves (see the header).
+DECLARED = re.compile(r"X-Unheaded-Listen=" + re.escape(GATEWAY) + r":(\d+)")
+IN_EXEC = re.compile(r"\s--listen[= ]" + re.escape(GATEWAY) + r":(\d+)(?=\s|$)")
+host_units = set()
+for root, _, names in sorted(os.walk(units)):
+    for name in sorted(names):
+        if not name.endswith((".service", ".conf")):
+            continue
+        with open(os.path.join(root, name), encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                m = DECLARED.fullmatch(line)
+                if m:
+                    host_units.add(m.group(1))
+                elif line.startswith("ExecStart="):
+                    host_units.update(IN_EXEC.findall(line))
+on_gateway |= host_units
+
 fail, total = False, 0
 for config in configs:
     for job in (yaml.safe_load(open(config)) or {}).get("scrape_configs") or []:
@@ -74,12 +103,14 @@ for config in configs:
                 total += 1
                 if m.group(1) not in on_gateway:
                     print(f"[FAIL] {config}: job {job.get('job_name')} scrapes {target}, "
-                          f"and {compose} publishes nothing on {GATEWAY}:{m.group(1)}")
+                          f"and {compose} publishes nothing on {GATEWAY}:{m.group(1)}"
+                          f" (nor does a unit under {units} listen there)")
                     fail = True
 if total == 0:
     print("check-scrape-publish: no host.docker.internal targets; refusing to pass vacuously")
     sys.exit(2)
 if fail:
     sys.exit(1)
-print(f"[PASS] {total} scrape targets at host.docker.internal have a publish on {GATEWAY}")
+print(f"[PASS] {total} scrape targets at host.docker.internal have a publish on {GATEWAY}"
+      f" ({len(host_units)} of them a host unit's own listener)")
 PY
