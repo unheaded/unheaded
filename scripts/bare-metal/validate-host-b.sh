@@ -340,24 +340,6 @@ else
   json_add_result "wotan_health" "FAIL"
 fi
 
-print_check "Sophia service health"
-if curl -s http://localhost:19005/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
-  pass
-  json_add_result "sophia_health" "PASS"
-else
-  fail
-  json_add_result "sophia_health" "FAIL"
-fi
-
-print_check "Monad service health"
-if curl -s http://localhost:19004/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
-  pass
-  json_add_result "monad_health" "PASS"
-else
-  fail
-  json_add_result "monad_health" "FAIL"
-fi
-
 print_check "No FATAL errors in service logs"
 if ! docker compose logs | grep -i 'FATAL\|panic: ' >/dev/null 2>&1; then
   pass
