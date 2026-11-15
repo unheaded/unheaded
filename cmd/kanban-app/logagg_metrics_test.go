@@ -18,7 +18,7 @@ import (
 // (S-WELL-SPRING Step 188), not in text appended after it: one HELP, one
 // sample, a well-formed page, and a publisher swap does not duplicate them.
 func TestMetrics_LogPublisherCountersInRegistry(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	defer server.cancel()
 	for i := 0; i < 2; i++ { // the second call swaps publishers
 		p := logagg.NewPublisher("kanban-app", nil)

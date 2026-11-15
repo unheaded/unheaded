@@ -37,7 +37,6 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/critalert"
-	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -61,7 +60,6 @@ type Config struct {
 	Port            string
 	TimeGuruAddr    string
 	WotanAddr       string
-	DataDir         string // Directory for SQLite persistence (default: ./data)
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
@@ -88,7 +86,8 @@ type Task struct {
 type Server struct {
 	config          Config
 	httpServer      *http.Server
-	store           TaskStore // SQLite or Postgres persistence
+	store           TaskStore // the Well (through well), or a test's store
+	well            *wellGate // the Well's gate; nil for a server given its own store
 	tasks           []Task    // DEPRECATED: Use store or taskManager instead
 	tasksMu         sync.RWMutex
 	sseClients      map[chan []byte]bool
@@ -166,7 +165,7 @@ func (s *Server) SetLogPublisher(p *logagg.Publisher) error {
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
-// Initializes task store: prefers Postgres, falls back to SQLite, then in-memory.
+// Its task store is the Well, through a gate that waits for it.
 func NewServer(cfg Config) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
@@ -178,35 +177,12 @@ func NewServer(cfg Config) *Server {
 	}
 	s.initMetrics()
 
-	// Try Postgres first
-	pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
-	pgStore, pgStoreErr := wellStore(pgDB, pgErr)
-	switch {
-	case pgStoreErr != nil:
-		log.Fatal().Err(pgStoreErr).Msg("The Well answers but is not migrated for kanban-app: refusing to start (run well-migrate; no SQLite fallback, it would split the board)")
-	case pgStore != nil:
-		// The Well is the source of cards; a fresh Well gets the
-		// Genesis cards from migration 034, not from this binary.
-		s.store = pgStore
-		log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
-	default:
-		log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite")
-	}
-
-	// SQLite fallback
-	if s.store == nil {
-		dbPath := cfg.DataDir + "/kanban.db"
-		if cfg.DataDir == "" {
-			dbPath = "./data/kanban.db"
-		}
-		store, err := openSQLiteStore(dbPath)
-		if err != nil {
-			// No database: an empty, read-only board.
-			log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — empty read-only board")
-		} else {
-			s.store = store
-		}
-	}
+	// The Well is the source of cards (a fresh Well gets the Genesis cards
+	// from migration 034). Without it the board waits, read-only, and the
+	// gate connects it when it answers (well_wait.go).
+	s.well = newWellGate()
+	s.store = s.well
+	openWell(ctx, s.well)
 
 	// Create standalone TimelineManager for direct Timeguru HTTP polling
 	s.timelineManager = NewTimelineManager(func(eventType string, data interface{}) {
@@ -503,7 +479,7 @@ func storeReadFailed(w http.ResponseWriter, taskID string, err error) {
 
 // handleTasks routes task operations (GET, POST, PUT, DELETE)
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
-	if s.refuseIfReadOnly(w, r) {
+	if s.refuseWhileWaiting(w) || s.refuseIfReadOnly(w, r) {
 		return
 	}
 	switch r.Method {
@@ -747,6 +723,9 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 
 // handleTaskByID handles requests to /api/v1/tasks/:id
 func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
+	if s.refuseWhileWaiting(w) {
+		return
+	}
 	// Extract task ID from path
 	path := r.URL.Path
 	prefix := "/api/v1/tasks/"
@@ -1217,6 +1196,15 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 // set at startup and read by /health.
 var kanbanCrit atomic.Pointer[critalert.Tracker]
 
+// kanbanCritHealth is /health's critical_alerts detail (nil before the
+// tracker starts). Phase 8 said kanban-app carried it; it did not.
+func kanbanCritHealth() any {
+	if t := kanbanCrit.Load(); t != nil {
+		return t.Health()
+	}
+	return nil
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -1238,6 +1226,8 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"timeline_subscribed": timelineSubscribed,
 		"timeline_http":       timelineHTTP,
 		"timeguru_addr":       s.config.TimeGuruAddr,
+		"well":                s.wellState(),
+		"critical_alerts":     kanbanCritHealth(),
 	})
 }
 
@@ -1423,7 +1413,6 @@ func main() {
 		Port:            getEnv("PORT", "20001"),
 		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:19000"),
 		WotanAddr:       getEnv("WOTAN_ADDR", "localhost:18000"),
-		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
@@ -1508,34 +1497,11 @@ func main() {
 			healthSrv.SetGRPCStatus(false)
 			server = NewServer(cfg)
 		} else {
-			// Initialize task store: prefer Postgres, fall back to SQLite.
-			var kanbanStore TaskStore
-
-			pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
-			pgStore, pgStoreErr := wellStore(pgDB, pgErr)
-			switch {
-			case pgStoreErr != nil:
-				log.Fatal().Err(pgStoreErr).Msg("The Well answers but is not migrated for kanban-app: refusing to start (run well-migrate; no SQLite fallback, it would split the board)")
-			case pgStore != nil:
-				kanbanStore = pgStore
-				log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")
-			default:
-				log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite fallback")
-			}
-
-			if kanbanStore == nil {
-				// SQLite fallback
-				dbPath := cfg.DataDir + "/kanban.db"
-				if cfg.DataDir == "" {
-					dbPath = "./data/kanban.db"
-				}
-				sqliteStore, sqliteErr := openSQLiteStore(dbPath)
-				if sqliteErr != nil {
-					log.Warn().Err(sqliteErr).Str("path", dbPath).Msg("SQLite store init failed — TaskManager will run in-memory only")
-				} else {
-					kanbanStore = sqliteStore
-				}
-			}
+			// The task store is the Well, through a gate that waits for it
+			// (well_wait.go): one start path with NewServer's.
+			gate := newWellGate()
+			openWell(context.Background(), gate)
+			var kanbanStore TaskStore = gate
 
 			// Create TaskManager with broadcast function and Store
 			broadcast := func(eventType string, data interface{}) {
@@ -1564,6 +1530,7 @@ func main() {
 				} else {
 					cancel()
 					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
+					server.well = gate
 					log.Info().
 						Str("transport", transportName).
 						Msg("Wotan integration enabled with persistent store")

@@ -349,6 +349,11 @@ func connectWell(ctx context.Context) (storage.Backend, error) {
 		log.Warn().Err(err).Msg("the Well is not answering; serving timeline.md read-only, retrying")
 		return nil, err
 	}
+	// Two connections: a reload or an API update at a time. The Connect
+	// default (10) would take the Well's budget to 54 of 47
+	// (docs/architecture/THE_WELL_OPERATIONS.md, Connection Budget).
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(1)
 	if err := database.RequireMigrations(ctx, db, database.TimelineMigration); err != nil {
 		_ = db.Close()
 		log.Fatal().Err(err).Msg("the Well lacks timeguru's migration (db/migrations/050)")

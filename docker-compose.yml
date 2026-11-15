@@ -129,9 +129,8 @@ volumes:
       kingdom.component: "gateway"
   cuirass-state:
   sword-data:
-  kanban-data:
-    labels:
-      kingdom.component: "control-plane"
+  # kanban-data went with kanban-app's SQLite fallback (ADR-147 Phase 16);
+  # the volume itself is removed in the Well sitting (plan Phase 22).
   # Service auth and TLS material: docs/battle-plans/S-IRON-GATE-battle-plan.md
   # (keys: secrets: below, ADR-103; TLS on every link: Phase 8, scripts/gen-dev-certs.sh).
 
@@ -1111,7 +1110,6 @@ services:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
       TIMEGURU_ADDR: "timeguru:19000"
-      DATA_DIR: "/data"
       WELL_HOST: "postgres"
       WELL_PORT: "5432"
       # The scoped role, never the superuser (FND-008, ERDA W-02): CRUD on
@@ -1125,7 +1123,6 @@ services:
       - ./configs/certs/dev/kanban-app:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-      - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
       - "127.0.0.1:20001:20001"
       - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20001:20001"   # VictoriaMetrics scrape; see victoria

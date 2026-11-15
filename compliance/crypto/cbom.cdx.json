@@ -1870,7 +1870,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:174:proxy-image",
+      "bom-ref": "docker-compose.yml:173:proxy-image",
       "name": "Traefik edge (traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1905,13 +1905,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:174"
+          "value": "docker-compose.yml:173"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:384:postgres-image",
+      "bom-ref": "docker-compose.yml:383:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1951,7 +1951,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:384"
+          "value": "docker-compose.yml:383"
         }
       ]
     },

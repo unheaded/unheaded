@@ -42,7 +42,7 @@ sudo docker exec -it unheaded-postgres psql -U unheaded -d unheaded_app
 | Role | Database | Permissions | Used By |
 |------|----------|-------------|---------|
 | `app_kanban` | unheaded_app | CRUD on kanban_tasks; SELECT on others | kanban-app service |
-| `app_timeguru` | unheaded_app | CRUD on timeline_milestones; SELECT on others | timeguru service |
+| `app_timeguru` | unheaded_app | CRUD on timeline_milestones (migration 050: one row per milestone of `references/timeline.md`); SELECT on others | timeguru service |
 | `app_zhen` | unheaded_app | CRUD on zhen_* tables; SELECT on others | Zhen AI champion |
 | `ops_writer` | unheaded_ops | CRUD on all ops tables | dashboard-backend, health checkers |
 | `ops_reader` | unheaded_ops | SELECT only | dashboard read-only views |
@@ -62,7 +62,7 @@ sudo docker exec -it unheaded-postgres psql -U unheaded -d unheaded_app
 
 **unheaded_app:**
 - `kanban_tasks` -- task board with status, priority, tags, assignee
-- `timeline_milestones` -- sprint tracking with progress percentage
+- `timeline_milestones` -- timeguru's milestones, one row per milestone of `references/timeline.md` (migration 050; the 003 sprint shape was never written)
 - `zhen_conversations` -- AI chat history with full-text search (tsvector)
 - `zhen_memories`, `zhen_actions`, `zhen_action_snapshots` -- Zhen champion memory and action log
 
@@ -160,6 +160,7 @@ renew with `--renew`).
 | Client | Role | Pool |
 |---|---|---|
 | kanban-app (`pkg/database`) | app_kanban | 10 |
+| timeguru (`pkg/database`, capped in `connectWell`; migration 050) | app_timeguru | 2 |
 | dashboard-backend (`pkg/database`) | ops_writer | 10 |
 | zhen-agentd (kanban + action stores) | `WELL_DSN` | 2 x 5 |
 | Huginn (one per database) | huginn_reader | 3 (role limit 3) |
@@ -167,7 +168,7 @@ renew with `--renew`).
 | well-migrate | superuser | 2 |
 | well-retention (weekly; one per database) | retention_runner | 2 (role limit 4) |
 | compliance-evidence, zhen python, psql | various | ~4 |
-| **Total** | | **44 of 47** |
+| **Total** | | **46 of 47** |
 
 A new pooled client means a new row here first; PgBouncer only when the
 sum no longer fits.

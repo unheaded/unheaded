@@ -141,7 +141,7 @@ func TestHandleCreateTask_DuplicateID_Returns409(t *testing.T) {
 }
 
 func TestHandleCreateTask_NoTaskManager_StandaloneMode(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()

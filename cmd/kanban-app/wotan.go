@@ -114,15 +114,39 @@ func NewTaskManager(client WotanClient, broadcast func(string, interface{}), sto
 }
 
 // Initialize loads initial tasks and subscribes to Wotan
+// loadFromStore loads the tasks the Well holds once it answers.
+func (tm *TaskManager) loadFromStore() {
+	tasks, err := tm.store.GetAllTasks()
+	if err != nil {
+		log.Error().Err(err).Msg("the Well answered but its tasks did not load")
+		return
+	}
+	tm.mu.Lock()
+	for i := range tasks {
+		t := tasks[i]
+		if _, have := tm.tasks[t.ID]; !have {
+			tm.tasks[t.ID] = &t
+		}
+	}
+	n := len(tm.tasks)
+	tm.mu.Unlock()
+	log.Info().Int("count", n).Msg("loaded tasks from the Well")
+}
+
 func (tm *TaskManager) Initialize(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// Load tasks from the store (The Well, or SQLite). The Genesis cards are
-	// the Well's (migration 034); this process carries none.
-	if tm.store != nil {
-		// Load from SQLite — persisted state survives restarts
+	// Load tasks from the store (the Well). The Genesis cards are the
+	// Well's (migration 034); this process carries none. A Well that has
+	// not answered yet loads when it does (well_wait.go); until then the
+	// task routes answer 503.
+	if g, ok := tm.store.(*wellGate); ok && !g.ready() {
+		log.Warn().Msg("the Well is not answering: tasks load when it does")
+		g.OnReady(tm.loadFromStore)
+	} else if tm.store != nil {
+		// Load from the Well: persisted state survives restarts
 		storeTasks, err := tm.store.GetAllTasks()
 		if err != nil {
 			// Read-only: the board is not what the store holds, so an
@@ -136,7 +160,7 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 			}
 			log.Info().
 				Int("count", len(tm.tasks)).
-				Msg("loaded tasks from SQLite L1 store")
+				Msg("loaded tasks from the Well")
 		}
 	}
 

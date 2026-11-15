@@ -19,7 +19,7 @@ import (
 // allowlisted caller (dashboard-backend, zhen-agentd, micromanager).
 func TestAuthE2E_KanbanApp(t *testing.T) {
 	f := authtest.New(t, "kanban-app", "dashboard-backend", "zhen-agentd", "micromanager", "sword")
-	s := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	s := NewServer(Config{Port: "0"})
 	t.Cleanup(s.cancel)
 	h, err := s.buildHandler(f.Config("kanban-app", "dashboard-backend", "zhen-agentd", "micromanager"))
 	if err != nil {
@@ -63,7 +63,7 @@ func TestAuthE2E_KanbanApp(t *testing.T) {
 }
 
 func TestAuthE2E_KanbanAppRefusesBadConfig(t *testing.T) {
-	s := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	s := NewServer(Config{Port: "0"})
 	t.Cleanup(s.cancel)
 	if _, err := s.buildHandler(auth.ServiceAuthConfig{Enabled: true, ServiceName: "kanban-app"}); err == nil {
 		t.Error("auth on with nothing to verify against: no error, want refusal to start")
@@ -84,7 +84,7 @@ func TestAuthE2E_KanbanAppCallsTimeguruWithToken(t *testing.T) {
 	srv := httptest.NewServer(guarded)
 	defer srv.Close()
 
-	s := NewServer(Config{Port: "0", DataDir: t.TempDir(), TimeGuruAddr: strings.TrimPrefix(srv.URL, "http://")})
+	s := NewServer(Config{Port: "0", TimeGuruAddr: strings.TrimPrefix(srv.URL, "http://")})
 	t.Cleanup(s.cancel)
 	if err := s.fetchTimelineFromTimeguru(); err == nil || !strings.Contains(err.Error(), "401") {
 		t.Fatalf("without a minter: %v, want a 401 from timeguru", err)
