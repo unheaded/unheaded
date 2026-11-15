@@ -63,3 +63,21 @@ def test_units_belong_to_the_switch():
         assert "PartOf=unheaded-zhen.target" in text.splitlines(), name
         assert "WantedBy=unheaded-zhen.target" in text.splitlines(), name
         assert "WantedBy=multi-user.target" not in text, name
+
+
+def test_bind_allow_is_private_and_matches_the_dropins():
+    import ipaddress
+
+    allow = manifest().get("bind_allow") or {}
+    for host, prefixes in allow.items():
+        for p in prefixes:
+            net = ipaddress.ip_network(p, strict=False)
+            assert net.is_private and not net.is_link_local, (host, p)
+            assert net.prefixlen > 0, (host, p)
+    hosts = REPO / "modules/zhen/hosts"
+    for hostdir in sorted(d for d in hosts.iterdir() if d.is_dir()) if hosts.is_dir() else []:
+        want = ",".join(allow.get(hostdir.name, []))
+        for conf in sorted(hostdir.glob("*.service.d/bind-allow.conf")):
+            vals = [ln.split("=", 2)[2] for ln in conf.read_text(encoding="utf-8").splitlines()
+                    if ln.startswith("Environment=UNHEADED_MODULE_BIND_ALLOW=")]
+            assert vals == [want], (conf, vals, want)

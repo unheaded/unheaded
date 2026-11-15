@@ -493,6 +493,16 @@ provoke_module_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_module_binds() {
+    # Contract (ADR-149): no module unit listens on a public address. Put
+    # zhen-agentd's API on the wildcard.
+    local f="deploy/systemd/zhen-agentd.service"
+    backup "${f}"
+    sed -i 's|-host 127.0.0.1|-host 0.0.0.0|' "${REPO_ROOT}/${f}"
+    grep -q -- '-host 0.0.0.0' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -1401,6 +1411,7 @@ check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's co
 check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 60; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
+check-module-binds|provoke_module_binds|fast|zhen-agentd bound to 0.0.0.0
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)

@@ -12,6 +12,12 @@ units:
   - {unit: unheaded-llama.service,         memory_max: 6G,   tasks_max: 256}
 ports: [8081, 20103, 20111, 20112]
 database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 12}
+# Per host, private prefixes only (pkg/modules.ParseBindAllow, ADR-149): the
+# addresses a Zhen listener may hold besides loopback. The house LAN address
+# is added when S-ZHEN-FRONT opens 20103 (A-16). The drop-ins under
+# hosts/<host>/ carry the same list as UNHEADED_MODULE_BIND_ALLOW.
+bind_allow:
+  west: ["fd00:dead:beef::1/128"]
 fragments:
   - prometheus/rules/zhen.yml
   - prometheus/scrape/zhen.yml

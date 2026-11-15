@@ -217,6 +217,10 @@ jobs:
       - name: Every unit's binary is built by scripts/build-binaries.sh
         run: ./scripts/check-unit-binaries.sh
 
+      # ADR-149: no module unit listens on a wildcard or public address.
+      - name: Module listeners stay off the public side
+        run: ./scripts/check-module-binds.sh
+
       # ADR-102: no new latest / major-only image tag anywhere.
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
