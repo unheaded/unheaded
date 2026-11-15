@@ -172,6 +172,25 @@ def _with_csrf_cookie(resp):
 def _agentd_headers():
     return agentd_headers(None)
 
+# Where the project is (D-05). Every path the app derives (runbooks, skills,
+# the Champion read root, the model-switch script) comes from this one value,
+# so the app can run under its own account with no home directory to read
+# (deploy/systemd/unheaded-zhen-app.service sets ZHEN_PROJECT_ROOT). Unset, it
+# is the checkout the app has always run from. tests/test_zhen_paths.py holds
+# this function to being the only place that names a home.
+def _project_root():
+    root = os.environ.get('ZHEN_PROJECT_ROOT', '').strip()
+    if not root:
+        return os.path.expanduser('~/tmp/unheaded')
+    if not os.path.isabs(root):
+        # A relative root would move with the working directory: stop, loudly.
+        raise RuntimeError(f'ZHEN_PROJECT_ROOT must be an absolute path, got {root!r}')
+    return os.path.normpath(root)
+
+
+PROJECT_ROOT = _project_root()
+SKILLS_DIR = Path(PROJECT_ROOT) / 'skills'
+
 # Initialize RAG pipeline.
 #
 # WAVE15 REWIRE: index_dir / corpus_file are vestigial — RAGPipeline accepts
@@ -179,8 +198,8 @@ def _agentd_headers():
 # :20110; inference is qwen-coder via llama-server on :8081. Both URLs are
 # overridable via env (VOR_URL, ZHEN_INFERENCE_URL); defaults match the
 # Go-stack production deployment.
-index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
-corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
+index_dir = Path(PROJECT_ROOT) / 'raft' / 'index'
+corpus_dir = Path(PROJECT_ROOT) / 'raft' / 'corpus'
 corpus_file = corpus_dir / 'ring_all.jsonl'
 if not corpus_file.exists():
     corpus_file = corpus_dir / 'ring1.jsonl'  # fallback
@@ -1385,7 +1404,7 @@ def _load_model_keys():
     if _MODEL_KEYS_CACHE is not None:
         return _MODEL_KEYS_CACHE
 
-    project_root = os.environ.get('UNHEADED_ROOT', '/home/govan/tmp/unheaded')
+    project_root = os.environ.get('UNHEADED_ROOT', PROJECT_ROOT)
     script_path = os.path.join(project_root, 'scripts', 'switch-model.sh')
     keys = []
     file_to_key = {}
@@ -1890,7 +1909,7 @@ def get_context():
 @app.route('/api/v1/skills', methods=['GET'])
 def list_skills():
     """List all Kingdom skills Zhen knows about."""
-    skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
+    skills_dir = SKILLS_DIR
     skills = []
 
     for skill_file in sorted(skills_dir.glob('*.skill')):
@@ -1940,7 +1959,7 @@ def list_skills():
 @app.route('/api/v1/skill/<name>', methods=['GET'])
 def get_skill(name):
     """Return the full content of a specific skill."""
-    skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
+    skills_dir = SKILLS_DIR
 
     skill_zip = skills_dir / f'{name}.skill'
     if skill_zip.exists():
@@ -2188,7 +2207,7 @@ def generate_file():
 # ──────────────────────────────────────────────────────────────────────
 
 CHAMPION_ALLOWED = [
-    os.path.expanduser('~/tmp/unheaded/'),
+    PROJECT_ROOT + os.sep,
     '/var/zhen/',
 ]
 CHAMPION_DENIED = ['.ssh', '.env', 'credentials', 'secrets', 'shadow', 'id_rsa', 'id_ed25519']
@@ -2278,7 +2297,7 @@ def champion_health():
 # ADR-024: Zhen Runbook Automation
 # ──────────────────────────────────────────────────────────────────────
 
-RUNBOOKS_DIR = os.path.expanduser('~/tmp/unheaded/runbooks')
+RUNBOOKS_DIR = os.path.join(PROJECT_ROOT, 'runbooks')
 
 # Trust levels — controls what Zhenai can do autonomously vs what needs approval
 # Mirrors real NOC/sysadmin permission model:
