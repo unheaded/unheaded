@@ -73,7 +73,7 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway build-zhen-rag build-upc-bootctl build-upc-tty-bridge ## Build all service binaries
+build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway build-upc-bootctl build-upc-tty-bridge ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
@@ -121,6 +121,8 @@ build-zhen-codeindex: ## Build zhen-codeindex (Zhen's source shard, refreshed by
 	@echo "Building zhen-codeindex..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/zhen-codeindex && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/zhen-codeindex
+
+build-zhen: build-zhen-rag build-zhen-agent build-zhen-agentd build-zhen-mcp build-zhen-ui-front build-zhen-codeindex ## Build the optional Zhen module's binaries (ADR-149)
 
 zhen-agent-up: build-zhen-agent ## Build zhen-agent + verify prerequisites (vor, llama-server)
 	@./scripts/zhen-agent-preflight.sh
