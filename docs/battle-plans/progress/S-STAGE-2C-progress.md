@@ -77,3 +77,42 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - Open after the security pass, yours: (1) SP-1 residual: a resident program exec'd by slot 0 itself lands at raw physical addresses up to 0x800000 (slot 0 is init, trusted by design); close it with the 0xC000 window for resident programs too, or a slot test in exec? (2) SP-3: a sidecar format marker (a flag in the TLV count word, set by --with-bss) so bootctl can refuse a sidecar with no .bss in it; the Makefile now regenerates stale ones, the marker is not built. (3) SP-4d: a harness boot with D6 off, so UPC_FORK_MARK is the deciding control in hostile_fork (a second eBPF object per run). (4) SP-5b: JMPR/CALLR diagnostics store user-chosen words at physical 0xE0000 and 0xE1000 from U-mode; a privilege test costs verifier instructions. (5) SP-2 residual: the interpreter's atomic, PUSH, POP, INT and IRET arms still have no privilege test of their own; the scan keeps them out of every image.
 - ADR-135 (amended D16-D21, three review tables) is Proposed: acceptance is yours. No rung 7 ADR exists (Phases 13-14 not run: Stop G waits on your rungs 5+6 choice). Gate commits: 539cf5b0 9d750030 b0526886 067ab7f1 070654cc 99ae2fa9 a0c25e62 cf11267b 0c66f515 ae44692b d980e84b 11f28a83 7fca9618 25d39563 
 
+## Close
+
+Closed 2026-11-15 from Stop F plus Stop I, by the plan's rule for a rung that will not gate. Branch `sprint/s-stage-2c`, develop merged in (`de471513`). Close gate `close2`: `same=12 diff=0 rc=0 doom=1 ascend=883522`, harness ALL GREEN, `check-ebpf-insns.sh` PASS, `BUDGET-OK 883522 (headroom 16478, ladder net 37514)`. Every commit of the branch is signed (39 before this one, all `G`); none needs `scripts/resign-unpushed.py`. Merging into develop (Steps 315-318) is the coordinator's.
+
+**Stops reached, in order:** A (`f27cc727`), B (`10078582`), rung 3 (the plan's Stop E, before C under Step 30's override), C (`6941f239`), D (`7fca9618`), F (`d980e84b`), I (`070654cc`). Not reached: G (rungs 5+6 on), H (rung 7).
+
+**Consts landed (on):** `UPC_D6_MISS_FAULT`, `UPC_FORK_MARK`, `UPC_RUNG3`, `UPC_RUNG4`. **Wired, off:** `UPC_RUNG56`. Ascend 889,941 at the start, 883,522 at the close; Doom 758,199 throughout.
+
+**Ledger, last row:** `develop merged in; close | 883522 | 883522 | +0 | 37514 | close2`.
+
+**Progress:** Steps 1-228 and 279-314, less the stuck and waiting ones below: about 262 of 318.
+
+### Stuck Report (highest downstream impact first)
+
+| What | Steps | Why | Tried | Downstream | Needs |
+|---|---|---|---|---|---|
+| Rungs 5+6 on (Stop G) | 229-244 | With `UPC_RUNG56` on every golden moves: each carries the first 100 PCs after init starts, kernel PCs included, and init's first `open` traps at its 21st instruction. Goldens are not recaptured to pass a rung. | Built, reviewed (five findings fixed in the design), measured on: 529,305, every probe passes, all 12 boots inside 4,000,000 triggers. A way on with no recapture was booted and reverted: 12 of 12 SAME at 532,152. | Rung 7 (Steps 245-278, Stop H) is blocked on it. The freed budget (about 350,000) is what the two items below wait for. | Stevie's choice of three (below). |
+| Rung 7 design and build (Stop H) | 245-278 | `[BLOCKED]` by Stop G: its design needs the kernel's fd table. | Not started. | The MRET/SRET kill-or-NOP question (Step 250) stays where Step 26 left it: NOP. | Stop G first. |
+| Atomics through `translate_address` | 78, 81 | Verifier budget: four inlined translations +20,993, one shared arm +16,855; headroom 16,478 at the close, 14,471 when last checked against the shared arm (short by 2,384). | Both forms measured; `main.rs` restored. The load-time scan refuses any image holding an atomic instead, the kernel and bootstub included. | None while the scan holds: no image can carry one. | A pick: the linear-map form (+3,263), a U-mode refusal, or the shared arm once rungs 5+6 are on. |
+| Fork slot scan skipping another parent's marked row; clearing a mark when a parent dies mid-fork | 116 (second half) | +11,789 against the headroom of the day. | Measured; not landed. | None without preemption, which the I9 assertion forbids at build time. | Preemption work, or the budget rungs 5+6 free. |
+
+### Open calls for Stevie (oldest first, newest last)
+
+1. The host engine `crates/monad-mbc/src/execute.rs` has neither the priv-3 refusal nor D6 (review RV-3): bring it in line, with a parity test?
+2. The atomics: which form (Stuck Report).
+3. The scan's probe hatch `UPC_ALLOW_USER_PRIVRET=1` (admits MRET and SRET only, for `hostile_reply`): keep it, or build the probe another way?
+4. A user `ebreak` halts the machine, with no privilege test: refuse HALT at U-mode?
+5. Fork's first entry is keyed on BPF's own mark, not a tag in a3 as D18 was first written: accept the departure.
+6. Slot 0's literal limit: with rung 3 on, init cannot `write` a string literal from its first page (the kernel's copy-in refuses it). Probes keep their tokens in `.data`.
+7. R-P1 (low): BPF's file read writes up to 15 bytes past a short read, inside the caller's slice. Gone when rungs 5+6 are on.
+8. Rung 4's cost: a read blocked at the prompt retries through the kernel every tick (`ls`: 6.27 M to 63.3 M instructions, about a fifth longer on the wall). A cheap wait is designed in the ledger, not built. Its behaviour changes: no echo, a cooked line, control characters to the line discipline.
+9. D21's choice that the kernel gives the first image its console (fds 0-2), yours to overrule; and no on-disk device node (mknod and T_DEVICE inodes are a later parked ADR if you want them).
+10. **Rungs 5+6, the choice that turns them on:** (1) let the kernel's `copyinstr` read slot 0's first page and have the tracer print U-mode PCs only: no recapture, booted 12 of 12 SAME at 532,152; (2) one named recapture of the goldens' trace segment; (3) leave `UPC_RUNG56` off. Rung 7 follows the same answer.
+11. Fuzzing was a SKIP (cargo-fuzz is not installed): the MBC executor was not fuzzed in this sprint. Installing it is your call.
+12. After the security pass (ADR-135, SP table): SP-1's residual (a resident program exec'd by slot 0 lands at raw physical addresses up to 0x800000); SP-3's sidecar format marker; SP-4d, a harness boot with D6 off so `UPC_FORK_MARK` is the deciding control; SP-5b, JMPR/CALLR diagnostics storing at 0xE0000 and 0xE1000 from U-mode; SP-2's residual, the interpreter's own arms for the eight opcodes have no privilege test.
+13. `cd` is stock sh's form: a bare `cd` still answers `exec cd failed`.
+14. ADR-135 (D16 to D21, three review tables) is Proposed; ADR-145 and ADR-146 are parked. Acceptance is yours.
+15. For the next UPC plan: Step 310's rebuild order ends with the Doom build, which overwrites the ascend object before the sweep; the first close gate read `same=0 diff=12` for that reason alone.
+

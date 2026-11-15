@@ -18,6 +18,10 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | fork mark on (`UPC_FORK_MARK`) | 885354 | 885529 | +175 | 35507 | mark-after |
 | probes | 885529 | 885529 | +0 | 35507 | probes-after |
 | rung 4 console read | 885529 | 883522 | -2007 | 37514 | rung4-after |
+| rungs 5+6 wired, const off (on: 529,305, measured, not landed) | 883522 | 883522 | +0 | 37514 | rung56-off |
+| `cd` in ush (no BPF change) | 883522 | 883522 | +0 | 37514 | cd-after |
+| security pass fixes (bootctl, kernel `consolewrite`, probes) | 883522 | 883522 | +0 | 37514 | review3-after |
+| develop merged in; close | 883522 | 883522 | +0 | 37514 | close2 |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -443,4 +447,11 @@ Gate `sec-after`, with the two new harness lines, on the tree of this commit: `s
 Repo gates on `539cf5b0`, each read on its own line: no `.go` file in the branch's diff; `check-ebpf-insns.sh` PASS (41 programs within 10 % of the baseline; 0 allowlisted over 900000); `check-spdx.sh` OK (1,936 files); `check-gitleaks.sh` PASS (5,946 tracked files); `check-gates-can-fail.sh --only check-ebpf-insns` PASS (1 gate proven to fail when violated); `cargo clippy --release -- -D warnings` and `cargo fmt --check` in `cmd/upc-bootctl` clean; `cargo test --release` there green; ruff clean on the three UPC scripts and `check-ruff.sh` PASS (it was red on this branch: `scripts/upc-tty-split.py` had a shebang and no mode bit, fixed in `539cf5b0`); `tests/scripts` 114 passed; `bash -n` and shellcheck clean on the harness.
 
 ADR-135 stays **Proposed**. No rung 7 ADR was written (Phases 13 and 14 were not run).
+
+## Phase 18, close (2026-11-15)
+
+- Step 309: develop (`46d3246f`) merged in as `de471513`. Conflicts, by Appendix A9: `docs/adr/ADR-INDEX.md` and `wiki/ADR-Index.md` (both sides' rows in number order: develop's 139 to 144, this branch's 145 and 146; counts recomputed: 143 entries, Accepted 66, Proposed 40, the status sum equals the row count). Everything else merged by itself: the baseline file keeps develop's `latency-probe` rows and this branch's ascend row; the timeline has both entries and the mirrors check clean (77 milestones). The merge brought S-EVIDENCE-RUNS, S-ZHEN-FRONT, S-WIKI-VOR, the trace collector work, the Go 1.27.4 pins and the parked truth fixes; none of it touches `ebpf/monad-cpu-ebpf`, `crates/xv6-mbc` or `cmd/upc-bootctl`.
+- Step 310: kernel, userland and gates, the ascend object, bootctl and the Doom object rebuilt; `cargo test --release` in `cmd/upc-bootctl` green.
+- Step 311, first run (`close`): `same=0 diff=12 rc=0 doom=1 ascend=883522`, harness ALL GREEN. Cause: Step 310's order ends with the Doom build, which writes the same object path, so the twelve sweep boots ran on the Doom object; the harness builds each object before it uses it and was unaffected. Not a regression: with the ascend object rebuilt, `echo hello` is SAME. The gate was run again with the ascend object in place.
+- Step 311, second run (`close2`): `same=12 diff=0 rc=0 doom=1 ascend=883522 head=de471513`, harness ALL GREEN (62 PASS lines, no FAIL); `check-ebpf-insns.sh` PASS (41 programs within 10 % of the baseline; 0 allowlisted over 900000); `BUDGET-OK 883522 (headroom 16478, ladder net 37514)`. For the next plan: put `ebuild` after `dbuild` in the rebuild line, or the sweep runs on the Doom object.
 
