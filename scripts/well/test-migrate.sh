@@ -84,20 +84,21 @@ expect() { # want-rc label cmd...
 # 1. Fresh bootstrap.
 entries=$(grep -E '^[a-z_]+ +[0-9]{3}_' "$M/MANIFEST" | grep -vc '^skip ')
 recorded=0
-for db in postgres unheaded_app unheaded_ops unheaded_config; do
+for db in postgres unheaded_app unheaded_ops unheaded_config unheaded_zhen; do
 	recorded=$((recorded + $(sq "$db" "SELECT count(*) FROM well_schema_migrations WHERE mode = 'initdb'")))
 done
 ((recorded == entries)) && pass "init.sh recorded all $entries manifest entries" || fail "init.sh recorded $recorded of $entries"
 [[ "$(sq unheaded_ops "SELECT count(*) FROM well_schema_migrations WHERE filename = '007_grants.sql'")" == 1 ]] &&
 	pass "007 recorded once per database" || fail "007 in unheaded_ops ledger"
-[[ "$(sq postgres "SELECT string_agg(datname, ' ' ORDER BY datname) FROM pg_database WHERE NOT datistemplate")" == "postgres unheaded_app unheaded_config unheaded_ops" ]] &&
+[[ "$(sq postgres "SELECT string_agg(datname, ' ' ORDER BY datname) FROM pg_database WHERE NOT datistemplate")" == "postgres unheaded_app unheaded_config unheaded_ops unheaded_zhen" ]] &&
 	pass "only the manifest's databases exist (no legacy unheaded)" || fail "databases: $(sq postgres "SELECT string_agg(datname, ' ') FROM pg_database WHERE NOT datistemplate")"
 expect 0 "status clean after bootstrap" wm status
 # 017/018 on a fresh bootstrap: no duplicate index, the FK is indexed.
 dups=$(sq unheaded_app "SELECT count(*) FROM pg_index a JOIN pg_index b ON a.indrelid = b.indrelid AND a.indexrelid < b.indexrelid AND a.indkey::text = b.indkey::text AND a.indclass::text = b.indclass::text AND coalesce(pg_get_expr(a.indexprs, a.indrelid), '') = coalesce(pg_get_expr(b.indexprs, b.indrelid), '') AND coalesce(pg_get_expr(a.indpred, a.indrelid), '') = coalesce(pg_get_expr(b.indpred, b.indrelid), '')")
 [[ "$dups" == 0 ]] && pass "no duplicate indexes in unheaded_app" || fail "$dups duplicate index pair(s) in unheaded_app"
-[[ "$(sq unheaded_app "SELECT to_regclass('idx_zhen_created') IS NOT NULL AND to_regclass('idx_zhen_search') IS NOT NULL")" == t ]] &&
-	pass "003's zhen indexes kept" || fail "003's zhen indexes missing"
+# Zhen's tables live in unheaded_zhen since 052 (ADR-149), with 003's indexes.
+[[ "$(sq unheaded_zhen "SELECT to_regclass('idx_zhen_created') IS NOT NULL AND to_regclass('idx_zhen_search') IS NOT NULL")" == t ]] &&
+	pass "003's zhen indexes kept (unheaded_zhen)" || fail "003's zhen indexes missing from unheaded_zhen"
 [[ "$(sq unheaded_config "SELECT to_regclass('idx_compliance_host_bindings_profile') IS NOT NULL")" == t ]] &&
 	pass "bindings(profile) indexed" || fail "bindings(profile) not indexed"
 # 10. The Genesis cards (034): a fresh Well gets every card of
@@ -112,7 +113,7 @@ got_cards=$(sq unheaded_app "SELECT count(*) || ' ' || to_char(min(created_at) A
 
 # 8. Owners (ERDA 2.2).
 owner_of() { sq "$1" "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = '$2'::regclass"; }
-for pair in unheaded_app:well_app_owner unheaded_ops:well_ops_owner unheaded_config:well_config_owner; do
+for pair in unheaded_app:well_app_owner unheaded_ops:well_ops_owner unheaded_config:well_config_owner unheaded_zhen:well_zhen_owner; do
 	db=${pair%%:*} want=${pair#*:}
 	[[ "$(sq postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '$db'")" == "$want" ]] &&
 		pass "$db owned by $want" || fail "$db owner"
@@ -125,8 +126,8 @@ for pair in unheaded_app:well_app_owner unheaded_ops:well_ops_owner unheaded_con
 done
 [[ "$(owner_of unheaded_ops test_init_owner)" == well_ops_owner ]] && pass "init.sh ran a later entry as the owner" || fail "init.sh owner: $(owner_of unheaded_ops test_init_owner)"
 [[ "$(owner_of unheaded_ops test_init_su)" == unheaded ]] && pass "init.sh kept the superuser for a superuser entry" || fail "superuser entry owner: $(owner_of unheaded_ops test_init_su)"
-reach=$(sq postgres "SELECT string_agg(r || '>' || d, ' ' ORDER BY r, d) FROM unnest(ARRAY['app_kanban','ops_writer','config_admin','huginn_reader','well_backup']) r, unnest(ARRAY['postgres','unheaded_app','unheaded_ops','unheaded_config']) d WHERE has_database_privilege(r, d, 'CONNECT')")
-want_reach="app_kanban>unheaded_app app_kanban>unheaded_config config_admin>unheaded_config huginn_reader>unheaded_app huginn_reader>unheaded_config huginn_reader>unheaded_ops ops_writer>unheaded_ops well_backup>postgres well_backup>unheaded_app well_backup>unheaded_config well_backup>unheaded_ops"
+reach=$(sq postgres "SELECT string_agg(r || '>' || d, ' ' ORDER BY r, d) FROM unnest(ARRAY['app_kanban','ops_writer','config_admin','huginn_reader','well_backup']) r, unnest(ARRAY['postgres','unheaded_app','unheaded_ops','unheaded_config','unheaded_zhen']) d WHERE has_database_privilege(r, d, 'CONNECT')")
+want_reach="app_kanban>unheaded_app app_kanban>unheaded_config app_kanban>unheaded_zhen config_admin>unheaded_config huginn_reader>unheaded_app huginn_reader>unheaded_config huginn_reader>unheaded_ops huginn_reader>unheaded_zhen ops_writer>unheaded_ops well_backup>postgres well_backup>unheaded_app well_backup>unheaded_config well_backup>unheaded_ops well_backup>unheaded_zhen"
 [[ "$reach" == "$want_reach" ]] && pass "service roles connect only where granted" || fail "CONNECT map: $reach"
 # 038: kanban-app's startup ledger check (pkg/database.RequireMigrations)
 # reads unheaded_app's ledger as app_kanban; reading is all it may do.

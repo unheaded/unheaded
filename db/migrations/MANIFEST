@@ -70,6 +70,11 @@ unheaded_app     047_app_zhen_actions_gate_status.sql
 postgres         048_ops_log_events.sql
 unheaded_ops     048_ops_log_events.sql
 unheaded_app     049_app_kanban_zhen_optin.sql
+# ADR-149: Zhen's tables in their own database. 053 refuses while unheaded_app's
+# zhen_* tables hold rows nobody copied (S-ZHEN-SWITCH Phase 8B).
+postgres         051_zhen_database.sql   notx
+unheaded_zhen    052_zhen_schema.sql
+unheaded_app     053_app_drop_zhen.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and
