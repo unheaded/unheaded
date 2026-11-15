@@ -52,6 +52,13 @@ scrape_configs:
       - targets: ['[fd00:dead:beef::1]:9110']
         labels: {host: west}
 
+  # VictoriaMetrics itself (ADR-147, watchers.yml VictoriaMetricsDown). Its
+  # /metrics is open; its admin endpoints need the key (docker-compose.yml).
+  - job_name: victoria
+    static_configs:
+      - targets: ['[fd00:dead:beef::1]:8428']
+        labels: {host: west}
+
   # Four jobs left this file on 2026-11-11 (ADR-117): frr_exporter,
   # bird_exporter, routing_health and doom_services (23 targets on the old
   # 16666-16689 port block). Nothing listens on any of them on either host

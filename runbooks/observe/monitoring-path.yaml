@@ -1,0 +1,86 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: monitoring-path
+  description: A piece of the monitoring path is down (VictoriaMetricsDown, HuginnDown, AlertMailerDown, PrometheusRemoteWriteFailing, AlertmanagerNotReached, HostStateStale)
+  owner: zhenai
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147: the watchers are watched (S-SEE-AND-SURVIVE Phase 7). The path:
+  unheaded-host-state.timer and huginn produce host and container series;
+  Prometheus scrapes huginn and evaluates every rule; it remote-writes to
+  VictoriaMetrics (the SLO window and the dashboards read there) and sends
+  to Alertmanager; Alertmanager hands pages, tickets and the pipeline
+  heartbeat to alert-mailer, which mails.
+
+  Prometheus itself down, or Alertmanager unable to reach the mailer, is
+  the mailer's pipeline mail (runbooks/observe/alert-pipeline-silent.yaml).
+  One check and one start command per piece below.
+
+steps:
+  - name: containers
+    action: shell
+    command: |
+      docker ps --all --filter name=unheaded-victoria --filter name=unheaded-prometheus --filter name=unheaded-alertmanager --filter name=unheaded-alert-mailer --format '{{.Names}} {{.Status}}'
+    description: "Each should say Up"
+
+  - name: victoria
+    action: shell
+    command: |
+      curl -s -m5 -o /dev/null -w '%{http_code}\n' 'http://[fd00:dead:beef::1]:8428/health'
+    description: "VictoriaMetrics: 200"
+
+  - name: huginn
+    action: shell
+    command: |
+      systemctl is-active huginn
+    description: "huginn: active"
+
+  - name: host-state
+    action: shell
+    command: |
+      systemctl list-timers unheaded-host-state.timer --no-pager
+    description: "unheaded-host-state.timer: its last run within a minute (HostStateStale; host_state.prom in /var/lib/unheaded/textfile)"
+
+  - name: host-state-log
+    action: shell
+    command: |
+      journalctl -u unheaded-host-state -n 20 --no-pager
+    description: "Its last runs: 'Docker' errors mean the socket did not answer (docker_ok 0)"
+
+  - name: remote-write
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=prometheus_remote_storage_highest_timestamp_in_seconds - ignoring(remote_name, url) group_right prometheus_remote_storage_queue_highest_sent_timestamp_seconds' |
+        python3 -c 'import json,sys; [print(r["metric"].get("url", "-"), "%.0f s behind" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "How far remote write is behind (a few seconds is normal)"
+
+  - name: alertmanager
+    action: shell
+    command: |
+      curl -s -m5 127.0.0.1:9093/-/healthy
+    description: "Alertmanager: OK"
+
+  - name: mailer
+    action: shell
+    command: |
+      curl -s -m5 127.0.0.1:19130/health
+    description: "alert-mailer: status ok"
+
+  - name: start-what-is-down
+    action: manual
+    command: |
+      cd /home/govan/tmp/unheaded && sudo docker compose up -d victoria
+      cd /home/govan/tmp/unheaded/monitoring && sudo docker compose up -d <prometheus|alertmanager|alert-mailer>
+      sudo systemctl start huginn
+      sudo systemctl start unheaded-host-state.service
+    description: "MANUAL. Only the line for the piece that is down. Restart policy stays as it is"

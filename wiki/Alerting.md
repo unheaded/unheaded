@@ -93,7 +93,9 @@ curl -s 127.0.0.1:19130/v1/outbox    # last 50 mails: sent, dry-run, capped, fai
 
 Its state (cap count, open tickets, outbox) lives in the `alert_mailer_data` volume and survives restarts.
 
-**Mode is `send` (since 2026-10-27, 265badbb).** Short term it sends from personal Gmail to stevie@bellis.tech; the Workspace account below is the longer-term sender. One synthetic page went through `smtp.gmail.com:587` with outbox outcome `sent` before the flip. `dry-run` (2026-10-20 → 10-27) decides everything as if sending, including the cap, and sends nothing; switch back to it in the policy if the outbox shows noise, and fix the SLO, not the mailer.
+**Mode (2026-11-15):** `dry-run` on west since 2026-11-10 (Stevie: while the kingdom ran as a test cut); `send` again in `policy.yaml` on Stevie's ADR-147 decision 2, live once S-SEE-AND-SURVIVE Phase 15 restarts the mailer with a test mail. On a date listed in `mailer.run_days.dates` the caps are 24 a day and 6 an hour (a load run's stop marks late in the day still mail); add the date before the run, delete it after.
+
+**Mode was `send` from 2026-10-27 (265badbb).** Short term it sends from personal Gmail to stevie@bellis.tech; the Workspace account below is the longer-term sender. One synthetic page went through `smtp.gmail.com:587` with outbox outcome `sent` before the flip. `dry-run` (2026-10-20 → 10-27) decides everything as if sending, including the cap, and sends nothing; switch back to it in the policy if the outbox shows noise, and fix the SLO, not the mailer.
 
 ### Switching to send (Gmail)
 
@@ -131,6 +133,10 @@ scripts/monitoring/maintenance.sh 30m "reboot west"   # 30m of work, at most 24h
 scripts/monitoring/maintenance.sh --list
 scripts/monitoring/maintenance.sh --end
 ```
+
+**Planned stops (ADR-147 decision 4).** A silence stops mail; the SLO budgets still burn. A planned-stop mark stops that too: `scripts/monitoring/planned-stop.sh all 30m` (or an SLO name, or one container's name) writes `unheaded_planned_stop_until_timestamp_seconds{scope}` into huginn's textfile directory (`planned_stop.prom`, root's: it uses `sudo -n` as a normal user). Every SLO's `slo:good` counts a minute under a mark for its name or `all` as good, and ContainerStopped stays quiet for the marked container. `planned-stop.sh --list` shows the marks; `--end [scope]` ends them. `maintenance.sh --planned 30m "why"` (or `--planned=<scope>`) silences and marks in one go; `maintenance.sh --end` ends both. `kingdom-shutdown.sh` marks `all` for 30 days and `kingdom-startup.sh` replaces it with 15 minutes of warm-up. A stale 30-day mark (a shutdown with no startup) makes every SLO read good: `planned-stop.sh --list` after a restart.
+
+**ci-develop** is recorded and notifies no one (`notify: false`, Stevie 2026-11-15, ADR-147 decision 4: out of the alert set until CI is fixed): its `slo:good` and budget are still there to read.
 
 Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
 
@@ -185,6 +191,36 @@ Off until configured. To turn it on (the E-D host window):
    `deploy/systemd/unheaded-heartbeat.{service,timer}`; enable the timer.
 
 Runbook: `runbooks/observe/heartbeat-missing.yaml`.
+
+**The pipeline's own receipt (ADR-147, ADR-116 R4).** A rule cannot report that its own evaluator is down, so the mailer does: Alertmanager hands it `AlertPipelineHeartbeat` every 5 minutes (`POST /v1/alerts/pipeline`, the first route in `alertmanager.yml`, from `pipeline: silent_after: 20m` in the policy). With no receipt for 20 minutes it mails "alert pipeline silent" once (Prometheus, Alertmanager or the route is down), and "alert pipeline back" once when receipts return. Both count against the caps. `unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds` is the last receipt. Runbook: `runbooks/observe/alert-pipeline-silent.yaml`.
+
+## Containers, resources and the watchers (ADR-147)
+
+Before ADR-147 no alert read a resource, a stopped container or the monitoring path. All of these are `urgency: none` in their rule files; the mail comes from `promote:` in the policy (SS1 A, 2026-11-15, taken on the plan's recommendation: Stevie to confirm). The container and unit series come from `unheaded-host-state.timer` through huginn, the cgroup series from huginn itself ([[Huginn|Service-Huginn]]), the rest from node_exporter and Prometheus.
+
+| Alert | File | Fires when | Urgency | Runbook |
+|---|---|---|---|---|
+| ContainerStopped | `containers.yml` | a compose container that ran in the last 7 days is stopped for 2m, with no planned-stop mark | page | `container-stopped.yaml` |
+| MemoryKill | `containers.yml` | `oom_kill` rises in `system.slice` or `unheaded.slice` (kept 30m) | page | `memory-kill.yaml` |
+| HostOOMKill | `containers.yml` | `node_vmstat_oom_kill` rises anywhere (login sessions too) | none | `memory-kill.yaml` |
+| ContainerUnhealthy | `containers.yml` | running and failing its healthcheck for 5m | none | `container-stopped.yaml` |
+| ContainerCPUThrottled | `containers.yml` | over 25% of CPU periods throttled for 30m | none | `host-pressure.yaml` |
+| ContainerMemoryNearLimit | `containers.yml` | over 95% of its memory limit for 30m | none | `memory-kill.yaml` |
+| HostMemoryPressure | `resources.yml` | PSI memory full over 10% (5m rate) for 10m | page | `host-pressure.yaml` |
+| HostSwapping | `resources.yml` | swap-in over 1,000 pages/s for 15m | ticket | `host-pressure.yaml` |
+| HostSwapNearFull | `resources.yml` | swap over 80% used for 30m | ticket | `host-pressure.yaml` |
+| HostIOPressure | `resources.yml` | PSI io full over 30% (15m rate) for 30m | ticket | `host-pressure.yaml` |
+| HostCPUPressure | `resources.yml` | PSI cpu some over 50% (15m rate) for 30m | none | `host-pressure.yaml` |
+| HostTemperatureNearCritical | `resources.yml` | a sensor within 5 C of its critical mark for 10m | ticket | `host-temperature.yaml` |
+| UnitFailed | `resources.yml` | a watched unit is `failed` for 5m | page | `unit-restart.yaml` |
+| UnitRestartLoop | `resources.yml` | 3 restarts in 30 minutes | ticket | `unit-restart.yaml` |
+| HostStateStale | `resources.yml` | `host_state.prom` over 5 minutes old, or Docker did not answer | ticket | `monitoring-path.yaml` |
+| VictoriaMetricsDown, HuginnDown | `watchers.yml` | `up` 0 for 5m (Prometheus scrapes VictoriaMetrics as job `victoria`) | ticket | `monitoring-path.yaml` |
+| AlertMailerDown | `watchers.yml` | `up` 0 for 5m; it cannot mail about itself | none | `monitoring-path.yaml` |
+| PrometheusRemoteWriteFailing | `watchers.yml` | samples refused, or the queue over 5 minutes behind, for 15m | ticket | `monitoring-path.yaml` |
+| AlertmanagerNotReached | `watchers.yml` | notification errors or no Alertmanager discovered for 10m | none | `monitoring-path.yaml` |
+
+`HostDiskFull` is promoted to a page and `HostDiskAlmostFull` and `NodeExporterDown` to tickets at the same time. Each bar comes from five days of west's own series (`resources.yml`'s header). Two rules that could not fire were repaired: **TraceCollectorHighLatency** now reads the share of flushes to Wotan over 100 ms from `trace_publisher_flush_duration_seconds` (the old `trace_collector_batch_latency_seconds` was never observed), and **VectorSinkDroppingEvents** reads every component's discards (the ClickHouse sink it read blocks and never discards; `well_logs` is the one that can).
 
 ## Postmortems
 

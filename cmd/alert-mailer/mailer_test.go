@@ -404,3 +404,71 @@ func TestHourCappedPageResends(t *testing.T) {
 		t.Fatalf("the held page was not re-sent: %d mails", len(f.sent))
 	}
 }
+
+// runDayTest is a mailer in send mode with run-day caps and 2026-12-01 listed.
+func runDayTest(t *testing.T, s Settings) (*Mailer, *fakeSender, *clock) {
+	t.Helper()
+	c := &clock{time.Date(2026, 12, 1, 10, 0, 0, 0, chicago)}
+	f := &fakeSender{}
+	s.Mode, s.Reminder, s.DigestH, s.Loc = "send", 12*time.Hour, 9, chicago
+	s.RunDates = map[string]bool{"2026-12-01": true}
+	m, err := NewMailer(s, f, t.TempDir(), c.now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return m, f, c
+}
+
+// ADR-147 decision 2: on a listed run day the daily cap is raised.
+func TestRunDayRaisesDailyCap(t *testing.T) {
+	for _, tc := range []struct {
+		day        int
+		wantSent   int
+		cappedFrom int
+	}{{1, 4, 5}, {2, 2, 3}} {
+		m, f, c := runDayTest(t, Settings{MaxPerDay: 2, MaxPerHour: 2, RunDayMaxPerDay: 4, RunDayMaxPerHour: 4})
+		c.t = time.Date(2026, 12, tc.day, 10, 0, 0, 0, chicago)
+		for i := 1; i <= 5; i++ {
+			if err := page(m, alert("firing", fmt.Sprintf("slo-%d", i), "fast")); err != nil {
+				t.Fatal(err)
+			}
+			c.t = c.t.Add(time.Hour)
+		}
+		if len(f.sent) != tc.wantSent {
+			t.Fatalf("2026-12-0%d: sent %d, want %d", tc.day, len(f.sent), tc.wantSent)
+		}
+		ob := m.Status(true).Outbox
+		if got := ob[tc.cappedFrom-1].Outcome; got != "capped" {
+			t.Fatalf("2026-12-0%d: mail %d outcome %q, want capped", tc.day, tc.cappedFrom, got)
+		}
+	}
+}
+
+func TestRunDayRaisesHourlyCap(t *testing.T) {
+	m, f, _ := runDayTest(t, Settings{MaxPerDay: 6, MaxPerHour: 1, RunDayMaxPerDay: 24, RunDayMaxPerHour: 3})
+	for i := 1; i <= 4; i++ {
+		if err := page(m, alert("firing", fmt.Sprintf("slo-%d", i), "fast")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(f.sent) != 3 {
+		t.Fatalf("sent %d in one run-day hour, want 3", len(f.sent))
+	}
+	if got := m.Status(true).Outbox[3].Outcome; got != "capped-hour" {
+		t.Fatalf("fourth outcome %q, want capped-hour", got)
+	}
+	if !strings.Contains(f.sent[0].Body, "Mail 1 of at most 24 today") {
+		t.Fatalf("footer does not show the run-day cap:\n%s", f.sent[0].Body)
+	}
+}
+
+func TestStatusShowsEffectiveCap(t *testing.T) {
+	m, _, c := runDayTest(t, Settings{MaxPerDay: 2, MaxPerHour: 2, RunDayMaxPerDay: 4, RunDayMaxPerHour: 4})
+	if got := m.Status(false).MaxPerDay; got != 4 {
+		t.Fatalf("run day: MaxPerDay %d, want 4", got)
+	}
+	c.t = time.Date(2026, 12, 2, 10, 0, 0, 0, chicago)
+	if got := m.Status(false).MaxPerDay; got != 2 {
+		t.Fatalf("day after: MaxPerDay %d, want 2", got)
+	}
+}

@@ -1,0 +1,107 @@
+# Prometheus alert rules - containers and memory kills (ADR-147 decisions 1 and 2)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Producers, both through huginn (scrape job huginn):
+#   - unheaded-host-state.timer (scripts/monitoring/host-state-textfile.sh)
+#     writes host_state.prom in huginn's textfile directory every 30 s:
+#     unheaded_container_running{name,project,service}, _exit_code,
+#     _oom_killed, _healthy.
+#   - huginn's own per-cgroup series (cmd/huginn/cgroups.go):
+#     huginn_cgroup_memory_events_total, _cpu_*, _memory_*.
+#
+# Decision 1 (Stevie, 2026-11-15): restart policy stays "no" on west, so a
+# container that stops stays down until a person starts it; this file
+# makes that loud instead. Decision 2: a stopped container and a memory kill
+# each mail (promote: in observability/alerting/policy.yaml).
+#
+# A stop on purpose is marked with scripts/monitoring/planned-stop.sh, which
+# writes unheaded_planned_stop_until_timestamp_seconds{scope} (also through
+# huginn): scope "all" or a container name keeps ContainerStopped quiet
+# until the mark's time. A container that has not run in the last 7 days
+# (the exited one-shots, netbox, an old jenkins) never fires.
+
+groups:
+  - name: containers
+    interval: 1m
+    rules:
+      - alert: ContainerStopped
+        expr: |
+          (
+            unheaded_container_running == 0
+            and on (host, name) max_over_time(unheaded_container_running[7d]) == 1
+          )
+          unless on (host, name) label_replace(unheaded_planned_stop_until_timestamp_seconds > time(), "name", "$1", "scope", "(.+)")
+          unless on (host) (max by (host) (unheaded_planned_stop_until_timestamp_seconds{scope="all"}) > time())
+        for: 2m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "Container {{ $labels.name }} on {{ $labels.host }} is stopped; nothing restarts it"
+          description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 {{ $labels.name }}."
+          runbook_url: "runbooks/observe/container-stopped.yaml"
+
+      # memory.events is hierarchical: the slice keeps the count of a
+      # container killed as its PID 1, whose own scope is gone with it.
+      - alert: MemoryKill
+        expr: sum by (host, cgroup) (increase(huginn_cgroup_memory_events_total{event="oom_kill", cgroup=~"system.slice|unheaded.slice"}[10m])) > 0
+        keep_firing_for: 30m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "A process in {{ $labels.cgroup }} on {{ $labels.host }} was killed for memory"
+          description: "memory.events oom_kill rose in the stack's slice. Which one: huginn_cgroup_memory_events_total{event=\"oom_kill\"} by cgroup, and unheaded_container_oom_killed == 1."
+          runbook_url: "runbooks/observe/memory-kill.yaml"
+
+      # Any kill on the host, login sessions included (node_exporter's
+      # total since boot). Recorded, not mailed: the kills on west so far
+      # were sandbox processes of a login session.
+      - alert: HostOOMKill
+        expr: increase(node_vmstat_oom_kill[10m]) > 0
+        keep_firing_for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "The kernel killed a process for memory on {{ $labels.instance }}"
+          description: "node_vmstat_oom_kill rose. In the stack's slices MemoryKill fires too; otherwise it was a login session or a tenant."
+          runbook_url: "runbooks/observe/memory-kill.yaml"
+
+      # Running but failing its own healthcheck; a stopped container is
+      # ContainerStopped's.
+      - alert: ContainerUnhealthy
+        expr: unheaded_container_healthy == 0 and on (host, name) unheaded_container_running == 1
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Container {{ $labels.name }} on {{ $labels.host }} fails its healthcheck"
+          description: "Docker says unhealthy for 5 minutes while it runs. The last checks are under State.Health in docker inspect {{ $labels.name }}."
+          runbook_url: "runbooks/observe/container-stopped.yaml"
+
+      - alert: ContainerCPUThrottled
+        expr: |
+          sum by (host, cgroup, container_id) (rate(huginn_cgroup_cpu_throttled_periods_total[15m]))
+          / sum by (host, cgroup, container_id) (rate(huginn_cgroup_cpu_periods_total[15m])) > 0.25
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.cgroup }} on {{ $labels.host }} is CPU-throttled in over 25% of periods"
+          description: "Its cpu.max quota is reached in more than a quarter of scheduler periods over 15m: it runs slower than it could."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
+      - alert: ContainerMemoryNearLimit
+        expr: huginn_cgroup_memory_bytes / huginn_cgroup_memory_max_bytes > 0.95
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.cgroup }} on {{ $labels.host }} is over 95% of its memory limit"
+          description: "memory.current has been within 5% of memory.max for 30 minutes; the next growth is a memory kill."
+          runbook_url: "runbooks/observe/memory-kill.yaml"

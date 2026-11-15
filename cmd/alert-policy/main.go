@@ -53,12 +53,25 @@ type Policy struct {
 		MaxPerHour int    `yaml:"max_per_hour"`
 		DigestAt   string `yaml:"digest_at"`
 		Timezone   string `yaml:"timezone"`
+		// RunDays raises the caps on listed dates (ADR-147 decision 2). The
+		// mailer alone reads it; the generated files do not change with it.
+		RunDays *struct {
+			MaxPerDay  int      `yaml:"max_per_day"`
+			MaxPerHour int      `yaml:"max_per_hour"`
+			Dates      []string `yaml:"dates"`
+		} `yaml:"run_days,omitempty"`
 	} `yaml:"mailer"`
 	Page struct {
 		GroupWait      string `yaml:"group_wait"`
 		GroupInterval  string `yaml:"group_interval"`
 		RepeatInterval string `yaml:"repeat_interval"`
 	} `yaml:"page"`
+	// Pipeline is the alert path's own receipt (ADR-116 R4, ADR-147 stage
+	// 1): with SilentAfter set, AlertPipelineHeartbeat goes to the mailer
+	// every 5 minutes and the mailer mails when none has come for that long.
+	Pipeline struct {
+		SilentAfter string `yaml:"silent_after"`
+	} `yaml:"pipeline"`
 	Promote []Promotion `yaml:"promote"`
 	Window  string      `yaml:"window"`
 	SLOs    []SLO       `yaml:"slos"`
@@ -83,7 +96,14 @@ type SLO struct {
 	// Runbook is optional: a runbooks/<area>/<name>.yaml for this SLO's burn
 	// alerts. Without it they link the shared slo-error-budget-burn runbook.
 	Runbook string `yaml:"runbook,omitempty"`
+	// Notify false records the SLO (slo:good, the budget) and renders no
+	// ErrorBudgetBurn tiers, so it notifies nobody (ADR-147 decision 4).
+	// Absent means true.
+	Notify *bool `yaml:"notify,omitempty"`
 }
+
+// notifies reports whether the SLO renders burn alerts.
+func (s SLO) notifies() bool { return s.Notify == nil || *s.Notify }
 
 // tier is one multi-window burn-rate alert (SRE Workbook table 5-8).
 type tier struct {
@@ -139,6 +159,24 @@ func (p *Policy) validate() []error {
 	if p.Mailer.MaxPerHour < 1 || p.Mailer.MaxPerHour > p.Mailer.MaxPerDay {
 		bad("mailer.max_per_hour %d: want 1..max_per_day", p.Mailer.MaxPerHour)
 	}
+	// Same rules as cmd/alert-mailer's loadRunDays.
+	if rd := p.Mailer.RunDays; rd != nil {
+		if rd.MaxPerDay < 1 || rd.MaxPerDay > 50 {
+			bad("mailer.run_days.max_per_day %d: want 1..50", rd.MaxPerDay)
+		} else if rd.MaxPerDay < p.Mailer.MaxPerDay {
+			bad("mailer.run_days.max_per_day %d: want at least mailer.max_per_day (%d)", rd.MaxPerDay, p.Mailer.MaxPerDay)
+		}
+		if rd.MaxPerHour < 1 || rd.MaxPerHour > rd.MaxPerDay {
+			bad("mailer.run_days.max_per_hour %d: want 1..run_days.max_per_day", rd.MaxPerHour)
+		} else if rd.MaxPerHour < p.Mailer.MaxPerHour {
+			bad("mailer.run_days.max_per_hour %d: want at least mailer.max_per_hour (%d)", rd.MaxPerHour, p.Mailer.MaxPerHour)
+		}
+		for _, d := range rd.Dates {
+			if _, err := time.Parse("2006-01-02", d); err != nil {
+				bad("mailer.run_days.dates %q: want YYYY-MM-DD", d)
+			}
+		}
+	}
 	if !clockRE.MatchString(p.Mailer.DigestAt) {
 		bad("mailer.digest_at %q: want HH:MM", p.Mailer.DigestAt)
 	}
@@ -180,6 +218,11 @@ func (p *Policy) validate() []error {
 			}
 		}
 	}
+	if v := p.Pipeline.SilentAfter; v != "" {
+		if d, err := parsePromDuration(v); err != nil || d < 10*time.Minute {
+			bad("pipeline.silent_after %q: want a duration of at least 10m (two missed 5-minute receipts)", v)
+		}
+	}
 	if len(p.SLOs) == 0 {
 		bad("no slos: nothing could ever notify")
 	}
@@ -192,6 +235,19 @@ func (p *Policy) validate() []error {
 		}
 	}
 	return errs
+}
+
+// parsePromDuration reads a duration in durationRE's form (5m, 12h, 2d, 1w).
+func parsePromDuration(v string) (time.Duration, error) {
+	if !durationRE.MatchString(v) {
+		return 0, fmt.Errorf("%q: not a duration", v)
+	}
+	n, err := strconv.Atoi(v[:len(v)-1])
+	if err != nil {
+		return 0, err
+	}
+	unit := map[byte]time.Duration{'s': time.Second, 'm': time.Minute, 'h': time.Hour, 'd': 24 * time.Hour, 'w': 7 * 24 * time.Hour}[v[len(v)-1]]
+	return time.Duration(n) * unit, nil
 }
 
 func budget(s SLO) float64 { return (100 - s.Objective) / 100 }
@@ -227,7 +283,12 @@ func renderRules(p *Policy) ([]byte, error) {
 		ids := map[string]string{"slo": s.Name, "service": s.Service}
 		// A missing result counts as bad: a target that disappears must not look healthy.
 		sli.Rules = append(sli.Rules,
-			rule{Record: "slo:good", Expr: fmt.Sprintf("(%s) or on() vector(0)", oneLine(s.Good)), Labels: ids},
+			// A minute under a planned-stop mark for this SLO or for all
+			// counts as good (ADR-147 decision 4, scripts/monitoring/
+			// planned-stop.sh); clamp_max keeps a good minute at 1.
+			rule{Record: "slo:good", Expr: fmt.Sprintf(
+				`clamp_max(((%s) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|%s"}) > bool time()) or on() vector(0)), 1)`,
+				oneLine(s.Good), s.Name), Labels: ids},
 			rule{Record: "slo:objective", Expr: fmt.Sprintf("vector(%s)", num(s.Objective/100)), Labels: ids},
 		)
 		budgetG.Rules = append(budgetG.Rules, rule{
@@ -238,6 +299,9 @@ func renderRules(p *Policy) ([]byte, error) {
 		book := runbookURL
 		if s.Runbook != "" {
 			book = repoBlob + s.Runbook
+		}
+		if !s.notifies() {
+			continue
 		}
 		for _, t := range tiers {
 			urgency := "ticket"
@@ -275,6 +339,7 @@ func renderRules(p *Policy) ([]byte, error) {
 	var buf bytes.Buffer
 	buf.WriteString("# GENERATED by go run ./cmd/alert-policy from " + policyPath + ". Do not edit.\n")
 	buf.WriteString("# The only rules that notify anyone (ADR-100): error-budget burn per SLO.\n")
+	buf.WriteString("# A planned stop (scripts/monitoring/planned-stop.sh) counts as good.\n")
 	enc := yaml.NewEncoder(&buf)
 	enc.SetIndent(2)
 	if err := enc.Encode(ruleFile{Groups: []ruleGroup{all}}); err != nil {
@@ -340,6 +405,18 @@ func renderAlertmanager(p *Policy) ([]byte, error) {
 		routes = append(routes, r)
 	}
 	routes = append(routes, page, ticket)
+	receivers := []amReceiver{
+		{Name: "none"},
+		{Name: "page", WebhookConfigs: []amWebhook{{URL: base + "page", SendResolved: true, MaxAlerts: 50}}},
+		{Name: "ticket", WebhookConfigs: []amWebhook{{URL: base + "ticket", SendResolved: true, MaxAlerts: 50}}},
+	}
+	if p.Pipeline.SilentAfter != "" {
+		// First, so no promotion or urgency route can take the heartbeat.
+		routes = append([]amRoute{{Receiver: "pipeline", Matchers: []string{`alertname="AlertPipelineHeartbeat"`},
+			GroupWait: "30s", GroupInterval: "1m", RepeatInterval: "5m"}}, routes...)
+		receivers = append(receivers, amReceiver{Name: "pipeline",
+			WebhookConfigs: []amWebhook{{URL: base + "pipeline", SendResolved: false, MaxAlerts: 1}}})
+	}
 	f := amFile{
 		Global: map[string]string{"resolve_timeout": "5m"},
 		Route: amRoute{
@@ -354,11 +431,7 @@ func renderAlertmanager(p *Policy) ([]byte, error) {
 		},
 		// A page for an SLO says everything its tickets would.
 		InhibitRules: []amInhibit{{SourceMatchers: []string{`urgency="page"`}, TargetMatchers: []string{`urgency="ticket"`}, Equal: []string{"slo"}}},
-		Receivers: []amReceiver{
-			{Name: "none"},
-			{Name: "page", WebhookConfigs: []amWebhook{{URL: base + "page", SendResolved: true, MaxAlerts: 50}}},
-			{Name: "ticket", WebhookConfigs: []amWebhook{{URL: base + "ticket", SendResolved: true, MaxAlerts: 50}}},
-		},
+		Receivers:    receivers,
 	}
 	var buf bytes.Buffer
 	buf.WriteString("# GENERATED by go run ./cmd/alert-policy from " + policyPath + ". Do not edit.\n")

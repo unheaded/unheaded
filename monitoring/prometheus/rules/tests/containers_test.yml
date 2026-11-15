@@ -1,0 +1,191 @@
+# promtool test rules containers_test.yml (from this directory)
+# ADR-147 decisions 1 and 2 (S-SEE-AND-SURVIVE Phase 7).
+rule_files:
+  - ../containers.yml
+evaluation_interval: 1m
+tests:
+  # 1. captain runs, then stops at 11m: pending at 12m, firing at 14m.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+        values: '1x10 0x10'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: ContainerStopped
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: ContainerStopped
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: huginn, host: west, name: unheaded-captain, project: unheaded-dev, service: captain}
+            exp_annotations:
+              summary: "Container unheaded-captain on west is stopped; nothing restarts it"
+              description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 unheaded-captain."
+              runbook_url: "runbooks/observe/container-stopped.yaml"
+
+  # 2. A container that has not run in the last 7 days (an old one-shot,
+  # netbox) never fires.
+  - interval: 1h
+    input_series:
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-sword",project="unheaded-dev",service="sword"}'
+        values: '0x200'
+    alert_rule_test:
+      - eval_time: 190h
+        alertname: ContainerStopped
+        exp_alerts: []
+
+  # 3. A planned stop of that container keeps it quiet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+        values: '1x10 0x10'
+      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="unheaded-captain"}'
+        values: '1e10x20'
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: ContainerStopped
+        exp_alerts: []
+
+  # 4. A planned stop of everything keeps it quiet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+        values: '1x10 0x10'
+      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="all"}'
+        values: '1e10x20'
+    alert_rule_test:
+      - eval_time: 14m
+        alertname: ContainerStopped
+        exp_alerts: []
+
+  # 5. The mark runs out at 600 s (10m): pending from 10m, firing at 12m.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+        values: '1 0x20'
+      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="unheaded-captain"}'
+        values: '600x20'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: ContainerStopped
+        exp_alerts: []
+      - eval_time: 14m
+        alertname: ContainerStopped
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: huginn, host: west, name: unheaded-captain, project: unheaded-dev, service: captain}
+            exp_annotations:
+              summary: "Container unheaded-captain on west is stopped; nothing restarts it"
+              description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 unheaded-captain."
+              runbook_url: "runbooks/observe/container-stopped.yaml"
+
+  # 6. A kill in system.slice fires at once and keeps firing for 30m after
+  # the count stops rising; kills in user.slice (login sessions) do not.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_cgroup_memory_events_total{job="huginn",host="west",cgroup="system.slice",event="oom_kill"}'
+        values: '0 0 1x40'
+      - series: 'huginn_cgroup_memory_events_total{job="huginn",host="west",cgroup="user.slice",event="oom_kill"}'
+        values: '0+1x40'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: MemoryKill
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, host: west, cgroup: system.slice}
+            exp_annotations:
+              summary: "A process in system.slice on west was killed for memory"
+              description: "memory.events oom_kill rose in the stack's slice. Which one: huginn_cgroup_memory_events_total{event=\"oom_kill\"} by cgroup, and unheaded_container_oom_killed == 1."
+              runbook_url: "runbooks/observe/memory-kill.yaml"
+      - eval_time: 30m
+        alertname: MemoryKill
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, host: west, cgroup: system.slice}
+            exp_annotations:
+              summary: "A process in system.slice on west was killed for memory"
+              description: "memory.events oom_kill rose in the stack's slice. Which one: huginn_cgroup_memory_events_total{event=\"oom_kill\"} by cgroup, and unheaded_container_oom_killed == 1."
+              runbook_url: "runbooks/observe/memory-kill.yaml"
+
+  # 7. Any kill on the host.
+  - interval: 1m
+    input_series:
+      - series: 'node_vmstat_oom_kill{job="node_exporter",instance="[fd00:dead:beef::1]:9100"}'
+        values: '6 6 7x20'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: HostOOMKill
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: HostOOMKill
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: node_exporter, instance: "[fd00:dead:beef::1]:9100"}
+            exp_annotations:
+              summary: "The kernel killed a process for memory on [fd00:dead:beef::1]:9100"
+              description: "node_vmstat_oom_kill rose. In the stack's slices MemoryKill fires too; otherwise it was a login session or a tenant."
+              runbook_url: "runbooks/observe/memory-kill.yaml"
+
+  # 8. Unhealthy while running fires after 5m; unhealthy and stopped is
+  # ContainerStopped's, not this one's.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_container_healthy{job="huginn",host="west",name="unheaded-wotan"}'
+        values: '0x10'
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-wotan",project="unheaded-dev",service="wotan"}'
+        values: '1x10'
+      - series: 'unheaded_container_healthy{job="huginn",host="west",name="unheaded-kanban"}'
+        values: '0x10'
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-kanban",project="unheaded-dev",service="kanban"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: ContainerUnhealthy
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: huginn, host: west, name: unheaded-wotan}
+            exp_annotations:
+              summary: "Container unheaded-wotan on west fails its healthcheck"
+              description: "Docker says unhealthy for 5 minutes while it runs. The last checks are under State.Health in docker inspect unheaded-wotan."
+              runbook_url: "runbooks/observe/container-stopped.yaml"
+
+  # 9. Throttled in half the periods for over 30m fires; a tenth does not.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_cgroup_cpu_periods_total{job="huginn",host="west",cgroup="system.slice/docker-aaaaaaaaaaaa.scope",container_id="aaaaaaaaaaaa"}'
+        values: '0+100x60'
+      - series: 'huginn_cgroup_cpu_throttled_periods_total{job="huginn",host="west",cgroup="system.slice/docker-aaaaaaaaaaaa.scope",container_id="aaaaaaaaaaaa"}'
+        values: '0+50x60'
+      - series: 'huginn_cgroup_cpu_periods_total{job="huginn",host="west",cgroup="system.slice/docker-bbbbbbbbbbbb.scope",container_id="bbbbbbbbbbbb"}'
+        values: '0+100x60'
+      - series: 'huginn_cgroup_cpu_throttled_periods_total{job="huginn",host="west",cgroup="system.slice/docker-bbbbbbbbbbbb.scope",container_id="bbbbbbbbbbbb"}'
+        values: '0+10x60'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerCPUThrottled
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: ContainerCPUThrottled
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, cgroup: "system.slice/docker-aaaaaaaaaaaa.scope", container_id: aaaaaaaaaaaa}
+            exp_annotations:
+              summary: "system.slice/docker-aaaaaaaaaaaa.scope on west is CPU-throttled in over 25% of periods"
+              description: "Its cpu.max quota is reached in more than a quarter of scheduler periods over 15m: it runs slower than it could."
+              runbook_url: "runbooks/observe/host-pressure.yaml"
+
+  # 10. At 97% of its limit for 31m fires; a group with no limit (no
+  # huginn_cgroup_memory_max_bytes) never does.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_cgroup_memory_bytes{job="huginn",host="west",cgroup="system.slice/x.service"}'
+        values: '97x40'
+      - series: 'huginn_cgroup_memory_max_bytes{job="huginn",host="west",cgroup="system.slice/x.service"}'
+        values: '100x40'
+      - series: 'huginn_cgroup_memory_bytes{job="huginn",host="west",cgroup="system.slice/y.service"}'
+        values: '99x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ContainerMemoryNearLimit
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: ContainerMemoryNearLimit
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: huginn, host: west, cgroup: system.slice/x.service}
+            exp_annotations:
+              summary: "system.slice/x.service on west is over 95% of its memory limit"
+              description: "memory.current has been within 5% of memory.max for 30 minutes; the next growth is a memory kill."
+              runbook_url: "runbooks/observe/memory-kill.yaml"
