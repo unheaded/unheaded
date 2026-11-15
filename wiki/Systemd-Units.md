@@ -38,6 +38,10 @@ West is not up 24/7: timers catch up at boot. Backup paths and alerts: [[Well Ba
 
 The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-well-offsite.conf`).
 
+## Start limits
+
+Every unit that restarts itself can also give up (ADR-147 SS3, S-SEE-AND-SURVIVE Phase 6). systemd's default limit is 5 starts in 10 s, which a unit with `RestartSec` of 5 s or more can never reach, so a unit failing at every start restarted for ever and nobody was told (on west, wiki-server restarted 15 times at boot on 2026-11-12). Each restarting unit in `deploy/systemd/` now carries `StartLimitIntervalSec=15min` and `StartLimitBurst=10` in `[Unit]`: after 10 starts in 15 minutes it stays `failed`, and UnitFailed (from `unheaded-host-state`) mails. The trace collector keeps its own 600 s / 60. `scripts/check-unit-start-limits.sh` fails a restarting unit whose interval is not longer than burst x `RestartSec` (CI: `security.yml`; registered in `check-gates-can-fail.sh`). Installed units that have drifted from the repository get the same two lines as a drop-in, `deploy/systemd/dropins/10-start-limit.conf` → `/etc/systemd/system/<unit>.d/10-start-limit.conf` (Phase 14). After the cause is fixed: `sudo systemctl reset-failed <unit>`, then start it.
+
 ## All units in the repo
 
 | Unit | Description |
