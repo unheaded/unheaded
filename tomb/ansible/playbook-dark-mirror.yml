@@ -95,7 +95,6 @@
         owner: root
         group: root
         mode: "0644"
-      failed_when: false
 
     - name: "Deploy Prometheus systemd service"
       ansible.builtin.copy:

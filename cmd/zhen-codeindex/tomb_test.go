@@ -231,3 +231,79 @@ print("MISSING:" + str(m.retrieve_context("x", {**cfg, "grimoire_index": sys.arg
 		}
 	}
 }
+
+// tombFilesMissing are the files/ sources the Lich and Cerydwyn playbooks name
+// that tomb/ansible/files/ does not hold. Their tasks carry failed_when: false,
+// so those playbooks deploy nothing for them. Found by this test 2026-11-15 and
+// parked in the S-RESIDUE progress file. The list only shrinks: an entry that
+// is fixed or no longer named fails the test until it is removed here.
+var tombFilesMissing = map[string]bool{
+	"playbook-cerydwyn.yml:files/rag-cerydwyn.py":    true,
+	"playbook-cerydwyn.yml:files/cerydwyn-daemon.py": true,
+	"playbook-lich.yml:files/lich-runner.sh":         true,
+	"playbook-lich.yml:files/crash-triage.sh":        true,
+	"playbook-lich.yml:files/attack-preflight.sh":    true,
+	"playbook-lich.yml:files/attack-report.sh":       true,
+}
+
+// A playbook task that copies files/<name> names a file the repository holds,
+// and does not hide the copy's failure: failed_when: false on such a task turns
+// a missing file into a silent no-op (D-31, the grimoire-search.sh task).
+func TestTomb_PlaybookFilesExist(t *testing.T) {
+	playbooks, err := filepath.Glob(filepath.Join(tombDir, "ansible", "*.yml"))
+	if err != nil || len(playbooks) == 0 {
+		t.Fatalf("no playbooks under tomb/ansible: %v", err)
+	}
+	src := regexp.MustCompile(`^\s*src:\s*"?(files/[^"\s]+)"?\s*$`)
+	task := regexp.MustCompile(`^\s*- name:`)
+	quiet := regexp.MustCompile(`^\s*failed_when:\s*false\s*$`)
+	seen := map[string]bool{}
+	checked := 0
+	for _, pb := range playbooks {
+		b, err := os.ReadFile(pb)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lines := strings.Split(string(b), "\n")
+		for i, line := range lines {
+			m := src.FindStringSubmatch(line)
+			if m == nil {
+				continue
+			}
+			checked++
+			key := filepath.Base(pb) + ":" + m[1]
+			seen[key] = true
+			_, statErr := os.Stat(filepath.Join(tombDir, "ansible", filepath.FromSlash(m[1])))
+			if tombFilesMissing[key] {
+				if statErr == nil {
+					t.Errorf("%s now exists: remove it from tombFilesMissing", key)
+				}
+				continue
+			}
+			if statErr != nil {
+				t.Errorf("%s:%d: %s is not in tomb/ansible/files/", pb, i+1, m[1])
+			}
+			// The task runs from the "- name:" above to the one below.
+			start, end := i, i
+			for start > 0 && !task.MatchString(lines[start]) {
+				start--
+			}
+			for end+1 < len(lines) && !task.MatchString(lines[end+1]) {
+				end++
+			}
+			for j := start; j <= end; j++ {
+				if quiet.MatchString(lines[j]) {
+					t.Errorf("%s:%d: the task copying %s carries failed_when: false", pb, j+1, m[1])
+				}
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no files/ source found: the playbooks or this test's pattern changed")
+	}
+	for key := range tombFilesMissing {
+		if !seen[key] {
+			t.Errorf("%s is no longer named by a playbook: remove it from tombFilesMissing", key)
+		}
+	}
+}
