@@ -102,7 +102,7 @@ func latencyMapEvent(lk *LatencyTraceKey, le *LatencyEntry, now time.Time) map[s
 // ── LatencyEntry ───────────────────────────────────────────────────────────
 
 // LatencyEntry mirrors the Rust LatencyEntry struct from latency-probe/src/common.rs.
-// It holds aggregated RTT statistics for a single flow.
+// It holds aggregated RTT statistics for one thread under one trace id.
 // Size: 8 + 8 + 8 + 8 + 8 = 40 bytes.
 type LatencyEntry struct {
 	RTTNS        uint64 // Most recent RTT sample (nanoseconds)
@@ -449,9 +449,10 @@ func FormatRTTHuman(rttNS uint64) string {
 	}
 }
 
-// rttTracker remembers each flow's sample count across sweeps of the latency
-// map, so a sweep emits only flows that took a new measurement. Flows absent
-// from a sweep (evicted from the map) are forgotten.
+// rttTracker remembers each entry's sample count across sweeps of the latency
+// map, so a sweep emits only entries (one thread under one trace id) that took
+// a new measurement. Entries absent from a sweep (evicted from the map) are
+// forgotten.
 type rttTracker struct {
 	seen map[string]uint64 // key bytes -> Samples at the last sweep
 	live map[string]struct{}
@@ -461,8 +462,8 @@ func newRTTTracker() *rttTracker {
 	return &rttTracker{seen: map[string]uint64{}, live: map[string]struct{}{}}
 }
 
-// fresh records a flow's sample count and reports whether it changed since
-// the flow was last swept (a first sighting counts if it has any samples).
+// fresh records an entry's sample count and reports whether it changed since
+// the entry was last swept (a first sighting counts if it has any samples).
 func (t *rttTracker) fresh(key []byte, samples uint64) bool {
 	k := string(key)
 	last, ok := t.seen[k]
@@ -474,7 +475,7 @@ func (t *rttTracker) fresh(key []byte, samples uint64) bool {
 	return samples != last
 }
 
-// endSweep forgets flows the sweep did not visit.
+// endSweep forgets entries the sweep did not visit.
 func (t *rttTracker) endSweep() {
 	for k := range t.seen {
 		if _, ok := t.live[k]; !ok {

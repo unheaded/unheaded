@@ -5,7 +5,7 @@ package main
 
 import "testing"
 
-// The latency map is swept every 200 ms. It used to emit every flow's
+// The latency map was swept every 200 ms (every 2 s since FND-044). It used to emit every flow's
 // latest RTT on every sweep, so one measurement became five samples a
 // second for as long as the flow stayed in the map, and the dashboard's
 // percentiles were weighted by flows x sweeps, not by measurements.
