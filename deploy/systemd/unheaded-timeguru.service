@@ -34,10 +34,9 @@ LimitNOFILE=4096
 Environment=AUTH_KEY_FILE=/etc/unheaded/keys/timeguru.key
 Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-# service token; kanban-app reads the timeline with its own, and it and
-# micromanager may write.
+# service token; kanban-app reads the timeline with its own and may write.
 Environment=AUTH_ENABLED=true
-Environment=AUTH_ALLOW_CALLERS=kanban-app,micromanager
+Environment=AUTH_ALLOW_CALLERS=kanban-app
 ReadOnlyPaths=-/etc/unheaded/trust.d
 # TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
 # TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.

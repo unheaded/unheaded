@@ -15,12 +15,7 @@ var DefaultServices = []string{
 	"wiki-server",
 	"doom-bridge",
 	"trace-collector",
-	"monad",
-	"sophia",
 	"timeguru",
-	"captain",
-	"architect",
-	"micromanager",
 }
 
 // DefaultCAValidity is 10 years for the root CA.

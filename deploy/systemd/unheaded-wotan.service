@@ -43,7 +43,7 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 # S-IRON-GATE Phase 7 (ADR-103 §6): every call needs a service token for
 # aud=wotan from one of these identities; auto-approve keys on its sub.
 Environment=AUTH_ENABLED=true
-Environment=AUTH_ALLOW_CALLERS=akira,alert-mailer,anomaly,architect,captain,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,upc-cartridgectl,zhen-agentd,zhen-claude
+Environment=AUTH_ALLOW_CALLERS=akira,alert-mailer,anomaly,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,perf-benchmark,shield,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,upc-cartridgectl,zhen-agentd,zhen-claude
 ReadOnlyPaths=-/etc/unheaded/trust.d
 # TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
 # TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.

@@ -17,7 +17,7 @@
 //
 //	cert-gen -out ./certs                       # Generate CA + all default service certs
 //	cert-gen -out ./certs -services timeguru    # Generate CA + specific service cert
-//	cert-gen -out ./certs -services "timeguru,captain,architect"
+//	cert-gen -out ./certs -services "timeguru,kanban-app,sword"
 //	cert-gen -out ./certs -layout per-service -reuse-ca   # the compose layout
 //
 // Generates (flat, the default):
@@ -62,11 +62,6 @@ import (
 // identity when it differs from the compose name).
 var defaultServices = []serviceSpec{
 	{Name: "timeguru", IP: "10.10.10.20"},
-	{Name: "captain", IP: "10.10.10.21"},
-	{Name: "architect", IP: "10.10.10.22"},
-	{Name: "micromanager", IP: "10.10.10.23"},
-	{Name: "monad", IP: "10.10.10.24"},
-	{Name: "sophia", IP: "10.10.10.25"},
 	{Name: "dashboard-backend", IP: "10.10.10.26"},
 	{Name: "kanban-app", IP: "10.10.10.27"},
 	{Name: "wotan", IP: "10.10.10.10"},
