@@ -70,11 +70,16 @@ notes: |
   modules the host is meant to load in IOC_KNOWN_MODULES.
 
   What a host-event count is worth: the account tools and the kernel are
-  counted on fields only root or the kernel can produce. sudo, crontab and
-  passwd log under the uid of whoever ran them and are counted on the
-  program's path, which a local account with its own mount namespace could
-  imitate (config/vector/vector.yaml says how). So a count is a reason to
-  read the journal on that host, where _UID tells the two apart.
+  counted on fields only root or the kernel can produce. sudo, crontab,
+  passwd, gpasswd and chage log under the uid of whoever ran them and are
+  counted on the program's name, plus its path when journald has one. A
+  program that exits at once is often gone before journald reads its path,
+  and its line is counted all the same, so a real edit is not missed; the
+  price is that a local account can forge such a line with a short-lived
+  process (config/vector/vector.yaml says how). So a crontab, sudo or
+  passwd count is a reason to read the journal on that host, where _UID
+  and _PID tell the two apart. An audit watch on the cron spool would be
+  the stronger source; it is parked with the lab-audited profile.
 
   Blind is not clean: when VictoriaMetrics does not answer, or the journal
   was shipped in no hour of the window, the run fails with exit 2 ("cannot

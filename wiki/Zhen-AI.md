@@ -177,11 +177,19 @@ holds and which process was killed stay in the journal. An install that creates
 an account, your own crontab edit, and a boot that loads an out-of-tree module
 (west loads `spl` for ZFS at every boot) each fail the run for the two-day
 window unless the switch or `IOC_KNOWN_MODULES` says otherwise. The account
-tools and the kernel are counted on fields only root or the kernel can produce;
-sudo, crontab and passwd log under the invoking uid and are counted on the
-program's path, so a count is a reason to read that host's journal, not proof
-(`config/vector/vector.yaml`, the comment above `journal_host`). A host that
-ships its journal but counted no host event in the window is named in a note.
+tools and the kernel are counted on fields only root or the kernel can produce.
+sudo, crontab, passwd, gpasswd and chage log under the invoking uid and are
+counted on the program's name, plus its path when journald has one: a program
+that logs and exits at once is often gone before journald reads `/proc`, and
+its line arrives without `_EXE`, sometimes without `_COMM` (seen on west,
+2026-11-15). Those lines count; a path that is present and wrong is dropped.
+The trade is deliberate: a real edit is not missed, and a local account can
+forge a crontab, sudo or passwd count with a short-lived process. So a count is
+a reason to read that host's journal, not proof (`config/vector/vector.yaml`,
+the comment above `journal_host`). The stronger source for crontab, an audit
+watch on the cron spool, is parked with S-EVIDENCE-RUNS's `lab-audited`
+profile. A host that ships its journal but counted no host event in the window
+is named in a note.
 
 **Adding a job.** Edit the file and restart the daemon, or in `zhen-cli` type
 `/schedule add <name> <every> [runbook]`, `/schedule remove <name>` or
