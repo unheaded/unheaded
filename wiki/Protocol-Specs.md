@@ -159,7 +159,7 @@ Most services get the addresses from `transport.ConfigFromEnv()` (`WOTAN_ADDR`, 
 ## 3. Sophia Protocol (Knowledge Graph)
 
 **Specification:** `docs/protocol/draft-bellis-unheaded-sophia-dictionary-00.md` and `-01.md`
-**Service:** `cmd/sophia/`
+**Service:** none since 2026-11 (the sophia HTTP service was removed, ADR-147, and archived in `unheaded-role-services`); the dictionaries live in BPF maps and `pkg/sophia`.
 
 ### Purpose
 
@@ -205,16 +205,6 @@ This allows protocol semantics to change at runtime without packet modification,
 ### API
 
 There is no dictionary-management HTTP API (no create, activate or resolve endpoint); the hot-swap above is specified, not served. What runs:
-
-`sophia` service (`cmd/sophia`, `:19005`):
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/v1/knowledge` | GET, POST | Read or add knowledge entries |
-| `/api/v1/insights` | GET | Insights |
-| `/api/v1/decide` | POST | Decision request |
-| `/api/v1/stats` | GET | Counts |
-| `/health`, `/ready`, `/metrics` | GET | Probes, Prometheus |
 
 `protocol-api` (`cmd/protocol-api`, `:17100`), read-only dictionary listing:
 

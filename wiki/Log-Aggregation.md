@@ -27,11 +27,11 @@ Centralized structured logging via Wotan message bus.
 
 ## Topic Format
 
-`logs.<service>.<level>` — e.g., `logs.timeguru.info`, `logs.captain.error`
+`logs.<service>.<level>` — e.g., `logs.timeguru.info`, `logs.kanban-app.error`
 
 ## Integration
 
-Publishing to `logs.<service>.<level>`: timeguru, architect, micromanager, monad, sophia, kanban-app, dashboard-backend, unheaded-daemon, trace-collector-go. Captain has no structured logger yet, so it publishes no logs (`services/captain/cmd/captain/main.go`).
+Publishing to `logs.<service>.<level>`: timeguru, kanban-app, dashboard-backend, unheaded-daemon, trace-collector-go. architect, captain, micromanager and the monad and sophia services were removed in 2026-11 (ADR-147) and archived in `unheaded-role-services`.
 
 ## Host and Container Logs (Vector)
 

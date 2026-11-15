@@ -81,7 +81,7 @@ Unheaded is a configuration management automation platform delivering complete i
 
 ```
 Layer 5: User Interface (Dashboard, Kanban)
-Layer 4: Application Services (timeguru, captain, micromanager, architect)
+Layer 4: Application Services (timeguru)
 Layer 3: Infrastructure Services (wotan, trace-collector, gateway)
 Layer 2: Control Plane (unheaded-daemon)
 Layer 1: Data Plane (eBPF programs)
@@ -131,7 +131,7 @@ All Unheaded services use high ports to avoid conflicts with common dev tools.
 | Infrastructure | 16666-16999 | doom-bridge (16666), doom-injector (16667), trace-collector (16670/16671) |
 | Control Plane | 17000-17999 | unheaded-daemon HTTP (17000), gRPC (17001) |
 | Wotan | 18000-18099 | wotan HTTP (18000), gRPC (18001) |
-| Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005), cuirass (19006), sword (19011), chaos-controller (19012) |
+| Core Services | 19000-19999 | timeguru (19000), cuirass (19006), sword (19011), chaos-controller (19012); 19001-19005 retired |
 | Applications | 20000-20999 | dashboard (20000), kanban (20001), wiki (20002) |
 | Gateway | 21000-21443 | HTTP (21000), HTTPS (21443) |
 | User Apps | 26000-26666 | Reserved for user applications |
@@ -285,12 +285,7 @@ unheaded/
 │
 ├── services/              # Microservice integration
 │   ├── wotan/           # github.com/unheaded/wotan (existing)
-│   ├── timeguru/         # Timeline tracking (Go)
-│   ├── captain/          # Strategy service (Go)
-│   ├── micromanager/     # Execution service (Go)
-│   ├── architect/        # Design service (Go)
-│   ├── monad/            # Unified state management (Go)
-│   └── sophia/           # Knowledge graph service (Go)
+│   └── timeguru/         # Timeline tracking (Go)
 │
 ├── ebpf/                  # eBPF programs (Rust + Aya)
 │   ├── packet_marker/    # Trace ID injection at XDP
@@ -314,7 +309,7 @@ unheaded/
 
 ## 🔧 Service Implementation Guidelines
 
-### Go Services (timeguru, captain, micromanager, architect)
+### Go Services (timeguru)
 
 **Structure:**
 ```go
@@ -542,7 +537,7 @@ not accepted. See `docs/security/PRE-PUBLIC-BLOCKERS.md`.
 
 **Required metrics for all services:**
 
-**Command-line shape (ADR-111, `pkg/cmdline`).** Every program under `cmd/`, and the five service binaries built from `services/` (wotan, timeguru, captain, architect, micromanager), calls `cmdline.Parse(cmdline.Spec{Name, Purpose, Examples, ...})` instead of `flag.Parse()` (subcommand tools use `cmdline.HandleParseError` / `ReportUnknownCommand` / `PrintVersion`). Result, coreutils-style: `--help` on stdout with a usage line, one sentence, options and examples; `--version` → `NAME (unheaded) VERSION` (`-X unheaded/pkg/cmdline.Version=...`); any mistake → one line on stderr + `Try 'NAME --help' for more information.`, exit 2, never the usage dump. A Spec with no `Operands` accepts none. `pkg/cmdline/policy_test.go` (cmd/ and services/*/cmd/) fails on a new binary that skips this; `scripts/check-version-flag.sh` runs each one.
+**Command-line shape (ADR-111, `pkg/cmdline`).** Every program under `cmd/`, and the two service binaries built from `services/` (wotan, timeguru), calls `cmdline.Parse(cmdline.Spec{Name, Purpose, Examples, ...})` instead of `flag.Parse()` (subcommand tools use `cmdline.HandleParseError` / `ReportUnknownCommand` / `PrintVersion`). Result, coreutils-style: `--help` on stdout with a usage line, one sentence, options and examples; `--version` → `NAME (unheaded) VERSION` (`-X unheaded/pkg/cmdline.Version=...`); any mistake → one line on stderr + `Try 'NAME --help' for more information.`, exit 2, never the usage dump. A Spec with no `Operands` accepts none. `pkg/cmdline/policy_test.go` (cmd/ and services/*/cmd/) fails on a new binary that skips this; `scripts/check-version-flag.sh` runs each one.
 
 HTTP metrics come from the shared middleware, not per-service vectors: `m := httputil.NewServiceMetrics("timeguru")` then `m.Instrument(mux, handler)` (`pkg/httputil/middleware.go`). It registers `unheaded_http_requests_total{method,path,status}` and `unheaded_http_request_duration_seconds{method,path}`; `service` is a const label set by the shared middleware, and `path` is the ServeMux pattern, never the raw URL. Service-specific metrics follow the same naming:
 
@@ -766,7 +761,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 
 **Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected, 13 IANA registries in foundation spec draft-06
 
-**Services:** 10 core + Zhen AI (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon, zhen-inference, zhen-web-ui)
+**Services:** timeguru, dashboard-backend, kanban-app, wotan, unheaded-daemon (Cuirass), akira; Zhen is a module (ADR-147)
 
 **Build:** `go build ./...` passes, all tests pass (0 failures)
 
@@ -830,7 +825,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - S-REAL-STEEL (2026-10-23 → 10-26, `docs/battle-plans/S-REAL-STEEL-battle-plan.md`, ADR-107 Proposed): the deploy and chaos stubs replaced and proved live. Cuirass (`cmd/unheaded-daemon`) talks to west's LXD over HTTPS with a restricted client certificate (project `unheaded`; pihole in `default` is invisible to it), probes instance health, manages a proxy device as the stable endpoint, and exposes an allowlisted stop/kill (`docker/compose.cuirass-lxd.yml`; enforce/prune/chaos per window). Sword (`cmd/sword`, 19011, compose profile `deploy`) runs rolling, blue-green, canary and recreate through `pkg/deploy/strategy` + `pkg/deploy/cuirassdriver`, canary analysis from instance metrics plus client-observed probes under the Kingdom SLO guard (`pkg/sloguard`), history in the Well (migration 039, with `WELL_DB`; `pkg/statefile` fallback). Yaldabaoth runs inside `cmd/chaos-controller` (19012, host unit as `unheaded-chaos` uid 16763 on west and east): allowlist `/etc/unheaded/chaos/allowlist.yaml`, three abort paths incl. `/run/unheaded/chaos/ABORT`, revert journal + `ExecStopPost revert-all`, injectors netem / container kill / systemd stop-kill (east, polkit) / `packet_chaos` (`yaldabaoth-ebpf` skb mark 0xC4A05 on CHAOS-flagged flows, lab netns only); unimplemented types refuse. Game day 1: canary hurt by 300 ms netem rolled back on its own in 62.4 s, aborts revert in 0.12 s / 0.88 s (`docs/gamedays/2026-10-26-real-steel-1.md`). E1: ADR-090 Accepted, 108 unreached packages deleted. E4: Anamnesis event codes moved to the spec (`EVENT_CHAOS 0x04`, `EVENT_ANOMALY 0x08`). FND-023 and FND-024 closed 2026-10-27 (S-CLEAN-SLATE): the discover meter ejects a dead replica (re-run 0.9961), and `scripts/kingdom-startup.sh` starts the monitoring stack first. See `wiki/Service-Sword.md`, `wiki/Chaos-Engineering.md`, `wiki/Game-Days.md`, `wiki/Steel-Echo.md`.
 - S-TRUE-WIRE (2026-10-27 → 10-28, `docs/battle-plans/S-TRUE-WIRE-battle-plan.md`, branch `sprint/true-wire`, not on develop until **E2**): spec-vs-code alignment, Shield truth, supply chain. Flow-action values and Anamnesis event types follow foundation-06 (FORWARD 0x00 … MIRROR 0x04; BORN 0x00 … ANOMALY 0x08) with legacy decoders chosen per ring source (`pkg/ebpf` `WithLegacyEventTypes`; JSON names unchanged; zero-timestamp records refused). Error-code registry symbols in Go (`pkg/protocol/errors`) and Rust (`monad_common::ErrorCode`), parity-tested against `docs/protocol/error-registry.md`; Shield counts real codes. `pkg/wotanerr` (wotan-memory-03 32-bit code on `X-Wotan-Error` / the `x-wotan-error` trailer); Wotan reloads its topic allowlists on SIGHUP (signing changes refused). Wotan WAL replication verifies `store.Message.Signed` and halts on a rejected entry (FND-020 resolved; cluster mode still unwired); sophiasync deltas ML-DSA-65 signed (observe mode). Shield: GOAWAY and the PQC_SIG_STATUS fast path removed as dead code, TC debug counters behind `debug-stats`; its HMAC/retry/hop checks moved to hop-ebpf 2026-11-04 (ADR-125; key presence, not a tag), AUTHORITY deleted. packet-marker extracts trace IDs from TCP/IPv4 options via `bpf_xdp_load_bytes` (lab 70/70). ADR-012's ratchet: `scripts/check-ebpf-insns.sh` + `docs/policy/ebpf-insns-baseline.tsv` (kernel verified counts; >10 % growth or >900K unless allowlisted fails; gates on west). Supply chain: bandit gating, trivy misconfig ratchet, `omitzero`, G115 enforced, Rust SPDX. Open: E1 (ADR-108), E2 (renumber merge), E3 (`docs/sweeps/TRUE-WIRE-DECISIONS.md`, dry run clean), E4 (Cargo licence fields), E5 (supply-chain thresholds, eight questions), E6 (datatracker), E7 (`docs/adr/ACCEPTANCE-2026-10-28.diff`), E8 (Shield check semantics).
 - Mímir's Law / Gleipnir Phase 0 Spike (2026-04-11, ADR-043, branch `spike/mimirs-law`): UPC-controlled OS baseline delivery PoC. New components: `pkg/gungnir/` (ML-DSA-65 sealed payloads, 4 tests), `pkg/gjallarhorn/` (20-byte Monad trigger packets, 5 tests), `pkg/enkrateia/` (alerts-only drift aggregator, 3 tests, zero FS mutations enforced), `cmd/heimdall-daemon/` (Mjölnir scan + drift detection), `cmd/gjallarhorn-sender/` (UPC trigger CLI), `crates/heimdall-bpf/` (Aya kprobe scaffold), `tomb/lich/LICH-012-config-convergence/` (red team campaign). REAL-METAL VALIDATED on EAST: zero false positives, 100% drift detection accuracy, alerts-only confirmed. See `wiki/Mimirs-Law.md`. 11 of 13 phases complete; bare-metal Phases 9 (full bootstrap), 11 (stress), 13 (gate eval) pending. S5 (2026-10-23): every Heimdall hook is now written and verifier-clean (vfs_write 20, execve 21, Gjallarhorn XDP observer 292 processed insns), with ringbuf readers and a rate-limited re-verify proven in a netns lab; S-ASCEND-2 (2026-10-28) re-ran Phases 9/11/13 on two network namespaces (`scripts/lab-two-node.sh`) and then across hosts, west sender to east seed, with `scripts/node-guard.sh` armed on east (PASS; `docs/battle-plans/S-ASCEND-2-EAST-NODE-plan.md`).
-- S-UPC-WIRE-COMPUTE (S5, 2026-10-23, branch `sprint/upc-wire-compute`, plan `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`, ADR-108 Proposed): S1.2 root cause fixed in the translator (a `csrr` ran the CSR read-modify-write and clobbered a4/a5; kernel 105 MBC words smaller, userland and Doom byte-identical); getpid round-trips through the owned kernel but stays off (`GETPID_INJECT=false`: kernel pid 1 vs BPF slot 0); `upc-bootctl console` types into the live xv6 shell (stdin or the tty bridge). **MBC cartridges**: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object, cart_xdp 42,743 / cart_tick 146,897 processed insns of a 500,000 gate; monad-cpu-ebpf untouched), shared `no_std` step `monad_common::cart`, host tools `crates/upc-cartridge` (`cart`), signed loader `cmd/upc-cartridgectl` (Gungnir ML-DSA-65, validator, Sophia or file registry, metrics on 26610). Three cartridges: token-bucket rate limiter (verdicts == qos-ebpf), 1:N flow sampler, int8 anomaly scorer whose scores reach `services/anomaly` through the new `cmd/anomaly` (port 19018). Anamnesis replay is bit-exact (`cart replay`). Lich hooks: `tomb/lich/UPC-CARTRIDGE-HOOKS.md` (three-engine differential). Interpreted cartridges cost ~3-7 ns per instruction, so benchmark gates #1(a) and #2 fail (rate limiter +193 ns, sampler +216 ns over the empty-pass baseline, bars 150 and 120); #1(b) (1.25x native qos-ebpf) and #3 (232,450 scored flows/s) pass; the scorer is trained on synthetic flows only. Deferred: Phases 6-8 and 18 (east as a node). See `wiki/UPC-Cartridges.md`.
+- S-UPC-WIRE-COMPUTE (S5, 2026-10-23, branch `sprint/upc-wire-compute`, plan `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`, ADR-108 Proposed): S1.2 root cause fixed in the translator (a `csrr` ran the CSR read-modify-write and clobbered a4/a5; kernel 105 MBC words smaller, userland and Doom byte-identical); getpid round-trips through the owned kernel but stays off (`GETPID_INJECT=false`: kernel pid 1 vs BPF slot 0); `upc-bootctl console` types into the live xv6 shell (stdin or the tty bridge). **MBC cartridges**: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object, cart_xdp 42,743 / cart_tick 146,897 processed insns of a 500,000 gate; monad-cpu-ebpf untouched), shared `no_std` step `monad_common::cart`, host tools `crates/upc-cartridge` (`cart`), signed loader `cmd/upc-cartridgectl` (Gungnir ML-DSA-65, validator, file registry; the Sophia registry went with the service, ADR-147; metrics on 26610). Three cartridges: token-bucket rate limiter (verdicts == qos-ebpf), 1:N flow sampler, int8 anomaly scorer whose scores reach `services/anomaly` through the new `cmd/anomaly` (port 19018). Anamnesis replay is bit-exact (`cart replay`). Lich hooks: `tomb/lich/UPC-CARTRIDGE-HOOKS.md` (three-engine differential). Interpreted cartridges cost ~3-7 ns per instruction, so benchmark gates #1(a) and #2 fail (rate limiter +193 ns, sampler +216 ns over the empty-pass baseline, bars 150 and 120); #1(b) (1.25x native qos-ebpf) and #3 (232,450 scored flows/s) pass; the scorer is trained on synthetic flows only. Deferred: Phases 6-8 and 18 (east as a node). See `wiki/UPC-Cartridges.md`.
 - WAVE10F Forge Real-Attention Gemma 4 (2026-04-17, plan `docs/battle-plans/WAVE10F-FORGE-REAL-ATTENTION-GEMMA4.md`): zhenai-forge gained a complete Gemma 4 E2B training path in `crates/zhenai-forge/src/gemma4.rs` (3000+ LOC). Real attention forward+backward (Q/K/V/softmax/RoPE/GQA), hybrid sliding/global mask per layer, partial-rotary RoPE on full layers, per-head Q/K-norm + weightless V-norm, gelu_pytorch_tanh, final logit softcap=30, Per-Layer Embeddings (PLE chain), unified KV gradient routing for layers 20-34 → producer 18/19, LoRA injection on Q/K/V/O at all 110 active targets, Adam with NaN guard. Verified end-to-end on real `/var/zhen/models/gemma-4-E2B-it.gguf` (9.3GB GGUF converted from HF safetensors at `/home/govan/tmp/gemma-4-E2B-it/` via llama.cpp@30dce2c convert_hf_to_gguf.py): grad-norm probe shows healthy=35/35 zero=0 nan=0 across all layers, healthy=110/110 LoRA targets, training loss descends 21.28→12.02→6.78 over 3 steps. CLI subcommand `zhenai-forge train-gemma4 --model ... --data ...` wired. GPU port landed 2026-04-20 (Phase 7 Steps A-E per `notes/wave10f-step-c-battle-plan.md`) — `zhenai-forge train-gemma4` defaults to GPU, `--cpu` falls back. Warm-path per-step: **2.05s** (vs 58s pure CPU, 43s hybrid-fwd). 10-step descent on fixed tokens: 19.96 → 0.043 (but that was memorization on 1 example — see below). Full timing at `notes/wave10f-step-c-timing.md`.
 
 **Learning Gate** (2026-04-20, plan at `notes/wave10f-learning-gate-plan.md`): 5-experiment protocol designed by unheaded-scientist + unheaded-developer to distinguish memorization from genuine learning. Four of five pass strict thresholds on real GGUF: (1) eval loss drops 42% on held-out prefixes (CI95 excludes 1.0), (3) LoRA-A=0 init reproduces base model bit-identical, (4) eval_final scales monotonically with |T|: |T|=1 → eval WORSENS (memorization failure), |T|≥64 saturates at 13.17, (5) generalization gap exponent β = 0.27 (≪ 1.0 memorization signature). Exp 2 (scrambled-labels) converted to diagnostic after four iterations — 20-step budget sits in pre-memorization regime for both real and scrambled, so memorization signature deferred to Phase 7.2. **Forge is learning, not just memorizing.**
@@ -868,6 +863,7 @@ Shipped and dropped from this list 2026-10-27: WireGuard IPv6 overlay, Foundatio
 - **Kubernetes**: a lab component in `unheaded-k8s` (DP-17); not a product target. `pkg/iac` still renders manifests for users.
 - **Forge**: `zhenai-forge` and all training work moved to `unheaded-forge` 2026-11-04 (round 4): unworkable on west, back burner until a machine with enough GPU. The WAVE and Learning Gate paragraphs in this file are history; serving is llama-server.
 - **WAF**: `pkg/waf` and the Rust `cmd/waf` were deleted 2026-11-04 (DP-401.1) and are archived with their history in `unheaded-waf` since 2026-11-10; never ran. A future WAF is ADR-121 (parked, lowest priority). The Go `cmd/shield` stays and is not a WAF.
+- **Role services**: architect, captain, micromanager and the monad and sophia HTTP services were removed 2026-11 (ADR-147 decision 7) and are archived with their history in `unheaded-role-services`. The Monad wire format, the Sophia dictionaries and the eBPF maps are not touched.
 - **SBOM**: Run ScanCode + FOSSology + ORT against codebase. Must complete before going public.
 - **Backends**: All observability + IaC adapters DEFERRED not killed. Anti-lock-in is core principle. Ship Prometheus + zerolog first.
 - **Inverse Mask**: Deep exploration session required (BlackMage + Developer + Architect + Scientist).
@@ -882,7 +878,7 @@ Shipped and dropped from this list 2026-10-27: WireGuard IPv6 overlay, Foundatio
 ### When to Spawn Agents
 
 **USE AGENTS FOR:**
-- Independent services (timeguru, captain, etc)
+- Independent services (timeguru, etc)
 - Parallel implementation (services + daemon)
 - Large refactors
 - Documentation updates
@@ -1203,11 +1199,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | protocol-api | 17100/17101 | HTTP/gRPC | Protocol Handlers |
 | wotan | 18000/18001 | HTTP/gRPC | Message Bus |
 | timeguru | 19000 | HTTP | Timeline Service |
-| architect | 19001 | HTTP | Design Service |
-| captain | 19002 | HTTP | Strategy Service |
-| micromanager | 19003 | HTTP | Execution Service |
-| monad | 19004 | gRPC | State Management |
-| sophia | 19005 | gRPC | Knowledge Graph |
+| retired | 19001-19005, 19080, 19081 | | removed 2026-11 (ADR-147 decision 7), archived in unheaded-role-services; not reused |
 | cuirass | 19006 | HTTP | Control Plane Service |
 | unheaded-auth | 19020 | HTTP(S) | Built-in OIDC issuer (ADR-103): login, JWKS, discovery; uid 16735 |
 | sword | 19011 | HTTP | Deploy service through Cuirass (was Canary's port; Canary folded into Sword), uid 16746 |
@@ -1222,8 +1214,6 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | haproxy-edge | 21080/21443/21404 | HTTP/HTTPS/Stats | Edge LB: TLS term, rate limiting |
 | haproxy-internal | 21081/21405 | HTTP/Stats | Internal LB: service routing |
 | nginx-wotan | 18080 | HTTP | Sidecar LB for wotan |
-| nginx-monad | 19080 | HTTP | Sidecar LB for monad |
-| nginx-sophia | 19081 | HTTP | Sidecar LB for sophia |
 | nginx-dashboard | 20080 | HTTP | Sidecar LB for dashboard |
 | nginx-kanban | 20081 | HTTP | Sidecar LB for kanban |
 | nginx-gateway | 21090 | HTTP | Sidecar LB for gateway |

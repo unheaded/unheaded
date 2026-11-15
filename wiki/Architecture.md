@@ -16,13 +16,8 @@ Layer 5: User Interface
   Kanban App (the Meta Moment -- Unheaded building Unheaded)
   Wiki Server (documentation, rendered markdown)
 
-Layer 4: Application Services
+Layer 4: Application Services (architect, captain, micromanager and the monad and sophia services were removed in 2026-11 (ADR-147) and archived in `unheaded-role-services`)
   timeguru    -- Timeline tracking, triple-format sync (MD/JSON/YAML)
-  captain     -- Strategy and vision service
-  architect   -- Infrastructure design service
-  micromanager -- Execution and QA service
-  monad       -- Unified state management
-  sophia      -- Knowledge graph and dictionary service
   dashboard-backend -- Metrics aggregation, WebSocket streaming
   kanban-app  -- Kanban board with Wotan integration (cards from The Well)
   akira       -- Cross-service health checks + percentage consensus (ADR-029)
@@ -147,7 +142,7 @@ Service A                    Wotan                    Service B
 
 | Topic | Publisher | Subscribers | Purpose |
 |-------|-----------|-------------|---------|
-| `alerts.critical` | Any service | Services that wire it (timeguru, captain, micromanager, chaos-controller, …) | Critical alert broadcast |
+| `alerts.critical` | Any service | Services that wire it (timeguru, chaos-controller, …) | Critical alert broadcast |
 | `timeline.updates` | timeguru | kanban-app | Timeline changes |
 | `system.health.reports` | akira, every service with `discovery.Start` (`pkg/healthreport`) | akira (tally), dashboard-backend (into The Well) | Each reporter's checks, and each service's check of itself |
 | `system.health.consensus` | akira | dashboard-backend | Health band changes |

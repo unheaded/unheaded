@@ -39,9 +39,6 @@ cd unheaded
 nix build \
   .#nixosConfigurations.wotan.config.system.build.toplevel \
   .#nixosConfigurations.timeguru.config.system.build.toplevel \
-  .#nixosConfigurations.captain.config.system.build.toplevel \
-  .#nixosConfigurations.micromanager.config.system.build.toplevel \
-  .#nixosConfigurations.architect.config.system.build.toplevel \
   .#nixosConfigurations.developer.config.system.build.toplevel \
   .#nixosConfigurations.kanban.config.system.build.toplevel \
   .#nixosConfigurations.dashboard.config.system.build.toplevel
@@ -83,7 +80,7 @@ sudo sysctl -w net.ipv4.ip_local_port_range="27000 65000"
 ### Step 2: Build Container Images
 ```bash
 # Build each container
-for container in wotan timeguru captain micromanager architect developer kanban dashboard; do
+for container in wotan timeguru developer kanban dashboard; do
   echo "Building $container..."
   nix build .#nixosConfigurations.$container.config.system.build.toplevel
 done
@@ -117,7 +114,7 @@ sleep 10
 curl http://10.10.10.10:18000/health
 
 # 2. Services (depend on wotan)
-for service in timeguru captain micromanager architect developer; do
+for service in timeguru developer; do
   lxc launch unheaded-$service $service --profile=unheaded
 done
 
@@ -147,7 +144,7 @@ lxc restart unheaded-wotan
 
 # Stop in dependency-safe order
 lxc stop kanban dashboard
-lxc stop timeguru captain micromanager architect developer
+lxc stop timeguru developer
 lxc stop wotan
 ```
 
@@ -160,7 +157,7 @@ lxc exec unheaded-wotan -- journalctl -u wotan -f
 lxc exec unheaded-wotan -- tail -f /var/log/unheaded/wotan.json
 
 # Aggregate logs from all containers
-for c in wotan timeguru captain micromanager architect developer kanban dashboard; do
+for c in wotan timeguru developer kanban dashboard; do
   echo "=== $c ==="
   lxc exec unheaded-$c -- tail -n 20 /var/log/unheaded/$c.json
 done
@@ -198,11 +195,6 @@ curl http://10.10.10.10:18000/metrics
 |-----------|-----|---------|--------|
 | wotan | 10.10.10.10 | 18000 (HTTP), 18001 (gRPC) | Internal + Gateway |
 | timeguru | 10.10.10.20 | 19000 | Internal + Gateway |
-| captain | 10.10.10.21 | 19002 | Internal + Gateway |
-| micromanager | 10.10.10.22 | 19003 | Internal + Gateway |
-| architect | 10.10.10.23 | 19001 | Internal + Gateway |
-| monad | 10.10.10.24 | 19004 | Internal + Gateway |
-| sophia | 10.10.10.25 | 19005 | Internal + Gateway |
 | kanban | 10.10.10.200 | 20001 | Public via Gateway |
 | dashboard | 10.10.10.201 | 20000 | Public via Gateway |
 | daemon | 10.10.10.202 | 17000 | Internal |
@@ -249,7 +241,7 @@ lxc exec unheaded-wotan -- grep NoNewPrivs /proc/1/status
 nix run .#checks.${system}.security-audit
 
 # Manual audit
-for c in wotan timeguru captain micromanager architect developer kanban dashboard; do
+for c in wotan timeguru developer kanban dashboard; do
   echo "=== Auditing $c ==="
   lxc exec unheaded-$c -- /etc/unheaded/security-audit.sh
 done
@@ -311,7 +303,7 @@ lxc exec unheaded-wotan -- netstat -tlnp
 ### Backup
 ```bash
 # Snapshot all containers
-for c in wotan timeguru captain micromanager architect developer kanban dashboard; do
+for c in wotan timeguru developer kanban dashboard; do
   lxc snapshot unheaded-$c backup-$(date +%Y%m%d-%H%M%S)
 done
 
@@ -336,7 +328,7 @@ lxc import wotan-backup.tar.gz
 nix build .#nixosConfigurations.wotan.config.system.build.toplevel
 
 # Rolling update (zero downtime)
-for c in timeguru captain micromanager architect developer; do
+for c in timeguru developer; do
   echo "Updating $c..."
   lxc stop unheaded-$c
   # Re-deploy with new image

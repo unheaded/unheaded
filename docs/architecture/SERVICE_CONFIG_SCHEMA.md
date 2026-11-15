@@ -357,7 +357,7 @@ Services are grouped into port ranges by deployment tier:
 | Tier | Port Range | Count | Typical Services |
 |------|-----------|-------|------------------|
 | control | 17000–17999 | 1000 | dashboard-backend, control-api, metrics-server |
-| infrastructure | 18000–18999 | 1000 | wotan, captain, micromanager, architect, service-discovery, log-aggregator |
+| infrastructure | 18000–18999 | 1000 | wotan, service-discovery, log-aggregator |
 | presentation | 19000–19999 | 1000 | shield-waf, pauldrons, kanban-app, ui-gateway |
 | application | 20000–20999 | 1000 | user workloads, customer services |
 

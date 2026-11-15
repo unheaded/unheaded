@@ -29,12 +29,12 @@ Unheaded is a configuration management automation platform that delivers configu
                              ↓
 ┌────────────────────────────────────────────────────────────────┐
 │ Layer 4: APPLICATION SERVICES                                   │
-│ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐           │
-│ │ timeguru │ │ captain  │ │microman. │ │architect │           │
-│ │          │ │          │ │          │ │          │           │
-│ │ Timeline │ │ Strategy │ │ Tasks &  │ │ Infra    │           │
-│ │ tracking │ │ & vision │ │ QA       │ │ design   │           │
-│ └──────────┘ └──────────┘ └──────────┘ └──────────┘           │
+│ ┌──────────┐                                                   │
+│ │ timeguru │  (captain, micromanager, architect: removed       │
+│ │          │   2026-11, ADR-147)                               │
+│ │ Timeline │                                                   │
+│ │ tracking │                                                   │
+│ └──────────┘                                                   │
 │                                                                 │
 │ ┌──────────────────────┐ ┌──────────────────────┐             │
 │ │  dashboard-backend   │ │    demo-app          │             │
@@ -119,9 +119,6 @@ Container IPs:
 ├── wotan:            10.10.10.10
 ├── trace-collector:   10.10.10.11
 ├── timeguru:          10.10.10.20
-├── captain:           10.10.10.21
-├── micromanager:      10.10.10.22
-├── architect:         10.10.10.23
 ├── dashboard-backend: 10.10.10.30
 ├── gateway:           10.10.10.100
 ├── kanban-app:        10.10.10.200
@@ -146,7 +143,7 @@ dashboard-backend:
   - 8082: HTTP API
   - 8083: WebSocket
 
-timeguru/captain/micromanager/architect:
+timeguru:
   - 8000: HTTP REST API
 
 kanban-app:
@@ -186,9 +183,6 @@ All services communicate via Wotan pub/sub:
 | `network.traces` | trace-collector | dashboard-backend | eBPF packet traces |
 | `system.metrics` | all containers | dashboard-backend | Container health |
 | `timeline.updates` | timeguru | dashboard, kanban | Roadmap changes |
-| `strategy.decisions` | captain | all services | Strategic guidance |
-| `tasks.assignments` | micromanager | all services | Task tracking |
-| `design.proposals` | architect | all services | Architecture decisions |
 | `alerts.critical` | any | all | Critical alerts |
 | `logs.aggregated` | all | dashboard-backend | Centralized logging |
 

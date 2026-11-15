@@ -66,8 +66,8 @@ unusable file is an error). When observe flips to enforce:
 (fuzzed: `FuzzDeserialize`).
 
 No service distributes or applies deltas yet: `sophiasync` is a G8 reference
-package (`docs/UNREACHED-GO-PACKAGES.md`), and `services/sophia` does not import
-it. The service that adopts it reads both environment variables at startup.
+package (`docs/UNREACHED-GO-PACKAGES.md`); the sophia service that did not import
+it was removed (ADR-147). The service that adopts it reads both environment variables at startup.
 
 ## PQC and UPC extensions
 
@@ -76,7 +76,7 @@ it. The service that adopts it reads both environment variables at startup.
 
 ## Code
 
-`services/sophia/` (service + KEM / HKDF / PQC policy maps), `cmd/sophia` (`:19005`), BPF side in `ebpf/monad-common`. Wiki copy of the draft: [[Draft-Sophia-Dictionary-03]].
+BPF side in `ebpf/monad-common`; Go side in `pkg/sophia`. The sophia HTTP service (`services/sophia`, `cmd/sophia`, `:19005`) was removed in 2026-11 (ADR-147) and archived in `unheaded-role-services`. Wiki copy of the draft: [[Draft-Sophia-Dictionary-03]].
 
 ---
 

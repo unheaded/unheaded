@@ -94,9 +94,6 @@ Recent:
 
 - [[Wotan|Service-Wotan]] — message bus, ring buffer, protocol RAM
 - [[Timeguru|Service-Timeguru]]
-- [[Captain|Service-Captain]]
-- [[Architect|Service-Architect]]
-- [[Micromanager|Service-Micromanager]]
 - [[Dashboard Backend|Service-Dashboard-Backend]]
 - [[Kanban App|Service-Kanban-App]]
 - [[Akira|Service-Akira]] — health checks + percentage consensus (ADR-029)

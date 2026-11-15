@@ -20,11 +20,6 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `huginn.service`                | 9110          | Host metrics agent — **boot-enabled** (ADR-084) |
 | `unheaded-wotan.service`        | 18000, 18001  | Start first — others depend on it  |
 | `unheaded-timeguru.service`     | 19000         |                                    |
-| `unheaded-architect.service`    | 19001         |                                    |
-| `unheaded-captain.service`      | 19002         |                                    |
-| `unheaded-micromanager.service` | 19003         |                                    |
-| `unheaded-monad.service`        | 19004         |                                    |
-| `unheaded-sophia.service`       | 19005         |                                    |
 | `unheaded-dashboard.service`    | 20000         |                                    |
 | `unheaded-kanban.service`       | 20001         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
@@ -66,8 +61,7 @@ sudo systemctl enable --now huginn
 
 ```bash
 sudo systemctl start unheaded-wotan
-sudo systemctl start unheaded-timeguru unheaded-architect unheaded-captain \
-    unheaded-micromanager unheaded-monad unheaded-sophia
+sudo systemctl start unheaded-timeguru
 sudo systemctl start unheaded-dashboard unheaded-kanban unheaded-daemon unheaded-akira
 ```
 
@@ -143,8 +137,7 @@ host's trust.d for cross-host calls.
 ## TLS (ADR-105, FND-017)
 
 S-IRON-GATE Phase 8. The thirteen first-party server units (akira,
-architect, auth, captain, daemon, dashboard, kanban, micromanager, monad,
-sophia, sword, timeguru, wotan) listen and dial TLS 1.3 with the Strict
+auth, daemon, dashboard, kanban, sword, timeguru, wotan) listen and dial TLS 1.3 with the Strict
 hybrid ML-KEM profile (`pkg/tls`): a classical-only client is refused, and
 a missing or unreadable certificate, key or CA stops the service instead of
 starting it in plaintext. Each sets `UNHEADED_TLS_ENABLED=true`,
@@ -349,7 +342,7 @@ when it already starts with `unheaded-`:
 | `unheaded-aide` | `unheaded-aide-check.service` + `.timer` (the timer is enabled by the `aide-install` fix, never by the package) |
 | `unheaded-well-retention` | `unheaded-well-retention.service` + `.timer` |
 | `unheaded-syslog-relay` | `unheaded-syslog-relay.service` + `.socket` (binds 514, socket activation), with `/etc/unheaded/log-sources.yaml` as a conffile |
-| `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller, zhen-ui-front) | `unheaded-<svc>.service` |
+| `unheaded-<svc>` (wotan, akira, timeguru, auth, sword, chaos-controller, anomaly, kev-poller, zhen-ui-front) | `unheaded-<svc>.service` |
 | `unheaded-keygen` | none: the key tool every key-holding package depends on |
 | `unheaded-configs` | none: runbooks + `run-runbook.py` under `/opt/unheaded` (Akira's cert-expiry check) |
 

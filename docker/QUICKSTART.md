@@ -32,11 +32,11 @@
 ```bash
 cd /path/to/unheaded
 docker build \
-  -f docker/services/monad/Dockerfile \
+  -f docker/services/protocol-api/Dockerfile \
   --build-arg VERSION=v1.0.0 \
   --build-arg COMMIT=$(git rev-parse --short HEAD) \
   --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-  -t unheaded-monad:v1.0.0 .
+  -t unheaded-protocol-api:v1.0.0 .
 ```
 
 ### All 7 Services (Parallel)
@@ -46,7 +46,7 @@ export VERSION=v1.0.0
 export BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 export COMMIT=$(git rev-parse --short HEAD)
 
-for service in monad sophia shield unheaded-daemon dashboard-backend \
+for service in shield unheaded-daemon dashboard-backend \
                protocol-api trace-collector; do
   docker build \
     -f docker/services/${service}/Dockerfile \
@@ -56,13 +56,12 @@ for service in monad sophia shield unheaded-daemon dashboard-backend \
     -t unheaded-${service}:${VERSION} . &
 done
 wait
-echo "All 7 services built successfully!"
+echo "All 5 services built successfully!"
 ```
 
 ## Service Categories
 
 ### Standard (distroless)
-- monad, sophia
 - protocol-api, trace-collector
 - dashboard-backend
 
@@ -85,8 +84,6 @@ echo "All 7 services built successfully!"
 
 | Service | Port(s) |
 |---------|---------|
-| monad | 50051 |
-| sophia | 50052 |
 | shield | 50055 |
 | protocol-api | 50056 |
 | dashboard-backend | 8080 |
@@ -112,8 +109,8 @@ ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/*.md
 ## Next Steps
 
 1. **Review** docker/README.md for detailed build instructions
-2. **Build** one service to test: `docker build -f docker/services/monad/Dockerfile ...`
-3. **Scan** with Trivy: `trivy image unheaded-monad:v1.0.0`
+2. **Build** one service to test: `docker build -f docker/services/protocol-api/Dockerfile ...`
+3. **Scan** with Trivy: `trivy image unheaded-protocol-api:v1.0.0`
 4. **Push** to registry: `docker tag ... && docker push ...`
 5. **Deploy** using docker-compose or Kubernetes
 
@@ -125,8 +122,6 @@ docker/
 │   └── Dockerfile.base                    (82 lines)
 ├── services/
 │   ├── .dockerignore                      (16 lines)
-│   ├── monad/Dockerfile                   (30 lines)
-│   ├── sophia/Dockerfile                  (30 lines)
 │   ├── shield/Dockerfile                  (30 lines) ★ eBPF
 │   ├── unheaded-daemon/Dockerfile         (30 lines) ★ eBPF
 │   ├── dashboard-backend/Dockerfile       (30 lines)

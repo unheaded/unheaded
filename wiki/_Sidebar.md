@@ -133,9 +133,6 @@
 **Services**
 - [[Wotan|Service-Wotan]]
 - [[Timeguru|Service-Timeguru]]
-- [[Captain|Service-Captain]]
-- [[Architect|Service-Architect]]
-- [[Micromanager|Service-Micromanager]]
 - [[Dashboard|Service-Dashboard-Backend]]
 - [[Kanban|Service-Kanban-App]]
 - [[Akira|Service-Akira]]
