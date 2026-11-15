@@ -66,6 +66,11 @@ type latencySweeper struct {
 	rtts    *rttTracker
 	publish func([]byte)
 	now     func() time.Time
+
+	// lastSweepNS is the BPF clock at the start of the last complete sweep (0
+	// before the first). An entry stamped at or before it took no sample
+	// since that sweep read it.
+	lastSweepNS uint64
 }
 
 func newLatencySweeper(m batchedMap, publish func([]byte)) *latencySweeper {
@@ -82,6 +87,7 @@ func newLatencySweeper(m batchedMap, publish func([]byte)) *latencySweeper {
 // reach), and the entries gauge and the sweep histogram are left alone.
 func (s *latencySweeper) sweep(ctx context.Context) error {
 	start := time.Now()
+	sweepNS := ktimeNow() // the probe stamps entries on this clock
 	entries, undecodable := 0, 0
 
 	visit := func(key, value []byte) {
@@ -90,9 +96,19 @@ func (s *latencySweeper) sweep(ctx context.Context) error {
 			undecodable++
 			return
 		}
+		// Most of a full map is threads that are gone or idle. An entry the
+		// probe last stamped at or before the start of the last complete sweep
+		// took no sample since that sweep read it: it is passed over here,
+		// before the tracker hears of it, so it costs no allocation and the
+		// tracker holds only the threads that are measuring now.
+		if s.lastSweepNS != 0 && binary.LittleEndian.Uint64(value[32:40]) <= s.lastSweepNS { // LatencyEntry.LastUpdateNS
+			return
+		}
 		// Only threads with a new measurement since the last sweep; re-sending
 		// every thread's latest RTT each sweep weighted percentiles by threads
-		// x sweeps. Samples is read in place so a quiet entry costs no decode.
+		// x sweeps. An entry stamped after the last sweep began may still have
+		// been read by it, so the sample count decides. Samples is read in
+		// place so a quiet entry costs no decode.
 		if !s.rtts.fresh(key, binary.LittleEndian.Uint64(value[24:32])) {
 			return
 		}
@@ -122,6 +138,7 @@ func (s *latencySweeper) sweep(ctx context.Context) error {
 		return err
 	}
 	s.rtts.endSweep()
+	s.lastSweepNS = sweepNS
 	latencyMapEntries.Set(float64(entries))
 	latencySweepSeconds.Observe(time.Since(start).Seconds())
 	return nil
