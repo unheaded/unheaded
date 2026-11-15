@@ -1094,6 +1094,18 @@ provoke_unit_ceilings() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_ceilings_compose() {
+    # Contract (ADR-147 Phase 14): every compose service built from our
+    # Dockerfile with a memory limit sets GOMEMLIMIT below it. Drop akira's.
+    local f="docker-compose.yml"
+    backup "${f}"
+    awk '/^  akira:$/ {a=1} /^  [a-z][a-z0-9_-]*:$/ && !/^  akira:$/ {a=0} a && /^ *GOMEMLIMIT:/ {next} {print}' \
+        "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_json_responses() {
     # Contract: no handler encodes JSON to its ResponseWriter. Put one back
     # in Wotan's topic publish, which still imports encoding/json for its
@@ -1401,6 +1413,7 @@ check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's co
 check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 60; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
+check-unit-ceilings|provoke_unit_ceilings_compose|fast|GOMEMLIMIT removed from the akira service
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)
@@ -1597,7 +1610,12 @@ prepare_gate() {
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
-for name in $(gate_rows | cut -d'|' -f1); do
+# One pass per registry ROW, not per name: a gate with two provocations
+# (check-prometheus-rules, check-unit-ceilings) has two rows, and a lookup by
+# name ran its first one twice (S-WASTE-OUT Phase 14). Rows come on fd 3, so
+# a gate that reads stdin cannot eat them.
+while IFS= read -r entry <&3; do
+    name="${entry%%|*}"
     # A registry name is scripts/<name>.sh, or a repo path without .sh for
     # a gate that lives elsewhere (nix/yggdrasil/scripts/...).
     gate="scripts/${name}.sh"
@@ -1605,7 +1623,6 @@ for name in $(gate_rows | cut -d'|' -f1); do
     [ -f "${gate}" ] || continue
     [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
     prepare_gate "${name}"
-    entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"
 
@@ -1629,7 +1646,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
 
     # Phase 1 — green on a clean tree. If it is already red, the provocation
     # result would be meaningless.
-    log="${GATE_LOG_DIR}/${name//\//_}"
+    log="${GATE_LOG_DIR}/${name//\//_}.${fn}"
     rc=0
     env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
     if [ "${rc}" -ne 0 ]; then
@@ -1667,7 +1684,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
         row_output "${log}.provoked.log"
         FAILURES=$((FAILURES + 1))
     fi
-done
+done 3< <(gate_rows)
 
 # Print these EVERY run. A gate we cannot test is a real gap in coverage, and a
 # gap you cannot see is indistinguishable from one that does not exist.
