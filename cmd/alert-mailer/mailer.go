@@ -55,6 +55,11 @@ type Settings struct {
 	DigestH    int
 	DigestM    int
 	Loc        *time.Location
+	// Run days (ADR-147 decision 2, mailer.run_days): on a listed date
+	// (YYYY-MM-DD in Loc) these caps replace MaxPerDay and MaxPerHour.
+	RunDayMaxPerDay  int
+	RunDayMaxPerHour int
+	RunDates         map[string]bool
 }
 
 // OutboxEntry records what was mailed, or would have been, or was held back.
@@ -135,6 +140,16 @@ func (m *Mailer) rollHour() {
 	}
 }
 
+// caps returns today's daily and hourly caps: the run-day caps on a listed
+// run day, the normal ones otherwise. A run-day cap never lowers a cap.
+func (m *Mailer) caps() (day, hour int) {
+	day, hour = m.cfg.MaxPerDay, m.cfg.MaxPerHour
+	if m.cfg.RunDates[m.today()] {
+		day, hour = max(day, m.cfg.RunDayMaxPerDay), max(hour, m.cfg.RunDayMaxPerHour)
+	}
+	return day, hour
+}
+
 // held reports whether a cap kept the mail back.
 func held(o string) bool { return o == "capped" || o == "capped-hour" }
 
@@ -165,21 +180,22 @@ func (m *Mailer) record(msg Message, outcome string) {
 func (m *Mailer) deliver(msg Message) (string, error) {
 	m.rollDay()
 	m.rollHour()
-	if m.cfg.MaxPerHour > 0 && m.st.HourSent >= m.cfg.MaxPerHour {
+	maxDay, maxHour := m.caps()
+	if maxHour > 0 && m.st.HourSent >= maxHour {
 		m.st.Held++
 		m.st.HeldSinceDigest++
 		m.record(msg, "capped-hour")
 		return "capped-hour", m.save()
 	}
-	if m.st.Sent >= m.cfg.MaxPerDay {
+	if m.st.Sent >= maxDay {
 		m.st.Held++
 		m.st.HeldSinceDigest++
 		m.record(msg, "capped")
 		return "capped", m.save()
 	}
 	n := m.st.Sent + 1
-	msg.Body += fmt.Sprintf("\n--\nMail %d of at most %d today (%s).", n, m.cfg.MaxPerDay, m.cfg.Mode)
-	if n == m.cfg.MaxPerDay {
+	msg.Body += fmt.Sprintf("\n--\nMail %d of at most %d today (%s).", n, maxDay, m.cfg.Mode)
+	if n == maxDay {
 		msg.Body += " This is the last one: anything else today is held back and counted in the next digest."
 	}
 	outcome := "dry-run"
@@ -352,7 +368,8 @@ func (m *Mailer) Status(withOutbox bool) Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.rollDay()
-	s := Status{Mode: m.cfg.Mode, Day: m.st.Day, SentToday: m.st.Sent, MaxPerDay: m.cfg.MaxPerDay, HeldToday: m.st.Held,
+	maxDay, _ := m.caps()
+	s := Status{Mode: m.cfg.Mode, Day: m.st.Day, SentToday: m.st.Sent, MaxPerDay: maxDay, HeldToday: m.st.Held,
 		OpenTickets: len(m.st.Tickets), LastDigest: m.st.LastDigest}
 	if withOutbox {
 		s.Outbox = append([]OutboxEntry(nil), m.st.Outbox...)

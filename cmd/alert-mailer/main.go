@@ -58,11 +58,12 @@ func loadSettings(path string) (Settings, error) {
 	}
 	var doc struct {
 		Mailer struct {
-			Mode       string `yaml:"mode"`
-			MaxPerDay  int    `yaml:"max_per_day"`
-			MaxPerHour int    `yaml:"max_per_hour"`
-			DigestAt   string `yaml:"digest_at"`
-			Timezone   string `yaml:"timezone"`
+			Mode       string      `yaml:"mode"`
+			MaxPerDay  int         `yaml:"max_per_day"`
+			MaxPerHour int         `yaml:"max_per_hour"`
+			DigestAt   string      `yaml:"digest_at"`
+			Timezone   string      `yaml:"timezone"`
+			RunDays    *runDaysDoc `yaml:"run_days"`
 		} `yaml:"mailer"`
 		Page struct {
 			RepeatInterval string `yaml:"repeat_interval"`
@@ -82,6 +83,9 @@ func loadSettings(path string) (Settings, error) {
 	if s.MaxPerHour < 1 || s.MaxPerHour > s.MaxPerDay {
 		return s, fmt.Errorf("mailer.max_per_hour %d: want 1..max_per_day", s.MaxPerHour)
 	}
+	if err := loadRunDays(&s, p.RunDays); err != nil {
+		return s, err
+	}
 	t, err := time.Parse("15:04", p.DigestAt)
 	if err != nil {
 		return s, fmt.Errorf("mailer.digest_at %q: want HH:MM", p.DigestAt)
@@ -94,6 +98,43 @@ func loadSettings(path string) (Settings, error) {
 		return s, fmt.Errorf("mailer.timezone %q: not an IANA zone", p.Timezone)
 	}
 	return s, nil
+}
+
+// runDaysDoc is mailer.run_days in the policy.
+type runDaysDoc struct {
+	MaxPerDay  int      `yaml:"max_per_day"`
+	MaxPerHour int      `yaml:"max_per_hour"`
+	Dates      []string `yaml:"dates"`
+}
+
+// loadRunDays checks mailer.run_days (ADR-147 decision 2) into s. With no
+// block the run-day caps equal the normal ones and no date is listed. The
+// same rules are in cmd/alert-policy's validate.
+func loadRunDays(s *Settings, rd *runDaysDoc) error {
+	s.RunDayMaxPerDay, s.RunDayMaxPerHour, s.RunDates = s.MaxPerDay, s.MaxPerHour, map[string]bool{}
+	if rd == nil {
+		return nil
+	}
+	if rd.MaxPerDay < 1 || rd.MaxPerDay > 50 {
+		return fmt.Errorf("mailer.run_days.max_per_day %d: want 1..50", rd.MaxPerDay)
+	}
+	if rd.MaxPerDay < s.MaxPerDay {
+		return fmt.Errorf("mailer.run_days.max_per_day %d: want at least mailer.max_per_day (%d)", rd.MaxPerDay, s.MaxPerDay)
+	}
+	if rd.MaxPerHour < 1 || rd.MaxPerHour > rd.MaxPerDay {
+		return fmt.Errorf("mailer.run_days.max_per_hour %d: want 1..run_days.max_per_day", rd.MaxPerHour)
+	}
+	if rd.MaxPerHour < s.MaxPerHour {
+		return fmt.Errorf("mailer.run_days.max_per_hour %d: want at least mailer.max_per_hour (%d)", rd.MaxPerHour, s.MaxPerHour)
+	}
+	for _, d := range rd.Dates {
+		if _, err := time.Parse("2006-01-02", d); err != nil {
+			return fmt.Errorf("mailer.run_days.dates %q: want YYYY-MM-DD", d)
+		}
+		s.RunDates[d] = true
+	}
+	s.RunDayMaxPerDay, s.RunDayMaxPerHour = rd.MaxPerDay, rd.MaxPerHour
+	return nil
 }
 
 // parseDuration accepts Go durations and Prometheus-style days ("2d").
@@ -148,8 +189,8 @@ func main() {
 	m.count = func(u, o string) { msgs.WithLabels(metrics.Labels{"urgency": u, "outcome": o}).Inc() }
 	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_sent_today", "Mails counted against today's cap", nil,
 		func() float64 { return float64(m.Status(false).SentToday) }))
-	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_max_per_day", "The daily cap (mailer.max_per_day)", nil,
-		func() float64 { return float64(cfg.MaxPerDay) }))
+	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_max_per_day", "Today's daily cap (mailer.max_per_day, or mailer.run_days.max_per_day on a listed run day)", nil,
+		func() float64 { return float64(m.Status(false).MaxPerDay) }))
 	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_open_tickets", "Tickets waiting for the next digest", nil,
 		func() float64 { return float64(m.Status(false).OpenTickets) }))
 	if hb != nil {
