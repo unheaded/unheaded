@@ -4,7 +4,10 @@
 # Unit tests for the host-event counter in ../vector.yaml (S-WATCH-TRUE
 # Phase 9, D-18; read by runbooks/security/ioc-audit.yaml). Account changes,
 # sudo commands, crontab edits and three kinds of kernel line are counted
-# by kind, from journal fields the sender cannot set, and no text is kept.
+# by kind and no text is kept. Root's tools and the kernel are taken on
+# fields the sender cannot set; the set-id programs on the program's name
+# and, when journald has it, its path (the comment above journal_host says
+# what that is worth).
 # Run: scripts/test-vector-config.sh
 #
 # Every event has the same six keys: host, kind, op, class, user, runas.
@@ -285,6 +288,300 @@ tests:
           _COMM: sudo
           _UID: "1000"
           _EXE: /home/govan/bin/sudo
+    no_outputs_from:
+      - journal_host
+
+  # --- a sender that was gone before journald read /proc --------------------
+  # journald fills _COMM and _EXE from /proc/<pid> when the line arrives. A
+  # program that logs and exits at once (crontab -, a quick sudo) is often
+  # gone by then: the line comes with _UID and _PID and no _EXE, sometimes
+  # no _COMM either (seen on west, 2026-11-15). Those lines count, by _COMM
+  # and then by SYSLOG_IDENTIFIER: missing a real edit is worse than
+  # counting a forged one. An _EXE that is present and wrong is still a
+  # forgery the field can catch.
+  - name: a crontab replace whose process was gone (no _EXE) still counts
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) REPLACE (govan)"
+          host: west
+          _TRANSPORT: syslog
+          _COMM: crontab
+          _UID: "1000"
+          _GID: "1000"
+          SYSLOG_IDENTIFIER: crontab
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "govan")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a crontab replace with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) REPLACE (govan)"
+          host: west
+          _TRANSPORT: syslog
+          _UID: "1000"
+          _GID: "1000"
+          SYSLOG_IDENTIFIER: crontab
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "govan")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a crontab line from a program at another path is still ignored, with or without _COMM
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (root)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /home/govan/bin/crontab
+          SYSLOG_IDENTIFIER: crontab
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (root)"
+          host: west
+          _UID: "1000"
+          _EXE: /usr/bin/logger
+          SYSLOG_IDENTIFIER: crontab
+    no_outputs_from:
+      - journal_host
+
+  - name: a line whose _COMM is another program is ignored whatever its syslog identifier says
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (root)"
+          host: west
+          _COMM: logger
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: crontab
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/tmp ; USER=root ; COMMAND=/usr/bin/id"
+          host: west
+          _COMM: python3
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: sudo
+    no_outputs_from:
+      - journal_host
+
+  - name: a sudo command whose process was gone (no _EXE) still counts
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/home/govan ; USER=nobody ; COMMAND=/usr/bin/true"
+          host: west
+          _TRANSPORT: syslog
+          _COMM: sudo
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: sudo
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "nobody")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a sudo command with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/home/govan ; USER=root ; COMMAND=/usr/bin/true"
+          host: west
+          _TRANSPORT: syslog
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: sudo
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "root")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a password change whose passwd was gone counts, with _COMM and without
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for govan"
+          host: west
+          _COMM: passwd
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: passwd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "passwd")
+              assert_eq!(.user, "govan")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a password change with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for govan"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: passwd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "passwd")
+              assert_eq!(.user, "govan")
+
+  - name: gpasswd and chage count the same way when their process was gone
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "user mallory added by govan to group docker"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: gpasswd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "gpasswd")
+              assert_eq!(.user, "mallory")
+
+  - name: chage with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "changed password expiry for govan"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: chage
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "chage")
+              assert_eq!(.user, "govan")
+
+  - name: passwd, gpasswd and chage lines from another path are ignored
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for root"
+          host: west
+          _COMM: passwd
+          _UID: "1000"
+          _EXE: /tmp/passwd
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "user mallory added by root to group sudo"
+          host: west
+          _UID: "1000"
+          _EXE: /tmp/gpasswd
+          SYSLOG_IDENTIFIER: gpasswd
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "changed password expiry for root"
+          host: west
+          _COMM: chage
+          _UID: "1000"
+          _EXE: /tmp/chage
+    no_outputs_from:
+      - journal_host
+
+  - name: a root account tool that was gone (no _COMM) counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=mallory, UID=1001, GID=1001, home=/home/mallory, shell=/bin/bash, from=none"
+          host: west
+          _UID: "0"
+          SYSLOG_IDENTIFIER: useradd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "useradd")
+              assert_eq!(.user, "mallory")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: systemd-sysusers that was gone counts under its full syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Creating group 'unheaded-vor' with GID 16738."
+          host: west
+          _UID: "0"
+          SYSLOG_IDENTIFIER: systemd-sysusers
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "systemd-sysusers")
+              assert_eq!(.user, "unheaded-vor")
+
+  - name: a root-only tool's line from a sender that is not root is ignored, with or without _COMM
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=x, UID=1001, GID=1001, home=/home/x, shell=/bin/sh, from=none"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: useradd
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "delete user 'govan'"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: userdel
     no_outputs_from:
       - journal_host
 

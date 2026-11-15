@@ -524,11 +524,11 @@ func newListener(addr string, handler http.Handler) (*http.Server, func(*http.Se
 		return newServer(addr, handler), (*http.Server).ListenAndServe, nil
 	}
 	cfg := pqtls.LoadServiceTLSConfig()
-	certPEM, err := os.ReadFile(cfg.CertFile) // #nosec G304 -- operator-supplied path from the environment
+	certPEM, err := os.ReadFile(cfg.CertFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("tls certificate: %w", err)
 	}
-	keyPEM, err := os.ReadFile(cfg.KeyFile) // #nosec G304 -- operator-supplied path from the environment
+	keyPEM, err := os.ReadFile(cfg.KeyFile)
 	if err != nil {
 		return nil, nil, fmt.Errorf("tls key: %w", err)
 	}
@@ -560,6 +560,13 @@ func (l *listenFlags) Set(v string) error {
 	return nil
 }
 
+// defaultListen is the listener --port names. It goes through
+// listenFlags.Set like every --listen, so a port outside 0-65535 is refused
+// there and never wrapped into another port.
+func defaultListen(port int) string {
+	return fmt.Sprintf("127.0.0.1:%d", port)
+}
+
 func main() {
 	port := flag.Int("port", 20002, "port of the default listener, 127.0.0.1:PORT, when no --listen is given")
 	var listens listenFlags
@@ -576,7 +583,10 @@ func main() {
 		},
 	})
 	if len(listens) == 0 {
-		listens = listenFlags{netip.AddrPortFrom(netip.MustParseAddr("127.0.0.1"), uint16(*port)).String()} // #nosec G115 -- a port fits
+		if err := listens.Set(defaultListen(*port)); err != nil {
+			logf("FATAL", "bad --port", "port", *port, "err", err)
+			os.Exit(2)
+		}
 	}
 
 	logf("INFO", "starting wiki-server",

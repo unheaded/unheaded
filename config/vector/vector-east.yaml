@@ -227,19 +227,39 @@ transforms:
   # A name that does not look like an account name is counted as "invalid",
   # so a crafted line cannot mint label values.
   #
-  # Read from the raw journal on fields journald sets itself, never on
-  # SYSLOG_IDENTIFIER, which logger(1) sets to anything (the journal_ssh
-  # rule). Kernel lines: _TRANSPORT kernel and facility kern (a process that
-  # writes into /dev/kmsg has another facility). The account tools: _COMM
-  # and _UID 0. sudo, crontab, passwd, gpasswd and chage are set-id programs
-  # that log under the uid of whoever ran them, so _UID 0 cannot be asked of
-  # them; for a sender that is not root they are taken on _EXE, the path of
-  # the program journald saw. That is weaker: a local account that can build
-  # its own mount namespace can show that path. Such an account can make the
-  # real line anyway (its own sudo, crontab or passwd), and it cannot make a
-  # root-only event (useradd, usermod, a kernel line). The audit treats a
-  # count here as a reason to read the journal, where _UID tells the two
-  # apart; it is not proof by itself.
+  # Read from the raw journal, on fields journald sets itself wherever it
+  # has them. Kernel lines: _TRANSPORT kernel and facility kern (a process
+  # that writes into /dev/kmsg has another facility). The account tools:
+  # _UID 0, which the kernel hands journald with the line, and the program's
+  # name. sudo, crontab, passwd, gpasswd and chage are set-id programs that
+  # log under the uid of whoever ran them, so _UID 0 cannot be asked of
+  # them; they are taken on the program's name and, when journald has it,
+  # on _EXE, the path of the program.
+  #
+  # The program's name is _COMM. journald reads _COMM and _EXE from
+  # /proc/<pid> when the line arrives, and a program that logs and exits at
+  # once is often gone by then: on west (2026-11-15) a `crontab -` replace
+  # arrived with _COMM and no _EXE, another line with neither, and one sudo
+  # command in two lacked both. So:
+  #   _EXE present   it must be the installed program's path; anything else
+  #                  is dropped (the forgery this field can catch);
+  #   _EXE absent    the line is taken on _COMM;
+  #   both absent    the line is taken on SYSLOG_IDENTIFIER.
+  # A _COMM that is present and names another program is dropped whatever
+  # the identifier says.
+  #
+  # The trade, chosen on purpose: a real edit is not missed, and a local
+  # account can forge a set-id line. A process that names itself crontab
+  # (or passes logger -t crontab) and exits before journald looks is
+  # counted, so such an account can raise a false cron_edit, sudo_command
+  # or passwd count. It cannot hide a real one, and it cannot make a
+  # root-only event (useradd, usermod, a kernel line): those need _UID 0.
+  # The audit treats a count here as a reason to read the journal on that
+  # host, where _UID and _PID tell the two apart; it is not proof by itself.
+  # The stronger source for crontab is an audit watch on the cron spool
+  # (auditd names the file and the uid, and a process cannot forge it). It
+  # belongs with S-EVIDENCE-RUNS's lab-audited profile and is parked there,
+  # not built here.
   #
   # One change, one count where the tool logs several lines: groupadd's two
   # file lines, usermod's shadow-group line, useradd's own group line and
@@ -250,11 +270,16 @@ transforms:
     inputs:
       - journal
     condition: |
-      comm = string(."_COMM") ?? ""
       exe = string(."_EXE") ?? ""
+      # The program: _COMM, or the syslog identifier when the process was
+      # gone before journald read its name.
+      prog = string(."_COMM") ?? ""
+      if prog == "" { prog = string(.SYSLOG_IDENTIFIER) ?? "" }
       kernel = (string(."_TRANSPORT") ?? "") == "kernel" && (string(.SYSLOG_FACILITY) ?? "") == "0"
-      root = (string(."_UID") ?? "") == "0" && includes(["useradd", "usermod", "userdel", "groupadd", "groupmod", "groupdel", "gpasswd", "passwd", "chpasswd", "chage", "systemd-sysuser", "sudo", "crontab"], comm)
-      setid = (comm == "sudo" && includes(["/usr/bin/sudo", "/usr/lib/cargo/bin/sudo"], exe)) || (comm == "crontab" && exe == "/usr/bin/crontab") || (comm == "passwd" && exe == "/usr/bin/passwd") || (comm == "gpasswd" && exe == "/usr/bin/gpasswd") || (comm == "chage" && exe == "/usr/bin/chage")
+      root = (string(."_UID") ?? "") == "0" && includes(["useradd", "usermod", "userdel", "groupadd", "groupmod", "groupdel", "gpasswd", "passwd", "chpasswd", "chage", "systemd-sysuser", "systemd-sysusers", "sudo", "crontab"], prog)
+      # Set-id programs, any sender: the installed path when journald saw
+      # one, the name alone when the process was already gone.
+      setid = (prog == "sudo" && includes(["", "/usr/bin/sudo", "/usr/lib/cargo/bin/sudo"], exe)) || (prog == "crontab" && includes(["", "/usr/bin/crontab"], exe)) || (prog == "passwd" && includes(["", "/usr/bin/passwd"], exe)) || (prog == "gpasswd" && includes(["", "/usr/bin/gpasswd"], exe)) || (prog == "chage" && includes(["", "/usr/bin/chage"], exe))
       kernel || root || setid
 
   journal_host_events:
@@ -264,7 +289,12 @@ transforms:
     drop_on_abort: true
     source: |
       msg = string(.message) ?? ""
+      # As in journal_host: the syslog identifier stands in for a _COMM
+      # journald could not read. The journal keeps 15 characters of a
+      # process name; the identifier has all of it.
       comm = string(."_COMM") ?? ""
+      if comm == "" { comm = string(.SYSLOG_IDENTIFIER) ?? "" }
+      if comm == "systemd-sysusers" { comm = "systemd-sysuser" }
       kind = ""
       op = ""
       class = ""
@@ -333,7 +363,6 @@ transforms:
         } else if comm == "chage" {
           p = parse_regex(msg, r'^changed password expiry for (?P<n>\S+)$') ?? {}
         } else if comm == "systemd-sysuser" {
-          # The journal keeps 15 characters of a process name.
           op = "systemd-sysusers"
           p = parse_regex(msg, r'^Creating (user|group) \x27(?P<n>[^\x27]*)\x27') ?? {}
         }

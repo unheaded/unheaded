@@ -138,7 +138,7 @@ func TestEmbeddedInventoryIsCurrent(t *testing.T) {
 		t.Fatal(err)
 	}
 	if *update {
-		if err := os.WriteFile("inventory.json", want, 0o644); err != nil { // #nosec G306 -- a tracked source file
+		if err := os.WriteFile("inventory.json", want, 0o644); err != nil {
 			t.Fatal(err)
 		}
 		t.Logf("inventory.json rewritten: %d items in %d sections", inv.Counts["total"], len(inv.Sections))

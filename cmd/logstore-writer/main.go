@@ -81,7 +81,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("the Well")
 	}
-	defer db.Close() // #nosec G104 -- shutdown path
+	defer db.Close()
 	// log_writer's connection limit is 4: two batches, one maintenance call.
 	db.SetMaxOpenConns(3)
 	db.SetMaxIdleConns(3)
