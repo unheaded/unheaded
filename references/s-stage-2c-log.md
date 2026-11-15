@@ -341,3 +341,23 @@ What moves is the Phase 1.4 PC tracer's output. `TRACE_HEAD` is armed with 100 a
 
 **Gate on the committed tree, rung off** (`a0c25e62`): `gate rung56-off: same=12 diff=0 rc=0 doom=1 ascend=883522`, harness ALL GREEN (55 passes): `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20, `hostile_path` 6 with the new line, `crprobe` 4 checks with `tty_r=17` (init's own read among them); `rwprobe gate skipped: UPC_RUNG56 is off`. The baseline row stays 883,522. Steps 229-244 are not run: they need the rung on.
 
+## Phase 15, cd in ush (2026-11-15)
+
+Resume gate first, on the committed tree at `99ae2fa9`: `gate resume7: same=12 diff=0 rc=0 doom=1 ascend=883522`, harness ALL GREEN. `offv` 883,522.
+
+- Step 280: `ls.tty` reads `sh             2 3 7496`. ush's loop is fork, exec, wait; `chdir` is already in `user.h`.
+- Step 281 [DECIDE]: the recommendation, one recapture of `ls.tty` and `ls.full`, since Step 284 printed `only-sh-size`. The override does not hold.
+- Step 282: `cd <dir>` in the shell itself, stock sh's form: the line starts `cd `, the newline is chopped, `chdir`, and `cannot cd <dir>` on failure. The two header comments say so. `cd` with no argument is still a command (`exec cd failed`), as in stock sh, whose test is `cd ` too.
+- Step 283: `gbuild`, `sweep12`: 11 SAME, exactly `DIFF ls`.
+- Step 284: `only-sh-size`. The one differing line is `sh             2 3 7496` → `sh             2 3 7652`; `ls.stats` is equal (`forks`, `waitpid`, `tty_r` do not move).
+- Step 286: harness block "ush cd", one boot with `cd sub`, `ls`, `cd ..`, `ls`, `cd nosuch`, `echo after`: three lines. Tried on a real capture (three pass) and on the pre-cd `ls` capture, which has no builtin (three fail). `bash -n` syntax-ok. The boot printed: sub's listing (`.` inode 10, `..`, `NOTE 2 11 223`), then the root's, then `cannot cd nosuch`, then `after`; `forks=4 waitpid=3`.
+- Step 287: `gate cd-after: same=12 diff=0 rc=0 doom=1 ascend=883522`, the three "ush cd" lines PASS, ALL GREEN. The eBPF object is untouched: the count is `offv`.
+
+### Golden policy
+
+| Date | Golden | What moved | Why | HEAD | Rollback |
+|---|---|---|---|---|---|
+| 2026-11-15 | `ls.tty`, `ls.full` (not `ls.stats`) | sh's size field, 7496 → 7652, and nothing else in `ls.tty`; `ls.full` is the whole boot log of that run | ush gains cd (Stevie 2026-11-12, round 3; plan Step 281) | `99ae2fa9` plus this phase's `ush.c` (the commit of Steps 279-289) | `~/tmp/golden/ls.tty.pre-cd`, `ls.full.pre-cd` |
+
+This is the plan's one named recapture. No other golden was written in S-STAGE-2C.
+

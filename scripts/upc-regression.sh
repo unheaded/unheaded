@@ -124,6 +124,22 @@ grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
 grep -aq 'omega' <<<"$MC" && pass "sh multi-command: prompt loop survives to second" \
   || fail "sh multi-command: prompt loop survives to second (missing 'omega')"
 
+# S-STAGE-2C Phase 15: ush has a cd builtin over chdir(9), run by the shell
+# itself. One boot: after `cd sub`, `ls` lists sub's NOTE before any README is
+# printed; after `cd ..`, `ls` lists the root's README; `cd nosuch` says so and
+# the prompt loop goes on. Without the builtin the first `ls` lists the root.
+CDO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
+  --input $'cd sub\nls\ncd ..\nls\ncd nosuch\necho after\n' 2>&1)"
+CDT="$(grep -a 'ascii:' <<<"$CDO" | sed -E 's/.*init: starting sh//')"
+CD1="${CDT%%README*}"
+grep -aq 'NOTE           2' <<<"$CD1" && pass "ush cd: cd sub, then ls lists NOTE" \
+  || fail "ush cd: cd sub, then ls lists NOTE"
+[[ "$CDT" == *'NOTE           2'*'README         2'*'sub            1'* ]] && pass "ush cd: cd .., then ls lists README" \
+  || fail "ush cd: cd .., then ls lists README"
+[[ "$CDT" == *'README         2'*'cannot cd nosuch'*'$ after'* ]] && pass "ush cd: cd nosuch says so, the loop goes on" \
+  || fail "ush cd: cd nosuch says so, the loop goes on"
+
 G2="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
