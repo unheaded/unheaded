@@ -30,7 +30,7 @@ Plan: `docs/battle-plans/S-WEST-GROUND-battle-plan.md` (ADR-147 plan 4, 13 phase
 | W-03 | Architect A8; BlackMage F1; Archimedes F9 | G7 | swap off `sdb`, three files deleted | Phase 4 | | | not started. The drift gate's `absent` rows and swap row will read it (`west.tsv`) |
 | W-04 | Architect A3; Archimedes F5 | G8 | huge pages released | Phase 4 | | | not started. Repository side ready: `deploy/sysctl.d/99-unheaded-west.conf` says `vm.nr_hugepages = 0`; `scripts/bootstrap-llm-lab.sh` installs it instead of writing 1024 (`17c58623`) |
 | W-05 | BlackMage F9; Architect A14 | G10, G11 | input filter | Phase 6 | | | not started |
-| W-06 | BlackMage F9 (task list, dashboard `/metrics`) | G12, G22 | WG3 A: source-gated routes | Phases 3, 7 | | | not started |
+| W-06 | BlackMage F9 (task list, dashboard `/metrics`) | G12, G22 | WG3 A: source-gated routes | Phases 3, 7 | | | not started (no before: Steps 189/191 from the LAN are Phase 6). Code ready: `pkg/auth` `AnonymousFrom`/`SourceGated`/`GatesRequest` (`480f23d5`), kanban `/api` + `/metrics`, dashboard `/metrics` (`fd7c26de`); inert until Step 85's compose line (held lane) reaches develop in Phase 7 |
 | W-07 | BlackMage F10 | G13 | WG4 | Phase 6 | | | not started |
 | W-08 | decision 22; Archimedes 1.2 | G19 | `iperf3`, the link and WireGuard measured | Phase 9 | | | not started |
 | W-09 | BlackMage F19; Architect A10 | G15 | pid limits | Phase 7 | | | not started (no before: R6 is Phase 1). Code ready on the held lane `sprint/s-west-ground-compose` `dd590f29`: `x-ground` anchor (512, ClickHouse 2048) on all 23 + 4 services, sum 15,360 = 13.3% of threads-max 115,473; `scripts/check-compose-pids.sh` + test (14 cases), registered and proven to fail |
@@ -51,6 +51,18 @@ Plan: `docs/battle-plans/S-WEST-GROUND-battle-plan.md` (ADR-147 plan 4, 13 phase
 - **promtool not run.** `scripts/check-prometheus-rules.sh` runs promtool in a container (`docker run --rm --network none`); I started it once at ~21:47Z, saw the container use, and stopped it within two minutes. The four `host-settings_test.yml` cases are unproven until it runs after the evidence week.
 - 2E lane (Steps 79-94) `dd590f29` on `sprint/s-west-ground-compose`: test red then 14 of 14; `check-compose-pids` PASS (15,360); hardening, log-caps, publish-bind, bind-nesting, image-digests ok; `pkg/uids` ok; Step 87's numbers 13,312 and 23; meta-gate `--only check-compose-pids` PASS. Step 91: develop had not moved; no `system.slice/docker-` reader (Step 93 not needed). Lane not in develop (Step 94 printed 0).
 - 2F (Steps 95-98): `west.nft` matches decision 16 for 9100, 9110, 9323, 19120 (not in the LAN set; open on `docker0`, `br-*`, east's link, `wg0`). Step 97 not run (ruling A). `go test ./deploy/nftables/` ok; `unshare -Urn nft -c` NFT_OK.
+- Steps 100-101: develop (`8d35785d`, unmoved) merged in; SPRINT_GATE_OK with `go run ./cmd/alert-policy --check` in place of `check-prometheus-rules.sh` (container). **Step 102 not run: ready for the coordinator** (merge `sprint/s-west-ground` to develop; the compose lane stays held). Step 103 on the branch: six files listed, `x-ground` count 0.
+- Phase 3 (Steps 104-119) `480f23d5`, `fd7c26de`: red (`cfg.AnonymousFrom undefined`; then the service tests at 200 where 401 was wanted), then green. 19 `pkg/auth` cases (the plan's 11 rows plus 5 path and credential edges, `ParseAnonymousFrom` 7 inputs, a bad env value refuses to start); kanban 7 cases; dashboard 7 cases including "unset changes nothing". gofmt clean; `go vet` clean; `go test -race` ok on `pkg/auth/...`, `cmd/kanban-app/...`, `cmd/dashboard-backend/...` (13 packages); gosec ratchet PASS; `check-netip` 68 (baseline 68); `check-service-auth` PASS (14); golangci-lint 0 issues on the three trees; `go build ./...` and `go vet ./...` clean.
+- **Grounding finding (G22's sibling, fixed in Step 114):** dashboard-backend's `wrapAuth` serves every GET outside `/api/` and `/ws` before the auth chain (`isUIRead`), `/metrics` included, so gating it in `pkg/auth` alone would never have reached it. `auth.ServiceRoutes.GatesRequest` is now asked first; the dashboard test proves 401 from the LAN.
+- Step 118: `wiki/Security.md` paragraph under "Default Deny"; `CLAUDE.md` Authentication Framework sentence.
+- Steps 120-122: develop unmoved, merged in; Step 115's gates stand. **Merge to develop not run: ready for the coordinator.** Phase 3 exit on the branch: `TestSourceGatedOpenRoutes` ok; `docker-compose.yml` names `AUTH_ANONYMOUS_FROM` 0 times.
+- `scripts/ci-local.sh` not run: it starts containers (throwaway Well, haproxy image) and runs `alert-policy -check` against the live Well, both out of bounds until 2026-11-17 18:34Z. Run it on the merged tree after the week.
+- Commits: all signed (`G`). Trailer: Co-Authored-By only (this run has no session URL to add).
+
+## For the coordinator (merge order)
+
+- `sprint/s-west-ground` is ready to merge after plans 1-3. Files a sibling lane is likely to touch too: `scripts/check-gates-can-fail.sh` (one function, one registry line), `observability/alerting/policy.yaml` and the generated `monitoring/alertmanager/alertmanager.yml` (two promote entries: regenerate with `go run ./cmd/alert-policy` after the merge, never hand-merge), `config/logging/sources.yaml` (one row), `runbooks/MANIFEST.sha256` (regenerate with `scripts/runbook-manifest.sh --write`), `pkg/auth/service_handler.go`, `pkg/auth/setup.go`, `cmd/kanban-app/auth_bff.go`, `cmd/dashboard-backend/internal/server/auth_bff.go`, `CLAUDE.md`, `wiki/Security.md`, `scripts/kingdom-startup.sh`, `scripts/kingdom-shutdown.sh`, `scripts/bootstrap-llm-lab.sh`.
+- `sprint/s-west-ground-compose` (`dd590f29`) is **held until Phase 7**. It touches `docker-compose.yml`, `monitoring/docker-compose.yml` and `scripts/check-gates-can-fail.sh`; plans 2 and 3 remove services from the same compose file. At Phase 7: merge develop into it, rerun `scripts/check-compose-pids.sh` (Step 87's sum is 512 x (N - 1) + 2,048 for the services left) and add `<<: *ground` to any service added since.
 
 ## For Stevie
 
@@ -62,4 +74,8 @@ Plan: `docs/battle-plans/S-WEST-GROUND-battle-plan.md` (ADR-147 plan 4, 13 phase
 
 ## Blocked
 
-- Steps 2-11, 14-24 (Phase 0 except 1, 12, 13) and Phase 1 (Steps 25-41): `[BLOCKED: needs Stevie / evidence week]` (sudo reads, live readings, rulings in the room). Phases 4-12: attended, not in this run.
+- Steps 2-11, 14-24 (Phase 0 except 1, 12, 13) and Phase 1 (Steps 25-41): `[BLOCKED: needs Stevie / evidence week]` (sudo reads, live readings, rulings in the room). Step 11 was read once (read only) for WG1's note. Step 14 (S-E1-LIVE's week closed) waits on Step 6.
+- Step 15 (does `-f` drop the override): needs sudo to read `.env`; W-13 code went ahead on the static reading, its after waits.
+- Steps 75-76 promtool half, and every `scripts/check-prometheus-rules.sh` run: container gate, after the week.
+- Steps 102 and 120 (merge to develop): the coordinator's.
+- Phases 4-12 (Steps 123-324): attended sittings A to D, not in this run.
