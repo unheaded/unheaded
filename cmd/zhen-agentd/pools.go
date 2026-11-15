@@ -26,18 +26,34 @@ import (
 //
 // app_kanban (WELL_KANBAN_DSN, the scheduler's cards) and ops_writer
 // (WELL_OPS_DSN, the audit) keep their own pools: other roles.
+//
+// The -overnight run is a second process beside the daemon and works one
+// card at a time, so its pools are smaller (REV-5): every app_zhen client
+// that can run at once fits migration 051's limit (TestPoolCaps).
 const (
 	zhenPoolMax  = 6
 	boardPoolMax = 2
+
+	overnightZhenPoolMax  = 2 // the card's run rows and its lease renewal
+	overnightBoardPoolMax = 1 // one card claimed or moved at a time
 )
 
 // wellPools opens each pool on first use and keeps it; a failed open is not
 // kept, so the next caller tries again.
 type wellPools struct {
-	mu     sync.Mutex
-	getenv func(string) string
-	zhenDB *sql.DB
-	board  *sql.DB
+	mu        sync.Mutex
+	getenv    func(string) string
+	overnight bool // set by main before any pool opens
+	zhenDB    *sql.DB
+	board     *sql.DB
+}
+
+// caps is {Zhen pool, board pool}.
+func (p *wellPools) caps() [2]int {
+	if p.overnight {
+		return [2]int{overnightZhenPoolMax, overnightBoardPoolMax}
+	}
+	return [2]int{zhenPoolMax, boardPoolMax}
 }
 
 var pools = &wellPools{getenv: os.Getenv}
@@ -49,7 +65,7 @@ func (p *wellPools) zhen(ctx context.Context, what string) (*sql.DB, error) {
 	if p.zhenDB != nil {
 		return p.zhenDB, nil
 	}
-	db, err := p.open(ctx, "WELL_ZHEN_DSN", "unheaded_zhen", what, zhenPoolMax)
+	db, err := p.open(ctx, "WELL_ZHEN_DSN", "unheaded_zhen", what, p.caps()[0])
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +80,7 @@ func (p *wellPools) boardPool(ctx context.Context, what string) (*sql.DB, error)
 	if p.board != nil {
 		return p.board, nil
 	}
-	db, err := p.open(ctx, "WELL_APP_ZHEN_DSN", "unheaded_app", what, boardPoolMax)
+	db, err := p.open(ctx, "WELL_APP_ZHEN_DSN", "unheaded_app", what, p.caps()[1])
 	if err != nil {
 		return nil, err
 	}

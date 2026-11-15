@@ -13,7 +13,7 @@ units:
 ports: [8081, 20103, 20111, 20112]
 # Timers in the switch: they fire only while the module is on.
 timers: [unheaded-zhen-backup.timer]
-database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 12}
+database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 20}
 # Per host, private prefixes only (pkg/modules.ParseBindAllow, ADR-149): the
 # addresses a Zhen listener may hold besides loopback. The house LAN address
 # is added when S-ZHEN-FRONT opens 20103 (A-16). The drop-ins under

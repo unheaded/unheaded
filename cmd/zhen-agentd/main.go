@@ -115,6 +115,7 @@ func main() {
 		if err := applyOvernightDefaults(&wf, set, defaultStateDir()); err != nil {
 			fatal("overnight: %v", err)
 		}
+		pools.overnight = true // smaller pools beside the daemon (pools.go)
 	}
 	// The switch (ADR-149): with the module off a -worker run does nothing.
 	// Checked before any pool, listener or worktree.

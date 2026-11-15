@@ -5,6 +5,10 @@ package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -35,13 +39,44 @@ func TestOpenPools_WorkerNeedsBoardDSN(t *testing.T) {
 	}
 }
 
-// Two app_zhen pools whose caps, with zhen-claude's 2, stay under the
-// role's connection limit of 12 (migration 051, D6).
+// Every app_zhen client that can run at once stays under the role's
+// connection limit in migration 051 (a role's limit counts its connections
+// in every database). REV-5 (independent review 2026-11-15): the old test
+// counted one zhen-agentd and zhen-claude's 2 and missed the overnight
+// process, zhen-claude review (two pools) and the web app.
 func TestPoolCaps(t *testing.T) {
-	if zhenPoolMax != 6 || boardPoolMax != 2 {
-		t.Fatalf("caps %d + %d, want 6 + 2", zhenPoolMax, boardPoolMax)
+	daemon := (&wellPools{}).caps()
+	if daemon != [2]int{6, 2} {
+		t.Fatalf("daemon caps %v, want [6 2]", daemon)
 	}
-	if zhenPoolMax+boardPoolMax+2 > 12 {
-		t.Fatal("the caps exceed app_zhen's connection limit")
+	night := (&wellPools{overnight: true}).caps()
+	if night != [2]int{2, 1} {
+		t.Fatalf("overnight caps %v, want [2 1]: one card at a time and its lease", night)
+	}
+	const (
+		claudeReview = 2 + 2 // zhen-claude review: runs and cards, openWellDB caps each at 2
+		claudeQueue  = 2     // a second zhen-claude: confirm, or a session with -confirm queue
+		webApp       = 2     // raft/zhen_app.py: Zhen's rows and the board's reads (REV-2)
+		operator     = 1     // one psql as app_zhen
+	)
+	need := daemon[0] + daemon[1] + night[0] + night[1] + claudeReview + claudeQueue + webApp + operator
+	b, err := os.ReadFile(filepath.Join("..", "..", "db", "migrations", "051_zhen_database.sql"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^ALTER ROLE app_zhen CONNECTION LIMIT (\d+);`).FindSubmatch(b)
+	if m == nil {
+		t.Fatal("051 sets no CONNECTION LIMIT for app_zhen")
+	}
+	limit, _ := strconv.Atoi(string(m[1]))
+	if need > limit {
+		t.Fatalf("app_zhen clients can open %d connections; 051's limit is %d", need, limit)
+	}
+	y, err := os.ReadFile(filepath.Join("..", "..", "modules", "zhen", "module.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(y), "connection_limit: "+strconv.Itoa(limit)+"}") {
+		t.Fatalf("modules/zhen/module.yaml does not restate the limit %d", limit)
 	}
 }

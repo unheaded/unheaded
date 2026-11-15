@@ -82,8 +82,8 @@ if [[ "$(su "$A" postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE
 	pass "unheaded_zhen exists, owner well_zhen_owner"; else fail "unheaded_zhen owner"; fi
 if [[ "$(su "$A" postgres "SELECT has_database_privilege('public', 'unheaded_zhen', 'CONNECT')")" == f ]]; then
 	pass "PUBLIC has no CONNECT on unheaded_zhen"; else fail "PUBLIC may connect"; fi
-if [[ "$(su "$A" postgres "SELECT rolconnlimit FROM pg_roles WHERE rolname = 'app_zhen'")" == 12 ]]; then
-	pass "app_zhen connection limit 12"; else fail "app_zhen connection limit"; fi
+if [[ "$(su "$A" postgres "SELECT rolconnlimit FROM pg_roles WHERE rolname = 'app_zhen'")" == 20 ]]; then
+	pass "app_zhen connection limit 20"; else fail "app_zhen connection limit"; fi
 if [[ "$(su "$A" unheaded_app "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname LIKE 'zhen\_%' AND c.relkind IN ('r','p')")" == 0 ]]; then
 	pass "unheaded_app holds no zhen_% table"; else fail "zhen_% tables left in unheaded_app"; fi
 if [[ "$(su "$A" unheaded_app "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'zhen\_%'")" == 0 ]]; then

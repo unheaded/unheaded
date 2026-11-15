@@ -18,11 +18,22 @@
 --   well_backup       Zhen's own backup set (pg_read_all_data, 023)
 --   huginn_reader     pg_monitor's statistics (012)
 --
--- app_zhen's connection limit is 12 (D6): zhen-agentd's two pools cap at
--- 6 + 2, zhen-claude's at 2, plus 2. A cap, not a share (ADR-147 decision 13).
+-- app_zhen's connection limit is 20 (D6; REV-5, independent review
+-- 2026-11-15: the plan's 12 counted one zhen-agentd and zhen-claude's 2).
+-- A role's limit counts its connections in every database. Clients that
+-- can run at once, at their caps:
+--   zhen-agentd daemon          6 (Zhen pool) + 2 (board pool, -worker only)  8
+--   zhen-agentd -overnight      2 + 1 (cmd/zhen-agentd/pools.go)              3
+--   zhen-claude review          2 (runs) + 2 (cards)                          4
+--   a second zhen-claude        confirm, or a session with -confirm queue     2
+--   raft/zhen_app.py            Zhen's rows + the board's reads                2
+--   an operator's psql                                                         1
+--                                                                    total   20
+-- A cap, not a share (ADR-147 decision 13). cmd/zhen-agentd TestPoolCaps
+-- fails when the sum outgrows this line.
 
 CREATE ROLE well_zhen_owner NOLOGIN;
 CREATE DATABASE unheaded_zhen OWNER well_zhen_owner;
 REVOKE CONNECT, TEMPORARY ON DATABASE unheaded_zhen FROM PUBLIC;
 GRANT CONNECT ON DATABASE unheaded_zhen TO app_zhen, app_kanban, retention_runner, well_backup, huginn_reader;
-ALTER ROLE app_zhen CONNECTION LIMIT 12;
+ALTER ROLE app_zhen CONNECTION LIMIT 20;
