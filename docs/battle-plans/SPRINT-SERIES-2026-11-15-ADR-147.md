@@ -22,7 +22,7 @@ The seats' full reports are on west in `~/tmp/adr147-table/` (not in the reposit
 |---|---|---|---|---|---|
 | 1 | S-SEE-AND-SURVIVE | See and survive: alarms that reach a person, instruments that can read a load, backups | unattended code; live config on west | 1 (a stopped container alerts), 2, 4, 6, 20 (instruments), 23 (vor's access log, request time in nginx) | forged 2026-11-15 |
 | 2 | S-WASTE-OUT | Waste out, each fix measured before and after | unattended; steps on Vector, ClickHouse and Postgres wait for the evidence week to end | 7, 8, 9, 10, 19, 24, timeguru; then 5's two fixes | forged 2026-11-15 |
-| 3 | S-ZHEN-SWITCH | The platform whole without Zhen; one switch turns it on | unattended code; attended where the Well changes | 15 | forged 2026-11-15 |
+| 3 | S-ZHEN-SWITCH | The platform whole without Zhen; one switch turns it on | unattended code; attended where the Well changes | 15 | forged 2026-11-15 (11 phases, 330 steps; finished after a cutoff, committed; its ADR takes the next free number, 149 since ADR-148) |
 | 4 | S-WEST-GROUND | West's ground: databases off the spinning disk, swap, huge pages, input filter, pid limits | ATTENDED, after the evidence week | 11, 12, 16, 22 | forged 2026-11-15 (13 phases, 324 steps; finished after a cutoff, committed `S-WEST-GROUND-battle-plan.md`) |
 | 5 | S-LOG-WEEK-2 | A second, fair log store week | unattended, 7 days | 5 | after plans 2 and 4 |
 | 6 | S-EAST-PAIR | East as a second home: the collector fix, Evening 10B, its own uplink, it watches west, two wired paths with BGP carrying real routes | ATTENDED, hardware Stevie adds | 3, 17, 18 | needs a design ADR for the pair first (what fails over, and how) |
