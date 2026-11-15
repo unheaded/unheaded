@@ -83,3 +83,27 @@ Which map and why:
 ## Decision
 
 None. Parked under ADR-112. Item 1 is a defect in running code and can be taken on its own, ahead of the rest, on Stevie's word.
+
+## Update 2026-11-12 (S-WATCH-TRUE)
+
+Stevie, 2026-11-12: fix item 1 (the freeze is lifted for that item only) and record the defect in the findings register. It is **FND-044**. The text above is the record of that morning and is left as written; what follows corrects it and records the decision. Plan: `docs/battle-plans/S-WATCH-TRUE-battle-plan.md`, numbers in `docs/battle-plans/progress/S-WATCH-TRUE-progress.md`.
+
+**Corrections, found while grounding the fix against the code and the live west:**
+
+- **One reader, not two.** `cmd/trace-collector-go/main.go` ran the direct cilium/ebpf sweep **or** the `LatencyReader` fallback, never both. The two start-up lines read above as two readers were both logged by the direct branch. `latency_reader_polls_total` is 0 on west. The cost was one `Iterate()` walk every 200 ms, two `bpf()` calls per entry, with no delete and no metrics of its own.
+- **West published no latency events at all.** The installed object `/usr/local/lib/unheaded/ebpf/latency-probe` (2026-10-18) has a 40-byte `LATENCY_MAP` key, the old 5-tuple. The binary (2026-11-10) decodes the 24-byte `LatencyTraceKey` of S-WIRE-HONEST. Every entry failed to decode and was skipped by a bare `continue`; nothing counted it. The S-WIRE-HONEST rule "probe and collector ship together" was broken at deploy. So the latency panels on west were not stale some hours after boot: they were empty.
+- **`LATENCY_EVENTS` is written and never read.** The probe reserves a ring buffer record for every sample, and no userspace code opens that ring. It is full, so every reserve fails and `STAT_EVENTS_DROPPED` rises. `LATENCY_STATS` was not exported either, so that was invisible too.
+- **`INFLIGHT` and `SOCK_TRACE` also drop on full.** Both are plain hashes whose inserts ignore failure, the same shape as the fault above. Noted, not fixed: parked with the ring buffer reader below.
+- **East and west, three days on (2026-11-15 01:22 UTC):** west 0.93 core at 2 d 21 h up, about 108,000 `bpf()` calls a second, the map full at 65,536 entries; east 1.99 cores. East runs a 2026-10-22 binary with a 2026-10-20 object, both from before S-WIRE-HONEST.
+
+**Decision for item 1** (the first two options together, plus the counters; the third stays open):
+
+- `LATENCY_MAP` is an **LRU hash**: a full map evicts the least recently used entry instead of refusing new threads. A refused insert is **counted** (`LATENCY_STATS` key 9, `map_insert_failed`).
+- The collector reads the map with **batch lookups** (4,096 entries a call) on `--latency-sweep-interval`, default **2 s**, refused under 500 ms. A kernel without batch lookups is walked as before and says so once.
+- The collector **refuses to load** an object whose `LATENCY_MAP` is not the LRU 24-byte-key, 40-byte-value layout: one error at start instead of silence.
+- On `/metrics`: `trace_collector_latency_sweep_seconds`, `trace_collector_latency_map_entries`, `trace_collector_latency_decode_errors_total`, and the probe's own counters as `trace_collector_latency_probe_events_total{stat}`.
+- The pass bar is live, on west and then east (attended): CPU, `bpf()` rate, decode errors and latency events before and after, in the progress file. FND-044 closes when both hosts meet its `verify` line.
+
+**Parked, with this ADR:** the ring buffer reader (the "better shape": the collector reads `LATENCY_EVENTS` and stops sweeping), which also ends the `events_dropped` count, and bounding `INFLIGHT` and `SOCK_TRACE`. They are the next change to the trace collector, not part of this fix.
+
+**Status:** unchanged, Proposed (parked), for items 2 to 7. Only item 1 moved.

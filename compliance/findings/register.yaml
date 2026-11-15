@@ -2015,3 +2015,34 @@ findings:
       default deny once the file names a service; the first list written from what each service subscribes to today
       (grep of Subscribe calls per cmd/ and services/), so nothing live breaks; tests that a wrong pattern and a bare
       "#" are refused. Fixed on develop first (ADR-089)
+
+  - id: FND-044
+    title: >-
+      The eBPF trace collector sweeps LATENCY_MAP two system calls per entry every 200 ms; the map never shrinks and
+      drops new threads silently when full; west's object and binary disagree on the key
+    verify: >-
+      on each host, rate(process_cpu_seconds_total{job="trace-collector"}[1h]) under 0.05 after 6 h up;
+      trace_collector_latency_map_entries present; trace_collector_latency_decode_errors_total 0; the installed
+      latency-probe passes checkLatencyMapSpec
+    severity: medium
+    class: app
+    opened: 2026-11-12
+    exposure: >-
+      availability and observability, no confidentiality impact. ADR-144 (2026-11-12, west, 3.5 h up): 713,032 bpf()
+      calls in 10 s (about 71,000 a second), kernel time in map_get_next_key, 49.9% of a core and rising in a straight
+      line, 70% of all the CPU the stack uses; LATENCY_MAP at 43,863 of 65,536 entries and growing about 12,000 an hour.
+      2026-11-15 01:22 UTC (west, 2 d 21 h up): 0.93 core, about 108,000 bpf() calls a second, the map full at 65,536.
+      East: 1.56 cores averaged over 20 days on a 4-core host, 1.99 cores on 2026-11-15. One reader, not two
+      (cmd/trace-collector-go/main.go ran the direct sweep or the LatencyReader fallback, never both). The probe threw
+      away a failed insert, so once the map was full a new thread got no entry and nothing counted it. On west the
+      installed latency-probe object (2026-10-18) has a 40-byte LATENCY_MAP key and the binary (2026-11-10) decodes 24:
+      every entry failed to decode and was skipped by a bare continue, so west published no latency events at all and
+      its latency panels were blind. The S-WIRE-HONEST rule "probe and collector ship together" was broken at deploy
+    lockout: none
+    step: 2
+    plan: >-
+      Stevie 2026-11-12: fix (ADR-144 item 1, freeze lifted for it) and record. S-WATCH-TRUE Phases 1-4; east in Phase
+      4B, attended. Fixed on develop first (ADR-089): LATENCY_MAP is an LRU hash and a refused insert is counted
+      (LATENCY_STATS key 9); the collector reads the map in batches of 4,096 every 2 s, refuses an object whose
+      LATENCY_MAP is not the LRU 24/40 layout before loading it, and exports the map's size, decode errors, sweep time
+      and the probe's own counters. Open until both hosts run the new pair and the verify line holds
