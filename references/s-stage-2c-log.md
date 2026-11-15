@@ -10,6 +10,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | priv3 + D6 | 889941 | 893507 | +3566 | 27529 | d6-after |
 | bounded paths | 893507 | 895768 | +2261 | 25268 | paths-after |
 | atomics: scan only (translate stuck) | 895768 | 895768 | +0 | 25268 | atomics-after |
+| bss + sidecar (SRET mask) | 895768 | 895767 | -1 | 25269 | bss-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -107,3 +108,5 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 99 first run: `bss-zero=yes`, `done`, and no `malloc` line. Cause, found in three instrumented boots: `SRET` masked the return PC to 16 bits, and `bssprobe` sits in PROGRAM_TABLE slot 5 (ROM 0x15000). The first trap the kernel answered for it (getpid, uptime or sbrk alike) resumed it in another image; with zeroed `.bss` malloc has to call sbrk, where before it did not. Pre-existing for `wc` (ROM 0x12000), which never makes such a call. Fix: the mask removed in the SRET arm. Count 895767 (-1 against 895768).
 - Step 99 after the fix: `bss-zero=yes`, `malloc=yes`, `done`.
 - Step 100 mutants, each restored: no `--with-bss` → `bss-zero=no`; the SRET mask back → no `malloc` line.
+- Steps 102-104: `cmd/upc-bootctl/tests/sidecar_fatal.rs` red first (4 of 5 failed), then green. The check runs before the eBPF object opens (`UserSidecarMissing`, `UserSidecarBad`), and the two live-path sites are fatal as well. Two older fixtures needed a valid empty sidecar (`tests/opcode_scan.rs`, `tests/rv2mbc_sha.rs`). All bootctl test results ok; fmt and clippy clean.
+- Gate `bss-after`: `same=12 diff=0 rc=0 doom=1 ascend=895767`; `bssprobe: 2 checks (UPC_RUNG_SBRK)` PASS; no corpus boot refused for a sidecar.

@@ -30,4 +30,7 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - The opcode scan has a probe hatch, UPC_ALLOW_USER_PRIVRET=1: hostile_reply holds an mret and two srets on purpose, so the scan as planned would have refused it. The hatch admits MRET/SRET only, prints a warning, and the harness sets it for that probe alone. Keep it, or build the probe some other way?
 - Step 93 [DECIDE]: .bss gets its zeros through the .data sidecar (option A, the recommendation); no BPF change for it.
 - Found by bssprobe, fixed: SRET masked the return PC to 16 bits, so a resident program at ROM 0x10000 or above (wc, bssprobe) was resumed in another image after any trap the kernel answered for it. wc never made such a call. One line in main.rs, verified count -1. Rungs 5+6 would have hit this with wc.
+- ascend baseline row now 895767 (net vs 921036: 25269)
+- R-NC closed: .bss arrives zeroed through the .data sidecar (option A); bad or missing userland sidecars now refuse the boot.
+- Stop B reached 2026-11-15: gate bss-after same=12 diff=0 rc=0 doom=1 ascend=895767 (headroom 4233). One half is stuck inside it: atomics through translate_address (Steps 78, 81), see the [STUCK] line above. Next: Phase 6 (fork tag, reservation, I9 tripwire), which adds verified instructions against that headroom.
 
