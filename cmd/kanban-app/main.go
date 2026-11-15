@@ -167,6 +167,16 @@ func (s *Server) SetLogPublisher(p *logagg.Publisher) error {
 // NewServer creates a new kanban server with standalone timeline polling.
 // Its task store is the Well, through a gate that waits for it.
 func NewServer(cfg Config) *Server {
+	g := newWellGate()
+	s := newServerOnGate(cfg, g)
+	openWell(s.ctx, g)
+	return s
+}
+
+// newServerOnGate is the standalone server on a Well gate the caller has
+// opened (NewServer's own, or main's when the TaskManager does not start:
+// one gate per process, REV-5).
+func newServerOnGate(cfg Config, g *wellGate) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		config:     cfg,
@@ -180,15 +190,42 @@ func NewServer(cfg Config) *Server {
 	// The Well is the source of cards (a fresh Well gets the Genesis cards
 	// from migration 034). Without it the board waits, read-only, and the
 	// gate connects it when it answers (well_wait.go).
-	s.well = newWellGate()
-	s.store = s.well
-	openWell(ctx, s.well)
+	s.well = g
+	s.store = g
 
 	// Create standalone TimelineManager for direct Timeguru HTTP polling
 	s.timelineManager = NewTimelineManager(func(eventType string, data interface{}) {
 		s.broadcastUpdate(eventType, data)
 	})
 	return s
+}
+
+// serverWithWotan builds the server on the Wotan client with gate as its
+// task store. When the TaskManager does not start (Wotan late) it returns
+// the standalone server and the error.
+func serverWithWotan(cfg Config, busClient WotanClient, gate *wellGate, initTimeout time.Duration) (*Server, error) {
+	var server *Server
+	broadcast := func(eventType string, data interface{}) {
+		if server != nil {
+			server.broadcastUpdate(eventType, data)
+		}
+	}
+	var kanbanStore TaskStore = gate
+	taskManager, err := NewTaskManager(busClient, broadcast, kanbanStore)
+	if err != nil {
+		server = newServerOnGate(cfg, gate)
+		return server, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), initTimeout)
+	defer cancel()
+	if err := taskManager.Initialize(ctx); err != nil {
+		taskManager.streamCancel() // not Close: that closes the process's one Wotan client
+		server = newServerOnGate(cfg, gate)
+		return server, err
+	}
+	server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
+	server.well = gate
+	return server, nil
 }
 
 // NewServerWithTaskManager creates a server with Wotan integration and shared Store.
@@ -1227,6 +1264,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"timeline_http":       timelineHTTP,
 		"timeguru_addr":       s.config.TimeGuruAddr,
 		"well":                s.wellState(),
+		"well_queued":         s.taskManager.WellQueued(),
 		"critical_alerts":     kanbanCritHealth(),
 	})
 }
@@ -1497,44 +1535,19 @@ func main() {
 			healthSrv.SetGRPCStatus(false)
 			server = NewServer(cfg)
 		} else {
-			// The task store is the Well, through a gate that waits for it
-			// (well_wait.go): one start path with NewServer's.
+			// The task store is the Well, through one gate that waits for
+			// it (well_wait.go): one start path with NewServer's.
 			gate := newWellGate()
 			openWell(context.Background(), gate)
-			var kanbanStore TaskStore = gate
-
-			// Create TaskManager with broadcast function and Store
-			broadcast := func(eventType string, data interface{}) {
-				if server != nil {
-					server.broadcastUpdate(eventType, data)
-				}
-			}
-
-			taskManager, err := NewTaskManager(busClient, broadcast, kanbanStore)
-			if err != nil {
-				log.Error().
-					Err(err).
-					Msg("Failed to create TaskManager, falling back to standalone mode")
+			var initErr error
+			server, initErr = serverWithWotan(cfg, busClient, gate, 10*time.Second)
+			if initErr != nil {
+				log.Error().Err(initErr).Msg("TaskManager did not start, falling back to standalone mode")
 				healthSrv.SetGRPCStatus(false)
-				server = NewServer(cfg)
 			} else {
-				// Initialize TaskManager (loads tasks from Store + subscribes to Wotan)
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				if err := taskManager.Initialize(ctx); err != nil {
-					log.Error().
-						Err(err).
-						Msg("Failed to initialize TaskManager, falling back to standalone mode")
-					healthSrv.SetGRPCStatus(false)
-					cancel()
-					server = NewServer(cfg)
-				} else {
-					cancel()
-					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
-					server.well = gate
-					log.Info().
-						Str("transport", transportName).
-						Msg("Wotan integration enabled with persistent store")
-				}
+				log.Info().
+					Str("transport", transportName).
+					Msg("Wotan integration enabled with persistent store")
 			}
 		}
 	} else {
