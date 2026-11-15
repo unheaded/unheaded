@@ -146,6 +146,7 @@ findings:
     exposure: none of these files is deployed on west or east (2026-10-20); the gate keeps new services from joining the list
     lockout: none
     step: 7
+    accepted: {reason: "WireGuard needs root (EPERM otherwise, measured 2026-10-20); deployed on neither host", compensating: "cap_drop ALL + NET_ADMIN and the four s6 init caps, read-only, the gate keeps any other service from joining", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: >-
       Done 2026-10-20 for 53 services (monitoring, telemetry, sophia-eye, loadbalancers, vllm, host-a/host-b known
       services): own pkg/uids number, read_only + measured tmpfs, cap_drop ALL, no-new-privileges, volume-init chown;
@@ -356,7 +357,10 @@ findings:
       what runs
     lockout: none
     step: 7
-    plan: redeploy east from develop, then a check that reads the deployed services (FND-037)
+    plan: >-
+      redeploy east from develop, then a check that reads the deployed services (FND-037).
+      2026-11-15: failed since 2026-11-10 on logstore-writer read as open; the gate now knows token-auth
+      services; still DECLARED until Phase 5 reads both hosts (FND-037)
     decision: mode settled - Stevie 2026-09-30 wants several (SSO/OIDC, JWT, API key), selectable per deployment; where keys and the IdP live is proposed in ADR-103 (2026-10-23, 4 open questions for Stevie)
 
   - source: "slo:dashboard"
@@ -370,6 +374,13 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-25 20:00 UTC, dashboard-backend on west down, east up (SLI 0.50). West's
+      kingdom stack was down while monitoring ran (postmortem
+      docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are good except
+      inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -3,405 % on 2026-11-15; the
+      rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples age out: re-read
+      on 2026-11-25
 
   - source: "slo:log-shipping"
     severity: medium
@@ -382,6 +393,13 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-25 20:00 UTC, Vector down (SLI 0, one good 6 h bucket on 10-23). West's
+      kingdom stack was down while monitoring ran (postmortem
+      docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are good except
+      inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -3,048 % on 2026-11-15; the
+      rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples age out: re-read
+      on 2026-11-25
 
   - source: "slo:well"
     severity: medium
@@ -394,6 +412,12 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-24 03:30 UTC, huginn_pg_up 0. West's kingdom stack was down while monitoring
+      ran (postmortem docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are
+      good except inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -3,078 % on
+      2026-11-15; the rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples
+      age out: re-read on 2026-11-25
 
   - source: "slo:well-backups"
     severity: medium
@@ -406,6 +430,14 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-21 08:00 to 2026-10-22 02:00 UTC (the newest backup was 37.9 h old, limit 26 h: a missed nightly
+      run), 2026-10-23 to 2026-10-24 08:00 (The Well was down), and 2026-10-27 02:00 (the three timestamps absent after
+      a reboot). West's kingdom stack was down while monitoring ran (postmortem
+      docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are good except
+      inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -1,894 % on 2026-11-15; the
+      rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples age out: re-read
+      on 2026-11-25
 
   - source: "slo:wotan"
     severity: medium
@@ -418,6 +450,12 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-24 03:30 UTC, Wotan on west down, east up (SLI 0.50). West's kingdom stack
+      was down while monitoring ran (postmortem docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily
+      readings since 2026-11-10 are good except inside known work (the 11-10 bring-up, the 11-12 boot and password
+      pass). Budget -1,655 % on 2026-11-15; the rule's arithmetic checks against Prometheus's 28-day average. The window
+      clears as those samples age out: re-read on 2026-11-25
 
   - id: FND-025
     title: >-
@@ -551,32 +589,6 @@ findings:
       sprint: one mechanical change across ~40 callers, the module diff read with scripts/dep-diff.sh first.
       Found by cmd/depaudit (S-LOW-FRUIT Phase 10); rule: >36 months on an input boundary is a register row.
 
-  - id: FND-032
-    title: >-
-      No ChromaDB release is free of PYSEC-2026-311, -3813, -3814 and -3815 (last_affected 1.5.9); Grimoire pins
-      1.5.9, and check-python-audit does not audit its requirements.txt because other lines there are ranges
-    verify: >-
-      no tracked manifest names chromadb (scripts/check-dependency-baseline.sh refuses it), go test ./cmd/zhen-codeindex
-      -run TestTomb passes, and a syft scan of the tree lists no chromadb
-    severity: low
-    class: package
-    opened: 2026-11-04
-    exposure: >-
-      none on west or east: Grimoire runs only on a provisioned air-gapped Tomb VM, through the embedded
-      PersistentClient; all four advisories need a Chroma HTTP server or its RBAC provider
-    lockout: none
-    step: 3
-    plan: >-
-      Stevie's call (S-SUPPLY-FIRST For Stevie 1): pin the remaining ranges with four accepted lines, take a fixed
-      release when one ships, or replace ChromaDB in Grimoire. Replaced: DP-719 option A, 2026-11-06.
-    resolved:
-      on: 2026-11-07
-      evidence: >-
-        S-ANSWERED lane retrieval: tomb/grimoire/rag/ deleted and the corpus served by pkg/retrieval. The dependency
-        baseline dropped chromadb and refuses it when added back (provoked, rc=1). syft 1.44.0 over a clean export of the
-        tree, the scan the SBOM jobs run: chromadb 1.5.9 before, none after. grype on those SBOMs: four chromadb
-        advisories before, none after.
-
   - id: FND-040
     title: >-
       check-python-audit does not audit notebooks/requirements.txt: all its lines are ranges, the gap FND-032 named for
@@ -702,7 +714,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`"
+    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`. 2026-11-15: trial, then permanent (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 230-232"
 
   - source: "host-probe:east:mount-home-nodev"
     severity: low
@@ -737,7 +749,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "add noexec to the /tmp tmpfs mount (systemd tmp.mount drop-in Options=...,noexec); remount"
+    plan: "add noexec to the /tmp tmpfs mount (systemd tmp.mount drop-in Options=...,noexec); remount. 2026-11-15: trial, then the tmp.mount drop-in (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 230-232"
 
   - source: "host-probe:east:mount-var-log-audit-nodev"
     severity: low
@@ -871,7 +883,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`"
+    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`. 2026-11-15: trial with the stack running, roll back on any failure (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Step 249"
 
   - source: "host-probe:west:mount-home-nodev"
     severity: low
@@ -879,6 +891,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
 
   - source: "host-probe:west:mount-home-nosuid"
@@ -887,6 +900,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
 
   - source: "host-probe:west:mount-home-separate"
@@ -895,6 +909,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount"
 
   - source: "host-probe:west:mount-tmp-noexec"
@@ -912,7 +927,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-audit-noexec"
     severity: low
@@ -920,6 +935,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
 
   - source: "host-probe:west:mount-var-log-audit-nosuid"
@@ -928,7 +944,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-audit-separate"
     severity: low
@@ -936,6 +952,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount. /var/log/audit exists only once auditd is installed (step 3)"
 
   - source: "host-probe:west:mount-var-log-nodev"
@@ -944,7 +961,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec. 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-noexec"
     severity: low
@@ -952,6 +969,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
 
   - source: "host-probe:west:mount-var-log-nosuid"
@@ -960,7 +978,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec. 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-separate"
     severity: low
@@ -968,6 +986,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount"
 
   - source: "host-probe:west:mount-var-nodev"
@@ -994,7 +1013,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-tmp-noexec"
     severity: low
@@ -1002,6 +1021,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
 
   - source: "host-probe:west:mount-var-tmp-nosuid"
@@ -1010,7 +1030,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-tmp-separate"
     severity: low
@@ -1018,6 +1038,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: a real filesystem for /var/tmp. west: an LV from ubuntu-vg (588G free); copy contents, fstab, mount"
 
   # --- CIS 2.1 / 2.2 / 2.4 services, clients, cron (2026-09-30) ------------
@@ -1028,7 +1049,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first)"
+    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Steps 248-249 (dry run first, never autoremove)"
 
   - source: "host-probe:west:pkg-telnet-client-absent"
     severity: low
@@ -1036,7 +1057,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
+    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Steps 248-249 (dry run first, never autoremove)"
 
   - source: "host-probe:east:pkg-ftp-client-absent"
     severity: low
@@ -1044,7 +1065,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first)"
+    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 228-229 (dry run first, never autoremove)"
 
   - source: "host-probe:east:pkg-telnet-client-absent"
     severity: low
@@ -1052,7 +1073,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
+    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 228-229 (dry run first, never autoremove)"
 
   - source: "host-probe:west:svc-web-server-not-in-use"
     severity: low
@@ -1263,7 +1284,7 @@ findings:
     exposure: "file integrity monitoring (SI-7) is not installed yet"
     lockout: none
     step: 3
-    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
+    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts. 2026-11-15 (DE1, Stevie 2026-11-13): superseded. aide alone, without aide-common; the aide-install fix writes our include-list config and weekly idle timer; the database is built by hand after a review (unheaded-aide init, then promote), never by aideinit. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
 
   - source: "host-probe:west:aide-timer"
     severity: low
@@ -1271,7 +1292,7 @@ findings:
     opened: 2026-10-01
     lockout: none
     step: 3
-    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"
+    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email). 2026-11-15 (DE1): superseded. The package's dailyaidecheck.timer stays masked; unheaded-aide-check.timer (aide-install) is the only AIDE run, and it mails nothing. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
 
   - source: "host-probe:east:aide-installed"
     severity: medium
@@ -1280,7 +1301,7 @@ findings:
     exposure: "file integrity monitoring (SI-7) is not installed yet"
     lockout: none
     step: 3
-    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
+    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts. 2026-11-15 (DE1, Stevie 2026-11-13): superseded. aide alone, without aide-common; the aide-install fix writes our include-list config and weekly idle timer; the database is built by hand after a review (unheaded-aide init, then promote), never by aideinit. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
 
   - source: "host-probe:east:aide-timer"
     severity: low
@@ -1288,7 +1309,43 @@ findings:
     opened: 2026-10-01
     lockout: none
     step: 3
-    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"
+    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email). 2026-11-15 (DE1): superseded. The package's dailyaidecheck.timer stays masked; unheaded-aide-check.timer (aide-install) is the only AIDE run, and it mails nothing. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
+
+  - source: "host-probe:west:aide-quiet"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "nothing is installed yet, so nothing runs AIDE at all; once it is, this is the check that only our idle weekly unit does"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 10 (west host window): the aide-install fix (package timer masked, cron script diverted, unheaded-aide-check at Nice=19 and idle I/O)"
+
+  - source: "host-probe:west:aide-unreviewed"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "no AIDE check has completed on this host; after the first one, this row is open while a diff waits for a review, one row whatever the run count"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 10 (west host window): attended unheaded-aide init and promote, then the first weekly check; afterwards runbooks/security/aide-change-review.yaml"
+
+  - source: "host-probe:east:aide-quiet"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "nothing is installed yet, so nothing runs AIDE at all; once it is, this is the check that only our idle weekly unit does"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 9 (east host window): the aide-install fix (package timer masked, cron script diverted, unheaded-aide-check at Nice=19 and idle I/O)"
+
+  - source: "host-probe:east:aide-unreviewed"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "no AIDE check has completed on this host; after the first one, this row is open while a diff waits for a review, one row whatever the run count"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 9 (east host window): attended unheaded-aide init and promote, then the first weekly check; afterwards runbooks/security/aide-change-review.yaml"
 
   # --- CIS 5.3 PAM (2026-10-01): stock Ubuntu PAM on both hosts -------------
 
@@ -1643,7 +1700,9 @@ findings:
       undo in /var/lib/unheaded/remediate/20261013T133915Z-smi-log-perms. A ROCm reinstall may recreate
       them 0777/0666. The other ~208 are Ubuntu's 0644 defaults
       (dpkg, apt, alternatives, installer, sysstat): chmod o-r, and logrotate's create mode or the
-      package's own rotation, else they come back on the next rotation
+      package's own rotation, else they come back on the next rotation.
+      2026-11-15: fix in the model, `var-log-modes` (DE5c, Stevie 2026-11-13; built in S-EVIDENCE-RUNS Phase 7, Steps
+      180-181); applied on west in Phase 10, Step 247
 
   - source: "host-probe:east:var-log-perms"
     severity: low
@@ -1653,7 +1712,9 @@ findings:
     step: 2
     plan: >-
       48 files at Ubuntu's 0644 defaults (dpkg, apt, alternatives, installer, unattended-upgrades,
-      landscape, sysstat): chmod o-r, and fix the create mode in the rotation that recreates each
+      landscape, sysstat): chmod o-r, and fix the create mode in the rotation that recreates each.
+      2026-11-15: fix in the model, `var-log-modes` (DE5c, Stevie 2026-11-13; built in S-EVIDENCE-RUNS Phase 7, Steps
+      180-181); applied on east in the Phase 9 window
 
   # --- CIS 5.2.7, 5.4.2.4-6, 5.4.3.3, 7.2.9-10: UH-ACCT-02 (2026-10-13) ---------
 
@@ -1675,7 +1736,15 @@ findings:
     opened: 2026-10-13
     lockout: none
     step: 4
-    plan: "chmod g-w /home/govan/.gitconfig /home/govan/.wget-hsts /home/govan/.zshrc (0664 from an earlier umask 002)"
+    plan: "chmod g-w /home/govan/.gitconfig /home/govan/.wget-hsts /home/govan/.zshrc (0664 from an earlier umask 002). 2026-11-15: fix (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Step 248"
+
+  - source: "host-probe:east:dot-files"
+    severity: low
+    class: fileperm
+    opened: 2026-11-15
+    lockout: none
+    step: 4
+    plan: "chmod g-w /home/govan/.gitconfig on east (0660 today); S-EVIDENCE-RUNS Phase 9, Step 228 (DE5a)"
 
   - source: "host-probe:west:root-path"
     severity: low
@@ -1686,7 +1755,9 @@ findings:
     plan: >-
       /root/.vector/bin is owned by uid 1001, which has no account: the Vector tarball was extracted as root with its
       archive owner kept. Empty, and /root is 0700, so no one else can reach it. chown -R root:root /root/.vector, or
-      remove it and /root/.vector/bin from root's PATH (Vector runs in compose)
+      remove it and /root/.vector/bin from root's PATH (Vector runs in compose).
+      2026-11-15: fix by removing the empty /root/.vector and its PATH line (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS
+      Phase 10, Step 248
 
   - source: "host-probe:east:firewall-single-utility"
     severity: low
@@ -1701,43 +1772,6 @@ findings:
     decision: the firewall rollout (same as host-iptables:east default deny)
 
   # --- CI and agents after the 2026-10-25 push (b3102c18) ---------------------
-  - source: "git-signatures:develop"
-    severity: low
-    class: ci
-    opened: 2026-10-25
-    exposure: provenance of 6 commits only; every commit since 2026-10-23 is signed
-    lockout: none
-    step: 1
-    plan: >-
-      The six unsigned commits are sprint/two-brains-runbooks Steps 321-338 (3a9665d7..b81695fe, 2026-10-23,
-      gpg-agent had timed out), merged and pushed in b3102c18. Re-signing them would rewrite pushed history
-      (scripts/resign-unpushed.py is for unpushed commits), so they are left; they leave the 50-commit window as
-      signed commits land (local develop 2026-10-25: 1 of 50)
-
-  - source: "github-job:Static Analysis/Python (ruff + bandit)"
-    severity: low
-    class: ci
-    opened: 2026-10-25
-    exposure: none on a host; a lint gate that went red unseen
-    lockout: none
-    step: 1
-    plan: >-
-      ruff was red since the eval sprints and nobody saw it: ruff is not installed on west, so the meta-gate
-      called check-ruff INCONCLUSIVE. Fixed on develop in ae99bc61 (579 findings in frozen eval fixtures
-      excluded by path with the reason, the rest fixed, outputs proven unchanged); closes on the next push
-
-  - source: "github-job:SBOM + Vulnerability Scan/sbom"
-    severity: low
-    class: ci
-    opened: 2026-10-25
-    exposure: filelock (GHSA-v4x8-3wr5-3wq8, high) in the ~/.venv/zhen freeze; a local-only lock-file race
-    lockout: none
-    step: 1
-    plan: >-
-      Fixed on develop in 354d866f (filelock 4.2.1, setuptools 84.1.0 in ~/.venv/zhen and the CI lock); grype at
-      medium passes on a git archive of develop (syft + grype from scripts/ci-install-tools.sh); closes on the
-      next push
-
   - source: "host-agent:east:baseline-report"
     severity: low
     class: service
@@ -1764,7 +1798,11 @@ findings:
       target, ten targets, twice. 43bf9199 runs it at 5 s per target in the meta-gate (150 s for the gate,
       measured on west, was over 20 min); the rest of the full meta-gate passes locally with every gate biting,
       ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
-      raise timeout-minutes with the measured time
+      raise timeout-minutes with the measured time.
+      2026-11-15: reproduced in a clean clone at the pushed commit: monitoring/test-alert-path had been failing
+      since eafa3806 (the test's policy rewrite broke the hourly-cap rule and the mailer exited), fixed in
+      4991fab4, it passes and bites. 97 gates bite in the full run. check-python-audit is still red (soupsieve
+      2.10 in the Zhen venv's freeze; the bump waits on Stevie)
 
   - source: "github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)"
     severity: low
@@ -1777,7 +1815,36 @@ findings:
       The S24 merges (S-IRON-GATE, S-WELL-SPRING, S-CHAMPION-HARDENING) were gated on build, -race and the
       repo's own scripts, not gosec. All 18 reviewed in ce860d92: none a bug, each annotated with its current
       rule ID (G704, G703, G124, G306, G706) and reason; gosec ./... 0 issues locally with the job's pinned
-      build. Closes on the next push's Security Scan run
+      build. Closes on the next push's Security Scan run.
+      2026-11-15: red on the 11-11 push for G104 in cmd/wiki-server/nav.go and one suppression above
+      baseline; fixed in 1dcae498; 0 issues in a clean clone
+
+  - source: "github-job:Security Scan (Daily + PR)/Go Vulnerability Check"
+    severity: low
+    class: ci
+    opened: 2026-11-15
+    exposure: >-
+      none on a host from the job itself; the cause is GO-2026-6859 (net/http server crash, MaxBytesReader
+      header race) in go1.27.3, which every Go binary built before the fix carries until it is rebuilt
+    lockout: none
+    step: 1
+    plan: >-
+      Every live Go pin moved to 1.27.4 in 1c90b9ed (30 files); govulncheck reports no vulnerabilities in a
+      clean clone. Closes on the next push's Security Scan run. The running services are rebuilt at their
+      next deploy
+
+  - source: "github-job:Security Scan (Daily + PR)/Secret Scan (gitleaks)"
+    severity: low
+    class: ci
+    opened: 2026-11-15
+    exposure: >-
+      none: the history step flagged a 14-character all-caps placeholder in a curl example of a file deleted
+      by 2613b0c2, whose ignore line left with it. Not a credential
+    lockout: none
+    step: 1
+    plan: >-
+      One history-baseline row added in ec11410b; .gitleaksignore is untouched. Closes on the next push's
+      Security Scan run
 
   - source: "slo:ci-develop"
     severity: medium
@@ -1795,6 +1862,9 @@ findings:
       plan stays red on pull requests that touch deploy/ until its dependencies get mock_outputs and a
       cluster exists (Stevie's call). Re-read after a week of green pushes; if the budget is still spent,
       open a postmortem. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class c): no producer on west: `unheaded-ci-status.timer` is not installed
+      (sweep E-10, M-087), so `unheaded_ci_run_*` does not exist and the SLI reads 0 by construction (7,682 samples, all
+      0; budget -9,900 %) until it is. Installing the timer is not in S-EVIDENCE-RUNS
 
   # --- 2026-11-05: found by the compliance review -----------------------------
   - source: "host-probe:west:os-supported"
@@ -1822,18 +1892,6 @@ findings:
     step: 3
     plan: Move east to the same supported release as west, east first. An OS upgrade is Stevie's to run
     decision: which LTS, and when
-  - source: "host-probe:west:alert-route"
-    severity: high
-    class: service
-    opened: 2026-11-05
-    exposure: >-
-      the alert path's four links do not all answer, so this control fails until E1 brings the stack on west back
-    lockout: none
-    step: 1
-    plan: >-
-      E1, attended: bring the stack up after the batch 2 list in the handoff. Passes when all four links answer.
-      The heartbeat's watcher still depends on west; moving it is a separate call
-    decision: when to run E1, and whether the heartbeat watcher moves off west
   - id: FND-036
     title: >-
       East's unheaded-wotan and unheaded-timeguru restart in a loop: the April 1.0.0 units pass a flag the binary does
@@ -1881,17 +1939,6 @@ findings:
     plan: >-
       West's profile is lab, which leaves out auditd-rules. Moving west to lab-hardened in the E-D host window, after
       east, loads them; a host change, so not done unattended
-  - source: "host-probe:west:db-backup-recent"
-    severity: medium
-    class: backup
-    opened: 2026-11-05
-    exposure: >-
-      unheaded-well-backup.service fails every night because the Well is stopped, and the newest set is from
-      2026-10-28. No new data goes unprotected while it is stopped, which is why this is medium; east's offsite check
-      fails daily for the same reason
-    lockout: none
-    step: 1
-    plan: Clears with E1 (host-probe:west:alert-route) at the next nightly run; if it does not within a day, treat it as a new failure
   - id: FND-037
     title: >-
       Evidence reads declared configuration, not what runs: UH-AUTHN-01 and others pass on the compose file, which says
@@ -1911,6 +1958,8 @@ findings:
       Redeploy east from develop or take the April builds down, then add the host-side evidence kind. 2026-11-06, at
       Stevie's word: a control that reads repository files is DECLARED, not PASS, and a requirement resting on one is
       DECLARED, not EVIDENCED (ADR-097). That stops a file reading as a pass; what closes this is reading what runs
+      (2026-11-15, S-EVIDENCE-RUNS Phase 5: the host-service evidence kind reads west's running services, 12 entries,
+      all pass: running, auth on, 401 without credentials; east waits on S-E1-LIVE Step 218)
   - id: FND-038
     title: >-
       One signing key: agents' commits are signed with Stevie's key and carry Co-Authored-By and Claude-Session trailers,
@@ -1990,32 +2039,6 @@ findings:
     plan: >-
       Stevie 2026-11-06: after the first green CI, required status checks and no review count, since one person cannot
       review his own work. A GitHub setting, in Stevie's hands
-  - id: FND-043
-    title: >-
-      Wotan has no per-topic read permission: any authenticated service may stream every topic, wildcard included
-    verify: >-
-      configs/wotan.yaml names, per service identity, the topic prefixes it may subscribe to and publish on; a
-      StreamTopics or SubscribeTopic call for a pattern outside the caller's list, and any "#" or "*" pattern from a
-      service not named as a wildcard reader, is refused with PermissionDenied, and a test proves each refusal
-    severity: medium
-    class: app
-    opened: 2026-11-11
-    exposure: >-
-      needs a valid service token first (18 keys in trust.d, each 0400 under its own account; Wotan is on loopback,
-      the compose bridge and the overlay only, TLS 1.3). From there, StreamTopics approves any pattern for any
-      identity (services/wotan/internal/grpc/topic_service.go, the RequestJoin + Approve after callerIdentity), and the
-      HTTP SubscribeTopic path approves every identity on topics.auto_approve, which is the whole caller list. One
-      compromised service, kev-poller say, reads audit.*, alerts.*, system.health.*, kanban.* and the rest. Signed
-      prefixes stop forging, not reading. ADR-103 section 6 named topic ACLs as "a later step"
-    lockout: none
-    step: 7
-    plan: >-
-      Stevie 2026-11-11: record and fix. Per-identity allow lists in configs/wotan.yaml (read prefixes, publish
-      prefixes, wildcard readers such as dashboard-backend), enforced on both listeners before the join is approved;
-      default deny once the file names a service; the first list written from what each service subscribes to today
-      (grep of Subscribe calls per cmd/ and services/), so nothing live breaks; tests that a wrong pattern and a bare
-      "#" are refused. Fixed on develop first (ADR-089)
-
   - id: FND-044
     title: >-
       The eBPF trace collector sweeps LATENCY_MAP two system calls per entry every 200 ms; the map never shrinks and

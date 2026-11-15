@@ -97,15 +97,29 @@ func TestNegativeTTLStillExpires(t *testing.T) {
 		t.Errorf("PacketCorrelator.GC removed = %d, want 1", removed)
 	}
 
+	// The flow reader: a flow seen at the very instant of the poll is known;
+	// one tick later a TTL below zero has expired it. (A flow that is already
+	// stale when first seen is never announced, so it cannot show this.)
+	oldClock := ktimeNow
+	defer func() { ktimeNow = oldClock }()
+	now := oldClock()
+	ktimeNow = func() uint64 { return now }
 	loader := NewMockBPFLoader()
-	now := ktimeNow()
 	fk := makeFlowKey([4]byte{127, 0, 0, 1}, [4]byte{127, 0, 0, 1}, 19005, 51738, 6)
-	insertFlow(loader.flowMap, fk, makeFlowState(ConnStateEstablished, now-3e9, now-2e9, 3, 3, 222, 162))
+	insertFlow(loader.flowMap, fk, makeFlowState(ConnStateEstablished, now-3e9, now, 3, 3, 222, 162))
 	fconfig := DefaultFlowReaderConfig()
 	fconfig.StaleTTL = -time.Second
 	reader := NewFlowReader(loader, nil, fconfig)
 	reader.pollOnce(context.Background())
+	if got := reader.ActiveFlows(); got != 1 {
+		t.Fatalf("FlowReader knows %d flows after the first poll, want 1", got)
+	}
+	now++
+	reader.pollOnce(context.Background())
 	if got := reader.Stats().FlowsExpired; got != 1 {
 		t.Errorf("FlowReader expired %d flows, want 1", got)
+	}
+	if got := reader.ActiveFlows(); got != 0 {
+		t.Errorf("FlowReader still knows %d flows under a TTL below zero, want 0", got)
 	}
 }

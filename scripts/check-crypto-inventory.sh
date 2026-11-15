@@ -13,8 +13,9 @@
 # precise meaning: regenerating gives the same bytes. This gate regenerates in
 # memory and fails (exit 1) when they differ, naming each component added (+),
 # removed (-) or changed (~). A new TLS config, rustls provider, sshd KEX list,
-# WireGuard peer, postgres image or signature import therefore cannot land
-# without the inventory saying so in the same commit.
+# WireGuard peer, postgres image, signature import, AEAD, KDF or SHA-3 import,
+# Rust crypto crate or hand-written primitive therefore cannot land without
+# the inventory saying so in the same commit.
 #
 # With --schema (or CI=true) it also validates the file against the published
 # CycloneDX 1.6 JSON schema (bom-1.6 + spdx + jsf-0.82, tag 1.6.1), fetched by

@@ -7,8 +7,11 @@ import (
 	"context"
 	"encoding/json"
 	"net"
+	"os"
 	"testing"
 	"time"
+
+	ciliumebpf "github.com/cilium/ebpf"
 )
 
 // ── Benchmark: TraceEntry decode ────────────────────────────────────────────
@@ -224,7 +227,7 @@ func BenchmarkSweepLatency65536(b *testing.B) {
 	ctx := context.Background()
 
 	b.Run("stale", func(b *testing.B) {
-		m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+		m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 		s := newLatencySweeper(m, func([]byte) {})
 		if err := s.sweep(ctx); err != nil { // the first sweep sees every entry as new
 			b.Fatal(err)
@@ -239,13 +242,13 @@ func BenchmarkSweepLatency65536(b *testing.B) {
 	})
 
 	b.Run("fresh", func(b *testing.B) {
-		m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+		m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 		published := 0
 		s := newLatencySweeper(m, func([]byte) { published++ })
 		b.ReportAllocs()
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
-			s.rtts = newRTTTracker() // forget everything: each entry is new again
+			s.rtts, s.lastSweepNS = newRTTTracker(), 0 // forget everything: each entry is new again
 			if err := s.sweep(ctx); err != nil {
 				b.Fatal(err)
 			}
@@ -255,4 +258,89 @@ func BenchmarkSweepLatency65536(b *testing.B) {
 			b.Fatalf("published %d, want %d", published, n*b.N)
 		}
 	})
+}
+
+// ── Benchmark: one poll of a full FLOWS map ─────────────────────────────────
+
+// BenchmarkFlowPoll65536 is one poll of a full FLOWS map (65,536 entries)
+// against the fake map, with no system calls: the userspace half. Fifty flows
+// are live; the rest went quiet ten minutes ago and were never deleted, which
+// is what an LRU map of flows looks like after a day (west, 2026-11-15: 7,337
+// entries, 54 live).
+func BenchmarkFlowPoll65536(b *testing.B) {
+	const n, live = 65536, 50
+	now := ktimeNow()
+	keys, values := make([][]byte, n), make([][]byte, n)
+	for i := range n {
+		fk := makeFlowKey([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}, [4]byte{10, 20, 0, 1}, uint16(i), 443, 6) // #nosec G115 -- a port for a benchmark key
+		lastSeen := now - uint64(10*time.Minute)
+		if i < live {
+			lastSeen = now
+		}
+		fs := makeFlowState(ConnStateEstablished, lastSeen, lastSeen, 1, 2, 100, 200)
+		k, v := fk.Encode(), fs.Encode()
+		keys[i], values[i] = k[:], v[:]
+	}
+	loader := &batchMockLoader{
+		MockBPFLoader: NewMockBPFLoader(),
+		flows:         &batchMockMap{MockMapReader: NewMockMapReader(), fake: &fakeBatchedMap{keys: keys, values: values, batchSize: mapSweepBatch}},
+	}
+	fr := NewFlowReader(loader, nil, DefaultFlowReaderConfig())
+	ctx := context.Background()
+	fr.pollOnce(ctx) // the first poll meets every flow
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		fr.pollOnce(ctx)
+	}
+	b.StopTimer()
+	if got := fr.ActiveFlows(); got != live {
+		b.Fatalf("active flows = %d, want %d", got, live)
+	}
+	b.ReportMetric(float64(fr.Stats().EventsSent)/float64(b.N+1), "events/poll")
+}
+
+// ── Benchmark: the kernel's half of one pass ────────────────────────────────
+
+// BenchmarkKernelBatchPass65536 is one batched pass over a full kernel LRU
+// hash of FLOWS's shape, with a visit that does nothing: what the bpf() calls
+// themselves cost on this kernel. Needs root.
+//
+//	go test -c -o /tmp/tc.test ./cmd/trace-collector-go && sudo /tmp/tc.test -test.run '^$' -test.bench KernelBatchPass
+func BenchmarkKernelBatchPass65536(b *testing.B) {
+	if os.Geteuid() != 0 {
+		b.Skip("needs root (CAP_BPF)")
+	}
+	const n = 65536
+	km, err := ciliumebpf.NewMap(&ciliumebpf.MapSpec{
+		Type: ciliumebpf.LRUHash, KeySize: FlowKeySize, ValueSize: FlowStateSize, MaxEntries: n,
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	defer km.Close()
+	for i := range n {
+		fk := makeFlowKey([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}, [4]byte{10, 20, 0, 1}, uint16(i), 443, 6) // #nosec G115 -- a port for a benchmark key
+		fs := makeFlowState(ConnStateEstablished, 1, 1, 1, 2, 100, 200)
+		k, v := fk.Encode(), fs.Encode()
+		if err := km.Put(k[:], v[:]); err != nil {
+			b.Fatal(err)
+		}
+	}
+	w := newMapWalker("flows", newEBPFBatchMap(km,
+		func(k *[FlowKeySize]byte) []byte { return k[:] },
+		func(v *[FlowStateSize]byte) []byte { return v[:] }))
+	ctx := context.Background()
+	entries := 0
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		entries = 0
+		if err := w.read(ctx, func(_, _ []byte) { entries++ }); err != nil {
+			b.Fatal(err)
+		}
+	}
+	b.StopTimer()
+	b.ReportMetric(float64(entries), "entries/pass")
 }

@@ -19,7 +19,7 @@ This directory contains 25 NixOS systemd service modules for the Unheaded Kingdo
 
 ### Layer 4: Protocol & API (3 services)
 - `protocol-api.nix` - Protocol API wire format validation & Gauntlets [gRPC :50056]
-- `trace-collector.nix` - Trace collector Zipkin-compatible [HTTP :9411]
+- `trace-collector.nix` - Trace collector, eBPF flow and latency traces to Wotan [HTTP 127.0.0.1:16670, metrics 127.0.0.1:16671]
 - `gateway.nix` - Gateway API gateway & ingress [HTTP :8443]
 
 ### Layer 5: Infrastructure Services (2 services)
@@ -89,7 +89,7 @@ services.unheaded.wotan.enable = true;
 - 8443: gateway
 - 8500: service-discovery (Consul-compatible)
 - 8600: timeguru
-- 9411: trace-collector (Zipkin-compatible)
+- 16670: trace-collector (HTTP, loopback); 16671: its metrics (loopback)
 
 ### Special Ports
 - 4222: wotan (NATS)

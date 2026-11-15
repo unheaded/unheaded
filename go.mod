@@ -20,7 +20,10 @@ go 1.26.0
 //
 // 1.27.3 on 2026-10-21: crypto/x509 distrusts the compromised emSign
 // intermediates (GO-2026-6809), reachable through every TLS client here.
-toolchain go1.27.3
+//
+// 1.27.4 on 2026-11-15: net/http HTTP/1 server crash, a MaxBytesReader
+// header race (GO-2026-6859), reachable from every HTTP server here.
+toolchain go1.27.4
 
 require (
 	github.com/BurntSushi/toml v1.6.0

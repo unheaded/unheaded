@@ -1524,6 +1524,16 @@ sources:
     owner: architect
     status: gap
     note: "D4 Step 170: not installed yet"
+  - id: unit/unheaded-aide-check
+    host: west
+    kind: journal-unit
+    match: unheaded-aide-check.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+    note: "S-EVIDENCE-RUNS Phases 9 and 10 install it (attended, aide-install); it becomes west/ and east/ entries then: one line a week, max_silence 8d"
   - id: unit/unheaded-anomaly
     host: west
     kind: journal-unit
@@ -1614,15 +1624,26 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:runs in compose on west (west/compose-sword); the host unit is not installed"
-  - id: unit/unheaded-vor
+  - id: west/unheaded-vor
     host: west
     kind: journal-unit
     match: unheaded-vor.service
     retention: operational
     max_silence: n/a
+    canary: "none: it logs on start, stop and faults; requests are not logged"
+    owner: architect
+    status: gap
+    note: "installed on west 2026-11-12 (a host unit on loopback 20110)"
+  - id: unit/unheaded-llama
+    host: west
+    kind: journal-unit
+    match: unheaded-llama.service
+    retention: operational
+    max_silence: n/a
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
+    note: "S-ZHEN-FRONT Phase 10 installs it on west (attended), disabled; it becomes a west/ entry with status gap then"
   - id: unit/unheaded-vor-refresh
     host: west
     kind: journal-unit
@@ -1642,6 +1663,16 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-zhen-app
+    host: west
+    kind: journal-unit
+    match: unheaded-zhen-app.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+    note: "S-ZHEN-FRONT Phase 10 installs it on west (attended), disabled; it becomes a west/ entry with status gap then"
   - id: unit/zhen-agentd
     host: west
     kind: journal-unit

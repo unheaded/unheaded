@@ -72,9 +72,13 @@ const (
 	protoSSH   = "ssh"
 	protoOther = "other"
 
-	primSignature = "signature"
-	primKEM       = "kem"
-	primKeyAgree  = "key-agree"
+	primSignature   = "signature"
+	primKEM         = "kem"
+	primKeyAgree    = "key-agree"
+	primAE          = "ae"           // authenticated encryption (AEAD)
+	primKDF         = "kdf"          // key derivation, password hashing included
+	primHash        = "hash"         // an unkeyed digest
+	primBlockCipher = "block-cipher" // a raw block cipher; the mode is elsewhere
 )
 
 // Asset is one inventory entry before it becomes a CycloneDX component.

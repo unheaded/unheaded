@@ -1339,6 +1339,10 @@ const API = '';  // Same origin
 
 // Login (F4, H5): the issuer's, through this UI. The browser holds a session
 // cookie it cannot read, and never a token.
+// True when this page load found a live session: the page is then drawn for
+// a person, and a later login (the session ended) keeps it as it is.
+let loadedLoggedIn = false;
+
 function showLogin() {
     document.getElementById('login-panel').hidden = false;
     document.getElementById('login-user').focus();
@@ -1377,7 +1381,16 @@ document.getElementById('login-form').addEventListener('submit', async (ev) => {
         if (body.password_below_floor) {
             alert('Your password is shorter than the 15 characters now asked for. It still works: please have it replaced.');
         }
-        location.reload();
+        if (!loadedLoggedIn) {
+            // The page was drawn for a stranger: draw it again for this person.
+            location.reload();
+            return;
+        }
+        // The session ended while the page was in use (a login lasts 15
+        // minutes). Keep the page and what is typed in it, and fetch again
+        // what needed a login.
+        fetch(API + '/auth/me').then(m => m.ok ? m.json().then(showWho) : showLogin()).catch(showLogin);
+        refreshStats();
         return;
     }
     const wait = r.headers.get('Retry-After');
@@ -1389,7 +1402,7 @@ document.getElementById('login-logout').addEventListener('click', async () => {
     location.reload();
 });
 
-fetch(API + '/auth/me').then(r => r.ok ? r.json().then(showWho) : showLogin()).catch(showLogin);
+fetch(API + '/auth/me').then(r => r.ok ? r.json().then(me => { loadedLoggedIn = true; showWho(me); }) : showLogin()).catch(showLogin);
 
 // A held call comes back with a token bound to the person logged in. It is
 // spent here, on this origin, as that person.
@@ -1929,6 +1942,16 @@ async function ask(preset) {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(body),
         });
+        if (r.status === 401) {
+            // The session has ended and the fetch wrapper has opened the
+            // login panel. Put the question back and send nothing again:
+            // the person sends it once they are logged in.
+            msgs.removeChild(thinking);
+            qInput.value = question;
+            addMsg('Your login ended before this was sent. Log in, then send it again: the question is still in the box.', 'zhen');
+            btn.disabled = false;
+            return;
+        }
         const data = await r.json();
         msgs.removeChild(thinking);
 
@@ -2048,13 +2071,10 @@ qInput.addEventListener('keydown', e => {
     if (e.key === 'Enter' && !btn.disabled) handleSubmit();
 });
 
-// Health + stats check
+// Health check: the probe is open before login.
 async function checkHealth() {
     try {
-        const [health, stats] = await Promise.all([
-            fetch(API + '/health').then(r => r.json()),
-            fetch(API + '/api/v1/stats').then(r => r.json()).catch(() => null),
-        ]);
+        const health = await fetch(API + '/health').then(r => r.json());
         const dot = document.getElementById('status-dot');
         const text = document.getElementById('status-text');
         if (health.rag_ready) {
@@ -2062,28 +2082,52 @@ async function checkHealth() {
             text.textContent = 'Online';
         } else {
             dot.className = 'status-dot offline';
-            text.textContent = health.error || 'Not ready';
-        }
-        if (stats && !stats.error) {
-            // Post-WAVE15 rewire: stats shape changed. vor_health.sheets +
-            // inference_model are the new fields; index_vectors/corpus_chunks
-            // were FAISS-era and no longer populate.
-            const sheets = stats.vor_health ? stats.vor_health.sheets : null;
-            const cats   = stats.vor_health ? stats.vor_health.categories : null;
-            const model  = stats.inference_model || stats.model || 'qwen-coder-7b';
-            const sv = document.getElementById('stat-vectors');
-            const sc = document.getElementById('stat-chunks');
-            if (sv) sv.textContent = sheets != null ? sheets.toLocaleString() : '?';
-            if (sc) sc.textContent = cats   != null ? cats.toLocaleString()   : '?';
-            document.getElementById('model-info').textContent =
-                `${model} | ${sheets != null ? sheets.toLocaleString() + ' sheets' : 'vor'}`;
+            // The probe gives a fixed word; the reason is behind the login.
+            text.textContent = 'Not ready';
         }
     } catch(e) {
         document.getElementById('status-dot').className = 'status-dot offline';
         document.getElementById('status-text').textContent = 'Offline';
     }
+    refreshStats();
 }
 
+// Stats need a login. This is the one place they are fetched: at page load,
+// with every health check, and from the login handler, so the sidebar fills
+// in after a login. Resolves to the stats, {login_required: true} before
+// login, or {} when they cannot be had.
+async function refreshStats() {
+    const sv = document.getElementById('stat-vectors');
+    const sc = document.getElementById('stat-chunks');
+    const info = document.getElementById('model-info');
+    let stats;
+    try {
+        const r = await fetch(API + '/api/v1/stats');
+        if (r.status === 401) {
+            for (const el of [sv, sc]) {
+                if (el) { el.textContent = '—'; el.title = 'log in to see'; }
+            }
+            if (info) info.textContent = 'log in to see the corpus and model';
+            return {login_required: true};
+        }
+        stats = await r.json();
+    } catch(e) {
+        return {};
+    }
+    if (!stats || stats.error) return {};
+    // Post-WAVE15 rewire: stats shape changed. vor_health.sheets +
+    // inference_model are the new fields; index_vectors/corpus_chunks
+    // were FAISS-era and no longer populate.
+    const sheets = stats.vor_health ? stats.vor_health.sheets : null;
+    const cats   = stats.vor_health ? stats.vor_health.categories : null;
+    const model  = stats.inference_model || stats.model || 'qwen-coder-7b';
+    if (sv) { sv.textContent = sheets != null ? sheets.toLocaleString() : '—'; sv.title = sheets != null ? '' : 'vor did not answer'; }
+    if (sc) { sc.textContent = cats   != null ? cats.toLocaleString()   : '—'; sc.title = cats   != null ? '' : 'vor did not answer'; }
+    if (info) {
+        info.textContent = `${model} | ${sheets != null ? sheets.toLocaleString() + ' sheets' : 'vor'}`;
+    }
+    return stats;
+}
 checkHealth();
 setInterval(checkHealth, 30000);
 
@@ -2502,19 +2546,23 @@ function prettyModelName(raw) {
 // runbook list count, then composes a current-state opener. Falls back to
 // a static line on any HTTP error so the UI degrades cleanly.
 Promise.all([
-    fetch(API + '/api/v1/stats').then(r => r.json()).catch(() => ({})),
+    refreshStats(),
     fetch(API + '/api/v1/runbooks').then(r => r.json()).then(d => d.runbooks ? d.runbooks.length : (Array.isArray(d) ? d.length : 0)).catch(() => 0),
 ]).then(([s, rbCount]) => {
     const vh = s.vor_health || {};
-    const sheets = vh.sheets || '?';
-    const categories = vh.categories || '?';
+    // Before login the counts are not ours to show; say so rather than "?".
+    const corpus = s.login_required
+        ? 'vor (log in to see the sheet and category counts)'
+        : (vh.sheets != null && vh.categories != null
+            ? `vor with ${vh.sheets} sheets across ${vh.categories} categories`
+            : 'vor');
     const model = prettyModelName(s.inference_model);
     const memBack = (s.memory_recall && s.memory_recall.includes('T1')) ? ' Memory recall is display-only (T1 closed).' : '';
     const rbLine = rbCount > 0 ? ` ${rbCount} operational runbooks available.` : '';
     const swapHint = ' Swap models any time via the sidebar dropdown.';
     addMsg(
         `I am Zhenai (真爱), champion of the Unheaded Kingdom.\n\n` +
-        `Retrieval: vor with ${sheets} sheets across ${categories} categories — Unheaded markdown, ADRs, battle plans, embedded cheatsheets. Source-trust labeled (canonical / local / external).\n\n` +
+        `Retrieval: ${corpus} — Unheaded markdown, ADRs, battle plans, embedded cheatsheets. Source-trust labeled (canonical / local / external).\n\n` +
         `Inference: ${model} via local llama-server on AMD RX 7700 XT (ROCm).${rbLine}${memBack}${swapHint}\n\n` +
         `📎 Need a code review or want me to read a specific file? Drag the file straight into this window, or click the + button next to the input box. The whole file goes into my context.\n\n` +
         `Ask me anything.`,

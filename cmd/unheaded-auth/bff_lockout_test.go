@@ -10,8 +10,11 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"unheaded/pkg/bff"
 )
@@ -111,26 +114,72 @@ func TestBFF_OneClientOnBothBackendsCannotLockOutEveryone(t *testing.T) {
 	}
 }
 
-// The budgets are sized for IssuerAddressBackends. A further unit logging in
-// through the issuer from the same host must resize them, not quietly void
-// the sum above.
+// zhenAppUnit is the one shipped unit that logs people in at the issuer
+// without pkg/bff: the Zhen web UI's app keeps its own budgets
+// (raft/zhen_login.py), sized with the two backends' on 2026-11-09.
+const zhenAppUnit = "unheaded-zhen-app.service"
+
+// zhenBudget reads one of the Zhen app's budget constants from its source, as
+// raft/tests/test_zhen_login.py reads this side's.
+func zhenBudget(t *testing.T, name string) int {
+	t.Helper()
+	raw, err := os.ReadFile("../../raft/zhen_login.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := regexp.MustCompile(`(?m)^` + name + `\s*=\s*(\d+)\s*$`).FindSubmatch(raw)
+	if m == nil {
+		t.Fatalf("%s not found in raft/zhen_login.py", name)
+	}
+	n, err := strconv.Atoi(string(m[1]))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+// Every shipped unit that names an issuer spends failures from the host's one
+// address at the issuer. Each is accounted for here: a pkg/bff backend counts
+// against IssuerAddressBackends, the Zhen app brings its own budgets, and all
+// of them added together stay under the issuer's locks. A further unit must
+// resize the budgets, not quietly void the sum.
 func TestBFF_ShippedUnitsFitTheBackendCount(t *testing.T) {
 	units, err := filepath.Glob("../../deploy/systemd/*.service")
 	if err != nil || len(units) == 0 {
 		t.Fatalf("no units found: %v", err)
 	}
 	var backends []string
+	zhen := false
 	for _, u := range units {
 		raw, err := os.ReadFile(u) // #nosec G304 -- a path from the Glob above
 		if err != nil {
 			t.Fatal(err)
 		}
-		if strings.Contains(string(raw), "Environment=AUTH_ISSUER_URL=") {
-			backends = append(backends, filepath.Base(u))
+		if !strings.Contains(string(raw), "Environment=AUTH_ISSUER_URL=") {
+			continue
 		}
+		if filepath.Base(u) == zhenAppUnit {
+			zhen = true
+			continue
+		}
+		backends = append(backends, filepath.Base(u))
 	}
 	if len(backends) == 0 || len(backends) > bff.IssuerAddressBackends {
-		t.Fatalf("units with an issuer URL %v, budgets sized for %d", backends, bff.IssuerAddressBackends)
+		t.Fatalf("pkg/bff units with an issuer URL %v, budgets sized for %d", backends, bff.IssuerAddressBackends)
+	}
+	if !zhen {
+		t.Fatalf("%s no longer names an issuer; take its budgets out of this sum", zhenAppUnit)
+	}
+	perUser := bff.IssuerAddressBackends*bff.ClientUserLoginFailures + zhenBudget(t, "CLIENT_USER_FAILURES")
+	if perUser >= maxFailuresPerPair {
+		t.Errorf("per-user budgets of %v and %s total %d, must be under the issuer's %d", backends, zhenAppUnit, perUser, maxFailuresPerPair)
+	}
+	perClient := bff.IssuerAddressBackends*bff.ClientLoginFailures + zhenBudget(t, "CLIENT_FAILURES")
+	if perClient >= maxFailuresPerSource {
+		t.Errorf("per-client budgets of %v and %s total %d, must be under the issuer's %d", backends, zhenAppUnit, perClient, maxFailuresPerSource)
+	}
+	if window := time.Duration(zhenBudget(t, "FAILURE_WINDOW")) * time.Second; window < lockoutWindow {
+		t.Errorf("%s counts a failure for %v, must cover the issuer's %v", zhenAppUnit, window, lockoutWindow)
 	}
 }
 

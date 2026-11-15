@@ -105,6 +105,21 @@ def test_proxy_posts_ask_with_api_key(clean_env):
     assert kw['json']['question'] == 'what is wotan'
 
 
+@pytest.mark.parametrize('body,want', [
+    ({'answer': 'a', 'tokens_input': 22, 'tokens_output': 8}, 8),
+    ({'answer': 'a'}, 0),
+    ({'answer': 'a', 'tokens_output': None}, 0),
+    ({'answer': 'a', 'tokens_output': 'many'}, 0),
+    ({'answer': 'a', 'tokens_output': -3}, 0),
+])
+def test_proxy_reports_the_daemons_token_count(clean_env, body, want):
+    """tokens_used means completion tokens on both paths (D-02): the page
+    showed "0 tok" for every answer that went through the gate."""
+    clean_env.setenv('ZHEN_AGENTD_API_KEY', 'k-test')
+    clean_env.setattr(zhen_rag.requests, 'post', _Recorder(_Resp(200, body)))
+    assert _pipe().generate('what is wotan', [])['tokens_used'] == want
+
+
 def test_proxy_sends_the_question_apart_from_the_wrapped_goal(clean_env):
     # The goal carries a preamble; retrieval is seeded by the question.
     clean_env.setenv('ZHEN_AGENTD_API_KEY', 'k-test')

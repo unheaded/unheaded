@@ -1336,6 +1336,14 @@ services:
       WELL_DB: "unheaded_ops"
       WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
       WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
+      # The compliance page reads The Well, not the fallback files (FND-007,
+      # A-27): unheaded_ops as ops_reader and unheaded_config as config_reader,
+      # the read-only roles of migrations 013/014/025. The users are the
+      # code's defaults (pkg/compliance/well), so only the passwords are named.
+      # No default: without them compose refuses to start the service, instead
+      # of the page quietly reading files (unheaded_compliance_source).
+      WELL_OPS_PASSWORD: "${OPS_READER_PASSWORD:?set OPS_READER_PASSWORD in .env (credentials are not stored in this repo)}"
+      WELL_CONFIG_PASSWORD: "${CONFIG_READER_PASSWORD:?set CONFIG_READER_PASSWORD in .env (credentials are not stored in this repo)}"
     volumes:
       - ./configs/certs/dev/dashboard-backend:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only

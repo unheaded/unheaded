@@ -23,6 +23,7 @@ func scanAll(t *Tree) ([]Asset, error) {
 		{"rust", scanRust},
 		{"config", scanConfig},
 		{"hosts", scanHosts},
+		{"own primitives", scanOwnPrimitives},
 	} {
 		assets, err := s.fn(t)
 		if err != nil {

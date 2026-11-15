@@ -42,6 +42,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"golang.org/x/sys/unix"
 
 	"unheaded/pkg/bff"
 	"unheaded/pkg/cmdline"
@@ -638,12 +639,16 @@ func run(ctx context.Context, cfg config, log zerolog.Logger) error {
 	f := newFront(cfg, log)
 	var lns []net.Listener
 	for _, a := range cfg.listens {
-		ln, err := new(net.ListenConfig).Listen(ctx, "tcp", a.String())
+		ln, err := listenFront(ctx, a)
 		if err != nil {
 			for _, open := range lns {
 				_ = open.Close()
 			}
 			return fmt.Errorf("listen %s: %w", a, err)
+		}
+		if !a.Addr().IsLoopback() && !onThisHost(a.Addr()) {
+			log.Warn().Stringer("addr", a).
+				Msg("listen address is not on this host yet; bound with FREEBIND, it serves when the address arrives")
 		}
 		lns = append(lns, f.limit(ln))
 	}
@@ -675,6 +680,61 @@ func run(ctx context.Context, cfg config, log zerolog.Logger) error {
 	}
 	f.transport.CloseIdleConnections()
 	return nil
+}
+
+// listenFront binds one --listen address. An address past loopback is bound
+// with FREEBIND: a LAN or overlay address can arrive after the unit starts (a
+// drop-in adds it, or the link is late at boot), and one missing address must
+// not take the loopback listener down with it. The socket then answers from
+// the moment the address exists, with no restart. Loopback is bound plainly,
+// so a loopback address that cannot be bound still fails the start. FREEBIND
+// needs no capability, and SocketBindAllow in the unit is by port and still
+// holds.
+func listenFront(ctx context.Context, a netip.AddrPort) (net.Listener, error) {
+	lc := new(net.ListenConfig)
+	if !a.Addr().IsLoopback() {
+		v6 := a.Addr().Is6() && !a.Addr().Is4In6()
+		lc.Control = func(_, _ string, c syscall.RawConn) error {
+			var optErr error
+			err := c.Control(func(fd uintptr) {
+				if fd > maxFD {
+					optErr = fmt.Errorf("file descriptor %d out of range", fd)
+					return
+				}
+				if v6 {
+					optErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_IPV6, unix.IPV6_FREEBIND, 1)
+				} else {
+					optErr = unix.SetsockoptInt(int(fd), unix.IPPROTO_IP, unix.IP_FREEBIND, 1)
+				}
+			})
+			if err != nil {
+				return err
+			}
+			return optErr
+		}
+	}
+	return lc.Listen(ctx, "tcp", a.String())
+}
+
+// maxFD bounds the descriptor before it is narrowed to the int setsockopt takes.
+const maxFD = 1<<31 - 1
+
+// onThisHost reports whether an interface carries the address. When the
+// interfaces cannot be read it answers true: no warning is better than a
+// wrong one.
+func onThisHost(a netip.Addr) bool {
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return true
+	}
+	a = a.Unmap()
+	for _, ia := range addrs {
+		p, err := netip.ParsePrefix(ia.String())
+		if err == nil && p.Addr().Unmap() == a {
+			return true
+		}
+	}
+	return false
 }
 
 func addrStrings(addrs []netip.AddrPort) []string {

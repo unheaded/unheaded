@@ -316,6 +316,32 @@ def test_the_page_and_the_probe_stay_open(client, world, path):
     assert client.get(path, base_url=LOCAL).status_code == 200
 
 
+def test_highlight_needs_a_login(client, world):
+    """The highlighter only reads, so any login may use it; no login may not."""
+    r = client.post('/api/v1/highlight', base_url=LOCAL, json={'blocks': []}, headers=_page_headers(client))
+    assert r.status_code == 401
+    assert r.get_json()['error'] == 'login_required'
+    assert _login(client, 'watcher').status_code == 200
+    r = client.post('/api/v1/highlight', base_url=LOCAL, json={'blocks': []}, headers=_page_headers(client))
+    assert r.status_code == 200
+    assert r.get_json() == {'html': []}
+
+
+def test_health_names_no_session_and_no_error_text(client, world, monkeypatch):
+    """The open probe says how the app is, never which session it is or why it
+    failed: the reason is behind the login, on /api/v1/system/state."""
+    body = client.get('/health', base_url=LOCAL).get_json()
+    assert set(body) <= {'status', 'rag_ready', 'well_connected', 'error'}
+    assert 'session_id' not in body
+    monkeypatch.setattr(zhen_app, 'startup_error', 'boom /home/x')
+    body = client.get('/health', base_url=LOCAL).get_json()
+    assert body['error'] == 'startup_failed'
+    assert '/' not in json.dumps(body)
+    assert _login(client).status_code == 200
+    state = client.get('/api/v1/system/state', base_url=LOCAL).get_json()
+    assert state['webui']['startup_error'] == 'boom /home/x'
+
+
 def test_login_still_passes_the_csrf_guard(client, world):
     r = client.post('/auth/login', base_url=LOCAL, json={'username': 'stevie', 'password': SECRET},
                     headers={'Origin': 'http://evil.test', 'Sec-Fetch-Site': 'cross-site'})

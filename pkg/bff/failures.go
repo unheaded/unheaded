@@ -19,10 +19,15 @@ import (
 const (
 	// LoginFailureWindow is how long a failed login counts.
 	LoginFailureWindow = 10 * time.Minute
-	// IssuerAddressBackends is how many backends reach the issuer from one
-	// source address: the dashboard and the board on one host. The
+	// IssuerAddressBackends is how many pkg/bff backends reach the issuer
+	// from one source address: the dashboard and the board on one host. The
 	// budgets below are per backend, so this many of them add up at the
-	// issuer.
+	// issuer. The Zhen web UI's app is a third login front on the same
+	// address. It does not use this package and keeps its own budgets
+	// (raft/zhen_login.py, 5 and 5), which were sized with these: the sums
+	// are 9 and 23, under the issuer's 10 and 25. Both sides test the sum
+	// (cmd/unheaded-auth TestBFF_ShippedUnitsFitTheBackendCount, which also
+	// fails on a unit it cannot account for, and raft/tests/test_zhen_login.py).
 	IssuerAddressBackends = 2
 	// ClientUserLoginFailures bounds failures per client and username.
 	ClientUserLoginFailures = 2

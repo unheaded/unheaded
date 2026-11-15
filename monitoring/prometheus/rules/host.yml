@@ -134,3 +134,41 @@ groups:
           summary: "huginn can no longer read /var/log/unheaded on {{ $labels.host }}"
           description: "Log directory sizes are unknown; the directory was removed or its permissions changed"
           runbook_url: "runbooks/observe/log-rotation.yaml"
+
+  # AIDE, quiet by design (S-EVIDENCE-RUNS DE1). unheaded-aide check runs
+  # once a week and leaves six numbers in huginn's textfile directory, so
+  # each series is flat between runs.
+  #
+  # urgency is "none" here like every hand-written rule (ADR-100);
+  # observability/alerting/policy.yaml promotes both to a ticket.
+  - name: host-aide
+    interval: 1m
+    rules:
+      # new_diff is 1 only on the run that first saw a diff. The file keeps
+      # that 1 until the next weekly run, so the alert is bounded to the day
+      # after the run: one digest line, not seven. While it is quiet the
+      # diff is still open as the finding host-probe:<host>:aide-unreviewed.
+      # A diff seen before reads new_diff 0 and never fires.
+      - alert: AIDEChangeDetected
+        expr: unheaded_aide_new_diff == 1 and (time() - unheaded_aide_last_run_timestamp_seconds) < 86400
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "AIDE found a change on {{ $labels.host }} it had not seen before"
+          description: "The weekly check found files that differ from the database. It is reported once; the diff stays pending until a person reads it: sudo unheaded-aide review"
+          runbook_url: "runbooks/security/aide-change-review.yaml"
+
+      # The timer is weekly with up to six hours of delay. A run that fails
+      # does not move the timestamp, so this also catches a check that
+      # fails every week. No series at all (no database yet) stays quiet.
+      - alert: AIDECheckStale
+        expr: time() - unheaded_aide_last_run_timestamp_seconds > 8 * 86400
+        for: 1h
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "No AIDE check on {{ $labels.host }} for over 8 days"
+          description: "The last completed check is {{ $value | humanizeDuration }} old; unheaded-aide-check.timer did not run it, or every run since has failed"
+          runbook_url: "runbooks/security/aide-check-stale.yaml"

@@ -22,5 +22,6 @@
     - kmod-usb-storage
     - time-p2p
     - rocm-log-perms
+    - var-log-modes
     - aide-install
     - apparmor-enforce

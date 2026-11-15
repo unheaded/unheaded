@@ -317,6 +317,19 @@ func (r *NativeMapReader) Iterate(fn func(key, value []byte) error) error {
 	return r.loader.IterateMap(r.ctx, r.programName, r.mapName, fn)
 }
 
+// batchView opens a batched view of the map on a descriptor of its own, for
+// a reader that walks the whole map (map_walk.go). Only FLOWS has one.
+func (r *NativeMapReader) batchView() (batchedMap, error) {
+	if r.mapName != "FLOWS" {
+		return nil, fmt.Errorf("map %s has no batched view", r.mapName)
+	}
+	fd, err := r.loader.DupMapFD(r.programName, r.mapName)
+	if err != nil {
+		return nil, err
+	}
+	return newFlowsBatchMap(fd, r)
+}
+
 // Lookup reads the value for a given key from the BPF map.
 func (r *NativeMapReader) Lookup(key []byte) ([]byte, error) {
 	return r.loader.ReadMap(r.ctx, r.programName, r.mapName, key)

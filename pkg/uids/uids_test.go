@@ -74,6 +74,38 @@ func TestVorRefreshHasItsOwnAccount(t *testing.T) {
 	}
 }
 
+// The seal key is its own custody: not the evidence build key's account, and
+// with a home of its own, where the seed lives.
+func TestComplianceSealHasItsOwnAccount(t *testing.T) {
+	seal, err := Lookup("compliance-seal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if seal != 16765 {
+		t.Errorf("compliance-seal = %d, want 16765", seal)
+	}
+	if bk, _ := Lookup("buildkey"); bk == seal {
+		t.Errorf("compliance-seal shares uid %d with buildkey", bk)
+	}
+	data, err := os.ReadFile(filepath.Join("..", "..", "deploy", "sysusers.d", "unheaded.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, line := range strings.Split(string(data), "\n") {
+		f := strings.Fields(line)
+		if len(f) >= 3 && f[0] == "u" && f[1] == "unheaded-compliance-seal" {
+			found = true
+			if !strings.HasSuffix(strings.TrimSpace(line), "/var/lib/unheaded-compliance-seal /usr/sbin/nologin") {
+				t.Errorf("sysusers line %q: want home /var/lib/unheaded-compliance-seal and shell /usr/sbin/nologin", line)
+			}
+		}
+	}
+	if !found {
+		t.Error("no sysusers line for unheaded-compliance-seal")
+	}
+}
+
 func TestLookup_UnknownService(t *testing.T) {
 	if _, err := Lookup("nonexistent"); err == nil {
 		t.Fatal("expected an error for an unassigned service")
@@ -113,6 +145,12 @@ var hostOnly = map[string]string{
 	"syslog-relay": "unheaded-syslog-relay",
 	// The retrieval corpus server: deploy/systemd/unheaded-vor.service (DP-712).
 	"vor": "unheaded-vor",
+	// The Zhen web UI's Flask app: deploy/systemd/unheaded-zhen-app.service
+	// (S-ZHEN-FRONT, D-05).
+	"zhen-app": "unheaded-zhen-app",
+	// llama-server for Zhen, on the GPU: deploy/systemd/unheaded-llama.service
+	// (S-ZHEN-FRONT, D-05). Groups render and video.
+	"llama": "unheaded-llama",
 	// The web UI's TLS front: deploy/systemd/unheaded-zhen-ui-front.service (ADR-138).
 	"zhen-ui-front": "unheaded-zhen-ui-front",
 	// The wiki: deploy/systemd/unheaded-wiki-server.service (2026-11-11).
@@ -120,6 +158,10 @@ var hostOnly = map[string]string{
 	// The vor refresh oneshot: deploy/systemd/unheaded-vor-refresh.service
 	// (S-WIKI-VOR, D1 2026-11-12).
 	"vor-refresh": "unheaded-vor-refresh",
+	// No unit: the account owns the compliance snapshot seal key (ML-DSA-65
+	// seed, 0400, /var/lib/unheaded-compliance-seal) on west and reseals the
+	// baseline snapshot by hand (S-EVIDENCE-RUNS DE3, Stevie 2026-11-13).
+	"compliance-seal": "unheaded-compliance-seal",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

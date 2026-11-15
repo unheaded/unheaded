@@ -22,6 +22,8 @@ const (
 	kindRustDep      = "rust-tls-dep"   // a TLS-bearing dependency line in Cargo.toml
 	kindRustLock     = "rust-lock"      // providers and rustls version resolved in a Cargo.lock
 	kindRustTonicTLS = "rust-tonic-tls" // tonic ClientTlsConfig/ServerTlsConfig in use
+
+	kindRustCryptoDep = "rust-crypto-dep" // a symmetric, KDF, hash or key-agreement crate in Cargo.toml
 )
 
 var (
@@ -37,6 +39,25 @@ var (
 type cargoDep struct {
 	features        []string
 	defaultFeatures bool
+	optional        bool
+}
+
+// rustCryptoCrates is the fixed table behind rust-crypto-dep: symmetric,
+// key-derivation, hash and classical key-agreement crates (backlog row
+// D-34). A crate that is not here gives no row; add it with its primitive.
+// Unlike Go's crypto/sha256, a Rust hash crate is a declared dependency,
+// one line per crate, so sha2 is listed.
+var rustCryptoCrates = map[string]struct {
+	name, primitive, param, status, detail string
+	level                                  int
+}{
+	"x25519-dalek":     {"X25519", primKeyAgree, "X25519", pqClassical, "classical key agreement (RFC 7748)", 0},
+	"aes-gcm":          {"AES-GCM", primAE, "AES-GCM", pqNA, "FIPS 197 with SP 800-38D", -1},
+	"chacha20poly1305": {"ChaCha20-Poly1305", primAE, "ChaCha20-Poly1305", pqNA, "RFC 8439", -1},
+	"hkdf":             {"HKDF", primKDF, "HKDF", pqNA, "RFC 5869; the hash is another crate", -1},
+	"sha2":             {"SHA-2", primHash, "SHA-2", pqNA, "FIPS 180-4", -1},
+	"sha3":             {"SHA-3", primHash, "SHA-3", pqNA, "FIPS 202", -1},
+	"blake3":           {"BLAKE3", primHash, "BLAKE3", pqNA, "", -1},
 }
 
 func (d cargoDep) has(f ...string) bool {
@@ -263,6 +284,9 @@ func parseCargoDeps(data []byte) (map[string]cargoDep, error) {
 			if df, ok := tbl["default-features"].(bool); ok {
 				d.defaultFeatures = df
 			}
+			if opt, ok := tbl["optional"].(bool); ok {
+				d.optional = opt
+			}
 			if fs, ok := tbl["features"].([]any); ok {
 				for _, f := range fs {
 					if s, ok := f.(string); ok {
@@ -435,6 +459,23 @@ func scanCrate(t *Tree, c *crate, rustlsVer string) ([]Asset, error) {
 				a.Detail += "; the crate only uses http:// URLs"
 			}
 			add(a)
+		default:
+			spec, ok := rustCryptoCrates[name]
+			if !ok {
+				continue
+			}
+			detail := spec.detail
+			if d.optional {
+				detail = strings.TrimPrefix(detail+"; optional dependency, compiled only with the feature that names it", "; ")
+			}
+			// Not through add(): the not-spawned note on a manifest is about
+			// its TLS rows, and this row is an algorithm, not a link.
+			out = append(out, Asset{
+				Path: c.manifest, Line: line, Kind: kindRustCryptoDep, Name: spec.name + " (" + name + ")",
+				Scanner: "rust", AssetType: assetAlgorithm, Primitive: spec.primitive, ParamSet: spec.param,
+				NISTLevel: spec.level, PQStatus: spec.status, LinkState: linkEnabled, Owner: ownerFirstParty,
+				Detail: detail,
+			})
 		}
 	}
 	return out, nil

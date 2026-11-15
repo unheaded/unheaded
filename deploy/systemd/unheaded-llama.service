@@ -1,0 +1,105 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# llama-server for Zhen (S-ZHEN-FRONT, D-05): the local model on 127.0.0.1:8081,
+# under its own account. Until this unit, llama-server was started by hand
+# from a checkout in a home directory and ran as that person.
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   llama-server outside any home, with its libraries beside it:
+#     cd <the llama.cpp checkout> && sudo cmake --install build --prefix /opt/unheaded/llama
+#     ldd /opt/unheaded/llama/bin/llama-server    # nothing under /home, no "not found"
+#   sudo cp deploy/systemd/unheaded-llama.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-llama.service
+#
+# Shipped disabled and not started. Enabling it at boot is the operator's
+# call: the model takes the GPU and about 5 GB of memory from the moment it
+# starts.
+#
+# One model at a time. scripts/switch-model.sh changes the model llama-server
+# serves when it is started by hand; under this unit the model is the -m line
+# below, changed with a drop-in and a restart.
+
+[Unit]
+Description=llama-server for Zhen (local model, GPU)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Zhen-Agents.md
+After=network.target
+
+[Service]
+Type=simple
+User=unheaded-llama
+Group=unheaded-llama
+# The GPU: /dev/kfd is root:render 0660 and /dev/dri is root:video. No other
+# group, and no group shared with another service.
+SupplementaryGroups=render video
+UMask=0077
+
+# West has two GPUs. Without these two the model splits over both and aborts.
+Environment=HIP_VISIBLE_DEVICES=0
+Environment=HSA_OVERRIDE_GFX_VERSION=11.0.1
+Environment=HOME=/var/lib/unheaded-llama
+StateDirectory=unheaded-llama
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/unheaded-llama
+
+ExecStart=/opt/unheaded/llama/bin/llama-server \
+    -m /var/zhen/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf \
+    --host 127.0.0.1 \
+    --port 8081 \
+    --n-gpu-layers 999 \
+    --ctx-size 16384 \
+    --threads 6
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+
+# The weights are 4.7 GB on the GPU; host memory holds the context and the
+# runtime. No swap: a paged-out model answers in minutes, not seconds.
+MemoryMax=6G
+MemoryHigh=5500M
+MemorySwapMax=0
+TasksMax=256
+LimitNOFILE=4096
+
+# Sandbox (deploy/systemd/README.md#isolation).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ReadOnlyPaths=/var/zhen/models
+# The GPU and nothing else: no PrivateDevices (it would hide /dev/kfd and
+# /dev/dri), a closed device policy, and the two devices by name.
+PrivateDevices=no
+DevicePolicy=closed
+DeviceAllow=/dev/kfd rw
+DeviceAllow=char-drm rw
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+# MemoryDenyWriteExecute is left off on purpose: the ROCm runtime compiles
+# kernels and maps them executable at run time. Everything else stays on.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Loopback only, one port. It answers the app and zhen-agentd on this host and
+# reaches nothing: no download, no telemetry.
+IPAddressDeny=any
+IPAddressAllow=localhost
+SocketBindDeny=any
+SocketBindAllow=tcp:8081
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# @resources is not denied, unlike the Go units: the runtime locks memory and
+# sets thread affinity.
+SystemCallFilter=~@privileged @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

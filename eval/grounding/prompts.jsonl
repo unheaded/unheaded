@@ -1,0 +1,2 @@
+{"id":"cert-ccna","prompt":"tell me about getting the ccna","expect":"no_source"}
+{"id":"cert-jncia","prompt":"explain the steps towards Junos, Associate (JNCIA-Junos)","expect_sources_any":["junos-"]}
