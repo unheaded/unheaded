@@ -194,7 +194,9 @@ func (ws *WikiServer) navGroups(active string) []NavGroup {
 		if src, err := root.ReadFile(sidebarFile); err == nil {
 			groups = parseSidebar(src)
 		}
-		root.Close()
+		if err := root.Close(); err != nil {
+			logf("WARN", "closing the wiki directory", "err", err)
+		}
 	}
 
 	if len(groups) == 0 {

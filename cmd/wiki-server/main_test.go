@@ -198,3 +198,21 @@ func TestSlugToTitle(t *testing.T) {
 		}
 	}
 }
+
+// A --port outside 0-65535 used to be converted with uint16() and wrapped into
+// another port (70000 served on 4464). It is refused now.
+func TestDefaultListenRefusesAPortThatDoesNotFit(t *testing.T) {
+	var ok listenFlags
+	if err := ok.Set(defaultListen(20002)); err != nil {
+		t.Fatalf("port 20002: %v", err)
+	}
+	if len(ok) != 1 || ok[0] != "127.0.0.1:20002" {
+		t.Fatalf("port 20002 gave %v", ok)
+	}
+	for _, port := range []int{-1, 65536, 70000} {
+		var l listenFlags
+		if err := l.Set(defaultListen(port)); err == nil {
+			t.Errorf("port %d was accepted as %v", port, l)
+		}
+	}
+}

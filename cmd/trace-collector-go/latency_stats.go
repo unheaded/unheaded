@@ -73,7 +73,7 @@ func (c *latencyStatsCollector) Describe() *metrics.Desc {
 func (c *latencyStatsCollector) Write(w io.Writer) error {
 	var vals [len(latencyStatNames)]uint64
 	for key := range latencyStatNames {
-		v, _, err := c.src.stat(uint32(key)) // #nosec G115 -- an index into a ten-entry array
+		v, _, err := c.src.stat(uint32(key))
 		if err != nil {
 			latencyStatsReadErrors.Inc()
 			return nil // the scrape goes on without these series

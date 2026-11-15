@@ -77,7 +77,7 @@ func TestBuiltLatencyProbeSpec(t *testing.T) {
 	if path == "" {
 		t.Skip("set LATENCY_PROBE_OBJ to a built latency-probe object to check its LATENCY_MAP layout")
 	}
-	f, err := os.Open(path) // #nosec G304 -- a test, on the path the operator named
+	f, err := os.Open(path)
 	if err != nil {
 		t.Fatalf("LATENCY_PROBE_OBJ: %v", err)
 	}
