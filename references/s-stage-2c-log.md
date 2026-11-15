@@ -361,3 +361,60 @@ Resume gate first, on the committed tree at `99ae2fa9`: `gate resume7: same=12 d
 
 This is the plan's one named recapture. No other golden was written in S-STAGE-2C.
 
+## Phase 16, security pass (2026-11-15; Steps 291-292 and 295-296 done, Steps 293-294 pending)
+
+The plan closes from Stop F (rungs 5+6 are wired and off, rung 7 is not built), so the table holds what is on in the tree at `070654cc`: no `REAP` flag, no wait status, no fd call routed by `UPC_RUNG56`.
+
+### Attack surface
+
+One row per landed change. "Harness line" is the line of `scripts/upc-regression.sh` that runs the probe; Step 292 counted each (`grep -c`, last column).
+
+| Landed change | What a hostile caller can try | What bounds it | Probe line that proves it | Harness line | Count |
+|---|---|---|---|---|---|
+| MRET and SRET refused at priv 3 (Phase 2) | execute a privileged return from U-mode | `opc == op::MRET && cpu.priv_level != 3`, the same for SRET: at priv 3 the opcode has no arm and is a NOP | `HR: mret-refused=yes`, `HR: sret-refused=yes` | `hostile_reply: D6 closes the route` | 1 |
+| D6 on (`UPC_D6_MISS_FAULT`) | store through a PDE the child planted, to reach the slot table, the reply word or another slice | `d6_user_miss()`: a U-mode page-walk miss goes nowhere | `HR: own-slice-intact=yes`, `HR: table-reached=no`, `HR: route=closed`, `HR: heap-intact=yes`; `hostile_pgd` | `hostile_reply: D6 closes the route`, `hostile_pgd: a child` | 1, 1 |
+| Bounded open and exec paths (D16) | a path pointer outside the slice, or with no NUL before the ceiling | `user_phys(pid, va, len)` ahead of the open and exec arms | `HQ: open-wild-refused`, `HQ: exec-wild-refused`, `HQ: open-unterminated-refused` | `rung_gate UPC_D6_MISS_FAULT hostile_path` | 1 |
+| Slot 0's window (D16) | make the kernel copy to or from init's first page or kernel memory | `upc_user_pa()` for slot 0 | `HQ: slot0-copyout-refused`, `HQ: slot0-kernel-name-refused` | the same | 1 |
+| Pipe write with a bad buffer | a bad first byte answered 0, not -1 | `pipewrite` returns -1 when nothing was copied | `HQ: pipe-badbuf-refused`, `PI: bad-refused` | the same; `rung_gate UPC_RUNG_PIPE pipeprobe` | 1, 1 |
+| Opcode scan at load (D17): XCHG, CAS, LR_W, SC_W; MRET, SRET unless the probe hatch | a hand-made user image with an untranslated atomic or a privileged return | `scan_user_image` in `upc-bootctl`, before the eBPF object opens | dry runs of a patched image | `opcode scan refuses a user image with XCHG` | 1 |
+| Opcode scan widened (review RV-2): PUSH, POP, INT, IRET | the same, with a stack pointer as a physical address | the same match arm; the hatch does not admit them | dry runs, one per opcode | **added in Step 292:** `opcode scan refuses a user image with PUSH` | 1 |
+| `.bss` zeroed at exec through the sidecar; a bad or missing `.data` sidecar refuses the boot | run with whatever is in memory where strings, globals and `.bss` should be | `check_user_sidecars` (`UserSidecarMissing`, `UserSidecarBad`); the staged blob's zero tail | `BS: bss-zero`, `BS: malloc`; three dry runs | `rung_gate UPC_RUNG_SBRK bssprobe`; **added in Step 292:** `sidecar check refuses` | 1, 1 |
+| Fork's first entry keyed on BPF's own mark (`UPC_FORK_MARK`, D18) | forge the first-entry test from a register or a planted PDE | the mark in BPF's PROC_TABLE row | `HF: a2-ignored`, `HF: copy-complete`, `HF: pde-plant-dropped` | `rung_gate UPC_D6_MISS_FAULT hostile_fork` | 1 |
+| I9 tripwire (no timer switch under ascend) | none at run time | `const _: () = assert!(...)`: the object does not build | none: a build failure | `cargo_build_ok ebpf_cargo_build -p monad-cpu-ebpf --features ascend-linux` (the "ascend build" line) | 1 |
+| Block syscalls 200/201 refuse a U-mode caller (review RV-1) | read or write any physical address through the ramdisk | `cpu.priv_level != 3` on both arms, -ENOSYS | `HB: calls-refused`, `HB: read-outside-refused`, `HB: write-outside-refused` | `rung_gate UPC_D6_MISS_FAULT hostile_block` | 1 |
+| Rung 3: console write is the kernel's (D19) | a bad buffer pointer, a length past the slice, a zero length | `consolewrite` copies in through `either_copyin`, so through `upc_user_pa()`; `sys_write` answers -1 when the copy fails before the first byte | `CW: badptr`, `CW: long-write`, `CW: zero`, `CW: ret-four` | `rung_gate UPC_RUNG3 conprobe` | 1 |
+| A write to a file fd in BPF is refused (T-F3 interim) | `O_RDWR` on a regular file, then write: bytes went to the console | rung 3's leftover arm answers -1 | `FD: rdwr-file-write` | `rung_gate UPC_RUNG_FD fdprobe` | 1 |
+| Rung 4: console read is the kernel's (D20) | a bad buffer pointer; a read from slot 0 | `upc_consoleread`: `n < 0` or `upc_user_pa(dst) == 0` is -1 | `CR: badptr`, `CR: slot0-line`, `CR: line`, `CR: second-line` | `crprobe: 4 checks` | 1 |
+| Rung 4's keyboard offer (`kbd_in`, slot table 0x824) | forge the offered byte, or the reply that says it was taken | only BPF writes the slot table; D6 keeps a child off it and off the reply word | `HR: table-reached=no`, `HR: route=closed` | `hostile_reply: D6 closes the route` | 1 |
+| Kernel fd calls on files (fstat, read, write; in since S-STAGE-2B, numbered from 16) | a bad `struct stat` or buffer pointer | `upc_user_pa()` in the kernel's copy-out and copy-in | `FD: fstat-ptr-refused`, `FD: read-ptr-refused`, `FD: write-ptr-refused` | `rung_gate UPC_RUNG_FD fdprobe` | 1 |
+| Phase 8 probes (unlink with data, nlink, pause, a file past one block, path pointers at the ceiling) | see "Attack surface, Phase 8 probes" above | | `RM:`, `LN:`, `SL:`, `BG:`, `HU:` lines | `rung_gate UPC_RUNG_UNLINK rmprobe`, `rung_gate UPC_RUNG_LINK lnprobe`, `sleepprobe`, `rung_gate UPC_RUNG_FD bigprobe`, `rung_gate UPC_RUNG_MKDIR hostile_ptr` | 1, 1, 3, 1, 1 |
+| Rung 0 asserter in the harness | a kernel row that disagrees with BPF's slot | `scripts/upc-rung0-assert.awk`; a changed pid must fail | harness line | `rung 0 asserter:` | 1 |
+| `cd` in ush (Phase 15) | a path the shell passes to `chdir`: the shell's own line buffer | `argstr` through `upc_user_pa` in the kernel, as for every chdir | `HU: chdir-bad`; the three "ush cd" lines | `rung_gate UPC_RUNG_MKDIR hostile_ptr`; `ush cd:` | 1; 6 (three pass, three fail texts) |
+| Rungs 5+6, wired and **off** | nothing while off: the rung's kernel paths are inside `#if UPC_RUNG56` (`usysfile.c`, `ufile.c`, `upc_slots.c`); what is outside it is `fileclose` and `filestat` testing `ip == 0`, which no file has while off; the BPF arms are the ones on before | the const and the define, held equal by `parity_slot_tables` | `RW:` lines run only with the const on | `rung_gate UPC_RUNG56 rwprobe` (skipped while off) | 1 |
+
+**Step 292.** Two rows had no harness line, only `cargo test` in `cmd/upc-bootctl` (`tests/opcode_scan.rs`, `tests/sidecar_fatal.rs`), which the harness does not run. Both got one, as dry runs (a loader refusal has no pointer to make bad, and nothing is booted):
+
+- `opcode scan refuses a user image with PUSH, POP, INT or IRET (review RV-2)`: the image the XCHG line already patches, the same word rewritten to 0x1A, 0x1B, 0x17, 0x18 in turn, each refused by name with the hatch set.
+- `sidecar check refuses a missing and a truncated .data sidecar, and passes the image's own`: a clean image with no sidecar (`UserSidecarMissing`), with its sidecar cut to seven bytes (`UserSidecarBad: truncated at record 0`), and with its own (`.data sidecars: 1 user image`).
+
+Run alone, the block prints three PASS. Against a loader stand-in that refuses nothing, all three lines FAIL (the XCHG line too), so the lines are not vacuous. `bash -n` and shellcheck clean.
+
+Not in the table because they did not land: the atomics through `translate_address` (stuck on budget; the scan refuses them at load instead), the fork slot-scan skip, `UPC_RUNG56` on, rung 7.
+
+Known and open, already filed For Stevie: a user `ebreak` halts the machine with no privilege test; R-P1, BPF's file read writes up to 15 bytes past a short read inside the caller's slice (gone when rungs 5+6 are on); the host engine `crates/monad-mbc` has neither the priv-3 refusal nor D6; refusals and D6 misses count nothing.
+
+### Step 293-294: independent review (PENDING)
+
+**Not done in this shift.** The coordinator runs the read-only review over `git diff develop...HEAD -- crates/xv6-mbc ebpf/monad-cpu-ebpf cmd/upc-bootctl scripts/upc-regression.sh` at `99ae2fa9` (before Phase 15's `ush.c` and this phase's two harness lines). Its findings and their dispositions go here and in ADR-135's "Security pass review of S-STAGE-2C" table. Until then Step 297's and Step 300's commits are not written, and Phase 16's exit gate is not met.
+
+| # | Finding | Severity | Disposition |
+|---|---|---|---|
+| (pending) | | | |
+
+### Steps 295-296
+
+- Step 295: `grep -c '^const UPC_D6_MISS_FAULT: bool = true;'` → 1. `grep -cE 'op::(MRET|SRET) && cpu.priv_level != 3|!user_ret'` → 2.
+- Step 296 [DECIDE], fuzz: `command -v cargo-fuzz` finds nothing and `cargo +nightly fuzz --version` answers "no such command: `fuzz`". The target exists (`crates/monad-mbc/fuzz`, `fuzz_mbc_execute`). **SKIP**, by the plan's recommendation. A SKIP is not a pass: the MBC executor was not fuzzed in this sprint. Installing cargo-fuzz is Stevie's call.
+
+Gate `sec-after`, with the two new harness lines, on the tree of this commit: `same=12 diff=0 rc=0 doom=1 ascend=883522`; `opcode scan refuses a user image with PUSH, POP, INT or IRET (review RV-2)` PASS, `sidecar check refuses a missing and a truncated .data sidecar, and passes the image's own` PASS, the three "ush cd" lines PASS, ALL GREEN. The eBPF object and the kernel are untouched by this phase.
+

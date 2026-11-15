@@ -391,6 +391,38 @@ if python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --wor
     fail "opcode scan (a user image with XCHG or MRET/SRET was not refused, or a clean one was)"
     note "$(grep -h UserImageOpcode <<<"$SX$SH$SR$SC" | head -3 | tr '\n' ' ')"
   fi
+  # Step 29 review, RV-2: PUSH, POP, INT and IRET go through r15 with no
+  # translation, so the scan refuses them too, hatch or not. Same image, the
+  # same word rewritten to each in turn; a dry run, never booted.
+  RV2=0
+  for pair in 1A:PUSH 1B:POP 17:INT 18:IRET; do
+    o="${pair%%:*}" m="${pair#*:}"
+    python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --word-of-marker 0x1D000400 \
+        --marker-mask 0xFF00FFFF --from 0x30 --to "0x$o" --out "$OPD/hostile_op_$m.mbc" >/dev/null 2>&1 \
+      && cp "$K/hostile_atomic.rv2mbc" "$OPD/hostile_op_$m.rv2mbc" \
+      && cp "$K/hostile_atomic.rv2mbc.sha256" "$OPD/hostile_op_$m.rv2mbc.sha256" || continue
+    SO="$(scan_of "$OPD/hostile_op_$m.mbc" UPC_ALLOW_USER_PRIVRET=1)"
+    grep -q "UserImageOpcode: hostile_op_${m}: word [0-9]* (0x${o}[0-9A-F]*) is ${m}\b" <<<"$SO" && RV2=$((RV2+1))
+  done
+  [ "$RV2" = 4 ] && pass "opcode scan refuses a user image with PUSH, POP, INT or IRET (review RV-2)" \
+    || fail "opcode scan (PUSH, POP, INT, IRET: $RV2 of 4 refused)"
+  # S-STAGE-2C Phase 5 (A-61): the .data sidecar of the --userland image must
+  # be there and must parse, or the boot is refused before the eBPF object is
+  # opened. Three dry runs of a clean image: no sidecar, a sidecar cut to seven
+  # bytes, and its own sidecar.
+  mkdir "$OPD/sc" && cp "$K/hostile_atomic.mbc" "$K/hostile_atomic.rv2mbc" "$K/hostile_atomic.rv2mbc.sha256" "$OPD/sc/"
+  SM="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  head -c 7 "$K/hostile_atomic.data" > "$OPD/sc/hostile_atomic.data"
+  SB="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  cp "$K/hostile_atomic.data" "$OPD/sc/hostile_atomic.data"
+  SG="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  if grep -q 'UserSidecarMissing' <<<"$SM" && grep -q 'UserSidecarBad' <<<"$SB" \
+     && ! grep -q 'UserSidecar' <<<"$SG" && grep -q '\.data sidecars: 1 user image' <<<"$SG"; then
+    pass "sidecar check refuses a missing and a truncated .data sidecar, and passes the image's own"
+  else
+    fail "sidecar check (a missing or truncated .data sidecar was not refused, or a good one was)"
+    note "$(grep -ho 'UserSidecar[A-Za-z]*' <<<"$SM$SB$SG" | tr '\n' ' ')"
+  fi
 else
   fail "opcode scan (could not make the patched image from $K/hostile_atomic.mbc)"
 fi

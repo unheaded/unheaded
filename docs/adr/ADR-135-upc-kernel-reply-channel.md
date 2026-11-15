@@ -856,6 +856,16 @@ Each of these was read from the code and not booted when this ADR's review was w
 
 **Found by `rmprobe` (R-P1, Low, open).** BPF's file read copies a fixed 16-byte chunk into the user buffer whatever count it returns, so the last short read of a file writes up to 15 bytes past the end of what it reports, with bytes from the data block past the file's size. The write stays inside the caller's slice (`user_phys(pid, buf_va, READ_CHUNK)`), so no other slot is touched; a program that reads into an exact-size buffer has the bytes after it overwritten. Not fixed in BPF (the guarded copy is what the code comment says doubled the verifier's states). It closes when file reads move to the kernel (rungs 5+6): `rmprobe` prints the count as a note and it must read 0 then.
 
+## Security pass review of S-STAGE-2C (2026-11-15, plan Step 293): PENDING
+
+The plan's close runs from Stop F plus `cd` in ush (Stop I): rungs 3 and 4 and the fork mark on, rungs 5+6 wired and off, rung 7 not built. The attack-surface table for what is on is in `references/s-stage-2c-log.md`, "Phase 16, security pass"; every row names a harness line, and two rows that had none got one (the opcode scan's PUSH, POP, INT and IRET; the `.data` sidecar refusal).
+
+**The independent read-only review of the sprint's diff (kernel C parsing user pointers, BPF guards that might not fold, D6 and the priv-3 test, the opcode scan's coverage, the sidecar refusal) has not reported yet.** Its findings and their dispositions go in this table. Until they do, this ADR's security pass is not complete.
+
+| # | Finding | Severity | Disposition |
+|---|---|---|---|
+| (pending) | | | |
+
 ## Alternatives considered
 
 - **BPF serves sbrk itself.** One arm and no reply word, but kill and blocking still need a way back, so the channel
