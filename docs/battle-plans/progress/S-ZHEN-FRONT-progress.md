@@ -38,6 +38,11 @@ Answered by Stevie 2026-11-12 (round 2, and Step 141).
 | 2026-11-15 | 87-92 | Phase 6 (`8c825ef1`). Red first. `_project_root()` reads `ZHEN_PROJECT_ROOT` (default `~/tmp/unheaded`, expanded once) and feeds `PROJECT_ROOT`, `SKILLS_DIR`, `RUNBOOKS_DIR`, `CHAMPION_ALLOWED`, the vestigial `index_dir`/`corpus_dir` and the `UNHEADED_ROOT` fallback. A root that is not absolute stops the app at import. The tests import the app in a fresh interpreter, because the paths are fixed at import; they use `/srv/zhen-root`, not the plan's `/tmp/x`, to keep bandit's B108 quiet. The `~/.config/vor` string S-RESIDUE owns was not touched. Raft suite 613 passed; ruff and bandit clean. |
 | 2026-11-15 | 93-99 | Phase 6 (`a317f95f`). Red first: both subtests failed with "cannot assign requested address". `listenFront` sets `IP_FREEBIND` or `IPV6_FREEBIND` on a non-loopback address and warns once when no interface carries it; a loopback address that cannot be bound still fails the start (own test). Race tests ok; the repo's pinned gosec finds nothing in `cmd/zhen-ui-front` or `cmd/zhen-agentd`, with no suppression added. |
 | 2026-11-15 | 100-108 | Phase 6 (`a3bca221`). `zhen-agentd.service`: `StartLimitIntervalSec=0`, `RestartSec=10s`, `After=docker.service wg-quick@wg0.service`. Three unit gates pass (49 units verify, 86 flags, 25 ceilings); `units_test.go` reads only the front's unit and passes; `go vet` clean. **Phase 6 gate: pass.** |
+| 2026-11-15 | 109-114 | Phase 7 (`2c6b1eaa`). **`unheaded-zhen-app` is uid 16764, not the plan's 16758.** S-WIKI-VOR took 16758, the last free number of the Kingdom tier, for `unheaded-vor-refresh` the same day; 16764 is the next free number its own note names. Checked free in `pkg/uids`, sysusers and west's and east's passwd. `unheaded-llama` is 16792 as planned, with `m` lines for `render` and `video`. `go test -race ./pkg/uids/...` ok; `systemd-sysusers --dry-run` reads the file. |
+| 2026-11-15 | 115-119 | Phase 7. **`[STUCK]`, Stevie's decision** (see "For Stevie"). The lock resolved (65 packages, every version equal to `~/.venv/zhen`'s once 23 transitive versions were held), but a tracked lock file fails two gates that need his recorded approval. Nothing was committed. |
+| 2026-11-15 | 120-132 | Phase 7 (`28992cf7`). `unheaded-llama.service`, `unheaded-zhen-app.service`, `deploy/tmpfiles.d/unheaded-zhen-ui.conf`, `zhen-app.env.example`, `scripts/write-zhen-app-env.sh` and its test (the password is in the file and in nothing printed; refusals write nothing). Four unit gates pass: 51 units verify, 36 as their own account; `DeviceAllow=char-drm` verifies as written. Beyond the plan's list: a `StateDirectory` and `HOME` for llama-server, `ReadWritePaths=/run/unheaded-zhen-ui` for the app (it could not create its socket under `ProtectSystem=strict` otherwise), and no `@resources` denial in either (torch and the GPU runtime set thread affinity). Both units ship disabled; nothing was installed or started. `cde58e3c` adds `test_zhen_paths.py` to the raft CI job (a gate fails a raft test no job runs). **Phase 7 gate: Steps 113, 127, 129 pass; Step 117 is stuck with 115-119.** |
+| 2026-11-15 | 133-138 | Phase 8 (`a071996f`). `WELL_OPS_PASSWORD` and `WELL_CONFIG_PASSWORD` on `dashboard-backend`, each with `:?`. `check-compose-hardening.sh` and `check-gitleaks.sh` pass; the dashboard's compliance tests pass under race. **Phase 8 gate: pass.** The live check is Step 147. |
+| 2026-11-15 | close | At `a071996f`: `go build ./...`; race tests of `cmd/zhen-agentd`, `cmd/zhen-ui-front`, `pkg/uids`, `cmd/dashboard-backend`, `cmd/zhen-eval` ok; raft suite 613 passed, 2 skipped (585 at the start); ruff, bandit (CI's flags, the touched files), gosec (the two touched packages), shellcheck, gen-man, netip, http-timeouts and SPDX all pass. Phases 9-12 are the coordinator's and Stevie's. |
 
 ## Parked
 
@@ -48,8 +53,22 @@ Answered by Stevie 2026-11-12 (round 2, and Step 141).
 
 ## For Stevie
 
-Nothing yet.
+1. **The runtime lock for the app (Steps 115-119) needs your word.** A hash-locked `raft/runtime/requirements.txt` is how the unit's venv would be built (Step 151). It adds no package the app does not already run: all 65 are in `~/.venv/zhen` at the same versions. But once the file is tracked, two gates fail, and both say the approval is yours:
+   - `check-dependency-baseline.sh`: 44 names are not in `docs/policy/dependency-baseline.txt`. They are the transitive packages no manifest has listed before (`werkzeug`, `tokenizers`, `huggingface-hub`, `scikit-learn`, `sympy`, `triton`, 16 `nvidia-*-cu12` wheels and others).
+   - `check-sbom-trend.sh`: the Python component count goes from 72 to 115, and the rule is that it only falls.
+   The two files are kept outside the repo at `/var/tmp/unheaded-sprint/s-zhen-front-runtime-lock/` (`requirements.in`, `requirements.txt`). Your choices: (a) approve the 44 names and the new count, and the files go in as written; (b) build the unit's venv another way (for example a copy of `~/.venv/zhen`), with no lock in the repo; (c) leave the app on `start-zhen.sh` until the torch question below is settled.
+2. **torch 2.10.0 has two advisories**, found by `pip-audit` on that lock: PYSEC-2026-139 (no fixed version listed) and PYSEC-2025-194 (fixed in 2.13.0). This is the torch that runs today in `~/.venv/zhen`. The pip-audit gate does not see it.
+3. **torch's build.** The lock is PyPI's Linux build, which pulls 16 NVIDIA CUDA wheels onto an AMD host (what runs today). A CPU-only wheel comes from another index, which is a new source: your decision (plan Step 118).
+4. **Phase 10 (install on west, attended).** Step 144 expects uid 16764 for `unheaded-zhen-app`, not 16758. Step 151 needs the lock from item 1. Step 148 installs llama-server under `/opt/unheaded/llama`. The unit allows loopback only: if the Well or the issuer is not on loopback for this host, it needs a drop-in with the address in `IPAddressAllow`.
+5. **Phase 11 (the pause lifts).** Your word starts it. Then: start the two units, `scripts/zhen-lan-proof.sh` on the live front (Step 163), `eval/grounding/run.sh` with a session cookie jar you make by logging in (Step 160), the browser check of the login panel and stats (Step 162), and only then the LAN opening.
+6. **Enable at boot?** Step 141's ruling stands: both units are installed disabled until you say.
 
 ## Stuck
 
-Nothing yet.
+- **Steps 115-119 `[STUCK]`** (the runtime lock): waits on Stevie, item 1 above. Tried: the resolution itself works and matches today's venv. Not tried, on purpose: adding 44 names to the dependency baseline or raising the SBOM count, which only he may do.
+- **Step 117 `[BLOCKED]`** by it, and with it the last line of Phase 7's exit gate.
+- **Step 151 `[BLOCKED]`** (Phase 10: the venv from the lock).
+
+## Found on the way, not this plan's
+
+- `tests/scripts/test_go_root_ci.py::test_a_change_to_a_root_test_package_starts_the_workflow` fails on develop (`cmd/trace-collector-go` is not in the eBPF workflow's paths). It fails the same way in `~/tmp/unheaded`; it came with the trace collector fix.
