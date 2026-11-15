@@ -40,6 +40,7 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 | Date | Steps | Note |
 |---|---|---|
+| 2026-11-15 | 45-50 | East `dot-files` triaged; 9 acceptances (DE5b); 17 dated plan lines (DE5a, DE5c, B-18). Register test `ok`. **Phase 1 exit gate met.** Findings after Phase 1 (evidence of 01:29Z, report 02:14Z): **167 open** (2 untriaged, 11 high, 25 medium, 129 low), 87 accepted, 5 overdue, 1 "remove" line (`FND-038`, see Step log 28-33). Before: 168 open, 3 untriaged, 77 accepted, 7 remove lines. Report on the host: `var/compliance/findings-s-evidence-runs-phase1.md`. |
 | 2026-11-15 | 34-44 | FND-009 accepted per DE6 (register test `ok`; accepted count 77 → 78). E-05 read. **Steps 38-39 as written read VictoriaMetrics, which holds none of 2026-10-22 14:00 to 2026-10-25 20:00** (9,598 samples of `slo:good` in 28 days against Prometheus's 14,671), so its 28-day average (dashboard 0.9963) disagrees with the budget (-3,405 %). The budget rule runs in Prometheus on Prometheus's samples, and there the arithmetic checks (0.8248 → -34.05). The readings were redone against Prometheus (`127.0.0.1:9090`). One postmortem instead of five: the five class (b) rows share one window and one cause. |
 | 2026-11-15 | 28-33 | DE2 removals. Seven entries deleted by name, each on its newest record: `git-signatures:develop` (pass, 2026-11-15T01:29:05Z), `github-job:Static Analysis/Python (ruff + bandit)` (pass, 2026-11-11T22:55:53Z), `github-job:SBOM + Vulnerability Scan/sbom` (pass, 2026-11-11T22:57:14Z), `host-probe:west:alert-route` and `host-probe:west:db-backup-recent` (pass, 2026-11-15T01:29:09Z), and the resolved `FND-032` and `FND-043`. **Step 32 reads 1, not 0:** `FND-038` stays, because `TestRegister_FND038CanBeMetAndKeepsAttestation` fails without it (the test keeps the attestation half of the finding on record). The plan's grounding did not see that test. Register test `ok`, `check-ci-verdicts.sh` PASS. Open count 168 → 167. |
 | 2026-11-15 | 17-27 | E-01: FND-043 `resolved` added (register test `ok`). E-02: Step 24 is attended, not run; Steps 25-26 blocked on it. |
@@ -56,8 +57,13 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
   - `well-backups`: class (b), same postmortem, plus a missed nightly backup on 2026-10-21 (newest backup 37.9 h old at 12:00, limit 26 h) and absent timestamps after the 2026-10-27 reboot.
   - `ci-develop`: class (c) by construction. `unheaded-ci-status.timer` is not installed on west (0 timers listed), 7,682 samples all 0. Row says so; installing the timer is E-10, not this plan.
   - No SLI or budget rule was wrong, so Step 42 changed no rule. Budgets on 2026-11-15 (Prometheus): dashboard -3,405 %, wotan -1,655 %, well -3,078 %, well-backups -1,894 %, log-shipping -3,048 %, ci-develop -9,900 %.
-- E-06:
-- E-07:
+- E-06: **Phase 3.** The passing half is done (`git-signatures:develop`, `ruff + bandit`, `sbom` removed under DE2). The two untriaged CI rows (`Go Vulnerability Check`, `Secret Scan (gitleaks)`), the `gosec` and `Gates can actually fail` reds and `check-service-auth.sh` are Phases 2 and 3.
+- E-07: **paper half done; the fixes wait on the host windows.**
+  - `host-probe:east:dot-files` triaged (low, fileperm, Step 228).
+  - DE5b: 9 west rows accepted 2026-11-13 until 2027-02-11 (`mount-home-{nodev,nosuid,separate}`, `mount-var-log-{noexec,separate}`, `mount-var-log-audit-{noexec,separate}`, `mount-var-tmp-{noexec,separate}`).
+  - DE5a: dated plan lines name the step on `dot-files` and `root-path` (west, Step 248), the ftp and telnet rows (east 228-229, west 248-249), `/dev/shm` noexec (east 230-232, west 249), east `/tmp` noexec (230-232).
+  - DE5c: `var-log-perms` on both hosts points at `var-log-modes` (built in Phase 7; west Step 247). **The plan has no numbered step that applies `var-log-modes` on east**; the row says "the Phase 9 window".
+  - Six west rows (`mount-var-log*`, `mount-var-tmp` nodev and nosuid) say "clears with B-18 (S-E1-LIVE 292-295)".
 
 ## Blocked
 
@@ -72,6 +78,7 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 - **A stop on purpose spends error budget** whenever the monitoring stack is left up (it is, by design, since `7f6b1101`). Mark a planned stop so the budget rule skips it, or keep counting it? Until that is decided the five SLO rows will read spent after every long stop.
 - **VictoriaMetrics lacks SLO history** for 2026-10-22 14:00 to 2026-10-25 20:00; Prometheus has it. Any reading of a 28-day window goes to Prometheus until about 2026-11-25.
 - The postmortem `docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md` is a draft for your review. Why the stack was down that week is not recoverable: west's journal starts 2026-10-26.
+- **East has no numbered step for `var-log-modes`** (DE5c). Step 247 applies it on west; Phase 9 needs the same line for east.
 - **FND-038 and the "remove" list (Step 32):** the report will keep listing `FND-038` as "remove from the register" while `pkg/compliance/crosswalk/register_text_test.go` requires the entry. Either the entry and that test go together, or the plan's target ("an empty remove list") reads "empty except FND-038". Left as it is.
 
 ## Stuck

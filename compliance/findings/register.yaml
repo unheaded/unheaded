@@ -711,7 +711,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`"
+    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`. 2026-11-15: trial, then permanent (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 230-232"
 
   - source: "host-probe:east:mount-home-nodev"
     severity: low
@@ -746,7 +746,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "add noexec to the /tmp tmpfs mount (systemd tmp.mount drop-in Options=...,noexec); remount"
+    plan: "add noexec to the /tmp tmpfs mount (systemd tmp.mount drop-in Options=...,noexec); remount. 2026-11-15: trial, then the tmp.mount drop-in (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 230-232"
 
   - source: "host-probe:east:mount-var-log-audit-nodev"
     severity: low
@@ -880,7 +880,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`"
+    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`. 2026-11-15: trial with the stack running, roll back on any failure (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Step 249"
 
   - source: "host-probe:west:mount-home-nodev"
     severity: low
@@ -888,6 +888,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
 
   - source: "host-probe:west:mount-home-nosuid"
@@ -896,6 +897,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
 
   - source: "host-probe:west:mount-home-separate"
@@ -904,6 +906,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount"
 
   - source: "host-probe:west:mount-tmp-noexec"
@@ -921,7 +924,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-audit-noexec"
     severity: low
@@ -929,6 +932,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
 
   - source: "host-probe:west:mount-var-log-audit-nosuid"
@@ -937,7 +941,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-audit-separate"
     severity: low
@@ -945,6 +949,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount. /var/log/audit exists only once auditd is installed (step 3)"
 
   - source: "host-probe:west:mount-var-log-nodev"
@@ -953,7 +958,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec. 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-noexec"
     severity: low
@@ -961,6 +966,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
 
   - source: "host-probe:west:mount-var-log-nosuid"
@@ -969,7 +975,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec. 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-log-separate"
     severity: low
@@ -977,6 +983,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount"
 
   - source: "host-probe:west:mount-var-nodev"
@@ -1003,7 +1010,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-tmp-noexec"
     severity: low
@@ -1011,6 +1018,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
 
   - source: "host-probe:west:mount-var-tmp-nosuid"
@@ -1019,7 +1027,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries). 2026-11-15: clears with B-18 (S-E1-LIVE 292-295): the probe reads the containing mount, and /var gets nodev,nosuid there"
 
   - source: "host-probe:west:mount-var-tmp-separate"
     severity: low
@@ -1027,6 +1035,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 7
+    accepted: {reason: "lab host: /home on /, /var holds Docker and LXD; separate filesystems need a repartition", compensating: "LAN and P2P only; revisit before real data or internet exposure", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: "Level 2: a real filesystem for /var/tmp. west: an LV from ubuntu-vg (588G free); copy contents, fstab, mount"
 
   # --- CIS 2.1 / 2.2 / 2.4 services, clients, cron (2026-09-30) ------------
@@ -1037,7 +1046,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first)"
+    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Steps 248-249 (dry run first, never autoremove)"
 
   - source: "host-probe:west:pkg-telnet-client-absent"
     severity: low
@@ -1045,7 +1054,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
+    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Steps 248-249 (dry run first, never autoremove)"
 
   - source: "host-probe:east:pkg-ftp-client-absent"
     severity: low
@@ -1053,7 +1062,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first)"
+    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 228-229 (dry run first, never autoremove)"
 
   - source: "host-probe:east:pkg-telnet-client-absent"
     severity: low
@@ -1061,7 +1070,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
+    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks). 2026-11-15: purge (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 9, Steps 228-229 (dry run first, never autoremove)"
 
   - source: "host-probe:west:svc-web-server-not-in-use"
     severity: low
@@ -1652,7 +1661,9 @@ findings:
       undo in /var/lib/unheaded/remediate/20261013T133915Z-smi-log-perms. A ROCm reinstall may recreate
       them 0777/0666. The other ~208 are Ubuntu's 0644 defaults
       (dpkg, apt, alternatives, installer, sysstat): chmod o-r, and logrotate's create mode or the
-      package's own rotation, else they come back on the next rotation
+      package's own rotation, else they come back on the next rotation.
+      2026-11-15: fix in the model, `var-log-modes` (DE5c, Stevie 2026-11-13; built in S-EVIDENCE-RUNS Phase 7, Steps
+      180-181); applied on west in Phase 10, Step 247
 
   - source: "host-probe:east:var-log-perms"
     severity: low
@@ -1662,7 +1673,9 @@ findings:
     step: 2
     plan: >-
       48 files at Ubuntu's 0644 defaults (dpkg, apt, alternatives, installer, unattended-upgrades,
-      landscape, sysstat): chmod o-r, and fix the create mode in the rotation that recreates each
+      landscape, sysstat): chmod o-r, and fix the create mode in the rotation that recreates each.
+      2026-11-15: fix in the model, `var-log-modes` (DE5c, Stevie 2026-11-13; built in S-EVIDENCE-RUNS Phase 7, Steps
+      180-181); applied on east in the Phase 9 window
 
   # --- CIS 5.2.7, 5.4.2.4-6, 5.4.3.3, 7.2.9-10: UH-ACCT-02 (2026-10-13) ---------
 
@@ -1684,7 +1697,15 @@ findings:
     opened: 2026-10-13
     lockout: none
     step: 4
-    plan: "chmod g-w /home/govan/.gitconfig /home/govan/.wget-hsts /home/govan/.zshrc (0664 from an earlier umask 002)"
+    plan: "chmod g-w /home/govan/.gitconfig /home/govan/.wget-hsts /home/govan/.zshrc (0664 from an earlier umask 002). 2026-11-15: fix (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS Phase 10, Step 248"
+
+  - source: "host-probe:east:dot-files"
+    severity: low
+    class: fileperm
+    opened: 2026-11-15
+    lockout: none
+    step: 4
+    plan: "chmod g-w /home/govan/.gitconfig on east (0660 today); S-EVIDENCE-RUNS Phase 9, Step 228 (DE5a)"
 
   - source: "host-probe:west:root-path"
     severity: low
@@ -1695,7 +1716,9 @@ findings:
     plan: >-
       /root/.vector/bin is owned by uid 1001, which has no account: the Vector tarball was extracted as root with its
       archive owner kept. Empty, and /root is 0700, so no one else can reach it. chown -R root:root /root/.vector, or
-      remove it and /root/.vector/bin from root's PATH (Vector runs in compose)
+      remove it and /root/.vector/bin from root's PATH (Vector runs in compose).
+      2026-11-15: fix by removing the empty /root/.vector and its PATH line (DE5a, Stevie 2026-11-13); S-EVIDENCE-RUNS
+      Phase 10, Step 248
 
   - source: "host-probe:east:firewall-single-utility"
     severity: low
