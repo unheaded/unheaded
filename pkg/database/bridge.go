@@ -27,12 +27,13 @@ const HealthReportTopic = "system.health.reports"
 
 // WotanBridge writes health reports to The Well.
 type WotanBridge struct {
-	db *sql.DB
+	db   *sql.DB
+	gate *heartbeatGate
 }
 
 // NewWotanBridge creates a bridge with the given database connection.
 func NewWotanBridge(db *sql.DB) *WotanBridge {
-	return &WotanBridge{db: db}
+	return &WotanBridge{db: db, gate: newHeartbeatGate(nil)}
 }
 
 // HealthReport is the payload Akira publishes (pkg/health.HealthReport, by
@@ -59,6 +60,13 @@ var ErrBadReport = errors.New("health report rejected")
 // (or a second dashboard instance) cannot move the state backwards or
 // record a transition twice. A status change adds a transition row at the
 // report's own time.
+//
+// last_check is up to 5 minutes old for a service whose status has not
+// changed (ADR-147, Erda F3: 0.68 commits a second, 73% of the WAL
+// flushes): the heartbeat gate skips a report with the row's last written
+// status until 5 minutes after that write, and such a heartbeat commits
+// without waiting for the WAL flush. A status change is written at once,
+// synchronously.
 func (b *WotanBridge) HandleHealthReport(ctx context.Context, payload json.RawMessage) error {
 	var r HealthReport
 	if err := json.Unmarshal(payload, &r); err != nil {
@@ -77,11 +85,22 @@ func (b *WotanBridge) HandleHealthReport(ctx context.Context, payload json.RawMe
 	}
 	ms := int(r.Latency / time.Millisecond)
 
+	gate := b.gate // NewWotanBridge sets it
+	decision := gate.decide(r.Service, r.Reporter, status)
+	if !decision.write {
+		return nil
+	}
+
 	tx, err := b.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer func() { _ = tx.Rollback() }()
+	for _, stmt := range writePrelude(decision) {
+		if _, err := tx.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
 
 	var old string
 	err = tx.QueryRowContext(ctx,
@@ -104,7 +123,9 @@ func (b *WotanBridge) HandleHealthReport(ctx context.Context, payload json.RawMe
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return tx.Commit() // stale: nothing changes
+		// Stale: nothing changes, and the gate keeps the row's last
+		// written status.
+		return tx.Commit()
 	}
 	if old != "" && old != status {
 		if _, err := tx.ExecContext(ctx,
@@ -115,7 +136,11 @@ func (b *WotanBridge) HandleHealthReport(ctx context.Context, payload json.RawMe
 			return err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	gate.record(r.Service, r.Reporter, status)
+	return nil
 }
 
 // HealthTransition represents a single status change event.
