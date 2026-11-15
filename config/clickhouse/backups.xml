@@ -1,0 +1,9 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- ADR-147 decision 6: BACKUP ... TO File('<name>') writes under /backups,
+     which compose binds to the set root on another disk (the Well's rule).
+     scripts/backup/clickhouse-backup.sh, clickhouse-drill.sh. -->
+<clickhouse>
+    <backups>
+        <allowed_path>/backups/</allowed_path>
+    </backups>
+</clickhouse>

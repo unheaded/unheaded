@@ -1,0 +1,83 @@
+# Prometheus alert rules - the monitoring path itself (ADR-147: "the watchers are unwatched")
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Until ADR-147 nothing alerted on VictoriaMetrics, remote write,
+# Alertmanager, the mailer or huginn (Micromanager D8, BlackMage 1.7), so the
+# path every SLO and stop mark travels could break in silence.
+#
+# What a rule here cannot do: report its own evaluator. Prometheus down, or
+# Alertmanager unable to reach the mailer, is the mailer's pipeline mail
+# (policy.yaml pipeline:, ADR-147 Phase 2). The mailer down is
+# AlertMailerDown below, which cannot mail about itself: Alertmanager's page
+# shows it, and west lost entirely is east's to see (ADR-147 plan 6).
+#
+# Producers: Prometheus's own scrape (up{job=...}; job victoria since
+# ADR-147) and its self metrics (job prometheus).
+
+groups:
+  - name: watchers
+    interval: 1m
+    rules:
+      - alert: VictoriaMetricsDown
+        expr: up{job="victoria"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "VictoriaMetrics ({{ $labels.instance }}) does not answer"
+          description: "The SLO window and huginn's series live in VictoriaMetrics; while it is down the stop marks and SLOs read nothing."
+          runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+      - alert: HuginnDown
+        expr: up{job="huginn"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "huginn on {{ $labels.instance }} does not answer"
+          description: "Host, cgroup and host-state series (ContainerStopped, MemoryKill, UnitFailed) all come through huginn."
+          runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+      - alert: AlertMailerDown
+        expr: up{job="alert-mailer"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "alert-mailer ({{ $labels.instance }}) does not answer"
+          description: "No alert can be mailed while it is down, this one included: it shows on Alertmanager's page only."
+          runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+      # Samples refused by the remote end, or the queue more than 5 minutes
+      # behind what Prometheus has ingested.
+      - alert: PrometheusRemoteWriteFailing
+        expr: |
+          rate(prometheus_remote_storage_samples_failed_total[10m]) > 0
+          or (
+            prometheus_remote_storage_highest_timestamp_in_seconds
+            - ignoring (remote_name, url) group_right
+            prometheus_remote_storage_queue_highest_sent_timestamp_seconds > 300
+          )
+        for: 15m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Prometheus's remote write ({{ $labels.instance }}) is failing or behind"
+          description: "Samples are refused, or the queue is over 5 minutes behind: VictoriaMetrics, where the SLO window lives, is missing data."
+          runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+      - alert: AlertmanagerNotReached
+        expr: rate(prometheus_notifications_errors_total[10m]) > 0 or prometheus_notifications_alertmanagers_discovered < 1
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Prometheus ({{ $labels.instance }}) cannot reach Alertmanager"
+          description: "Notifications fail or no Alertmanager is discovered: firing alerts go nowhere. The mailer's pipeline mail follows after 20 minutes."
+          runbook_url: "runbooks/observe/monitoring-path.yaml"

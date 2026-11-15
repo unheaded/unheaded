@@ -13,6 +13,8 @@
 #   3. a ticket is not mailed (it waits for the daily digest)
 #   4. past the mailer's cap nothing is mailed; the cap is reported
 #   5. a firing Prometheus rule reaches Alertmanager at all
+#   6. a run day (mailer.run_days) raises the cap
+#   7. the pipeline heartbeat reaches the mailer (policy.yaml pipeline:)
 #
 # The only edits to the repo's configs: Alertmanager's page group_wait and
 # group_interval are shortened so this runs in minutes, and the policy's mode/cap are set
@@ -31,7 +33,7 @@ command -v docker >/dev/null || { echo "[FAIL] docker is required; this test doe
 T="$(mktemp -d)"
 NET="uh-alert-path-$$"
 cleanup() {
-	docker rm -f "$NET-am" "$NET-sink" "$NET-mailer" "$NET-prom" >/dev/null 2>&1 || true
+	docker rm -f "$NET-am" "$NET-sink" "$NET-mailer" "$NET-mailer2" "$NET-prom" >/dev/null 2>&1 || true
 	docker network rm "$NET" >/dev/null 2>&1 || true
 	rm -rf "$T"
 }
@@ -125,6 +127,7 @@ echo "[ok] the cap holds: 2 mails, the rest held back and counted"
 
 # Prometheus -> Alertmanager with the repo's prometheus.yml.
 cp "$REPO_ROOT/monitoring/prometheus/prometheus.yml" "$T/prom/"
+cp "$REPO_ROOT/monitoring/prometheus/rules/alert-pipeline-heartbeat.yml" "$T/prom/rules/"
 cat >"$T/prom/rules/uh-path-test.yml" <<'RULES'
 groups:
   - name: uh-path-test
@@ -146,4 +149,44 @@ for _ in $(seq 1 60); do
 done
 grep -q UhPromToAlertmanager <<<"$got" || fail "a firing rule never reached Alertmanager: monitoring/prometheus/prometheus.yml must send alerts to alertmanager:9093"
 echo "[ok] a firing rule in monitoring/prometheus reaches Alertmanager"
-echo "[PASS] alert path: 5 checks"
+
+# 7. The route reaches the mailer (ADR-116 R4, policy.yaml pipeline:): the
+# repo's AlertPipelineHeartbeat, through the generated pipeline route, sets
+# the mailer's receipt gauge. The silent and back mails are cmd/alert-mailer's
+# unit tests and the live drill (Step 332).
+seen=""
+for _ in $(seq 1 150); do
+	seen="$(api "http://$NET-mailer:19130/metrics" 2>/dev/null | awk '/^unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds / {print $2}')"
+	[[ -n "$seen" && "$seen" != "0" ]] && break
+	sleep 1
+done
+[[ -n "$seen" && "$seen" != "0" ]] || fail "no pipeline receipt reached the mailer within 150s (gauge: ${seen:-absent}): check the pipeline route in alertmanager.yml"
+echo "[ok] AlertPipelineHeartbeat reaches the mailer's pipeline receipt"
+
+# 6. A run day raises the cap (ADR-147 decision 2, mailer.run_days): a second
+# mailer, cap 2, with today listed at 3, takes three distinct pages straight
+# on its webhook and mails all three.
+today="$(TZ=America/Chicago date +%F)"
+sed -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' -e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' \
+	-e 's/^    max_per_day: [0-9]*$/    max_per_day: 3/' -e 's/^    max_per_hour: [0-9]*$/    max_per_hour: 3/' \
+	-e "s/^    dates: \[\]\$/    dates: [\"$today\"]/" \
+	"$REPO_ROOT/observability/alerting/policy.yaml" >"$T/mailer/policy-runday.yaml"
+{ grep -q '^  mode: send$' "$T/mailer/policy-runday.yaml" && grep -q '^  max_per_day: 2$' "$T/mailer/policy-runday.yaml" &&
+	grep -q '^    max_per_day: 3$' "$T/mailer/policy-runday.yaml" && grep -q "^    dates: \[\"$today\"\]\$" "$T/mailer/policy-runday.yaml"; } ||
+	fail "run_days anchors missing in policy.yaml (want mode send, run_days max_per_day and dates: [])"
+chmod a+r "$T/mailer/policy-runday.yaml"
+docker run -d --name "$NET-mailer2" --network "$NET" --read-only --tmpfs /var/lib/alert-mailer:uid=16710 \
+	-e SMTP_SMARTHOST="$NET-sink:1025" -e SMTP_STARTTLS=false -e ALERT_MAIL_FROM=alerts@example.org -e ALERT_MAIL_TO=ops@example.org \
+	-v "$T/mailer/policy-runday.yaml:/etc/alert-mailer/policy.yaml:ro" "$MAILER_IMAGE" >/dev/null
+wait_for "http://$NET-mailer2:19130/health"
+before="$(mails | grep -o '"Subject":"[^"]*"' | wc -l)"
+for i in 1 2 3 4; do
+	api -X POST -H 'Content-Type: application/json' "http://$NET-mailer2:19130/v1/alerts/page" \
+		-d "{\"version\":\"4\",\"alerts\":[{\"status\":\"firing\",\"labels\":{\"alertname\":\"UhRunDay$i\",\"urgency\":\"none\"},\"annotations\":{\"summary\":\"run day $i\"},\"startsAt\":\"$now\"}]}" >/dev/null
+done
+sleep 3
+after="$(mails | grep -o '"Subject":"[^"]*"' | wc -l)"
+[[ $((after - before)) -eq 3 ]] || fail "run day: $((after - before)) mails from cap 2 raised to 3 on $today (want 3)"
+grep -q '"max_per_day":3' <<<"$(api "http://$NET-mailer2:19130/v1/status")" || fail "run day: /v1/status does not show the raised cap"
+echo "[ok] a run day raises the cap: 3 mails with max_per_day 2 and run_days.max_per_day 3"
+echo "[PASS] alert path: 7 checks"

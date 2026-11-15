@@ -772,6 +772,16 @@ provoke_vector_config() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_store_backups() {
+    # Contract (ADR-147 decision 6): a drill refuses a set whose bytes no
+    # longer match its SHA256SUMS. Make the checksum step always pass.
+    local f="scripts/backup/clickhouse-drill.sh"
+    backup "${f}"
+    sed -i 's|sha256sum -c --quiet --strict "../$NAME.SHA256SUMS" >/dev/null 2>&1)|true)|' "${REPO_ROOT}/${f}"
+    ! grep -q 'sha256sum -c --quiet --strict' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_pihole_history() {
     # Contract (S-LOG-HARVEST Step 164c): a line the relay already shipped is
     # not imported again. Drop the relay's count from the load's condition.
@@ -1084,6 +1094,18 @@ provoke_unit_ceilings() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_start_limits() {
+    # Contract (ADR-147 SS3): every restarting unit can trip its start limit.
+    # Without StartLimitIntervalSec, kev-poller (RestartSec 30s) falls back to
+    # systemd's 10 s / 5 starts, which it can never reach.
+    local f="deploy/systemd/unheaded-kev-poller.service"
+    backup "${f}"
+    sed -i '/^StartLimitIntervalSec=/d' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_json_responses() {
     # Contract: no handler encodes JSON to its ResponseWriter. Put one back
     # in Wotan's topic publish, which still imports encoding/json for its
@@ -1368,6 +1390,7 @@ check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
+backup/test-store-backups|provoke_store_backups|slow|clickhouse-drill.sh's SHA256SUMS check made to always pass, so a damaged set drills clean (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
 nix/yggdrasil/scripts/yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
@@ -1390,6 +1413,7 @@ check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's co
 check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 60; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
+check-unit-start-limits|provoke_unit_start_limits|fast|StartLimitIntervalSec removed from unheaded-kev-poller.service
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)
@@ -1424,6 +1448,8 @@ well/make-tls|makes TLS material outside the repo; exercised by well/test-config
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
 monitoring/maintenance|creates or ends an Alertmanager silence for planned work (ADR-100); no verdict of its own
+monitoring/host-state-textfile|writes container and unit state for node_exporter's textfile collector (unheaded-host-state.timer); no verdict of its own, proven by test-host-state-textfile
+monitoring/planned-stop|marks a container stop as planned so ContainerStopped and the SLOs do not count it; no verdict of its own, proven by test-planned-stop
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
 wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 wireguard/psk-gate|forced command for the rotation key on east (DP-05); what it lets through and what it refuses are proven by wireguard/test-rotate-psk

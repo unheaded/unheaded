@@ -499,6 +499,9 @@ services:
       - clickhouse-data:/var/lib/clickhouse
       - ./config/clickhouse/logger.xml:/etc/clickhouse-server/config.d/logger.xml:ro
       - ./config/clickhouse/system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml:ro
+      - ./config/clickhouse/backups.xml:/etc/clickhouse-server/config.d/backups.xml:ro
+      # ADR-147 decision 6: backup sets, owned 16707, on a disk the data is not on.
+      - ${CLICKHOUSE_BACKUP_DIR:-/srv/backups/unheaded-clickhouse}:/backups
     networks:
       - observe
     labels:

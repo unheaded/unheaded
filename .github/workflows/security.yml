@@ -217,6 +217,10 @@ jobs:
       - name: Every unit's binary is built by scripts/build-binaries.sh
         run: ./scripts/check-unit-binaries.sh
 
+      # ADR-147 SS3: a unit that restarts itself can also give up (UnitFailed).
+      - name: Every restarting unit can trip its start limit
+        run: ./scripts/check-unit-start-limits.sh
+
       # ADR-102: no new latest / major-only image tag anywhere.
       - name: Floating image tags may only shrink
         run: ./scripts/check-image-tags.sh
@@ -632,6 +636,11 @@ jobs:
 
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh
+
+      # ADR-147 decision 6: ClickHouse and VictoriaMetrics sets and drills on
+      # throwaway containers of the deployed images.
+      - name: Store backup sets and restore drills
+        run: ./scripts/backup/test-store-backups.sh
 
       - name: Deployed config, pg_hba and TLS
         run: ./scripts/well/test-config.sh

@@ -38,6 +38,12 @@ Description=Unheaded Heimdall drift monitor (alerts only)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Mimirs-Law.md
 After=network-online.target unheaded-wotan.service
 Wants=network-online.target
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (90 starts x RestartSec 10s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 100 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=90
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC

@@ -1,0 +1,68 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: container-stopped
+  description: A compose container that ran in the last 7 days is stopped (ContainerStopped) or fails its healthcheck (ContainerUnhealthy); nothing restarts it
+  owner: zhenai
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147 decisions 1 and 2 (S-SEE-AND-SURVIVE). Restart policy on west
+  stays "no" (decision 1): a container that stops stays down until a person
+  starts it, and this alert is how that person hears of it. The series come
+  from unheaded-host-state.timer (scripts/monitoring/host-state-textfile.sh)
+  through huginn; a container that has not run in the last 7 days (the
+  exited one-shots, netbox, an old jenkins) never fires.
+
+  First find why it stopped: an exit code, a memory kill (OOMKilled true,
+  and MemoryKill fires with it), or a person. Start it only after that.
+
+  A stop on purpose: mark it before, so neither this alert nor the SLOs
+  count it: scripts/monitoring/planned-stop.sh <container> <duration>
+  (or maintenance.sh --planned for the whole stack).
+
+steps:
+  - name: which-container
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname=~"ContainerStopped|ContainerUnhealthy"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["alertname"], r["metric"].get("name", "-"), r["metric"]["alertstate"]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Which container and which alert (no output: nothing is firing now)"
+
+  - name: exit-state
+    action: manual
+    command: |
+      docker inspect -f '{{.Name}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} finished={{.State.FinishedAt}}' <name>
+    description: "MANUAL (read only). Put the container name in place of <name>. exit 137 with oom=true is a memory kill (runbooks/observe/memory-kill.yaml); 137 without it is a kill from outside; 0 is a clean stop (a person or compose)"
+
+  - name: last-log
+    action: manual
+    command: |
+      docker logs --tail 50 <name> 2>&1
+    description: "MANUAL (read only). Its last 50 lines: the reason it stopped is usually here"
+
+  - name: health
+    action: manual
+    command: |
+      docker inspect -f '{{json .State.Health}}' <name>
+    description: "MANUAL (read only). For ContainerUnhealthy: the last healthcheck runs and their output"
+
+  - name: start-it
+    action: manual
+    command: |
+      cd /home/govan/tmp/unheaded && sudo docker compose up -d <service>
+    description: "MANUAL, after the cause is known. <service> is the compose service (the alert's service label); for the monitoring stack run it in /home/govan/tmp/unheaded/monitoring. Restart policy stays no"
+
+  - name: planned-stop
+    action: manual
+    command: |
+      scripts/monitoring/planned-stop.sh <name> 2h
+    description: "MANUAL. A stop on purpose: mark it so ContainerStopped and the SLOs do not count it; scripts/monitoring/planned-stop.sh --end <name> when it is back"

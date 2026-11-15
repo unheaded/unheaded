@@ -23,6 +23,12 @@
 Description=llama-server for Zhen (local model, GPU)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Zhen-Agents.md
 After=network.target
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (90 starts x RestartSec 10s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 100 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=90
 
 [Service]
 Type=simple

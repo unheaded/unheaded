@@ -1,0 +1,76 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: host-pressure
+  description: A host stalls on memory, I/O or CPU, swaps, or a cgroup is CPU-throttled (HostMemoryPressure, HostIOPressure, HostCPUPressure, HostSwapping, HostSwapNearFull, ContainerCPUThrottled)
+  owner: zhenai
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147 decisions 12 and 20 (S-SEE-AND-SURVIVE). PSI (pressure stall
+  information) says what share of time tasks waited: "some" at least one
+  task, "full" every task. The bars in rules/resources.yml come from five
+  days of west's own series; a firing one is well outside what west has
+  done at rest.
+
+  On west the databases (ClickHouse, Postgres, VictoriaMetrics) and swap
+  share one 7,200 rpm disk (plan 4, S-WEST-GROUND, moves them), so I/O
+  pressure and swapping feed each other.
+
+  Never walk /var or Docker's data to find the cause (du, find,
+  docker system df): that is itself a load (2026-11-15: I/O pressure 6% to
+  39%). Read the per-cgroup series instead.
+
+  The older runbooks/observe/swap-monitoring.yaml reads the same numbers by
+  hand; this one also names the cgroup.
+
+steps:
+  - name: pressure-now
+    action: shell
+    command: |
+      cat /proc/pressure/memory /proc/pressure/io /proc/pressure/cpu
+    description: "avg10 / avg60 / avg300 per resource: some and full"
+
+  - name: swap-now
+    action: shell
+    command: |
+      grep -E '^(MemTotal|MemAvailable|SwapTotal|SwapFree|SwapCached):' /proc/meminfo
+    description: "Memory available and swap used (SwapTotal minus SwapFree)"
+
+  - name: top-cgroups-by-pressure
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=topk(8, sum by (cgroup, resource) (rate(huginn_cgroup_pressure_seconds_total{kind="some"}[10m])))' |
+        python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), r["metric"].get("resource", "-"), "%.1f%%" % (100 * float(r["value"][1]))) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "The cgroups that stall most, by resource, over 10m"
+
+  - name: top-cgroups-by-io
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=topk(8, sum by (cgroup, device) (rate(huginn_cgroup_io_bytes_total{dir="write"}[10m])))' |
+        python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), r["metric"].get("device", "-"), "%.0f B/s written" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Who writes most, and to which device"
+
+  - name: throttled
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum by (cgroup) (rate(huginn_cgroup_cpu_throttled_periods_total[15m])) / sum by (cgroup) (rate(huginn_cgroup_cpu_periods_total[15m])) > 0.1' |
+        python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), "%.0f%% of periods throttled" % (100 * float(r["value"][1]))) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "For ContainerCPUThrottled: groups held by their cpu.max quota"
+
+  - name: decide
+    action: manual
+    command: |
+      echo "A known job (a backup at 04:15, a build, a load run): let it finish and read again."
+      echo "Not known: the cgroup above is the place to look; raise a limit only with the cause in the commit."
+    description: "MANUAL. No kill or restart from this runbook"
