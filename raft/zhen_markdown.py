@@ -607,8 +607,9 @@ def _table_at(lines, i):
 # ── block ───────────────────────────────────────────────────────────────
 
 class _Renderer:
-    def __init__(self, budget_s):
+    def __init__(self, budget_s, highlight=True):
         self.deadline = time.monotonic() + budget_s
+        self.highlight = highlight
         self.timed_out = False
         self.too_deep = False
         self.hl_chars = 0
@@ -754,7 +755,9 @@ class _Renderer:
     def code(self, body, info):
         code = '\n'.join(body)
         inner = None
-        if info:
+        # highlight=False: the highlighter is not reached at all (a sheet from
+        # an `external` source). The block is escaped and shown plain.
+        if info and self.highlight:
             size = len(code)
             if size > MAX_HL_BLOCK_CHARS or self.hl_chars + size > MAX_HL_TOTAL_CHARS or self.over_budget():
                 self.hl_skipped += 1
@@ -939,7 +942,7 @@ def _front_matter(lines):
     return 0
 
 
-def _render(source, budget_s):
+def _render(source, budget_s, highlight=True):
     if not isinstance(source, str):
         source = ''
     if len(source) > MAX_DOC_CHARS:
@@ -949,7 +952,7 @@ def _render(source, budget_s):
     clean = _CTRL.sub('', text)
     dropped = len(text) - len(clean)
     lines = clean.split('\n')
-    r = _Renderer(budget_s)
+    r = _Renderer(budget_s, highlight)
     parts = []
     body = _front_matter(lines)
     if body:
@@ -975,19 +978,24 @@ _CACHE_MAX = 24
 _CACHE_LOCK = threading.Lock()
 
 
-def render(source, budget_s=MAX_SECONDS):
+def render(source, budget_s=MAX_SECONDS, *, highlight=True):
     """Render a sheet. Returns {'html', 'outline', 'notes', 'timed_out'}:
     html is None when the sheet is too large to render (show it raw);
     outline is [{'level', 'id', 'text'}] for the headings; notes are plain
-    sentences for the reader. The result is shared: do not change it."""
+    sentences for the reader. The result is shared: do not change it.
+
+    highlight=False shows fenced code escaped and uncoloured, without calling
+    the highlighter: the caller passes it for text from an `external` source."""
     key = hashlib.sha256(source.encode('utf-8', 'surrogatepass')).hexdigest() \
         if isinstance(source, str) else ''
+    # The same text renders differently with and without the highlighter.
+    key = ('hl:' if highlight else 'plain:') + key
     with _CACHE_LOCK:
         hit = _CACHE.get(key)
         if hit is not None:
             _CACHE.move_to_end(key)
             return hit
-    out = _render(source, budget_s)
+    out = _render(source, budget_s, highlight)
     if not out['timed_out']:   # a slow moment must not stick
         with _CACHE_LOCK:
             _CACHE[key] = out

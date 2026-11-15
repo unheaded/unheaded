@@ -611,28 +611,98 @@ def test_source_view_page_is_not_served_without_its_headers(client):
         assert client.get('/static/' + name, base_url=ORIGIN).status_code == 200
 
 
+_SHEET = '# Top\n\n<script>alert(1)</script> [x](javascript:alert(1))\n\n```sh\necho "hi"\n```\n'
+
+
 def test_source_api_returns_the_sheet_rendered_and_raw(client, monkeypatch):
-    sheet = '# Top\n\n<script>alert(1)</script> [x](javascript:alert(1))\n\n```sh\necho "hi"\n```\n'
-    asked = _vor(monkeypatch, {'content': sheet, 'title': 'T', 'category': 'net',
-                               'source_trust': 'external', 'source_kind': 'user-source',
+    asked = _vor(monkeypatch, {'name': 'a/b c', 'content': _SHEET, 'title': 'T', 'category': 'net',
+                               'source_trust': 'canonical', 'source_kind': 'user-source',
                                'source_path': '/p/t.md'})
     _log_in(client)
     r = client.get('/api/v1/source?id=a/b c', base_url=ORIGIN)
     assert r.status_code == 200
     assert asked == ['http://vor.test/api/topics/a%2Fb%20c']
     body = r.get_json()
-    assert body['content'] == sheet
-    assert body['trust'] == 'external' and body['title'] == 'T' and body['category'] == 'net'
+    assert body['content'] == _SHEET
+    assert body['trust'] == 'canonical' and body['title'] == 'T' and body['category'] == 'net'
     assert body['outline'] == [{'level': 1, 'id': 'md-top', 'text': 'Top'}]
     assert '<script' not in body['html'] and '&lt;script&gt;' in body['html']
     assert 'href="javascript' not in body['html']
     assert 'class="hl-' in body['html']
 
 
-def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatch):
-    _vor(monkeypatch, {'content': 'plain words'})
+def test_source_api_shows_an_external_sheets_code_plain(client, monkeypatch):
+    """D-06: Pygments is not run on text from an `external` source. The block
+    is escaped and shown, with no highlighter spans; a lexer is never built."""
+    _vor(monkeypatch, {'name': 'ext', 'content': _SHEET, 'source_trust': 'external'})
 
-    def boom(source):
+    def no_lexer(*a, **kw):
+        raise AssertionError('the highlighter was reached for an external sheet')
+
+    monkeypatch.setattr(zhen_app.zhen_markdown.zhen_highlight, 'lexer_for', no_lexer)
+    monkeypatch.setattr(zhen_app.zhen_markdown.zhen_highlight, 'highlight_one', no_lexer)
+    _log_in(client)
+    r = client.get('/api/v1/source?id=ext', base_url=ORIGIN)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['trust'] == 'external'
+    assert 'class="hl-' not in body['html']
+    assert 'echo &quot;hi&quot;' in body['html']
+    assert '<script' not in body['html'] and '&lt;script&gt;' in body['html']
+
+
+def test_the_same_text_is_not_served_highlighted_from_the_cache(client, monkeypatch):
+    """The renderer caches by content: a canonical sheet rendered first must
+    not hand its highlighted html to an external sheet with the same text."""
+    _log_in(client)
+    _vor(monkeypatch, {'name': 'c', 'content': _SHEET, 'source_trust': 'canonical'})
+    assert 'class="hl-' in client.get('/api/v1/source?id=c', base_url=ORIGIN).get_json()['html']
+    _vor(monkeypatch, {'name': 'e', 'content': _SHEET, 'source_trust': 'external'})
+    assert 'class="hl-' not in client.get('/api/v1/source?id=e', base_url=ORIGIN).get_json()['html']
+
+
+@pytest.mark.parametrize('topic', [
+    {'name': 'wotan', 'content': 'the nearest sheet'},   # vor answered with another sheet
+    {'content': 'a sheet with no name'},
+    {'name': '', 'content': 'x'},
+    {'name': ['x'], 'content': 'x'},
+    ['not', 'a', 'topic'],
+])
+def test_source_api_404s_an_id_vor_did_not_answer_exactly(client, monkeypatch, topic):
+    """D-06: vor answers an unknown id with the nearest sheet. The viewer shows
+    a sheet only when it carries the name that was asked for."""
+    _vor(monkeypatch, topic)
+    _log_in(client)
+    r = client.get('/api/v1/source?id=x', base_url=ORIGIN)
+    assert r.status_code == 404
+    assert r.get_json() == {'error': 'no such topic'}
+
+
+def test_source_api_by_path_wants_the_name_the_search_hit_named(client, monkeypatch):
+    import urllib.request
+    monkeypatch.setattr(zhen_app, 'rag', types.SimpleNamespace(vor_url='http://vor.test'))
+    topic = {'name': 'other', 'content': 'the nearest sheet', 'source_path': '/p/t.md'}
+
+    def fake(url, timeout=None):
+        if '/api/search' in url:
+            return _VorReply(json.dumps([{'topic': 'asked', 'source_path': '/p/t.md'}]).encode())
+        return _VorReply(json.dumps(topic).encode())
+
+    monkeypatch.setattr(urllib.request, 'urlopen', fake)
+    _log_in(client)
+    r = client.get('/api/v1/source?path=/p/t.md', base_url=ORIGIN)
+    assert r.status_code == 404
+    assert r.get_json() == {'error': 'no such topic'}
+    topic['name'] = 'asked'
+    r = client.get('/api/v1/source?path=/p/t.md', base_url=ORIGIN)
+    assert r.status_code == 200
+    assert r.get_json()['id'] == 'asked'
+
+
+def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatch):
+    _vor(monkeypatch, {'name': 'x', 'content': 'plain words'})
+
+    def boom(source, **kw):
         raise RuntimeError('renderer bug')
 
     monkeypatch.setattr(zhen_app.zhen_markdown, 'render', boom)
@@ -643,7 +713,7 @@ def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatc
 
 
 def test_source_api_treats_non_text_content_as_empty(client, monkeypatch):
-    _vor(monkeypatch, {'content': {'not': 'text'}})
+    _vor(monkeypatch, {'name': 'x', 'content': {'not': 'text'}})
     _log_in(client)
     body = client.get('/api/v1/source?id=x', base_url=ORIGIN).get_json()
     assert body['content'] == '' and body['html'] == ''

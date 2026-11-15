@@ -2587,6 +2587,13 @@ def deny_request(approval_id):
 # Source Viewer — view full source content in a new tab
 # ──────────────────────────────────────────────────────────────────────
 
+def _is_topic(t, name):
+    """True when vor's answer is the topic that was asked for. vor answers an
+    unknown id with the nearest sheet (its own fix is D-11); the viewer shows
+    a sheet only under the name it was asked by."""
+    return isinstance(t, dict) and isinstance(t.get('name'), str) and t['name'] == name and name != ''
+
+
 def _source_payload(topic_id, source, t):
     """What /api/v1/source answers for one vor topic: the raw text, and the
     same text rendered for the viewer (raft/zhen_markdown.py). `html` is None
@@ -2594,8 +2601,12 @@ def _source_payload(topic_id, source, t):
     content = t.get('content', '')
     if not isinstance(content, str):
         content = ''
+    trust = t.get('source_trust', 'canonical')
     try:
-        rendered = zhen_markdown.render(content)
+        # Code in a sheet from an `external` source is shown plain: Pygments is
+        # not run on text the kingdom did not write (D-06). The renderer's time
+        # budget is checked between blocks, not inside one lexer call.
+        rendered = zhen_markdown.render(content, highlight=(trust != 'external'))
     except Exception:  # a renderer bug must not make a sheet unreadable
         log.exception('source viewer: render failed for %r', topic_id)
         rendered = {'html': None, 'outline': [],
@@ -2604,7 +2615,7 @@ def _source_payload(topic_id, source, t):
         'id':       topic_id,
         'source':   source,
         'type':     t.get('source_kind', ''),
-        'trust':    t.get('source_trust', 'canonical'),
+        'trust':    trust,
         'label':    t.get('source_label', ''),
         'title':    t.get('title', ''),
         'category': t.get('category', ''),
@@ -2644,6 +2655,8 @@ def view_source():
                 t = json.loads(resp.read().decode())
         except Exception as exc:
             return jsonify({'error': f'vor topic lookup failed: {exc}'}), 404
+        if not _is_topic(t, source_id):
+            return jsonify({'error': 'no such topic'}), 404
         return jsonify(_source_payload(source_id, t.get('source_path', ''), t))
 
     # Path-based lookup: search vor and filter by source_path.
@@ -2660,6 +2673,9 @@ def view_source():
                 turl = f'{rag.vor_url}/api/topics/{_up.quote(topic, safe="")}'
                 with _ur.urlopen(turl, timeout=5) as tr:
                     t = json.loads(tr.read().decode())
+                # The topic fetched must be the one the search hit named.
+                if not _is_topic(t, topic):
+                    return jsonify({'error': 'no such topic'}), 404
                 return jsonify(_source_payload(topic, source_path, t))
         return jsonify({'error': f'Source not found: {source_path}'}), 404
     except Exception as exc:
