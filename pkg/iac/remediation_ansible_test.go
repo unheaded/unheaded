@@ -11,6 +11,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/remediation"
 )
 
@@ -157,10 +158,13 @@ func TestRemediationAnsibleHardeningActions(t *testing.T) {
     actions:
       - package: {name: aide, no_recommends: true}
       - run: "systemctl daemon-reload"
-      - run: "aideinit -y -f"
-      - service: {name: dailyaidecheck.timer, enabled: true, active: true}
+      - service: {name: dailyaidecheck.timer, masked: true}
+      - divert: /etc/cron.daily/dailyaidecheck
+      - validate: "aide --config=/etc/aide/aide-unheaded.conf --config-check"
+      - service: {name: unheaded-aide-check.timer, enabled: true, active: true}
       - apparmor: {enforce: [Xorg], hosts: [west]}
       - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log], mode: "0640", owner: root, group: root}
+      - mode: {ceiling: var-log}
 `))
 	if err != nil {
 		t.Fatal(err)
@@ -179,11 +183,45 @@ func TestRemediationAnsibleHardeningActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkTasks(t, "h", tasks)
-	for _, want := range []string{"install_recommends: false", "- daemon-reload", "- aideinit", "state: started",
+	for _, want := range []string{"install_recommends: false", "- daemon-reload", "masked: true", "- dpkg-divert", "- --listpackage",
+		"- /etc/cron.daily/dailyaidecheck", "- --config-check", "state: started",
 		"- aa-enforce", "/etc/apparmor.d/Xorg", "inventory_hostname in ['west']", "/etc/apparmor.d/disable/Xorg",
 		"/etc/apparmor.d/force-complain/Xorg", "/var/log/rocm_smi_lib/ROCm-SMI-lib.log"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("role lacks %q:\n%s", want, body)
+		}
+	}
+	// The /var/log ceiling: every regular file in the tree, and each of the
+	// probe's exceptions by the names the probe uses, with a mode that only
+	// takes bits away.
+	for _, want := range []string{"recurse: true", "file_type: file", "paths: /var/log",
+		"u-xs,g-wxs,o-rwxt", "u-xs,g-xs,o-wxt", "u-xs,g-wxs,o-wxt", "u-xs,g-xs,o-rwxt", "README"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the ceiling's tasks lack %q:\n%s", want, body)
+		}
+	}
+	for _, names := range [][]string{crosswalk.VarLogLoginRecords, crosswalk.VarLogWorldReadable, crosswalk.VarLogGroupWritableDirs} {
+		for _, n := range names {
+			if !strings.Contains(body, strings.ReplaceAll(n, ".", `\.`)) {
+				t.Errorf("the ceiling's tasks do not name %s", n)
+			}
+		}
+	}
+	for _, bad := range []string{"u+", "g+", "o+", "mode: \"0"} {
+		for _, tk := range tasks {
+			f, ok := tk["ansible.builtin.file"].(map[string]any)
+			if !ok {
+				continue
+			}
+			if m, _ := f["mode"].(string); strings.Contains(m, "is match") && strings.Contains(m, bad) {
+				t.Errorf("the ceiling's mode expression can add a bit or set a whole mode (%q)", bad)
+			}
+		}
+	}
+	// No rendered task builds or updates an AIDE database (DE1).
+	for _, bad := range []string{"aideinit", "--init", "--update"} {
+		if strings.Contains(body, bad) {
+			t.Errorf("role contains %q", bad)
 		}
 	}
 }

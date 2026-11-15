@@ -379,12 +379,17 @@ func TestLoadSnapshotModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// east is lab-hardened: aide-install maps both AIDE checks.
+	// east is lab-hardened: aide-install maps the AIDE timer check. No fix
+	// maps aide-installed: its database is built by hand after a review
+	// (S-EVIDENCE-RUNS DE1), so enforcing must not try.
 	byKey := fixesByKey(m, "east")
-	if byKey["host-probe:east:aide-installed"].ID != "aide-install" || byKey["host-sysctl:east:fs.suid_dumpable=0"].ID != "sysctl-cis" {
+	if byKey["host-probe:east:aide-timer"].ID != "aide-install" || byKey["host-sysctl:east:fs.suid_dumpable=0"].ID != "sysctl-cis" {
 		t.Errorf("mapping: %d keys", len(byKey))
 	}
-	if _, ok := byKey["host-probe:west:aide-installed"]; ok {
+	if _, ok := byKey["host-probe:east:aide-installed"]; ok {
+		t.Error("a fix claims aide-installed, which needs an attended init")
+	}
+	if _, ok := byKey["host-probe:west:aide-timer"]; ok {
 		t.Error("mapped another host's key")
 	}
 	if _, err := loadSnapshotModel(snap, pub, "west", os.Getuid()); err == nil {

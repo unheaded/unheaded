@@ -20,7 +20,7 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev
 # older; never a different one). CI sets the same three.
 export GOFLAGS := -mod=readonly
 export GOSUMDB := sum.golang.org
-export GOTOOLCHAIN := go1.27.3
+export GOTOOLCHAIN := go1.27.4
 
 # Go build flags
 GO_BUILD_FLAGS := -v -trimpath

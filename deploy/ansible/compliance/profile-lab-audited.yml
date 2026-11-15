@@ -1,0 +1,22 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# profile lab-audited: West until B-08 and B-18 (Stevie 2026-11-13, DE4): the lab fixes plus what watches and records and changes no login: CIS audit rules, AIDE with a weekly idle check, the ROCm log modes and the /var/log ceiling (DE5c). The sshd settings and AppArmor enforce stay with lab-hardened.
+- become: true
+  gather_facts: false
+  hosts: profile_lab_audited
+  name: Profile lab-audited (ADR-099)
+  roles:
+    - sysctl-cis
+    - apport-off
+    - kmod-cis
+    - cron-perms
+    - banner-cis
+    - apparmor-utils
+    - auditd
+    - sudo-cis
+    - auditd-rules
+    - journald-caps
+    - time-p2p
+    - rocm-log-perms
+    - var-log-modes
+    - aide-install

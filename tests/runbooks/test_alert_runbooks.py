@@ -27,6 +27,9 @@ RUNBOOKS = {
     "runbooks/observe/zhen-scheduler-stalled.yaml": ("ZhenSchedulerStalled",),
     # Wotan's topic permissions (FND-043): a refusal is a ticket (S-WATCH-TRUE Phase 5).
     "runbooks/observe/wotan-topic-refused.yaml": ("WotanTopicPermissionRefused",),
+    # AIDE, quiet by design (S-EVIDENCE-RUNS DE1): a new diff once, and a check that stopped.
+    "runbooks/security/aide-change-review.yaml": ("AIDEChangeDetected",),
+    "runbooks/security/aide-check-stale.yaml": ("AIDECheckStale",),
     # heimdall-daemon /metrics (M-085) and lost hook events (LICH-012 L12d).
     # The two rules were removed 2026-11-15 (S-WATCH-TRUE, W2: no host runs
     # heimdall-daemon); the runbooks are kept and still dry-run here. Name

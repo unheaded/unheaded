@@ -1,0 +1,99 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: aide-change-review
+  description: AIDE found files that differ from its database (AIDEChangeDetected, or the aide-unreviewed finding); read the diff, explain every line, then accept it or treat it as an incident
+  owner: zhenai
+  estimated_duration: 20m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  S-EVIDENCE-RUNS DE1 (Stevie, 2026-11-13): "set up carefully. Ensure no
+  spam or useless disk io is being used". unheaded-aide-check.timer runs
+  `unheaded-aide check` once a week at idle priority. The check compares
+  the watched trees (binaries, libraries, /etc, /boot, unit files) with the
+  database in /var/lib/aide and never writes one.
+
+  A diff it has not seen before is reported once: unheaded_aide_new_diff is
+  1 for that run, AIDEChangeDetected fires for the day after it, and the
+  diff is kept in /var/lib/unheaded/aide/state.json. The same diff on a
+  later run is not reported again. Until someone reviews it the finding
+  host-probe:<host>:aide-unreviewed stays open: one row per host, whatever
+  the number of runs.
+
+  Most diffs are the host's own package upgrades (apt, unattended-upgrades)
+  and edits under /etc. The review is reading every line and being able to
+  say what changed it. `accept` then updates the database to exactly that
+  diff; it refuses when the tree has changed again since the check, so what
+  is accepted is what was read.
+
+  A line nobody can explain is not accepted. A changed binary or library
+  with no package upgrade behind it, a new unit file, a changed sshd or
+  sudoers file: stop and run runbooks/security/incident-response.yaml. The
+  database is the evidence of what the host looked like before; leave it.
+
+  The database is never built or updated by a timer or by unheaded-remediate.
+  `unheaded-aide init` and `promote` are for the first build and after a
+  reinstall, by hand, after reading the summary init prints.
+
+steps:
+  - name: which-host
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=unheaded_aide_changed_entries > 0' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host", "-"), "entries waiting for a review:", r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Hosts with a diff waiting, and how many entries it has (no output: nothing is pending anywhere)"
+
+  - name: last-run
+    action: shell
+    command: |
+      set -euo pipefail
+      journalctl -u unheaded-aide-check.service -n 5 --no-pager -o short-iso | grep 'aide:' | tail -3 || echo "no line from the check in this host's journal"
+    description: "The check's own lines on this host: clean, changed (with the diff's first 12 hex digits and new=1 or 0), or error"
+
+  - name: review
+    action: manual
+    command: |
+      sudo unheaded-aide review
+    description: "MANUAL, on the host. Prints the pending diff: its hash, when it was first seen, and every added, removed and changed path with the attributes that changed. Up to 1000 entries are kept; a larger diff says how many more there are"
+
+  - name: explain
+    action: manual
+    command: |
+      grep -E ' (install|upgrade|remove) ' /var/log/dpkg.log | tail -80
+      grep -h 'Packages that will be upgraded' /var/log/unattended-upgrades/unattended-upgrades.log | tail -8
+    description: "MANUAL. Match the diff against what changed the host on purpose in the last week: dpkg's log and the unattended upgrades for packages, and your own record (the session notes, a sprint's progress file) for edits under /etc and new unit files. Every line of the diff needs a cause you can name"
+
+  - name: decide
+    action: manual
+    command: |
+      echo "Every line explained: go on to accept."
+      echo "Any line not explained: stop. Do not accept. Run runbooks/security/incident-response.yaml."
+    description: "MANUAL. Accepting an unexplained change makes it the new normal; the database would then hide it"
+
+  - name: accept
+    action: manual
+    command: |
+      sudo unheaded-aide accept <hash>
+    description: "MANUAL. Put the full hash review printed in place of <hash>. Runs aide --update at normal priority (a full read of the watched trees, some minutes), checks that what it found is the reviewed diff, and only then replaces the database. It refuses if the tree changed since the check: run the check again and review again"
+
+verification:
+  - name: nothing-pending
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum(unheaded_aide_changed_entries) or vector(0)' |
+        python3 -c 'import json,sys; v=float(json.load(sys.stdin)["data"]["result"][0]["value"][1]); print("entries waiting for a review:", int(v)); sys.exit(v != 0)'
+
+rollback:
+  - name: none
+    action: manual
+    command: |
+      echo "An accept cannot be undone: the old database is replaced."
+    description: "MANUAL. There is no rollback. If a change was accepted by mistake, the host's backups hold the files as they were; the review record is the accepted hash and time in /var/lib/unheaded/aide/state.json"

@@ -60,7 +60,7 @@ steps:
   - name: setup-go
     action: shell
     command: |
-      GO_VERSION=1.27.3   # go.mod: toolchain go1.27.3 (1.23 cannot build go 1.26.0 modules)
+      GO_VERSION=1.27.4   # go.mod: toolchain go1.27.4 (1.23 cannot build go 1.26.0 modules)
       curl -sL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
       echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/go.sh
     verify: "/usr/local/go/bin/go version"

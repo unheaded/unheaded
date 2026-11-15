@@ -182,8 +182,16 @@ const (
 	// D-05). It is a Kingdom service, but that tier (16720-16759) is full:
 	// S-WIKI-VOR took its last number, 16758, for unheaded-vor-refresh on the
 	// same day. This is the next free number, checked in this file, sysusers
-	// and west's and east's passwd on 2026-11-15. Next free after it: 16765.
+	// and west's and east's passwd on 2026-11-15.
 	ZhenApp = 16764
+	// ComplianceSeal owns the compliance snapshot seal key on west (ML-DSA-65
+	// seed, 0400, in its home /var/lib/unheaded-compliance-seal) and reseals
+	// the baseline snapshot by hand (S-EVIDENCE-RUNS DE3, Stevie 2026-11-13).
+	// No unit, no login; account unheaded-compliance-seal. Not the evidence
+	// build key's account (BuildKey): two keys, two custodies. The next free
+	// number after ZhenApp, checked in this file, sysusers and west's and
+	// east's passwd on 2026-11-15. Next free after it: 16766.
+	ComplianceSeal = 16765
 )
 
 // Infrastructure tier (16780-16799). Workloads that hold host-level access —
@@ -293,6 +301,7 @@ var Registry = map[string]int{
 	"pleroma":          Pleroma,
 	"chaos-controller": Yaldabaoth,
 	"zhen-app":         ZhenApp,
+	"compliance-seal":  ComplianceSeal,
 
 	"void-collector":    VoidCollector,
 	"vllm":              VLLM,

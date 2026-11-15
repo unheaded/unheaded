@@ -1,0 +1,22 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# var-log-modes: No file under /var/log looser than CIS allows for its name (CIS 6.1.4.1)
+- block:
+    - ansible.builtin.find:
+        file_type: file
+        paths: /var/log
+        recurse: true
+      name: Regular files under /var/log
+      register: uh_var_log_modes_1_find
+    - ansible.builtin.file:
+        mode: '{{ ''u-xs,g-xs,o-wxt'' if (item.path | basename) is match(''^(lastlog|wtmp|btmp)([.-].*)?$'') or (item.path | basename) == ''README'' else ''u-xs,g-wxs,o-wxt'' if (item.path | basename) is match(''^(cloud-init\.log|localmessages|waagent\.log)'') else ''u-xs,g-xs,o-rwxt'' if ((item.path | dirname) ~ ''/'') is search(''/(sssd|SSSD|gdm|gdm3)/'') else ''u-xs,g-wxs,o-rwxt'' }}'
+        path: '{{ item.path }}'
+      loop: '{{ uh_var_log_modes_1_find.files }}'
+      loop_control:
+        label: '{{ item.path }}'
+      name: No mode bit above each file's ceiling under /var/log (0640; login records 0664, agent logs 0644, sssd and gdm 0660)
+  name: var-log-modes
+  rescue:
+    - ansible.builtin.fail:
+        msg: var-log-modes failed a check; every file it changed was restored
+      name: Fail after restoring

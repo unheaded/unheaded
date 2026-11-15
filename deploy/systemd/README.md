@@ -346,6 +346,7 @@ when it already starts with `unheaded-`:
 | `unheaded-trace-collector-go` | `unheaded-trace-collector.service` (eBPF objects in `/usr/local/lib/unheaded/ebpf` are not packaged) |
 | `unheaded-huginn`, `unheaded-zhen-agentd` | `huginn.service`, `zhen-agentd.service` |
 | `unheaded-baseline` | `unheaded-baseline.service` + `.timer` + `.path` |
+| `unheaded-aide` | `unheaded-aide-check.service` + `.timer` (the timer is enabled by the `aide-install` fix, never by the package) |
 | `unheaded-well-retention` | `unheaded-well-retention.service` + `.timer` |
 | `unheaded-syslog-relay` | `unheaded-syslog-relay.service` + `.socket` (binds 514, socket activation), with `/etc/unheaded/log-sources.yaml` as a conffile |
 | `unheaded-<svc>` (wotan, akira, timeguru, captain, architect, micromanager, monad, sophia, auth, sword, chaos-controller, anomaly, kev-poller, zhen-ui-front) | `unheaded-<svc>.service` |

@@ -6,7 +6,10 @@
 # file, not what runs (FND-037). Every first-party compose service (built from this repository)
 # must set AUTH_ENABLED=true: pkg/auth enables authentication only then
 # (pkg/auth/setup.go) and otherwise installs the Noop authenticator, which
-# admits every request. Reads the compose file as written.
+# admits every request. A service that checks a bearer token itself, without
+# pkg/auth, is named in TOKEN_AUTH below with the variable that carries the
+# token; it passes only while compose gives it that variable. Reads the
+# compose file as written.
 # Usage: check-service-auth.sh [compose-file]
 set -euo pipefail
 
@@ -49,13 +52,48 @@ EXEMPT = {
     # not an HTTP route (cmd/unheaded-auth/issuer.go).
     "auth": "OIDC issuer: login/JWKS/discovery are public by design",
 }
+# Services that authenticate without pkg/auth: each checks a bearer token
+# on every route that is not a probe. The entry names the variable that
+# carries the token and where the check is. The name must match exactly: a
+# token-looking variable on any other service counts for nothing. A new
+# entry needs a reason a reviewer can check in the code.
+TOKEN_AUTH = {
+    # POST /ingest is the only route besides /health, /ready and /metrics
+    # (cmd/logstore-writer/main.go handler). Ingest.ServeHTTP refuses a
+    # request without the token before it reads the body, and the binary
+    # will not start on a token shorter than 32 bytes (ingest.go).
+    "logstore-writer": ("LOGSTORE_INGEST_TOKEN",
+                        "bearer token checked in cmd/logstore-writer/ingest.go ServeHTTP before the body is read; "
+                        "POST /ingest is the only write route (main.go handler)"),
+}
 for n in sorted(set(EXEMPT) & set(first_party)):
     print(f"[EXEMPT] {n}: {EXEMPT[n]}")
-open_ = sorted(n for n, s in first_party.items() if n not in EXEMPT and env(s).get("AUTH_ENABLED", "") != "true")
+
+def authenticates(name, spec):
+    """How the service authenticates as the file is written: "auth", "token" or ""."""
+    e = env(spec)
+    if e.get("AUTH_ENABLED", "") == "true":
+        return "auth"
+    # Present and not empty. A bare list entry ("- NAME", the caller's own
+    # environment) cannot be read from the file, so it does not count.
+    if name in TOKEN_AUTH and e.get(TOKEN_AUTH[name][0], "") != "":
+        return "token"
+    return ""
+
+how = {n: authenticates(n, s) for n, s in first_party.items() if n not in EXEMPT}
+for n in sorted(n for n, h in how.items() if h == "token"):
+    print(f"[TOKEN] {n}: {TOKEN_AUTH[n][1]} ({TOKEN_AUTH[n][0]})")
+open_ = sorted(n for n, h in how.items() if not h)
 if open_:
-    print(f"[FAIL] {len(open_)} of {len(first_party)} first-party services accept unauthenticated requests (no AUTH_ENABLED=true):")
+    print(f"[FAIL] {len(open_)} of {len(first_party)} first-party services accept unauthenticated requests "
+          "(no AUTH_ENABLED=true, and no token named in TOKEN_AUTH):")
     for n in open_:
-        print(f"         - {n}")
+        missing = f" (token-auth service: {TOKEN_AUTH[n][0]} is not set in its environment)" if n in TOKEN_AUTH else ""
+        print(f"         - {n}{missing}")
     sys.exit(1)
-print(f"[PASS] all {len(first_party)} first-party services set AUTH_ENABLED=true")
+by_auth = sum(1 for h in how.values() if h == "auth")
+by_token = sum(1 for h in how.values() if h == "token")
+exempt = len(first_party) - len(how)
+print(f"[PASS] all {len(first_party)} first-party services authenticate: "
+      f"{by_auth} set AUTH_ENABLED=true, {by_token} check a token, {exempt} exempt")
 PY

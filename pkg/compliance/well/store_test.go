@@ -35,7 +35,7 @@ func TestYAMLStoreReadsRepoAndRefusesWrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, name := range []string{"none", "lab", "cis-l1-server", "all"} {
+	for _, name := range []string{"none", "lab", "lab-audited", "lab-hardened", "cis-l1-server", "all"} {
 		if !ps.Has(name) {
 			t.Errorf("profile %s missing", name)
 		}

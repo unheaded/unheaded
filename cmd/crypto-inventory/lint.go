@@ -102,6 +102,10 @@ func rulesFor(a Asset) []string {
 		if a.PQStatus == pqClassical {
 			rules = append(rules, ruleSSHD)
 		}
+	case kindOwnPrimitive:
+		if !ownListed(a.Path) {
+			rules = append(rules, ruleOwnPrimitive)
+		}
 	}
 	return rules
 }
@@ -256,7 +260,7 @@ func cmdLint(root, baselinePath string, print, update bool, explain string, stdo
 	added, resolved := ratchet(keys, base)
 	if update {
 		if err == nil && len(added) > 0 {
-			fmt.Fprintln(stderr, "[REFUSED] --update only shrinks. New classical key-exchange configuration:")
+			fmt.Fprintln(stderr, "[REFUSED] --update only shrinks. New violations (classical key exchange, or an unlisted hand-written primitive):")
 			for _, k := range added {
 				fmt.Fprintln(stderr, "         "+k)
 			}
@@ -270,9 +274,16 @@ func cmdLint(root, baselinePath string, print, update bool, explain string, stdo
 		return 0
 	}
 	rc := 0
-	if len(added) > 0 {
-		fmt.Fprintln(stderr, "[FAIL] classical-only key exchange configured (ADR-105):")
-		for _, k := range added {
+	var kex, own []string
+	for _, k := range added {
+		if strings.HasSuffix(k, " "+ruleOwnPrimitive) {
+			own = append(own, k)
+		} else {
+			kex = append(kex, k)
+		}
+	}
+	show := func(keys []string) {
+		for _, k := range keys {
 			for _, v := range vs {
 				if v.Key() == k {
 					fmt.Fprintf(stderr, "         %s  (%s:%d %s)\n", k, v.Path, v.Line, v.Detail)
@@ -280,7 +291,17 @@ func cmdLint(root, baselinePath string, print, update bool, explain string, stdo
 				}
 			}
 		}
+	}
+	if len(kex) > 0 {
+		fmt.Fprintln(stderr, "[FAIL] classical-only key exchange configured (ADR-105):")
+		show(kex)
 		fmt.Fprintln(stderr, "       Use a hybrid group (X25519MLKEM768), a TLS 1.3 floor, the aws-lc-rs provider, PG 18 ssl_groups or an mlkem/sntrup KEX; see ADR-105.")
+		rc = 1
+	}
+	if len(own) > 0 {
+		fmt.Fprintln(stderr, "[FAIL] hand-written cryptographic primitive outside the inventory's table:")
+		show(own)
+		fmt.Fprintln(stderr, "       Use a library. If none fits, list the file in ownPrimitives (cmd/crypto-inventory/scan_own.go) with the reason, and tell whoever keeps the export record. This rule is never baselined.")
 		rc = 1
 	}
 	if len(resolved) > 0 {

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/remediation"
 )
 
@@ -93,6 +94,94 @@ func TestModeOnALogFile(t *testing.T) {
 	}
 }
 
+// var-log-modes (S-EVIDENCE-RUNS DE5c): every regular file under /var/log
+// is brought down to the ceiling the var-log-perms probe judges by, and
+// nothing else is touched: a file within its ceiling keeps its mode, an
+// owner is never changed, a symlink is not followed.
+func TestModeCeilingOnVarLog(t *testing.T) {
+	e := newEnv(t)
+	for _, d := range []string{"/var/log/apt", "/var/log/sssd", "/var/log/deep/er"} {
+		if err := os.MkdirAll(e.root+d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := map[string][2]os.FileMode{ // path: before, after
+		"/var/log/syslog":          {0o644, 0o640},
+		"/var/log/auth.log":        {0o640, 0o640},
+		"/var/log/private.log":     {0o600, 0o600}, // tighter than the ceiling stays
+		"/var/log/apt/history.log": {0o666, 0o640},
+		"/var/log/deep/er/x.log":   {0o755, 0o640},
+		"/var/log/wtmp":            {0o664, 0o664},
+		"/var/log/btmp.1":          {0o666, 0o664},
+		"/var/log/cloud-init.log":  {0o644, 0o644},
+		"/var/log/sssd/sssd.log":   {0o666, 0o660},
+		"/var/log/odd.log":         {0o604, 0o600}, // only the bits above the ceiling go
+		// newEnv's own log, world-readable as the ROCm library leaves it.
+		"/var/log/rocm_smi_lib/ROCm-SMI-lib.log": {0o644, 0o640},
+	}
+	for p, m := range files {
+		e.write(p, "x\n", m[0])
+	}
+	if err := os.Symlink(e.root+"/etc/crontab", e.root+"/var/log/link.log"); err != nil {
+		t.Fatal(err)
+	}
+	f := inline(t, "var-log-modes", remediation.Action{Mode: &remediation.ModeAction{Ceiling: "var-log"}})
+	x := e.executor("west")
+
+	devs, err := x.Check(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loose := 0
+	for _, m := range files {
+		if m[0] != m[1] {
+			loose++
+		}
+	}
+	if len(devs) != loose {
+		t.Fatalf("check names %d files, want the %d over their ceiling: %v", len(devs), loose, devs)
+	}
+
+	before := e.snapshot()
+	dir, err := x.Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p, m := range files {
+		fi, err := os.Lstat(e.root + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode().Perm() != m[1] {
+			t.Errorf("%s: %04o, want %04o", p, fi.Mode().Perm(), m[1])
+		}
+		// What the fix leaves is what the probe accepts.
+		if uint32(fi.Mode().Perm())&^crosswalk.VarLogMaxMode(p) != 0 {
+			t.Errorf("%s: %04o is still over the probe's ceiling", p, fi.Mode().Perm())
+		}
+	}
+	if fi, _ := os.Stat(e.root + "/etc/crontab"); fi.Mode().Perm() != 0o644 {
+		t.Errorf("the symlink was followed: /etc/crontab is %04o", fi.Mode().Perm())
+	}
+	if devs, err = x.Check(context.Background(), f); err != nil || len(devs) != 0 {
+		t.Fatalf("after apply: %v %v", devs, err)
+	}
+	// A second apply changes nothing and records nothing to undo.
+	after := e.snapshot()
+	if _, err := x.Apply(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if e.snapshot() != after {
+		t.Error("a second apply changed files")
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if e.snapshot() != before {
+		t.Error("undo did not restore every mode")
+	}
+}
+
 func TestPackageWithoutRecommends(t *testing.T) {
 	e := newEnv(t)
 	f := inline(t, "p", remediation.Action{Package: &remediation.PackageAction{Name: "aide", NoRecommends: true}})
@@ -135,15 +224,13 @@ func TestServiceHalfStatesRefused(t *testing.T) {
 	}
 }
 
-// aideinit builds a database; undo does not rebuild it, and daemon-reload
-// runs after the unit drop-in is gone.
-func TestAideinitNotReplayedDaemonReloadLast(t *testing.T) {
+// daemon-reload runs after the unit file is gone, so systemd forgets it.
+func TestDaemonReloadLastOnUndo(t *testing.T) {
 	e := newEnv(t)
 	f := inline(t, "a",
-		remediation.Action{File: &remediation.FileAction{Path: "/etc/systemd/system/dailyaidecheck.timer.d/60-unheaded.conf", Mode: "0644",
-			Parts: []remediation.Part{{Text: "[Timer]\nOnCalendar=\nOnCalendar=weekly\n"}}}},
-		remediation.Action{Run: "systemctl daemon-reload"},
-		remediation.Action{Run: "aideinit -y -f"})
+		remediation.Action{File: &remediation.FileAction{Path: "/etc/systemd/system/unheaded-aide-check.timer", Mode: "0644",
+			Parts: []remediation.Part{{Text: "[Timer]\nOnCalendar=weekly\n"}}}},
+		remediation.Action{Run: "systemctl daemon-reload"})
 	before := e.snapshot()
 	dir, err := e.executor("east").Apply(context.Background(), f)
 	if err != nil {
@@ -159,7 +246,174 @@ func TestAideinitNotReplayedDaemonReloadLast(t *testing.T) {
 		t.Errorf("undo calls: %q", got)
 	}
 	if e.snapshot() != before {
-		t.Error("undo left the drop-in or its directories")
+		t.Error("undo left the unit or its directories")
+	}
+}
+
+// A diversion is added once and removed by undo; one that is already there
+// is left alone both ways.
+func TestDivertAndUndo(t *testing.T) {
+	e := newEnv(t)
+	f := inline(t, "d", remediation.Action{Divert: "/etc/cron.daily/dailyaidecheck"})
+	dir, err := e.executor("west").Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "dpkg-divert --listpackage /etc/cron.daily/dailyaidecheck\ndpkg-divert --local --rename --add /etc/cron.daily/dailyaidecheck"
+	if got := strings.TrimSpace(e.callLog()); got != want {
+		t.Errorf("apply calls:\n%s\nwant:\n%s", got, want)
+	}
+	if err := os.WriteFile(e.calls, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(e.callLog()); got != "dpkg-divert --local --rename --remove /etc/cron.daily/dailyaidecheck" {
+		t.Errorf("undo calls: %q", got)
+	}
+
+	e = newEnv(t)
+	e.answer("dpkg-divert", "--listpackage /etc/cron.daily/dailyaidecheck", "LOCAL")
+	dir, err = e.executor("west").Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(e.callLog()); got != "dpkg-divert --listpackage /etc/cron.daily/dailyaidecheck" {
+		t.Errorf("already diverted, apply calls: %q", got)
+	}
+	if err := os.WriteFile(e.calls, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(e.callLog()); got != "" {
+		t.Errorf("undo removed a diversion this apply did not add: %q", got)
+	}
+
+	// A dpkg-divert that fails is an error, and nothing was recorded to undo.
+	e = newEnv(t)
+	e.failing("dpkg-divert")
+	if _, err := e.executor("west").Apply(context.Background(), f); err == nil {
+		t.Error("a failing dpkg-divert was not an error")
+	}
+}
+
+func repoFix(t *testing.T, id string) remediation.Fix {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "compliance", "remediation", "fixes.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := remediation.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range m.Fixes {
+		if f.ID == id {
+			return f
+		}
+	}
+	t.Fatalf("no fix %s", id)
+	return remediation.Fix{}
+}
+
+// The shipped aide-install, end to end against fakes: the package without
+// recommends, our files, the package's paths off, the config check, our
+// timer on. No call builds or updates a database. Undo puts it all back.
+func TestAideInstallAppliesQuietlyAndUndoes(t *testing.T) {
+	e := newEnv(t)
+	f := repoFix(t, "aide-install")
+	before := e.snapshot()
+	x := e.executor("west")
+	dir, err := x.Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := e.root + "/etc/aide/aide-unheaded.conf"
+	want := strings.Join([]string{
+		"apt-get install -y -q --no-install-recommends aide",
+		"systemctl daemon-reload",
+		"systemctl mask dailyaidecheck.timer",
+		"dpkg-divert --listpackage /etc/cron.daily/dailyaidecheck",
+		"dpkg-divert --local --rename --add /etc/cron.daily/dailyaidecheck",
+		"dpkg-divert --listpackage /etc/cron.daily/aide",
+		"dpkg-divert --local --rename --add /etc/cron.daily/aide",
+		"aide --config=" + conf + " --config-check",
+		"systemctl enable --now unheaded-aide-check.timer",
+	}, "\n")
+	if got := strings.TrimSpace(e.callLog()); got != want {
+		t.Errorf("apply calls:\n%s\nwant:\n%s", got, want)
+	}
+	for _, l := range strings.Split(e.callLog(), "\n") {
+		if strings.Contains(l, "init") || strings.Contains(l, "--update") {
+			t.Errorf("apply ran %q", l)
+		}
+	}
+	fi, err := os.Stat(conf)
+	if err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("config: %v, mode %v; want 0600", err, fi)
+	}
+	for _, u := range []string{"unheaded-aide-check.service", "unheaded-aide-check.timer"} {
+		if fi, err := os.Stat(e.root + "/etc/systemd/system/" + u); err != nil || fi.Mode().Perm() != 0o644 {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	if err := os.WriteFile(e.calls, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	wantUndo := strings.Join([]string{
+		"systemctl disable --now unheaded-aide-check.timer",
+		"dpkg-divert --local --rename --remove /etc/cron.daily/aide",
+		"dpkg-divert --local --rename --remove /etc/cron.daily/dailyaidecheck",
+		"systemctl unmask dailyaidecheck.timer",
+		"apt-get remove -y aide",
+		"systemctl daemon-reload",
+	}, "\n")
+	if got := strings.TrimSpace(e.callLog()); got != wantUndo {
+		t.Errorf("undo calls:\n%s\nwant:\n%s", got, wantUndo)
+	}
+	if e.snapshot() != before {
+		t.Error("undo left files behind")
+	}
+
+	// A config AIDE does not parse is refused, and everything is restored.
+	e = newEnv(t)
+	e.failing("aide")
+	before = e.snapshot()
+	if _, err := e.executor("west").Apply(context.Background(), f); !errors.Is(err, ErrRefused) {
+		t.Fatalf("got %v, want ErrRefused", err)
+	}
+	if e.snapshot() != before {
+		t.Error("a refused apply left files behind")
+	}
+	if strings.Contains(e.callLog(), "enable --now unheaded-aide-check.timer") {
+		t.Error("the timer was enabled on a config that does not parse")
+	}
+}
+
+// No allowlisted string maps to a command that builds a database.
+func TestNoCommandBuildsAnAideDatabase(t *testing.T) {
+	e := newEnv(t)
+	for _, s := range []string{"aideinit -y -f", "aideinit", "aide --init", "aide --update"} {
+		if _, err := e.cmds().argv(s); !errors.Is(err, ErrRefused) {
+			t.Errorf("argv(%q) = %v, want ErrRefused", s, err)
+		}
+	}
+	for cmd := range remediation.AllowedRun {
+		argv, err := e.cmds().argv(cmd)
+		if err != nil {
+			t.Errorf("allowlisted run %q has no argv: %v", cmd, err)
+		}
+		for _, a := range argv {
+			if strings.Contains(a, "aideinit") || a == "--init" || a == "--update" {
+				t.Errorf("run %q maps to %v", cmd, argv)
+			}
+		}
 	}
 }
 

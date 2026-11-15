@@ -13,6 +13,13 @@ profiles:
       time-p2p and journald-caps added 2026-10-13 (west serves time to east;
       journald capped at 1G/200M after the old journals were archived).
     fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, time-p2p, journald-caps]
+  - name: lab-audited
+    description: >-
+      West until B-08 and B-18 (Stevie 2026-11-13, DE4): the lab fixes plus
+      what watches and records and changes no login: CIS audit rules, AIDE
+      with a weekly idle check, the ROCm log modes and the /var/log ceiling
+      (DE5c). The sshd settings and AppArmor enforce stay with lab-hardened.
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, time-p2p, journald-caps, auditd-rules, aide-install, rocm-log-perms, var-log-modes]
   - name: lab-hardened
     description: >-
       East since 2026-10-12 (Stevie, after the east security audit): the lab
@@ -22,7 +29,8 @@ profiles:
       log modes, AIDE with a weekly check, and AppArmor's complain-mode
       profiles in enforce; applied in the E-D host window (east first),
       after which west moves here too.
-    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, auditd-rules, sshd-safe, time-p2p, journald-caps, rocm-log-perms, aide-install, apparmor-enforce]
+      2026-11-15 (S-EVIDENCE-RUNS DE5c): also the /var/log ceiling.
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, auditd-rules, sshd-safe, time-p2p, journald-caps, rocm-log-perms, aide-install, apparmor-enforce, var-log-modes]
   - name: cis-l1-server
     description: Every fix that serves a CIS Ubuntu 24.04 Level 1 Server recommendation.
     fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, sudo-cis, shell-tmout, sshd-safe]

@@ -3,7 +3,7 @@
 # docker/services/shield/Dockerfile
 # eBPF WAF service — requires elevated capabilities
 
-ARG GO_VERSION=1.27.3
+ARG GO_VERSION=1.27.4
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
 ARG COMMIT=unknown

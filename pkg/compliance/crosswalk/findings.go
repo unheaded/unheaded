@@ -48,6 +48,19 @@ var findingClasses = map[string]bool{
 // remediation model (ADR-099) uses the same set.
 func IsFindingClass(c string) bool { return findingClasses[c] }
 
+// The classes whose enforcing action changes the host (ADR-098 §2). The
+// rest are alert-only (package, boot, mac, account, mount) or not a host
+// action (app, container, ci, backup, process).
+var enforceableClasses = map[string]bool{
+	"sysctl": true, "service": true, "sshd": true, "firewall": true,
+	"kmod": true, "fileperm": true, "sudo": true, "shell": true,
+}
+
+// IsEnforceableClass reports whether enforcing mode acts on class c. A
+// host may be flipped only with no open finding in these classes
+// (ADR-098, condition 3).
+func IsEnforceableClass(c string) bool { return enforceableClasses[c] }
+
 var lockoutRisks = map[string]bool{"none": true, "low": true, "high": true}
 
 // maxAcceptance caps a risk acceptance: it must be re-decided, not left.

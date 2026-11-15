@@ -93,6 +93,14 @@ and `unheaded_baseline_soak_clean_seconds{instance="<host>"} >= 604800`.
   enforcing run without the drop-in below logs `event=enforce-failed ... apply
   needs root` for every fix. The flip adds it.
 - The 7 days above.
+- `go run ./cmd/compliance-evidence findings -enforce-ready <host>` reads
+  `ready: yes` (ADR-098 condition 3). It lists the host's open findings in the
+  classes enforcing acts on (sysctl, service, sshd, firewall, kmod, fileperm,
+  sudo, shell) from the same open list as the findings report, and ends with
+  `ready: yes` or `ready: no (N)`. An accepted row still counts, an untriaged
+  row on the host counts until it has a class, and a row in one of those
+  classes that names no host counts for every host. Run the collector first;
+  the answer is host data and goes under `var/` (`-out`).
 
 ## The flip (east first)
 
