@@ -79,6 +79,9 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       # 30d: the SLOs' error budgets are over 28 days (observability/alerting/policy.yaml).
+      # Of only the series the rules read (prometheus.yml's rule-series keep,
+      # scripts/gen-prom-keep-list.py); everything else is VictoriaMetrics'
+      # alone (ADR-147 decisions 9, 10).
       - '--storage.tsdb.retention.time=30d'
       # No --web.enable-admin-api / --web.enable-lifecycle: 9090 is published
       # and those APIs have no auth (delete series, snapshots, /-/quit). Reload

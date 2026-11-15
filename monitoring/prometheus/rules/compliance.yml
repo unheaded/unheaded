@@ -145,7 +145,7 @@ groups:
         for: 0m
         labels:
           severity: warning
-          urgency: ticket
+          urgency: none
         annotations:
           summary: "An audit line could not be written (NIST AU-5)"
           description: "{{ $labels.job }} failed to write an audit line in the last 15m (unheaded_auth_audit_write_failures_total): disk, pipe or journal"

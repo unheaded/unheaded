@@ -483,6 +483,16 @@ provoke_prometheus_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_prom_keep_list() {
+    # Contract (ADR-147 decisions 9, 10): Prometheus keeps only the series
+    # its rules read, so a rule may not read one the keep-list lacks.
+    local f="monitoring/prometheus/rules/wotan.yml"
+    backup "${f}"
+    sed -i 's|(increase(unheaded_wotan_topic_permission_refusals_total\[15m\])) > 0$|(increase(unheaded_wotan_topic_permission_refusals_total[15m])) > 0 or provoke_unlisted_total|' "${REPO_ROOT}/${f}"
+    grep -q ' or provoke_unlisted_total$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -1367,6 +1377,7 @@ well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
+check-prometheus-rules|provoke_prom_keep_list|fast|a rule reads a series the keep-list lacks
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have

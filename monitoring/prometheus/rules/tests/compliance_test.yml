@@ -114,7 +114,7 @@ tests:
       - eval_time: 12m
         alertname: AuditWriteFailing
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: ticket, job: wotan}
+          - exp_labels: {severity: warning, urgency: none, job: wotan}
             exp_annotations:
               summary: "An audit line could not be written (NIST AU-5)"
               description: "wotan failed to write an audit line in the last 15m (unheaded_auth_audit_write_failures_total): disk, pipe or journal"
