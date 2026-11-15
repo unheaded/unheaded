@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# VictoriaMetrics: a nightly backup set (ADR-147 decision 6, S-SEE-AND-SURVIVE
+# Phase 9). scripts/backup/victoria-backup.sh takes a snapshot through the
+# API on 127.0.0.1:8428 with the admin key from the victoria-auth volume (on
+# curl's stdin, never argv), copies it to the set root, checksums it,
+# writes LATEST, keeps the newest 14 and deletes the snapshot. Root: the
+# data and the key are in Docker's volumes. The files it runs are
+# root-owned copies, never the repo's.
+# Install (S-SEE-AND-SURVIVE Phase 13; the three store-backup units together):
+#   sudo install -d -m 0755 /usr/local/lib/unheaded/backup
+#   sudo install -m 0755 scripts/backup/{lib-disks,clickhouse-backup,clickhouse-drill,victoria-backup,victoria-drill,store-drill}.sh /usr/local/lib/unheaded/backup/
+#   sudo install -m 0644 config/clickhouse/backups.xml /usr/local/lib/unheaded/backup/clickhouse-backups.xml
+#   sudo install -d -m 0700 -o 16707 -g 16707 /srv/backups/unheaded-clickhouse
+#   sudo install -d -m 0700 /srv/backups/unheaded-victoria
+#   sudo cp deploy/systemd/unheaded-{clickhouse-backup,victoria-backup,store-drill}.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now unheaded-clickhouse-backup.timer unheaded-victoria-backup.timer unheaded-store-drill.timer
+
+[Unit]
+Description=VictoriaMetrics: nightly backup set (ADR-147)
+After=docker.service unheaded-clickhouse-backup.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=VM_URL=http://127.0.0.1:8428
+Environment=VM_BACKUP_DIR=/srv/backups/unheaded-victoria
+Environment=VM_BACKUP_KEEP=14
+Environment=VM_BACKUP_OTHER_DISK=1
+Environment=STORE_METRICS_DIR=/var/lib/unheaded/textfile
+Environment=DOCKER_CONFIG=/run/unheaded-victoria-backup
+RuntimeDirectory=unheaded-victoria-backup
+ExecStart=/usr/local/lib/unheaded/backup/victoria-backup.sh
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/srv/backups/unheaded-victoria /var/lib/unheaded/textfile
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+IPAddressDeny=any
+IPAddressAllow=localhost
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH CAP_CHOWN CAP_FOWNER

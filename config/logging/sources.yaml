@@ -1552,6 +1552,33 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:runs in compose on west (west/compose-auth); the host unit is not installed"
+  - id: unit/unheaded-clickhouse-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-clickhouse-backup.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 13 (then max_silence 26h, like the Well's backup units; the store-backups SLO watches the result)"
+  - id: unit/unheaded-victoria-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-victoria-backup.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 13 (then max_silence 26h, like the Well's backup units; the store-backups SLO watches the result)"
+  - id: unit/unheaded-store-drill
+    host: west
+    kind: journal-unit
+    match: unheaded-store-drill.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 13 (then max_silence 8d, like the Well's backup units; the store-backups SLO watches the result)"
   - id: unit/unheaded-host-state
     host: west
     kind: journal-unit
