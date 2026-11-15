@@ -2,7 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 # publish.sh — Publish .deb artifacts to the Yggdrasil apt repo.
-# Called by the Jenkins pipeline on tag builds.
+# Was called by the Jenkins pipeline on tag builds (removed 2026-11-15);
+# no runner calls it today.
 #
 # Repo layout (reprepro-managed):
 #   apt.unheaded.dev/yggdrasil/

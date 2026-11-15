@@ -9,7 +9,7 @@
 #
 # Status: SCAFFOLD — full template flow wired with provisioner placeholders
 # pointing at sibling scripts. The Phase 1 work in task #65 fills in the
-# actual provisioner shell logic + Jenkins integration. This file is the
+# actual provisioner shell logic + CI integration. This file is the
 # CONTRACT for what the build looks like; it does not yet run end-to-end.
 #
 # Acceptance gates (from ADR-69420 Micromanager §):

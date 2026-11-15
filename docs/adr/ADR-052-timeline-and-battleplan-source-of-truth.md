@@ -120,3 +120,7 @@ A pre-commit hook (optional, local-only, warn-mode) is provided in `scripts/chec
 ---
 
 *ADR-052 forged 2026-04-27 from Cowork-on-Macbook in response to the Round Table's two source-of-truth citations. Drift becomes structurally impossible from this commit forward.*
+
+## Update 2026-11-15: Jenkins removed
+
+Stevie, 2026-11-15: no JVM, no Java, no Jenkins anywhere in the stack or the workflow. The repository's Jenkins files are deleted (`Jenkinsfile`, `jenkins/`, `nix/yggdrasil/Jenkinsfile`, `runbooks/infra/jenkins-server.yaml`, `scripts/install-trivy.sh`). The drift guard runs in GitHub Actions only; the Jenkinsfile's `Timeline Drift Guard` stage went with the file. The text above is kept as the record of what was decided then.

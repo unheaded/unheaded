@@ -126,7 +126,7 @@ if command -v cargo &>/dev/null; then
             skip_step "Rust Check (${ws})" "Cargo.toml not present"
         fi
     done
-    # Run tests on a curated subset (faster CI; full sweep happens in Jenkins).
+    # Run tests on a curated subset (faster CI; the full sweep runs in GitHub Actions).
     for ws in crates/monad-mbc crates/zhend; do
         if [ -f "${ws}/Cargo.toml" ]; then
             run_step "Rust Test (${ws})" cargo test --manifest-path "${ws}/Cargo.toml" --release

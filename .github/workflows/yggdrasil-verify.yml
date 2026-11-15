@@ -1,4 +1,4 @@
-# Yggdrasil Verify — GHA companion to the Jenkins pipeline (task #65)
+# Yggdrasil Verify — the pre-merge gate for nix/yggdrasil/ (task #65)
 #
 # Runs on every PR touching nix/yggdrasil/. Validates:
 #   - YAML schema validates against nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml
@@ -8,7 +8,8 @@
 #   - Anchor verification + overlay verification scripts run clean
 #
 # This is the lightweight pre-merge gate. The heavy lifting (full ISO
-# build + lynis + signed manifest) runs in Jenkins on a tagged builder.
+# build + lynis + signed manifest) has no runner: its Jenkinsfile was removed
+# 2026-11-15 (no JVM, no Java) and the replacement is not chosen.
 
 name: Yggdrasil Verify
 

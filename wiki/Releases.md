@@ -28,7 +28,7 @@ The script's own contract is tested offline on every push (CI job `release-verif
 
 ## Packages
 
-`scripts/build-all-debs.sh [VERSION]` builds one deb per binary a `deploy/systemd` unit runs, plus `unheaded-keygen` (every key-holding package depends on it) and `unheaded-configs` (runbooks and `run-runbook.py` under `/opt/unheaded`). The table (names, units, accounts, keys) is `scripts/lib/deb-packages.sh`; `debian/control` is generated from it and the Jenkinsfile and `debian/rules` build through the same script. Unit names, upgrades and the TLS precondition: `deploy/systemd/README.md` ("Binary paths and unit names").
+`scripts/build-all-debs.sh [VERSION]` builds one deb per binary a `deploy/systemd` unit runs, plus `unheaded-keygen` (every key-holding package depends on it) and `unheaded-configs` (runbooks and `run-runbook.py` under `/opt/unheaded`). The table (names, units, accounts, keys) is `scripts/lib/deb-packages.sh`; `debian/control` is generated from it and `release.yml` and `debian/rules` build through the same script. Unit names, upgrades and the TLS precondition: `deploy/systemd/README.md` ("Binary paths and unit names").
 
 `DEB_SIGN_KEY=<keyid>` also writes `SHA256SUMS` and a detached `SHA256SUMS.gpg` over that build's debs (`gpg --verify SHA256SUMS.gpg SHA256SUMS && sha256sum -c SHA256SUMS`). The trust anchor for hosts is the repository's signed `InRelease`, below.
 

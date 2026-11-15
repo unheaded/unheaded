@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 # smoke-boot.sh — Boot the built Yggdrasil qcow2 in qemu and confirm
-# yggdrasil-doctor upc passes. Called by Jenkinsfile "Smoke boot" stage.
+# yggdrasil-doctor upc passes. Was called by the Jenkinsfile's "Smoke boot" stage (removed 2026-11-15); no runner calls it today.
 #
 # Status: SCAFFOLD. Real implementation requires the packer-built qcow2 to
 # exist + qemu-system-x86_64 + SSH client. This file is the contract for

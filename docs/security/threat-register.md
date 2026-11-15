@@ -161,7 +161,7 @@ vendor fix. Tracked as **FND-011** (high) in `compliance/findings/register.yaml`
 - Rust: cargo-deny, RustSec advisory DB
 - Python: pip-audit, PyPI Security Advisories
 **Last entry**: PENDING (toolchains not in Cowork sandbox)
-**Notes**: govulncheck + gosec already run in Jenkins per existing Jenkinsfile stages.
+**Notes**: govulncheck + gosec run in GitHub Actions (`security.yml`). (Jenkins, which also ran them, was removed 2026-11-15.)
 
 ### Category 4 — Container runtimes
 **Why**: LXD + containerd + Docker + NixOS interop; runtime escape CVEs are existential.

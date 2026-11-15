@@ -13,7 +13,6 @@
 nix/yggdrasil/
 ├── README.md                              ← you are here
 ├── anchor.nix                             ← Pillar 1: Debian anchor (bookworm 12.x)
-├── Jenkinsfile                            ← CI/CD pipeline runner (task #65)
 │
 ├── overlay/                               ← Pillars 2 + 5 (overlay + UPC)
 │   ├── patches/                           ← Quilt-format base patches
@@ -72,7 +71,7 @@ Plus the GHA companion at `.github/workflows/yggdrasil-verify.yml` (lightweight 
 PR to nix/yggdrasil/ → GHA yggdrasil-verify.yml (5 jobs, lightweight)
                           │
                           ▼ on merge
-Jenkinsfile (cron 4 AM + tag) → 7 stages
+(no runner since 2026-11-15; the Jenkinsfile that ran these was removed) → 7 stages
   1. Discipline gates       (anchor + overlay verify)
   2. Cargo audit + govulncheck
   3. packer build           (preseed → 8 provisioners → reproducibility)
@@ -93,10 +92,10 @@ Output: qcow2 image + signed evidence-pack-<hash>.tar.gz
 | 1. Anchor release | `anchor.nix` + `scripts/yggdrasil-verify-anchor.sh` | ✅ |
 | 2. Overlay patch format | quilt-3.0 + `overlay/patches/series` + `overlay/upc/series` | ✅ |
 | 3. Rebase cadence | 14d for upstream point release; 7d for security CVEs | 📋 documented in `docs/OS-FORK-DISCIPLINE.md` |
-| 4. Divergence budget | 50 patches max; 5000 LOC delta max; CI-enforced (Jenkinsfile + GHA) | ✅ |
+| 4. Divergence budget | 50 patches max; 5000 LOC delta max; CI-enforced (GHA) | ✅ |
 | 5. UPC integration | 5 required surfaces + 6 invariants per task #71 | ✅ |
 
-## Acceptance gates (Jenkinsfile-enforced)
+## Acceptance gates (enforced by the build runner, which does not exist yet)
 
 - [ ] `packer build` produces byte-identical ISOs on repeat runs (reproducibility — `08-reproducibility-clean.sh` + `SOURCE_DATE_EPOCH` plumbing)
 - [ ] `lynis audit` returns hardening index ≥ 90 (`07-lynis-gate.sh`)
@@ -110,7 +109,7 @@ Output: qcow2 image + signed evidence-pack-<hash>.tar.gz
 | Task | Description | 2026-05-11 status |
 |------|-------------|-------------------|
 | #69 OS-FORK-DISCIPLINE doc | ✅ closed 2026-05-10 (4 pillars + Pillar 5 added 2026-05-11) |
-| #65 P1 Debian hardening pipeline | 🟡 Scaffold complete 2026-05-11 (packer + provisioners + scripts + Jenkinsfile + GHA + apt repo + smoke harness). Real builds = Q4 2026 horizon. |
+| #65 P1 Debian hardening pipeline | 🟡 Scaffold complete 2026-05-11 (packer + provisioners + scripts + GHA + apt repo + smoke harness; the Jenkinsfile was removed 2026-11-15). Real builds = Q4 2026 horizon. |
 | #68 P1 signed-manifest evidence pack | 🟢 Implemented 2026-10-23 (S-QUANTUM-ARMOR, ADR-105): all `cmd/yggdrasil-evidence` subcommands work (`validate`, `sign`, `pubkey`, `verify-signature`, `verify-iso`, `verify-gates`, `verify-custody`, `verify`, `diff`) with ML-DSA-65 non-expiring evidence seals and a signed chain of custody; the build script signs when `YGGDRASIL_BUILD_KEY` is set; gate `scripts/check-evidence-pack.sh`. Left: the production build key (E4, FND-018) and real builds (with #65). |
 | #71 UPC accessible & present | 🟡 Scaffold complete 2026-05-11 (overlay patches + systemd unit + doctor preflight + apt-list). Real apt-install = with #65. |
 | #66 P2 SELinux policy port | ⏸ Blocked on #65 |
@@ -120,7 +119,7 @@ Output: qcow2 image + signed evidence-pack-<hash>.tar.gz
 
 - Build any actual ISO. (Packer template is the contract; runner doesn't yet exist.)
 - Sign anything with the real Yggdrasil ML-DSA-65 key. The tooling signs and verifies (#68 above); the production build key's custody is Stevie's decision (E4, FND-018).
-- Run on a real Jenkins or GitHub-actions self-hosted runner. (CI manifests landed; runner provisioning is separate.)
+- Run on any build runner. (The Jenkinsfile was removed 2026-11-15: no JVM, no Java. The runner is not chosen.)
 - Implement SELinux policy. (Task #66, blocked on #65.)
 - Test cloud image variants. (Task #67, blocked on #65.)
 

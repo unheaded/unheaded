@@ -38,7 +38,7 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | (moved) | K8s manifests and chart live in `unheaded-k8s` (DP-17) |
 | `monitoring/` | Prometheus rules, Grafana dashboards, Loki, Alertmanager |
 | `routing/` | BIRD, FRR, OSPF, IS-IS, MPLS configs |
-| `debian/`, `jenkins/` | Packaging, Jenkins pipeline |
+| `debian/` | Packaging |
 | `runbooks/` | YAML runbooks ([[Runbooks]]) |
 | `systemd/` | Kingdom startup/shutdown units |
 

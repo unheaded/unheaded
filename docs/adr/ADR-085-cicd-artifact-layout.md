@@ -197,3 +197,7 @@ not CI: the repo is not reachable from GitHub.
 - `scripts/build-all-debs.sh` — existing .deb build script (needs wiring into CI)
 - `scripts/build-sealed-cask.sh` — deterministic image builder
 - `deploy/systemd/README.md` — install instructions (current manual process)
+
+## Update 2026-11-15: Jenkins removed
+
+Stevie, 2026-11-15: no JVM, no Java, no Jenkins anywhere in the stack or the workflow. The repository's Jenkins files are deleted (`Jenkinsfile`, `jenkins/`, `nix/yggdrasil/Jenkinsfile`, `runbooks/infra/jenkins-server.yaml`, `scripts/install-trivy.sh`). Phase 3 is GitHub Actions; there is no Jenkinsfile offline fallback. The text above is kept as the record of what was decided then.

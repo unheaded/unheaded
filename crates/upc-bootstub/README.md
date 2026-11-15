@@ -97,7 +97,7 @@ sudo cargo run -p upc-bootctl -- boot \
 ## Out of scope (this crate)
 
 - The uClinux/Linux kernel itself — lives in `crates/uclinux-mbc/` (Phase 2.1) and `crates/linux-mbc/` (Phase 3).
-- The packer/Jenkins pipeline that builds the host distribution — lives in `nix/yggdrasil/` (separate ADR-69420 track).
+- The packer pipeline that builds the host distribution — lives in `nix/yggdrasil/` (separate ADR-69420 track).
 
 ## See also
 

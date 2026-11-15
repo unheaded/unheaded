@@ -121,3 +121,7 @@ releases.
 ---
 
 Free to use. Free to share.
+
+## Update 2026-11-15: Jenkins removed
+
+Stevie, 2026-11-15: no JVM, no Java, no Jenkins anywhere in the stack or the workflow. The repository's Jenkins files are deleted (`Jenkinsfile`, `jenkins/`, `nix/yggdrasil/Jenkinsfile`, `runbooks/infra/jenkins-server.yaml`, `scripts/install-trivy.sh`). CI is GitHub Actions alone. The text above is kept as the record of what was decided then.
