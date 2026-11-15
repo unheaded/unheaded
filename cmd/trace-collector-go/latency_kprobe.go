@@ -69,6 +69,13 @@ func LoadLatencyKprobes(elfPath string, allowUntrusted bool) (*LatencyKprobeLoad
 		log.Info().Str("name", name).Msg("found BPF map in ELF")
 	}
 
+	// Refuse an object whose LATENCY_MAP is not the layout this binary reads,
+	// before anything is loaded into the kernel. The probe and the collector
+	// ship together; an old object under a new binary decoded nothing.
+	if err := checkLatencyMapSpec(spec.Maps["LATENCY_MAP"]); err != nil {
+		return nil, nil, fmt.Errorf("%s: %w (build latency-probe and trace-collector-go from the same commit and install both)", elfPath, err)
+	}
+
 	// Load the collection (all programs + maps)
 	coll, err := ciliumebpf.NewCollection(spec)
 	if err != nil {
@@ -131,6 +138,26 @@ func LoadLatencyKprobes(elfPath string, allowUntrusted bool) (*LatencyKprobeLoad
 	}
 
 	return loader, latencyMap, nil
+}
+
+// checkLatencyMapSpec reports whether an object's LATENCY_MAP is the layout
+// this binary reads: an LRU hash (a plain hash fills up and then refuses every
+// new thread), a LatencyTraceKey key and a LatencyEntry value. nil means the
+// object has no LATENCY_MAP at all.
+func checkLatencyMapSpec(ms *ciliumebpf.MapSpec) error {
+	if ms == nil {
+		return fmt.Errorf("the object has no LATENCY_MAP")
+	}
+	if ms.KeySize != LatencyTraceKeySize {
+		return fmt.Errorf("LATENCY_MAP has key %d bytes, want %d: the object is from another build than this binary", ms.KeySize, LatencyTraceKeySize)
+	}
+	if ms.ValueSize != LatencyEntrySize {
+		return fmt.Errorf("LATENCY_MAP has value %d bytes, want %d: the object is from another build than this binary", ms.ValueSize, LatencyEntrySize)
+	}
+	if ms.Type != ciliumebpf.LRUHash {
+		return fmt.Errorf("LATENCY_MAP is a %s map, want an LRU hash: the object is from before the map was bounded", ms.Type)
+	}
+	return nil
 }
 
 // Close detaches all kprobes and releases the collection.
