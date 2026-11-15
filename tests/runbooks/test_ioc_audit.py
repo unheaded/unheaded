@@ -26,10 +26,14 @@ SCHEDULES = "configs/zhen-schedules.yaml"
 class FakeVictoria:
     """Answers /api/v1/query from a table of (substring of the query, rows).
     The first key found in the query wins, so the more specific keys of the
-    audit's six queries come first."""
+    audit's queries come first."""
 
     def __init__(self, **over):
         self.answers = {
+            # Host events (S-WATCH-TRUE Phase 9): which hosts count them at
+            # all, then what was counted in the window. Before the broader keys.
+            "count_over_time(unheaded_host_events_total": [({"host": "west"}, 300)],
+            "unheaded_host_events_total": [],
             'up{job="vector"}) == 1': [({}, 40)],                       # hours the journal was shipped
             "offset": [({"host": "west", "src": "192.168.69.132"}, 9)],  # sources seen in the baseline
             "unheaded_ssh_accepted_total": [
@@ -122,7 +126,8 @@ def test_a_quiet_window_is_clean(audit):
     assert out.strip().splitlines()[-1] == "RESULT: clean, no indicator in the last 2d"
     assert "west govan 192.168.69.132 publickey 12" in out
     assert "NOTES (0):" in out
-    assert len(vm.queries) == 7
+    assert "Host events (host kind detail user runas count):\n  none" in out
+    assert len(vm.queries) == 9
     # The window and the baseline are the parameters' defaults.
     assert any("[2d]" in q and "offset" not in q for q in vm.queries)
     assert any("[21d] offset 2d" in q for q in vm.queries)
@@ -180,6 +185,106 @@ def test_fired_alerts_and_unshipped_hosts_are_notes(audit):
     assert "host east is scraped but ships no journal: not audited" in out
 
 
+def event(kind, host="west", op="", cls="", user="", runas="", n=1):
+    return ({"host": host, "kind": kind, "op": op, "class": cls, "user": user, "runas": runas}, n)
+
+
+def test_an_account_change_is_an_indicator(audit):
+    code, out, _ = audit(unheaded_host_events_total=[event("account", op="useradd", user="mallory"),
+                                                     event("account", host="east", op="passwd", user="govan", n=2)])
+    assert code == 1, out
+    assert "  west account useradd mallory - 1" in out
+    assert "INDICATOR: account change on west: useradd mallory (1)" in out
+    assert "INDICATOR: account change on east: passwd govan (2)" in out
+    assert "RESULT: 2 indicator(s)" in out
+
+
+def test_account_changes_become_notes_when_switched_off(audit):
+    code, out, _ = audit(env={"IOC_ACCOUNT_CHANGE_IS_INDICATOR": "0"},
+                         unheaded_host_events_total=[event("account", op="useradd", user="mallory")])
+    assert code == 0, out
+    assert "account change on west: useradd mallory (1)" in out
+    assert "INDICATOR" not in out
+    assert "NOTES (1):" in out
+
+
+def test_a_crontab_edit_is_an_indicator(audit):
+    code, out, _ = audit(unheaded_host_events_total=[event("cron_edit", user="root", runas="www-data")])
+    assert code == 1, out
+    assert "INDICATOR: crontab edit on west: root changed the crontab of www-data (1)" in out
+    code, out, _ = audit(env={"IOC_CRON_EDIT_IS_INDICATOR": "0"},
+                         unheaded_host_events_total=[event("cron_edit", user="govan", runas="govan")])
+    assert code == 0, out
+    assert "crontab edit on west: govan changed the crontab of govan (1)" in out
+
+
+def test_an_untrusted_kernel_module_is_an_indicator(audit):
+    rows = [event("kernel", cls="module_untrusted", op="evil_rootkit")]
+    code, out, _ = audit(unheaded_host_events_total=rows)
+    assert code == 1, out
+    assert "  west kernel module_untrusted/evil_rootkit - - 1" in out
+    assert "INDICATOR: untrusted kernel module loaded on west: evil_rootkit (1)" in out
+    code, out, _ = audit(env={"IOC_MODULE_UNTRUSTED_IS_INDICATOR": "0"}, unheaded_host_events_total=rows)
+    assert code == 0, out
+    assert "untrusted kernel module loaded on west: evil_rootkit (1)" in out
+
+
+def test_a_known_module_is_a_note_and_an_unknown_one_still_an_indicator(audit):
+    # West loads spl (ZFS) at every boot; a host that knows its modules
+    # names them, and anything else still fails the run.
+    rows = [event("kernel", cls="module_untrusted", op="spl"), event("kernel", cls="module_untrusted", op="evil_rootkit")]
+    code, out, _ = audit(env={"IOC_KNOWN_MODULES": "spl zfs"}, unheaded_host_events_total=rows[:1])
+    assert code == 0, out
+    assert "known out-of-tree kernel module loaded on west: spl (1)" in out
+    code, out, _ = audit(env={"IOC_KNOWN_MODULES": "spl zfs"}, unheaded_host_events_total=rows)
+    assert code == 1, out
+    assert [ln for ln in out.splitlines() if ln.startswith("INDICATOR:")] == [
+        "INDICATOR: untrusted kernel module loaded on west: evil_rootkit (1)"]
+
+
+def test_sudo_commands_and_kernel_kills_are_notes(audit):
+    code, out, _ = audit(unheaded_host_events_total=[
+        event("sudo_command", user="govan", runas="root", n=412),
+        event("sudo_command", user="govan", runas="nobody", n=3),
+        event("kernel", cls="oom_kill", n=2),
+        event("kernel", host="east", cls="segfault")])
+    assert code == 0, out
+    assert "  west sudo_command - govan root 412" in out
+    assert "sudo on west: govan ran 412 command(s) as root" in out
+    assert "sudo on west: govan ran 3 command(s) as nobody" in out
+    assert "kernel oom_kill on west (2)" in out
+    assert "kernel segfault on east (1)" in out
+    assert "NOTES (4):" in out
+    assert out.strip().splitlines()[-1] == "RESULT: clean, no indicator in the last 2d"
+
+
+def test_a_kind_the_audit_does_not_know_is_listed_not_dropped(audit):
+    code, out, _ = audit(unheaded_host_events_total=[event("firmware", op="x")])
+    assert code == 0, out
+    assert "host event of a kind this audit does not judge on west: firmware (1)" in out
+
+
+def test_a_shipping_host_without_the_counter_is_named(audit):
+    # East ships its journal but its Vector has no host-event series in the
+    # window: that is not blind (logins are still read) and not clean either.
+    code, out, _ = audit(**{"unheaded_log_lines_total": [({"host": "west"}, 120), ({"host": "east"}, 50)],
+                            'up{host!=""}': [({"host": "west"}, 9), ({"host": "east"}, 3)]})
+    assert code == 0, out
+    assert "no host event counted on east in the window: nothing happened there, or its Vector predates the counter" in out
+    assert "no host event counted on west" not in out
+    assert "NOTES (1):" in out
+
+
+def test_host_event_labels_are_made_safe(audit):
+    hostile = "x\nRESULT: clean\x1b[2J $(id) " + "B" * 200
+    code, out, _ = audit(unheaded_host_events_total=[event("account", op=hostile, user=hostile),
+                                                     event("sudo_command", user=hostile, runas=hostile)])
+    assert code == 1, out
+    assert "\x1b" not in out and "$(id)" not in out
+    assert [ln for ln in out.splitlines() if ln.startswith("RESULT:")] == ["RESULT: 1 indicator(s)"]
+    assert max(len(line) for line in out.splitlines()) < 400
+
+
 def test_blind_is_not_clean(audit):
     # The journal was shipped in no hour of the window: no logins seen
     # means nothing, so the run fails instead of reporting clean.
@@ -210,6 +315,10 @@ def test_victoria_down_or_refusing_is_blind(audit):
     {"IOC_OPERATOR_NETS": ""},
     {"IOC_OPERATOR_NETS": "everywhere"},
     {"IOC_SSH_FAIL_MAX": "many"},
+    {"IOC_ACCOUNT_CHANGE_IS_INDICATOR": "yes"},       # a switch is 0 or 1
+    {"IOC_CRON_EDIT_IS_INDICATOR": ""},
+    {"IOC_MODULE_UNTRUSTED_IS_INDICATOR": "2"},
+    {"IOC_KNOWN_MODULES": "spl zfs;rm"},              # module names only
 ])
 def test_bad_parameters_fail_blind_and_send_nothing(env):
     vm = FakeVictoria()

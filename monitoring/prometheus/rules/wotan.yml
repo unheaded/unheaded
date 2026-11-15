@@ -1,0 +1,44 @@
+# Prometheus alert rules - Wotan's topic permissions (S-WATCH-TRUE Phase 5)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# configs/wotan.yaml topics.permissions (FND-043) bounds what each service
+# identity may read and publish. Under `unlisted: deny`, `mode: enforce` a
+# call outside the lists gets PermissionDenied and the caller retries: the
+# service stays up, every SLO stays green, and it does no work. On
+# 2026-11-12 Sophia was refused 314 times in 2.5 h and nothing showed it
+# but Wotan's log. A refusal is therefore a ticket of its own (Stevie,
+# 2026-11-12, A-18).
+#
+# Producer: Wotan's /metrics, scraped as job wotan (prometheus.yml).
+#   unheaded_wotan_topic_permission_refusals_total{action, outcome, caller}
+#   action   subscribe | publish
+#   outcome  denied (enforce) | audited (audit: the call went through)
+#   caller   the refused identity as topics.permissions spells it, or
+#            "other" (an unlisted service, a user token, an API key). The
+#            label's values are the config's identities and that one word.
+# Wotan creates every listed caller's series at zero when it loads the
+# config, so the first refusal is an increase from 0 and not a new series
+# that starts at 1 (which increase() reads as no change).
+#
+# `sum by` keeps one alert per caller, action and outcome, so one ticket
+# names one caller. `audited` alerts too: in audit mode that is the
+# warning before enforce. The counter is in memory: a Wotan restart sets
+# it back to zero, and increase() does not count that as a rise.
+#
+# urgency is "none" here like every hand-written rule (ADR-100);
+# observability/alerting/policy.yaml promotes it to a ticket.
+
+groups:
+  - name: wotan-permissions
+    interval: 1m
+    rules:
+      - alert: WotanTopicPermissionRefused
+        expr: sum by (job, instance, action, outcome, caller) (increase(unheaded_wotan_topic_permission_refusals_total[15m])) > 0
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Wotan refused {{ $labels.caller }} a topic {{ $labels.action }} ({{ $labels.outcome }})"
+          description: "A service asked for a topic outside configs/wotan.yaml topics.permissions; under enforce it gets nothing and retries"
+          runbook_url: "runbooks/observe/wotan-topic-refused.yaml"

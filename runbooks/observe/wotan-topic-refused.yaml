@@ -1,0 +1,109 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wotan-topic-refused
+  description: Wotan refused a service a topic read or publish (WotanTopicPermissionRefused); the service is up and gets nothing
+  owner: zhenai
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  S-WATCH-TRUE Phase 5 (Stevie, 2026-11-12, A-18). configs/wotan.yaml
+  topics.permissions (FND-043) lists what each service identity may
+  subscribe to and publish. With `unlisted: deny` and `mode: enforce` a call
+  outside the lists gets PermissionDenied. The caller retries, stays up and
+  healthy, and does no work: no SLO sees it.
+
+  That happened on 2026-11-12: Sophia's list lacked a topic it reads, Wotan
+  refused it 314 times in 2.5 h, and the only sign was Wotan's log. The fix
+  was one prefix in the file and a SIGHUP.
+
+  The alert reads unheaded_wotan_topic_permission_refusals_total{action,
+  outcome, caller}. caller is the refused identity as the file spells it, or
+  "other" for a caller the file does not name (an unlisted service, a user
+  token, an API key). outcome "audited" means mode: audit: the call went
+  through and this is the warning before enforce. The counter is in memory
+  and starts again at zero when Wotan restarts.
+
+  Wotan's log line names the pattern and the member:
+  topic_stream_not_permitted (a stream or subscription),
+  topic_publish_not_permitted (a publish), or
+  topic_permission_refused_audit_only (audit mode). The metric never
+  carries the pattern; the log does.
+
+  Two outcomes. The service is new or its code changed: add the topic to
+  its list (the manual steps). The call is not expected from that identity,
+  or the caller is "other": treat it as a caller with a key it should not
+  have and go to runbooks/security/incident-response.yaml.
+
+steps:
+  - name: which-caller
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="WotanTopicPermissionRefused"}' |
+        python3 -c 'import json,sys; [print(r["metric"].get("caller", "-"), r["metric"].get("action", "-"), r["metric"].get("outcome", "-"), r["metric"]["alertstate"]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Caller, action, outcome and state of each firing alert (no output: nothing is firing now)"
+
+  - name: refusals-by-caller
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum by (caller, action, outcome) (increase(unheaded_wotan_topic_permission_refusals_total[1h])) > 0' |
+        python3 -c 'import json,sys; [print(r["metric"].get("caller", "-"), r["metric"].get("action", "-"), r["metric"].get("outcome", "-"), "%.0f in the last hour" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "How many refusals per caller in the last hour; a steady count is a service retrying, a single one is a one-off call"
+
+  - name: wotan-log
+    action: shell
+    command: |
+      set -euo pipefail
+      docker logs unheaded-wotan --since 30m 2>&1 | grep -E 'topic_stream_not_permitted|topic_publish_not_permitted|topic_permission_refused_audit_only' | tail -40
+    description: "Wotan's refusal lines of the last 30 minutes: each names the member (the caller), the topic or pattern, and the reason. No line: the refusals are older than 30 minutes or came over HTTP"
+
+  - name: callers-list
+    action: manual
+    command: |
+      grep -n -A4 '^      <caller>:' configs/wotan.yaml
+    description: "MANUAL. Put the caller from which-caller in place of <caller>. Its subscribe and publish lists as the repository has them; the running Wotan reads the same file (bind mount /etc/wotan/wotan.yaml). A caller that is not in the file at all is unlisted"
+
+  - name: decide
+    action: manual
+    command: |
+      echo "Expected call (new service, or its code now reads or publishes a new topic): go on to add-topic."
+      echo "Not expected, or caller is other: stop here and run runbooks/security/incident-response.yaml."
+    description: "MANUAL. Compare the pattern in the log with what the service's code subscribes to and publishes. Do not widen a list to make an alert go away"
+
+  - name: add-topic
+    action: manual
+    command: |
+      $EDITOR configs/wotan.yaml
+      docker kill -s HUP unheaded-wotan
+    description: "MANUAL. Add the narrowest pattern that covers the call to the caller's subscribe or publish list. Edit the file in place: sed -i or a rename swaps the inode and the container keeps the old file. SIGHUP reloads the lists; a file that does not parse keeps the old lists and says so in the log"
+
+  - name: reload-result
+    action: shell
+    command: |
+      set -euo pipefail
+      docker logs unheaded-wotan --since 5m 2>&1 | grep -E 'topic_config_reloaded|topic_config_reload_refused' | tail -10
+    description: "After the SIGHUP: topic_config_reloaded with permissions_changed true, or topic_config_reload_refused with the reason (the old lists stay)"
+
+verification:
+  - name: no-new-refusals
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum(increase(unheaded_wotan_topic_permission_refusals_total[5m])) or vector(0)' |
+        python3 -c 'import json,sys; v=float(json.load(sys.stdin)["data"]["result"][0]["value"][1]); print("refusals in the last 5 minutes:", int(v)); sys.exit(v != 0)'
+
+rollback:
+  - name: remove-the-pattern
+    action: manual
+    command: |
+      $EDITOR configs/wotan.yaml
+      docker kill -s HUP unheaded-wotan
+    description: "MANUAL. Only if the added pattern was wrong: take it out again, in place, and reload. Do not use git checkout for this: it replaces the file's inode, the container keeps reading the old one, and the SIGHUP would reload the pattern you meant to remove"

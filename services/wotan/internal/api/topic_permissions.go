@@ -130,7 +130,7 @@ func compilePermissions(p *Permissions) (*compiledPermissions, error) {
 		return nil, fmt.Errorf("topics.permissions.mode: %q is not enforce or audit", p.Mode)
 	}
 	for name, sp := range p.Services {
-		id := strings.ToLower(strings.TrimSpace(name))
+		id := normalIdentity(name)
 		if id == "" {
 			return nil, fmt.Errorf("topics.permissions.services: an identity name is empty")
 		}
@@ -154,7 +154,27 @@ func compilePermissions(p *Permissions) (*compiledPermissions, error) {
 		}
 		cp.services[id] = cs
 	}
+	cp.startRefusalSeries()
 	return cp, nil
+}
+
+// startRefusalSeries creates, at zero, the refusal series of every caller
+// the section names and of callerOther, for the outcome its mode gives.
+// Without it a caller's series would first appear at its first refusal
+// with the value 1, and increase() over a series that starts at 1 is 0:
+// the first refusal would raise no alert. Adding zero changes no count, so
+// a reload is safe.
+func (cp *compiledPermissions) startRefusalSeries() {
+	outcome := outcomeDenied
+	if cp.audit {
+		outcome = outcomeAudited
+	}
+	for _, action := range []string{PermitSubscribe, PermitPublish} {
+		topicPermissionRefusals.WithLabelValues(action, outcome, callerOther).Add(0)
+		for id := range cp.services {
+			topicPermissionRefusals.WithLabelValues(action, outcome, id).Add(0)
+		}
+	}
 }
 
 // validAllowance checks one list entry: Wotan's pattern characters, no
@@ -179,12 +199,25 @@ func validAllowance(pat string) error {
 	return nil
 }
 
+// callerOther is the caller label of every refusal whose identity
+// topics.permissions does not name.
+const callerOther = "other"
+
+// The refusal counter's outcomes.
+const (
+	outcomeDenied  = "denied"  // enforce: the caller got an error
+	outcomeAudited = "audited" // audit: counted and logged, the call went through
+)
+
 // Refusal counters, in the default registry Wotan's /metrics serves.
 // outcome is "denied" (enforce) or "audited" (audit: the call went through).
+// caller is the refused service's name as topics.permissions spells it, or
+// "other": the label's values are the config's identities and that one
+// word, never the subject or the pattern a request carried.
 var topicPermissionRefusals = auto.NewCounterVec(prom.CounterOpts{
 	Name: "unheaded_wotan_topic_permission_refusals_total",
-	Help: "Topic reads or publishes outside the caller's topics.permissions, by action and outcome (denied, audited)",
-}, []string{"action", "outcome"})
+	Help: "Topic reads or publishes outside the caller's topics.permissions, by action, outcome (denied, audited) and caller (an identity listed in topics.permissions, or other; bounded by the config's identities)",
+}, []string{"action", "outcome", "caller"})
 
 // Permit reports whether identity may do action (PermitSubscribe or
 // PermitPublish) on pattern: a topic, or for PermitSubscribe a pattern. The
@@ -209,8 +242,9 @@ func (c *TopicConfig) Permit(identity *auth.Identity, action, pattern string) (a
 	if allowed {
 		return true, ""
 	}
+	caller := cp.callerLabel(identity)
 	if cp.audit {
-		topicPermissionRefusals.WithLabelValues(action, "audited").Inc()
+		topicPermissionRefusals.WithLabelValues(action, outcomeAudited, caller).Inc()
 		log.Warn().
 			Str("identity", identity.Subject).
 			Str("action", action).
@@ -219,8 +253,33 @@ func (c *TopicConfig) Permit(identity *auth.Identity, action, pattern string) (a
 			Msg("topic_permission_refused_audit_only")
 		return true, ""
 	}
-	topicPermissionRefusals.WithLabelValues(action, "denied").Inc()
+	topicPermissionRefusals.WithLabelValues(action, outcomeDenied, caller).Inc()
 	return false, reason
+}
+
+// knows reports whether subject is an identity topics.permissions lists.
+// It matches as decide does: without case or surrounding space.
+func (cp *compiledPermissions) knows(subject string) bool {
+	_, listed := cp.services[normalIdentity(subject)]
+	return listed
+}
+
+// callerLabel is the refusal counter's caller for identity: the listed
+// name, in the config's (lower-cased) spelling, for a service identity the
+// section names, and callerOther for everything else. A user token or an
+// API key that carries a listed name is "other": its subject proves no
+// service (auth.Identity.ServiceSubject).
+func (cp *compiledPermissions) callerLabel(identity *auth.Identity) string {
+	subject := identity.ServiceSubject()
+	if subject == "" || !cp.knows(subject) {
+		return callerOther
+	}
+	return normalIdentity(subject)
+}
+
+// normalIdentity is how an identity name is keyed in compiledPermissions.
+func normalIdentity(name string) string {
+	return strings.ToLower(strings.TrimSpace(name))
 }
 
 func (cp *compiledPermissions) decide(identity *auth.Identity, action, pattern string) (bool, string) {
@@ -228,7 +287,7 @@ func (cp *compiledPermissions) decide(identity *auth.Identity, action, pattern s
 	if subject == "" {
 		return false, "not a service identity"
 	}
-	svc, listed := cp.services[strings.ToLower(strings.TrimSpace(subject))]
+	svc, listed := cp.services[normalIdentity(subject)]
 	if !listed {
 		if cp.unlistedAllow {
 			return true, ""

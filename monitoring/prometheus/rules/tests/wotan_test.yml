@@ -1,0 +1,116 @@
+# promtool test rules wotan_test.yml (from this directory)
+rule_files:
+  - ../wotan.yml
+evaluation_interval: 1m
+tests:
+  # West on 2026-11-12: two refusals early, then flat for 16 h. Quiet once
+  # the 15m window has passed the last rise.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+        values: '2x960'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 16h
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+
+  # One refusal at minute 30. Wotan serves every listed caller at zero from
+  # the start, so the step is an increase. It fires at once (no hold),
+  # names the caller, stays while the last zero is inside the 15m window
+  # (through minute 43) and then clears.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+        values: '0x29 1x60'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="publish",outcome="denied",caller="sophia"}'
+        values: '0x90'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
+        values: '0x90'
+    alert_rule_test:
+      - eval_time: 29m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: subscribe, outcome: denied, caller: sophia}
+            exp_annotations:
+              summary: "Wotan refused sophia a topic subscribe (denied)"
+              description: "A service asked for a topic outside configs/wotan.yaml topics.permissions; under enforce it gets nothing and retries"
+              runbook_url: "runbooks/observe/wotan-topic-refused.yaml"
+      - eval_time: 43m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: subscribe, outcome: denied, caller: sophia}
+            exp_annotations:
+              summary: "Wotan refused sophia a topic subscribe (denied)"
+              description: "A service asked for a topic outside configs/wotan.yaml topics.permissions; under enforce it gets nothing and retries"
+              runbook_url: "runbooks/observe/wotan-topic-refused.yaml"
+      - eval_time: 50m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+
+  # Wotan restarts at minute 30: the in-memory counter goes from 314 back
+  # to 0 and stays there. increase() reads a drop as a reset, not a rise:
+  # no false fire, during the restart or after it.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+        values: '314x29 _x2 0x60'
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 33m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 46m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 80m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+
+  # Audit mode: the call went through and was counted. It alerts with
+  # outcome audited, the warning before the list is enforced. Three
+  # refusals of one caller are one alert, not three.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="publish",outcome="audited",caller="other"}'
+        values: '0x9 1 2 3x40'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 13m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: publish, outcome: audited, caller: other}
+            exp_annotations:
+              summary: "Wotan refused other a topic publish (audited)"
+              description: "A service asked for a topic outside configs/wotan.yaml topics.permissions; under enforce it gets nothing and retries"
+              runbook_url: "runbooks/observe/wotan-topic-refused.yaml"
+      - eval_time: 40m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+
+  # Why Wotan serves zeros: a series that first appears at 1 (no sample at
+  # zero before it) is not an increase, and stays quiet. If the zero series
+  # ever go away, the first refusal of a caller is silent again.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+        values: '_x29 1x60'
+    alert_rule_test:
+      - eval_time: 31m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
+      - eval_time: 44m
+        alertname: WotanTopicPermissionRefused
+        exp_alerts: []
