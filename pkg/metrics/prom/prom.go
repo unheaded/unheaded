@@ -78,6 +78,12 @@ type HistogramOpts struct {
 // as metrics.DefaultBuckets; the parity test pins that.
 var DefBuckets = metrics.DefaultBuckets
 
+// LatencyBuckets are request-latency buckets from 0.1 ms to 10 s (ADR-147,
+// S-SEE-AND-SURVIVE): DefBuckets start at 5 ms, and our services answer in
+// 0.1 to 0.4 ms, so every p50 read 2.5 ms and every p99 4.95 ms. Steps of
+// 2 to 2.5; the bounds from 5 ms up are DefBuckets' own.
+var LatencyBuckets = []float64{0.0001, 0.00025, 0.0005, 0.001, 0.0025, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10}
+
 // BuildFQName joins the non-empty parts with "_". An empty name gives "",
 // exactly as client_golang does.
 func BuildFQName(namespace, subsystem, name string) string {

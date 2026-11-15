@@ -71,7 +71,7 @@ func Initialize(namespace string) *Metrics {
 				Namespace: namespace,
 				Name:      "http_request_duration_seconds",
 				Help:      "HTTP request duration in seconds",
-				Buckets:   prom.DefBuckets,
+				Buckets:   prom.LatencyBuckets,
 			},
 			[]string{"method", "path", "status"},
 		),

@@ -53,7 +53,7 @@ func NewServiceMetrics(serviceName string) *ServiceMetrics {
 				Name:        "unheaded_http_request_duration_seconds",
 				Help:        "HTTP request latency",
 				ConstLabels: prom.Labels{"service": serviceName},
-				Buckets:     prom.DefBuckets,
+				Buckets:     prom.LatencyBuckets,
 			},
 			[]string{"method", "path"},
 		),
