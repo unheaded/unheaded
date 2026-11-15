@@ -1284,7 +1284,7 @@ findings:
     exposure: "file integrity monitoring (SI-7) is not installed yet"
     lockout: none
     step: 3
-    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
+    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts. 2026-11-15 (DE1, Stevie 2026-11-13): superseded. aide alone, without aide-common; the aide-install fix writes our include-list config and weekly idle timer; the database is built by hand after a review (unheaded-aide init, then promote), never by aideinit. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
 
   - source: "host-probe:west:aide-timer"
     severity: low
@@ -1292,7 +1292,7 @@ findings:
     opened: 2026-10-01
     lockout: none
     step: 3
-    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"
+    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email). 2026-11-15 (DE1): superseded. The package's dailyaidecheck.timer stays masked; unheaded-aide-check.timer (aide-install) is the only AIDE run, and it mails nothing. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
 
   - source: "host-probe:east:aide-installed"
     severity: medium
@@ -1301,7 +1301,7 @@ findings:
     exposure: "file integrity monitoring (SI-7) is not installed yet"
     lockout: none
     step: 3
-    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
+    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts. 2026-11-15 (DE1, Stevie 2026-11-13): superseded. aide alone, without aide-common; the aide-install fix writes our include-list config and weekly idle timer; the database is built by hand after a review (unheaded-aide init, then promote), never by aideinit. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
 
   - source: "host-probe:east:aide-timer"
     severity: low
@@ -1309,7 +1309,43 @@ findings:
     opened: 2026-10-01
     lockout: none
     step: 3
-    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"
+    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email). 2026-11-15 (DE1): superseded. The package's dailyaidecheck.timer stays masked; unheaded-aide-check.timer (aide-install) is the only AIDE run, and it mails nothing. S-EVIDENCE-RUNS Phase 9 (east), Phase 10 (west)"
+
+  - source: "host-probe:west:aide-quiet"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "nothing is installed yet, so nothing runs AIDE at all; once it is, this is the check that only our idle weekly unit does"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 10 (west host window): the aide-install fix (package timer masked, cron script diverted, unheaded-aide-check at Nice=19 and idle I/O)"
+
+  - source: "host-probe:west:aide-unreviewed"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "no AIDE check has completed on this host; after the first one, this row is open while a diff waits for a review, one row whatever the run count"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 10 (west host window): attended unheaded-aide init and promote, then the first weekly check; afterwards runbooks/security/aide-change-review.yaml"
+
+  - source: "host-probe:east:aide-quiet"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "nothing is installed yet, so nothing runs AIDE at all; once it is, this is the check that only our idle weekly unit does"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 9 (east host window): the aide-install fix (package timer masked, cron script diverted, unheaded-aide-check at Nice=19 and idle I/O)"
+
+  - source: "host-probe:east:aide-unreviewed"
+    severity: low
+    class: package
+    opened: 2026-11-15
+    exposure: "no AIDE check has completed on this host; after the first one, this row is open while a diff waits for a review, one row whatever the run count"
+    lockout: none
+    step: 3
+    plan: "S-EVIDENCE-RUNS Phase 9 (east host window): attended unheaded-aide init and promote, then the first weekly check; afterwards runbooks/security/aide-change-review.yaml"
 
   # --- CIS 5.3 PAM (2026-10-01): stock Ubuntu PAM on both hosts -------------
 
@@ -1922,6 +1958,8 @@ findings:
       Redeploy east from develop or take the April builds down, then add the host-side evidence kind. 2026-11-06, at
       Stevie's word: a control that reads repository files is DECLARED, not PASS, and a requirement resting on one is
       DECLARED, not EVIDENCED (ADR-097). That stops a file reading as a pass; what closes this is reading what runs
+      (2026-11-15, S-EVIDENCE-RUNS Phase 5: the host-service evidence kind reads west's running services, 12 entries,
+      all pass: running, auth on, 401 without credentials; east waits on S-E1-LIVE Step 218)
   - id: FND-038
     title: >-
       One signing key: agents' commits are signed with Stevie's key and carry Co-Authored-By and Claude-Session trailers,
