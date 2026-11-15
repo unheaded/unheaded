@@ -4,9 +4,17 @@
 package server
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
+	"strings"
 	"testing"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/auth"
 )
 
 // S-WEST-GROUND Phase 3 (ADR-147 decision 16): with AUTH_ANONYMOUS_FROM set,
@@ -42,6 +50,32 @@ func TestMetricsNeedsCredentialFromOutside(t *testing.T) {
 	}
 	if got := from("/metrics", "192.168.69.50:1", e.f.Bearer("unheaded-cli", "dashboard-backend")); got != http.StatusOK {
 		t.Errorf("GET /metrics from the LAN with a token: %d, want 200", got)
+	}
+}
+
+// With auth off the dashboard never builds the chain, so it must say itself
+// that AUTH_ANONYMOUS_FROM limits nothing (review 2026-11-15, REV-3).
+// Not parallel: it swaps the package-wide logger.
+func TestAnonymousFromWithAuthOffWarns(t *testing.T) {
+	var buf bytes.Buffer
+	saved := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = saved })
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})
+	cfg := auth.ServiceAuthConfig{ServiceName: "dashboard-backend", AnonymousFrom: []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}}
+	if _, err := (&Server{}).wrapAuth(cfg, next); err != nil {
+		t.Fatalf("auth off: %v", err)
+	}
+	if !strings.Contains(buf.String(), `"level":"warn"`) || !strings.Contains(buf.String(), "AUTH_ANONYMOUS_FROM") {
+		t.Errorf("auth off with AUTH_ANONYMOUS_FROM: no warning; log: %q", buf.String())
+	}
+	buf.Reset()
+	cfg.AnonymousFrom = nil
+	if _, err := (&Server{}).wrapAuth(cfg, next); err != nil {
+		t.Fatalf("auth off: %v", err)
+	}
+	if buf.Len() != 0 {
+		t.Errorf("auth off, AUTH_ANONYMOUS_FROM unset: logged %q, want nothing", buf.String())
 	}
 }
 

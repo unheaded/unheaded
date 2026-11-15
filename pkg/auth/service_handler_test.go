@@ -4,14 +4,19 @@
 package auth
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 )
 
 // serviceHandlerFixture: keys for "svc" (the service), "caller" (trusted and
@@ -341,5 +346,59 @@ func TestAnonymousFromBadValueRefusesToStart(t *testing.T) {
 	}
 	if _, err := NewServiceChain(cfg, ServiceRoutes{Authenticators: []Authenticator{goodBearer{}}}); err != nil {
 		t.Fatalf("a good value: %v", err)
+	}
+}
+
+// With auth off nothing is gated, so AUTH_ANONYMOUS_FROM does nothing; an
+// operator who set it must hear that at startup (review 2026-11-15, REV-3).
+// Not parallel: it swaps the package-wide logger.
+func TestAnonymousFromWithAuthOffWarns(t *testing.T) {
+	var buf bytes.Buffer
+	saved := log.Logger
+	log.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { log.Logger = saved })
+
+	for _, tc := range []struct {
+		name, value string
+		warn        bool
+	}{
+		{"unset: silent", "", false},
+		{"set: warns", "127.0.0.0/8", true},
+		{"set and malformed: warns", "192.168.0.0/99", true},
+	} {
+		buf.Reset()
+		t.Setenv("AUTH_ENABLED", "false")
+		t.Setenv("AUTH_ANONYMOUS_FROM", tc.value)
+		mw, err := NewServiceChain(LoadServiceAuthConfig("svc"), ServiceRoutes{SourceGated: []string{"/metrics"}})
+		if mw != nil || err != nil {
+			t.Fatalf("%s: auth off: got (%v, %v), want (nil, nil)", tc.name, mw != nil, err)
+		}
+		out := buf.String()
+		got := strings.Contains(out, `"level":"warn"`) && strings.Contains(out, "AUTH_ANONYMOUS_FROM") && strings.Contains(out, `"service":"svc"`)
+		if got != tc.warn {
+			t.Errorf("%s: warning logged = %v, want %v; log: %q", tc.name, got, tc.warn, out)
+		}
+	}
+
+	// routes.AnonymousFrom set by the caller with auth off: the same warning.
+	buf.Reset()
+	t.Setenv("AUTH_ANONYMOUS_FROM", "")
+	routes := ServiceRoutes{AnonymousFrom: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8")}, SourceGated: []string{"/metrics"}}
+	if mw, err := NewServiceChain(LoadServiceAuthConfig("svc"), routes); mw != nil || err != nil {
+		t.Fatalf("routes: got (%v, %v), want (nil, nil)", mw != nil, err)
+	}
+	if !strings.Contains(buf.String(), "AUTH_ANONYMOUS_FROM") {
+		t.Errorf("routes.AnonymousFrom with auth off: no warning; log: %q", buf.String())
+	}
+
+	// Auth on: no such warning.
+	buf.Reset()
+	t.Setenv("AUTH_ENABLED", "true")
+	t.Setenv("AUTH_ANONYMOUS_FROM", "127.0.0.0/8")
+	if _, err := NewServiceChain(LoadServiceAuthConfig("svc"), ServiceRoutes{Authenticators: []Authenticator{goodBearer{}}}); err != nil {
+		t.Fatalf("auth on: %v", err)
+	}
+	if strings.Contains(buf.String(), "has no effect") {
+		t.Errorf("auth on: warned anyway; log: %q", buf.String())
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/netip"
 	"strings"
+
+	"github.com/rs/zerolog/log"
 )
 
 // ServiceRoutes says which of a service's routes stay open with auth on,
@@ -111,11 +113,27 @@ func NewServiceHandler(h http.Handler, cfg ServiceAuthConfig, routes ServiceRout
 	return mw(h), nil
 }
 
+// WarnInertAnonymousFrom logs a warning when AUTH_ANONYMOUS_FROM (or
+// routes.AnonymousFrom) is set and auth is off: nothing is gated then, so the
+// networks limit nothing, and the setting must not look like protection
+// (review 2026-11-15, REV-3). NewServiceChain calls it; a caller that skips
+// the chain with auth off calls it itself.
+func WarnInertAnonymousFrom(cfg ServiceAuthConfig, routes ServiceRoutes) {
+	if cfg.Enabled {
+		return
+	}
+	if len(cfg.AnonymousFrom) > 0 || cfg.anonymousFromErr != nil || len(routes.AnonymousFrom) > 0 {
+		log.Warn().Str("service", cfg.ServiceName).
+			Msg("auth: AUTH_ANONYMOUS_FROM has no effect with AUTH_ENABLED=false: every route, /metrics among them, is open to every network")
+	}
+}
+
 // NewServiceChain is NewServiceHandler as a middleware, for callers that
 // wrap their handler later: (nil, nil) with auth off, the middleware with
 // auth on, or the configuration error.
 func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Handler) http.Handler, error) {
 	if !cfg.Enabled {
+		WarnInertAnonymousFrom(cfg, routes)
 		return nil, nil
 	}
 	if cfg.anonymousFromErr != nil {

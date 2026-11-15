@@ -60,6 +60,7 @@ func dashboardRBAC() *auth.RBACConfig {
 // /auth/me, so the page shows no login.
 func (s *Server) wrapAuth(cfg auth.ServiceAuthConfig, next http.Handler) (http.Handler, error) {
 	if !cfg.Enabled {
+		auth.WarnInertAnonymousFrom(cfg, auth.ServiceRoutes{})
 		return next, nil
 	}
 	bcfg := bff.ConfigFromEnv(cfg.ServiceName)
