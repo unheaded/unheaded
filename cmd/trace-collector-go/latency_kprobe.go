@@ -160,6 +160,15 @@ func checkLatencyMapSpec(ms *ciliumebpf.MapSpec) error {
 	return nil
 }
 
+// StatsMap returns the probe's LATENCY_STATS map, or nil if the object has
+// none. The map belongs to the collection: it is closed by Close.
+func (l *LatencyKprobeLoader) StatsMap() *ciliumebpf.Map {
+	if l == nil || l.collection == nil {
+		return nil
+	}
+	return l.collection.Maps["LATENCY_STATS"]
+}
+
 // Close detaches all kprobes and releases the collection.
 func (l *LatencyKprobeLoader) Close() {
 	for _, lnk := range l.links {

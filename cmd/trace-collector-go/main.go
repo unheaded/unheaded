@@ -729,6 +729,12 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		} else {
 			defer kl.Close()
 			directLatencyMap = lmap
+			// The probe's own counters (LATENCY_STATS), read at scrape time.
+			if sm := kl.StatsMap(); sm == nil {
+				log.Warn().Msg("the latency-probe object has no LATENCY_STATS map; its counters are not exported")
+			} else if err := prom.Register(newLatencyStatsCollector(ebpfLatencyStats{m: sm})); err != nil {
+				log.Warn().Err(err).Msg("could not register latency-probe's counters")
+			}
 			programs[2].Loaded = true
 			// Already attached by LoadLatencyKprobes
 			programsLoaded.WithLabelValues("latency_probe").Set(1)
