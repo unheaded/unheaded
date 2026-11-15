@@ -182,3 +182,21 @@ So none of this is throwaway when C arrives.
    indirect-branch sites. Run **G1**.
 6. Update `references/battle-plan-phase17-gateB-exec-design-2026-06-18.md` status and this ADR's
    implementation-status line when it lands.
+
+## 2026-11-15: an exec'd image's `.bss` arrives zeroed (S-STAGE-2C Phase 5)
+
+Exec copies a program's staged data over the caller's slice and nothing else, and `crt0_mbc.S` calls `main` with no
+`.bss` pass, so an exec'd image's `.bss` held whatever fork had copied there: the parent's bytes (ADR-135 R-NC). Booted:
+`bssprobe` fills a 256-word `.bss` array, forks and execs itself; the exec'd image read the parent's pattern.
+
+`rv32i-to-mbc --with-bss` now writes every `ALLOC` `NOBITS` section (`.bss`, `.sbss`) into the `.data` sidecar as
+zeros, and `Makefile.mbc-userland` passes it for user programs. Exec's copy is unchanged: the staged blob is longer by
+the `.bss`, so the zeros are copied with the data. No BPF change for this, no `.mbc` and no `fs.img` byte changes
+(38 of 38 hashes equal before and after), so no golden moves. The kernel's sidecar is not built with the flag: the
+kernel zeroes its own `.bss`. PROGRAM_TABLE word 7 stays reserved.
+
+Found by the same probe: `SRET` masked the return PC to 16 bits. A resident program whose ROM base is at or above
+0x10000 (PROGRAM_TABLE slots 4 and up: `wc` at 0x12000, `bssprobe` at 0x15000) was resumed in another image after the
+first trap the kernel answered for it. `wc` never makes such a call, so the corpus did not show it. The mask is gone
+(`RET`, `JMPR` and `CALLR` never had one); the verified count moved by -1.
+

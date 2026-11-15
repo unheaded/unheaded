@@ -1481,7 +1481,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             }
                         }
                     }
-                    *mbc_idx & 0xFFFF
+                    // No 16-bit mask: a resident program's ROM base can be at
+                    // or above 0x10000 (PROGRAM_TABLE slots 4 and up: wc at
+                    // 0x12000), and a return there must keep the high bits, as
+                    // RET, JMPR and CALLR do. With the mask, the first trap the
+                    // kernel answered for such a program resumed it in another
+                    // image (found by bssprobe, S-STAGE-2C Phase 5).
+                    *mbc_idx
                 }
                 _ => {
                     mem_write_word(0xE0060 >> 2, 0xDEAD0048); // SRET unmapped sentinel

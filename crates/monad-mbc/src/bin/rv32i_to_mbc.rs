@@ -15,6 +15,45 @@ use std::fs;
 use std::io::{self, Write};
 use std::process;
 
+/// One ELF section, as the `.data` sidecar writer needs it.
+struct DataSection {
+    progbits: bool,
+    nobits: bool,
+    alloc: bool,
+    exec: bool,
+    addr: u32,
+    offset: usize,
+    size: usize,
+}
+
+/// The `.data` sidecar's records, `(address, bytes)` in section order: every
+/// ALLOC PROGBITS section that is not executable (.rodata, .data and their
+/// kin). With `with_bss`, every ALLOC NOBITS section too (.bss, .sbss), as
+/// zeros: exec copies the staged blob over the caller's slice, which fork left
+/// holding the parent's bytes, so without the zeros an exec'd image's .bss is
+/// whatever was there (ADR-135 R-NC).
+fn data_records(sections: &[DataSection], elf_data: &[u8], with_bss: bool) -> Vec<(u32, Vec<u8>)> {
+    let mut records = Vec::new();
+    for sh in sections {
+        if !sh.alloc || sh.exec || sh.size == 0 {
+            continue;
+        }
+        if sh.progbits {
+            if sh.offset + sh.size > elf_data.len() {
+                eprintln!(
+                    "Warning: data section out of bounds (off=0x{:x} sz=0x{:x}); skipping",
+                    sh.offset, sh.size
+                );
+                continue;
+            }
+            records.push((sh.addr, elf_data[sh.offset..sh.offset + sh.size].to_vec()));
+        } else if sh.nobits && with_bss {
+            records.push((sh.addr, vec![0u8; sh.size]));
+        }
+    }
+    records
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -28,6 +67,8 @@ fn main() {
         eprintln!("  --stats      Print translation statistics to stderr");
         eprintln!("  --disasm     Print MBC disassembly to stderr");
         eprintln!("  --sections   List ELF sections and exit");
+        eprintln!("  --with-bss   Also write each ALLOC NOBITS section (.bss, .sbss) into the");
+        eprintln!("               .data sidecar as zeros, so exec hands a program a zeroed .bss");
         process::exit(if args.len() < 2 { 1 } else { 0 });
     }
 
@@ -36,6 +77,7 @@ fn main() {
     let mut show_stats = false;
     let mut show_disasm = false;
     let mut list_sections = false;
+    let mut with_bss = false;
 
     let mut i = 2;
     while i < args.len() {
@@ -58,6 +100,10 @@ fn main() {
             }
             "--sections" => {
                 list_sections = true;
+                i += 1;
+            }
+            "--with-bss" => {
+                with_bss = true;
                 i += 1;
             }
             other => {
@@ -239,32 +285,21 @@ fn main() {
                 } else {
                     format!("{path}.data")
                 };
-                let mut data_records: Vec<(u32, Vec<u8>)> = Vec::new();
-                for sh in elf.section_headers.iter() {
-                    if sh.sh_type != goblin::elf::section_header::SHT_PROGBITS {
-                        continue;
-                    }
-                    if (sh.sh_flags & goblin::elf::section_header::SHF_ALLOC as u64) == 0 {
-                        continue;
-                    }
-                    if (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64) != 0 {
-                        continue;
-                    }
-                    if sh.sh_size == 0 {
-                        continue;
-                    }
-                    let off = sh.sh_offset as usize;
-                    let sz = sh.sh_size as usize;
-                    if off + sz > elf_data.len() {
-                        eprintln!(
-                            "Warning: data section out of bounds (off=0x{off:x} sz=0x{sz:x}); skipping"
-                        );
-                        continue;
-                    }
-                    let vma = sh.sh_addr as u32;
-                    let bytes = elf_data[off..off + sz].to_vec();
-                    data_records.push((vma, bytes));
-                }
+                let sections: Vec<DataSection> = elf
+                    .section_headers
+                    .iter()
+                    .map(|sh| DataSection {
+                        nobits: sh.sh_type == goblin::elf::section_header::SHT_NOBITS,
+                        progbits: sh.sh_type == goblin::elf::section_header::SHT_PROGBITS,
+                        alloc: (sh.sh_flags & goblin::elf::section_header::SHF_ALLOC as u64) != 0,
+                        exec: (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64)
+                            != 0,
+                        addr: sh.sh_addr as u32,
+                        offset: sh.sh_offset as usize,
+                        size: sh.sh_size as usize,
+                    })
+                    .collect();
+                let data_records = data_records(&sections, &elf_data, with_bss);
                 let mut data_blob: Vec<u8> = Vec::new();
                 data_blob.extend_from_slice(&(data_records.len() as u32).to_le_bytes());
                 for (vma, bytes) in &data_records {
@@ -338,5 +373,60 @@ fn main() {
             }
             process::exit(1);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn section(progbits: bool, exec: bool, addr: u32, offset: usize, size: usize) -> DataSection {
+        DataSection {
+            progbits,
+            nobits: !progbits,
+            alloc: true,
+            exec,
+            addr,
+            offset,
+            size,
+        }
+    }
+
+    /// .text, .rodata, .data, then .bss: the layout user.ld gives a program.
+    fn fixture() -> (Vec<DataSection>, Vec<u8>) {
+        let elf: Vec<u8> = (0u8..64).collect();
+        let sections = vec![
+            section(true, true, 0x0000, 0, 16),    // .text
+            section(true, false, 0x0010, 16, 8),   // .rodata
+            section(true, false, 0x1000, 24, 4),   // .data
+            section(false, false, 0x1004, 28, 12), // .bss (NOBITS: no file bytes)
+        ];
+        (sections, elf)
+    }
+
+    #[test]
+    fn with_bss_the_last_record_covers_bss_with_zeros() {
+        let (sections, elf) = fixture();
+        let r = data_records(&sections, &elf, true);
+        assert_eq!(r.len(), 3, "rodata, data, bss");
+        assert_eq!(r[0], (0x0010, elf[16..24].to_vec()));
+        assert_eq!(r[1], (0x1000, elf[24..28].to_vec()));
+        assert_eq!(r[2], (0x1004, vec![0u8; 12]));
+    }
+
+    #[test]
+    fn without_the_flag_there_is_no_bss_record() {
+        let (sections, elf) = fixture();
+        let r = data_records(&sections, &elf, false);
+        assert_eq!(r.len(), 2);
+        assert!(r.iter().all(|(a, _)| *a != 0x1004));
+    }
+
+    #[test]
+    fn with_bss_skips_what_is_not_alloc_and_what_is_empty() {
+        let (mut sections, elf) = fixture();
+        sections[3].alloc = false; // a NOBITS section that is not loaded
+        sections.push(section(false, false, 0x2000, 0, 0)); // an empty .sbss
+        assert_eq!(data_records(&sections, &elf, true).len(), 2);
     }
 }

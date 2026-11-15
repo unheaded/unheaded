@@ -484,7 +484,7 @@ disposition. Text fixes are in this ADR. A code fix named below is outside the r
 | R-S2 | Suspected | R-F5 as a byte oracle | Open, leak rate unmeasured. Rides with R-F5. **Closed with R-F5, 2026-11-15** |
 | R-S3 | Suspected | First-page refusal only matters for a kernel-routed pointer from slot 0 | Checked: real but unreached today. Stated in D6 |
 | R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie. **2026-11-15, S-STAGE-2C Phase 4 (D17): the load-time scan landed and closes the reachable route; translation in BPF did not (verifier budget) and stays open** |
-| R-NC | Not checked by the review | Whether exec zeroes `.bss` | Checked: it does not. D5 narrowed, stated in Security notes, For Stevie |
+| R-NC | Not checked by the review | Whether exec zeroes `.bss` | Checked: it does not. D5 narrowed, stated in Security notes, For Stevie. **Closed 2026-11-15, S-STAGE-2C Phase 5: the `.data` sidecar carries `.bss` as zeros (ADR-077, note of that day)** |
 
 Plan Step 221 reviewed D10-D14 independently at `1dda0be8` plus the uncommitted text, nothing built or booted, and found
 no blocker on its three questions: 24 cannot forge a child's row through the syscall, a parent cannot be killed between
