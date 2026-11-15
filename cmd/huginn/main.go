@@ -394,6 +394,7 @@ func main() {
 	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
 	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
+	cgroupRoot := flag.String("cgroup-root", "/sys/fs/cgroup", "cgroup v2 `DIR` read for per-cgroup series (cgroups.go, ADR-147); empty turns them off")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "huginn",
 		Purpose:  "Huginn: report bare-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR-084).",
@@ -445,8 +446,13 @@ func main() {
 		fmt.Fprintf(os.Stderr, "huginn: db collector active (%d databases)\n", len(cfg.Databases))
 	}
 
+	devs := &devCache{dir: "/sys/dev/block"}
 	allMetrics := func() string {
 		body := promText(label, collect(label))
+		if *cgroupRoot != "" {
+			stats, truncated := collectCgroups(*cgroupRoot, cgroupMaxDepth, cgroupMaxGroups, devs.get())
+			body += promTextCgroups(label, stats, truncated)
+		}
 		body += promTextLogs(label, collectLogs(logFSPath, logRoot, logWalkBudget))
 		if dbc != nil {
 			body += promTextDB(label, dbc.collect())
