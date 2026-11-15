@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West's targets for runbooks/observe/service-health-sweep.yaml (ADR-149),
+# installed as /etc/unheaded/health-sweep.targets. One "name port scheme" per
+# line; the sweep GETs <scheme>://localhost:<port>/health (https against the
+# deployment CA). Read 2026-11-15 21:50Z from what answered 200 on exactly one
+# scheme (S-ZHEN-SWITCH Step 54). Left out by rule: 19001-19006 (plan 2
+# removes or stops them) and every port of modules/zhen/module.yaml.
+trace-collector    16671 http
+wotan              18000 https
+timeguru           19000 https
+unheaded-auth      19020 https
+akira              19100 https
+alert-mailer       19130 http
+dashboard-backend  20000 https
+kanban-app         20001 https
+wiki-server        20002 https
