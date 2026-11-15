@@ -47,6 +47,14 @@ Stevie's word for this run: "focus only on current churn - no questions for now"
 | Z14 | Erda F8, F6 | `app_zhen` no limit; 7 pools, 21 connections | limit 12; two pools, 8 | plan 3, Phases 7, 8B | Step 19 (G-EW closed): Erda's figures, limit -1, 3 sessions, measured 2026-11-15; re-read at Step 268 | branch: limit 12 (051); zhen-agentd 2 pools, caps 6 + 2; zhen-claude 2 (review 2+2); kanban runs pool 2. Live Step 287 pending (8B) | code-ready |
 | Z15 | Erda F8 | Zhen's rows ride the platform's set and its copy on east | excluded; own set, local, drilled | plan 3, Phases 7, 8B | Step 17, 21:41Z: `unheaded_well_backup_databases` 4, `unheaded_well_backup_rows` 1,945,324 | branch: `WELL_BACKUP_EXCLUDE` default unheaded_zhen; Zhen set `unheaded-zhen-backup.{service,timer}`, local; `ZhenBackupStale`. Live (Steps 290, 292): pending (8B) | code-ready |
 
+## Independent review 2026-11-15
+
+Five findings from an independent review of head `3355777e`, each verified before any change.
+
+| id | source | evidence | fix | before | after | status |
+|---|---|---|---|---|---|---|
+| REV-1 | independent review 2026-11-15 (high) | real: `deploy/systemd/user/zhen-agentd-overnight.{service,timer}` are user units outside `unheaded-zhen.target`; `cmd/zhen-agentd` never read the module, so the 01:00 timer (if Stevie enables it) would run `-worker -overnight -claude live` and claim cards with the switch off; `test-zhen-switch.sh` had no check that sees it | `ExecCondition=` on `/run/unheaded/modules/zhen` (a directory, not a symlink) in the user unit; `workerModuleOff` (`cmd/zhen-agentd/module_gate.go`): any `-worker` run (interactive, `-once`, `-overnight`) with the module off writes one JSON log line and exits 0 before any pool opens; switch check C12 (a `zhen-agentd` process runs / none runs, whoever started it); manifest test: every user unit that runs a Zhen binary carries the condition | `TestWorkerModuleGate*` build red (`workerModuleOff` undefined); `test_user_units_running_zhen_skip_while_the_switch_is_off` 1 failed; `test_zhen_switch.py` 4 failed (C12 absent) | `go test -race ./cmd/zhen-agentd/` green; manifest 8 passed; switch 10 passed; shellcheck clean; `systemd-analyze verify --user` silent. Live: not installed (the timer is not enabled; Step 254 is Stevie's) | fixed in code |
+
 ## Log
 
 - 2026-11-15 21:40Z Step 2: worktree at develop `8d35785d`.

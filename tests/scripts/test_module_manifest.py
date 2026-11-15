@@ -83,6 +83,27 @@ def test_bind_allow_is_private_and_matches_the_dropins():
             assert vals == [want], (conf, vals, want)
 
 
+USER_UNITS = UNITS / "user"
+MODULE_MARKER = "/run/unheaded/modules/zhen"
+
+
+def test_user_units_running_zhen_skip_while_the_switch_is_off():
+    """REV-1 (independent review 2026-11-15): a user unit sits outside
+    unheaded-zhen.target, so the switch cannot stop it. Every user service
+    that runs a Zhen binary carries an ExecCondition on the module's runtime
+    directory, which exists only while the switch is on."""
+    found = 0
+    for svc in sorted(USER_UNITS.glob("*.service")):
+        text = svc.read_text(encoding="utf-8")
+        starts = [ln for ln in text.splitlines() if ln.startswith("ExecStart=")]
+        if not any(re.search(r"\bzhen-[a-z-]+\b", ln) for ln in starts):
+            continue
+        found += 1
+        conds = [ln for ln in text.splitlines() if ln.startswith("ExecCondition=")]
+        assert any(MODULE_MARKER in ln and "test -d" in ln and "test ! -L" in ln for ln in conds), svc.name
+    assert found >= 1  # zhen-agentd-overnight.service
+
+
 def test_timers_belong_to_the_switch():
     for name in manifest().get("timers") or []:
         timer = UNITS / name

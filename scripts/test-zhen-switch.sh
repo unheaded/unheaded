@@ -21,6 +21,9 @@
 #   C9  20103 and 20111 listen / none of 8081, 20103, 20111, 20112 listens
 #   C10 not checked when on / no session of app_zhen (SKIP with --no-well)
 #   C11 unheaded_module_enabled{module="zhen"} is 1 / 0
+#   C12 a zhen-agentd process runs / none runs, whoever started it: the
+#       overnight run is a user unit and timer outside the target (its
+#       ExecCondition and -worker's own check keep it off; this sees it)
 #
 # --wait N repeats the whole set every 5 s until it passes or N seconds pass.
 # Exit 0 pass, 1 fail, 2 usage.
@@ -160,10 +163,18 @@ c11() {
     else [ "$v" = 0 ]; verdict C11 $? "unheaded_module_enabled = ${v}, want 0"; fi
 }
 
+c12() {
+    local procs
+    procs="$(pgrep -a -x zhen-agentd 2>/dev/null | awk '{print $1}' | tr '\n' ' ')"
+    procs="${procs% }"
+    if [ "$expect" = on ]; then [ -n "$procs" ]; verdict C12 $? "zhen-agentd process running${procs:+ (pid $procs)}"
+    else [ -z "$procs" ]; verdict C12 $? "no zhen-agentd process (system, user unit or by hand)${procs:+; running: pid $procs}"; fi
+}
+
 start="$(date +%s)"
 while :; do
     OUT="" FAILED=0
-    c1; c2; c3; c4; c5; c6; c7; c8; c9; c10; c11
+    c1; c2; c3; c4; c5; c6; c7; c8; c9; c10; c11; c12
     elapsed=$(( $(date +%s) - start ))
     if [ "$FAILED" -eq 0 ] || [ "$elapsed" -ge "$wait" ]; then
         break

@@ -41,6 +41,11 @@ cat "$STATE/ss" 2>/dev/null
     "docker": """#!/bin/sh
 cat "$STATE/sessions"
 """,
+    "pgrep": """#!/bin/sh
+# pgrep -a -x NAME: prints $STATE/procs (pid and command line per line); 1 when empty.
+[ -s "$STATE/procs" ] || exit 1
+cat "$STATE/procs"
+""",
 }
 
 
@@ -105,6 +110,8 @@ class Host:
             listens += ["127.0.0.1:20103", "127.0.0.1:20111", "127.0.0.1:20112", "[fd00:dead:beef::1]:20111"]
         (self.state / "ss").write_text("".join(f"LISTEN 0 4096 {a} 0.0.0.0:*\n" for a in listens))
         (self.state / "sessions").write_text("3\n" if on else "0\n")
+        (self.state / "procs").write_text(
+            "4242 /usr/local/bin/zhen-agentd -port 20111 -host 127.0.0.1\n" if on else "")
         self.url(vm_query_url('unheaded_module_enabled{module="zhen"}'),
                  json.dumps({"status": "success", "data": {"result": [
                      {"metric": {"module": "zhen"}, "value": [0, "1" if on else "0"]}]}}))
@@ -129,7 +136,7 @@ def test_on(host):
     host.set(on=True)
     r = host.check("--expect", "on")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert len(lines(r.stdout, "PASS")) == 10, r.stdout
+    assert len(lines(r.stdout, "PASS")) == 11, r.stdout
     assert len(lines(r.stdout, "SKIP")) == 1 and "C10" in lines(r.stdout, "SKIP")[0]
     assert r.stdout.strip().splitlines()[-1].startswith("RESULT on: pass, ELAPSED=")
 
@@ -146,7 +153,7 @@ def test_off(host):
     host.set(on=False)
     r = host.check("--expect", "off")
     assert r.returncode == 0, r.stdout + r.stderr
-    assert len(lines(r.stdout, "PASS")) == 11, r.stdout
+    assert len(lines(r.stdout, "PASS")) == 12, r.stdout
     assert r.stdout.strip().splitlines()[-1].startswith("RESULT off: pass")
 
 
@@ -188,3 +195,24 @@ def test_optional_units_checked_only_when_enabled(host):
     r = host.check("--expect", "on")
     assert r.returncode == 1
     assert any("C2" in ln and "unheaded-llama" in ln for ln in lines(r.stdout, "FAIL")), r.stdout
+
+
+def test_off_with_an_overnight_run_left_fails(host):
+    """REV-1 (independent review 2026-11-15): the overnight run is a user unit
+    outside unheaded-zhen.target; C12 sees any zhen-agentd process, whoever
+    started it."""
+    host.set(on=False)
+    (host.state / "procs").write_text(
+        "777 /home/op/tmp/unheaded/bin/zhen-agentd -worker -overnight -window 01:00-07:00\n")
+    r = host.check("--expect", "off")
+    assert r.returncode == 1
+    fails = lines(r.stdout, "FAIL")
+    assert len(fails) == 1 and "C12" in fails[0] and "777" in fails[0], r.stdout
+
+
+def test_on_without_the_daemon_process_fails(host):
+    host.set(on=True)
+    (host.state / "procs").write_text("")
+    r = host.check("--expect", "on")
+    assert r.returncode == 1
+    assert any("C12" in ln for ln in lines(r.stdout, "FAIL")), r.stdout

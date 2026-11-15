@@ -116,6 +116,11 @@ func main() {
 			fatal("overnight: %v", err)
 		}
 	}
+	// The switch (ADR-149): with the module off a -worker run does nothing.
+	// Checked before any pool, listener or worktree.
+	if workerModuleOff(wf, os.Stderr) {
+		os.Exit(0)
+	}
 
 	if *schedOn && (wf.overnight || wf.once) {
 		fatal("-scheduler runs with the listener, not with -overnight or -once")
