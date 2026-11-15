@@ -940,7 +940,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/zhen-ui-front/main.go:246:tls-config",
+      "bom-ref": "cmd/zhen-ui-front/main.go:256:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -980,7 +980,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/zhen-ui-front/main.go:246"
+          "value": "cmd/zhen-ui-front/main.go:256"
         }
       ]
     },
@@ -1911,7 +1911,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:383:postgres-image",
+      "bom-ref": "docker-compose.yml:385:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1951,7 +1951,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:383"
+          "value": "docker-compose.yml:385"
         }
       ]
     },
