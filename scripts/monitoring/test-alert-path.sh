@@ -11,7 +11,7 @@
 #   1. urgency none reaches no one
 #   2. a page is mailed, once, with the SLO in the subject
 #   3. a ticket is not mailed (it waits for the daily digest)
-#   4. past mailer.max_per_day nothing is mailed; the cap is reported
+#   4. past the mailer's cap nothing is mailed; the cap is reported
 #   5. a firing Prometheus rule reaches Alertmanager at all
 #
 # The only edits to the repo's configs: Alertmanager's page group_wait and
@@ -58,9 +58,14 @@ pages="$(grep -c '^    - receiver: page$' "$T/am/alertmanager.yml")"
 { [[ "$pages" -ge 1 ]] && [[ "$(grep -c '^      group_wait: 1s$' "$T/am/alertmanager.yml")" -eq "$pages" ]] &&
 	[[ "$(grep -c '^      group_interval: 2s$' "$T/am/alertmanager.yml")" -eq "$pages" ]]; } ||
 	fail "page timing anchors missing in alertmanager.yml (want group_wait 2m and group_interval 5m on each of $pages page routes)"
+# The policy refuses an hourly cap above the daily one (DP-710), so both go to
+# 2. The hourly cap is read first; which of the two holds a mail back is
+# cmd/alert-mailer's unit tests. Here: two mails leave, the rest are held.
 sed -e 's/^  mode: dry-run$/  mode: send/' -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' \
+	-e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' \
 	"$REPO_ROOT/observability/alerting/policy.yaml" >"$T/mailer/policy.yaml"
-{ grep -q '^  mode: send$' "$T/mailer/policy.yaml" && grep -q '^  max_per_day: 2$' "$T/mailer/policy.yaml"; } || fail "policy anchors missing"
+{ grep -q '^  mode: send$' "$T/mailer/policy.yaml" && grep -q '^  max_per_day: 2$' "$T/mailer/policy.yaml" &&
+	grep -q '^  max_per_hour: 2$' "$T/mailer/policy.yaml"; } || fail "policy anchors missing"
 chmod -R a+rX "$T"
 
 docker network create "$NET" >/dev/null
@@ -115,8 +120,8 @@ for _ in $(seq 1 30); do
 done
 grep -q '"held_today":[1-9]' <<<"$status" || fail "nothing held back by the cap: $status"
 n="$(mails | grep -o '"Subject":"[^"]*"' | wc -l)"
-[[ "$n" -eq 2 ]] || fail "$n mails with max_per_day 2"
-echo "[ok] max_per_day holds: 2 mails, the rest held back and counted"
+[[ "$n" -eq 2 ]] || fail "$n mails with max_per_day 2 and max_per_hour 2"
+echo "[ok] the cap holds: 2 mails, the rest held back and counted"
 
 # Prometheus -> Alertmanager with the repo's prometheus.yml.
 cp "$REPO_ROOT/monitoring/prometheus/prometheus.yml" "$T/prom/"
