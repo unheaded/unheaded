@@ -117,6 +117,85 @@ promote:
     urgency: ticket
     reason: >-
       DP-710: outbound mail is watched. No SLO sees the mailer's own volume.
+  # ADR-147 (S-SEE-AND-SURVIVE, SS1 A taken on the plan's recommendation,
+  # 2026-11-15, Stevie to confirm): page only on what stays broken or stalls
+  # the host; the rest is a digest line.
+  - alert: ContainerStopped
+    urgency: page
+    reason: >-
+      ADR-147 decision 1: restart stays no on west, so a container that stops
+      stays down until a person starts it; decision 2: it mails. No SLO
+      covers 16 of the containers.
+  - alert: MemoryKill
+    urgency: page
+    reason: >-
+      Decision 2. A killed container stays down; a killed child leaves its
+      container up and broken. No SLO sees either.
+  - alert: HostMemoryPressure
+    urgency: page
+    reason: >-
+      Decision 12. A host stalled on memory stalls every service at once,
+      and on west the next swap is the database disk.
+  - alert: HostSwapping
+    urgency: ticket
+    reason: >-
+      Decision 12: swap use alerts.
+  - alert: HostSwapNearFull
+    urgency: ticket
+    reason: >-
+      Decision 12: swap use alerts.
+  - alert: HostIOPressure
+    urgency: ticket
+    reason: >-
+      West's databases share one 7,200 rpm disk; a sustained stall slows
+      every store, and no SLO reads latency yet.
+  - alert: HostTemperatureNearCritical
+    urgency: ticket
+    reason: >-
+      East has read 68 C against a 70 C mark; no SLO sees heat.
+  - alert: UnitFailed
+    urgency: page
+    reason: >-
+      SS3: a unit that has given up stays down like a stopped container.
+  - alert: UnitRestartLoop
+    urgency: ticket
+    reason: >-
+      A unit restarting for ever is a failure nobody is told about.
+  - alert: VictoriaMetricsDown
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: HuginnDown
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: HostStateStale
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: PrometheusRemoteWriteFailing
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: HostDiskFull
+    urgency: page
+    reason: >-
+      A full /var stops the Well, ClickHouse and Prometheus together; the
+      SLOs burn only afterwards.
+  - alert: HostDiskAlmostFull
+    urgency: ticket
+    reason: >-
+      Ten per cent left is days of warning, worth a digest line before
+      HostDiskFull pages.
+  - alert: NodeExporterDown
+    urgency: ticket
+    reason: >-
+      Every resource alert reads node_exporter; a host it cannot scrape has
+      no pressure, swap or heat alerts.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the
