@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-147: Every service earns its place: use, cost, reliability and scale, measured
 
-**Status:** Proposed. The analysis started 2026-11-15 on Stevie's word (last update below); no plan yet, no load run, nothing stopped.
+**Status:** Proposed. The round table reported 2026-11-15 ("The table's answers" below). No plan yet: it waits on Stevie's decisions. No load run, nothing stopped, no host changed.
 **Date:** 2026-11-15
 **Related:** ADR-144 (footprint: what each part costs; this ADR continues it), ADR-142 (Wotan speed), ADR-117 (one Grafana), ADR-100 (SLOs), ADR-116 (monitor the monitors), ADR-112 (plan freeze), FND-044, `docs/battle-plans/progress/S-WATCH-TRUE-progress.md`.
 
@@ -215,4 +215,158 @@ Stevie, again, verbatim:
 - **Three sets, three budgets.** What runs on every host (collectors, the baseline, the agent), what runs once per environment (Wotan, VictoriaMetrics, the Well, the dashboards), and what is a tenant on a few hosts (Zhen). The first set's cost is multiplied by the number of hosts, so it carries the tightest budget and is the first thing test 4 (scale) is applied to. The table sorts every service into one of the three; a service that fits none is a finding.
 
 The table's answers are written below this line as they come in, each under its skill's name, dated.
+
+## The table's answers (2026-11-15)
+
+Seven seats (Scientist, Archimedes, Architect, Erda, Developer, BlackMage, Micromanager) read both hosts and the code, each for 12 to 22 minutes, read only. The Librarian's and Busboy's parts are this merge. Each seat's full report (29 to 48 kB: every figure with its command, design flaws with `file:line`, what-ifs, recommendations, questions) is on west in `~/tmp/adr147-table/`. They are not in the repository: together they map the live lab's listeners and weak points, and committing that is Stevie's call. "(checked)" below means the coordinator measured it again; everything else stands on one seat's measurement.
+
+### What the analysis disturbed
+
+- **The log store week, 17:04 to 17:10Z.** The Architect seat walked west's `/var` with `du` twice; I/O pressure went from about 6% to 39% (checked). Recorded in `docs/battle-plans/progress/S-E1-LIVE-progress.md`. The brief forbade load and did not forbid a walk of that disk.
+- Two seats wrote and removed a temporary file in `/dev/shm`.
+
+### Corrections to the text above
+
+1. **The use table overstated dashboard-backend.** Of its requests in 7 days, 98% were status 401 from a logged-out page that polls without end (183,809 of 187,651, checked). Real use was about 3,800.
+2. **"Nothing of ours grew"** holds for the two processes named and no further. West's available memory fell 138 MiB a day, 121 of it with no owner, because nothing records memory per cgroup (Scientist; not checked).
+3. **VictoriaMetrics holds 5.2 continuous days,** not 14: a 12-day hole and a label change. Only 62 hours on west are steady enough to be a baseline.
+4. **West has about 11 GiB for programs,** not 14: 2 GiB is reserved as huge pages and 1.93 GiB of it is idle (checked).
+5. The container limits sum to 8,064 MiB over the 23 running containers (above); Archimedes counts 10,880 MiB promised. Not tied out.
+
+### Findings, merged
+
+The seats wrote 114 design-flaw rows; many are one thing seen from two sides. Agreement between seats that worked apart is noted, since it is evidence.
+
+**Disk**
+
+| Finding | Seats |
+|---|---|
+| The idle stall is flush count on a 7,200 rpm disk: 17.9 ms a flush against 1.7 ms on the NVMe; `sdb` is inside a flush 14% of uptime; all 41 sync calls in a 10 s sample came from VictoriaMetrics, Postgres and Vector | Architect, Erda, Archimedes |
+| **Vector inserts into ClickHouse every second** (the sink has no `batch` block, checked): 47,000 parts a day of about 5 rows, 42 GiB a day merged to keep 127 MiB, 45 to 71 GB a day written, about 68% of all writes to `sdb`; 337 bytes written per byte kept | Erda, Archimedes |
+| **Postgres's 256 MiB limit caps its page cache:** the limit was hit 52,740 times (checked) and 35 to 39 GB was read again from `sdb`; its log queries run 80 to 180 times slower than ClickHouse's. With the row above, this colours the log store week's verdict | Architect, Erda, Archimedes |
+| Every Akira health report is a durable Postgres transaction: 0.68 commits a second on a 22-row table, 73% of all WAL flushes | Erda, Developer |
+| Every log line is written three times (journald: 19.8 GiB in 3.5 days; rsyslog, uncapped; ClickHouse), and health checks make the lines (sophia: 60 a minute) | Architect, BlackMage, Developer |
+| Prometheus and VictoriaMetrics store the same samples for 30 days | Erda |
+| `sdb` has 38,246 power-on hours and carries every database | Scientist, Archimedes |
+
+**Memory**
+
+| Finding | Seats |
+|---|---|
+| **A shortage becomes a stall on the database disk:** the 4 GiB of swap on the NVMe is 78% used at idle (checked), the next 30 GiB is a file on `sdb`, `vm.overcommit_memory` is 1 (checked), and a container may swap as much as its limit | Architect, BlackMage, Scientist, Archimedes |
+| 2 GiB of huge pages reserved by a bootstrap script for the model server; 1.93 GiB idle (checked) | Architect, Archimedes |
+| Ten Go containers have a memory limit the Go runtime is not told about | Developer |
+| No weights and no floor: sshd, journald, Docker and every container are peers; the user slice may take 12 of 12.3 GiB; no container has a pid limit | Architect, BlackMage |
+
+**Recovery and alarm**
+
+| Finding | Seats |
+|---|---|
+| **18 of 23 containers do not come back after a crash** (checked): the host's override sets restart `no` to keep the stack from starting at boot. Wotan, the Well, VictoriaMetrics and ClickHouse are among them | Architect, Erda, BlackMage, Micromanager |
+| **No alert reaches a person:** the mailer has been in dry-run since 11-10 (checked); 47 of 87 rules carry `urgency: none`, `HostDiskFull` among them | BlackMage, Micromanager |
+| **No rule reads a resource:** nothing on pressure, CPU, memory, swap, an out-of-memory kill, a restart count or temperature (checked). Vector counts memory kills and nothing reads the counter | Scientist, BlackMage, Micromanager |
+| Rules that cannot fire: `TraceCollectorHighLatency`, both AIDE rules (their series does not exist), `VectorSinkDroppingEvents` (it watches a buffer that blocks and never drops). 36 of 55 alerts have never fired in 26 days | BlackMage, Micromanager |
+| **The SLOs cannot fail under load:** all eight measure "it answers" or "it is fresh"; six budgets are negative at idle (checked); `/health` answers 200 when degraded; the Wotan SLO measures one host of two | Scientist, BlackMage, Micromanager |
+| **The latency histogram cannot see our latencies:** its first bucket ends at 5 ms (checked) and services answer in 0.1 to 0.4 ms, so every p50 reads 2.5 ms and every p99 4.95 ms | Scientist, Archimedes |
+| The watchers are unwatched: nothing can report west down; no rule for VictoriaMetrics, Alertmanager or the mailer down | Architect, BlackMage, Micromanager |
+| Backups: Postgres only (its restore drill passed 2026-11-15). ClickHouse holds audit logs kept 455 days with no backup; VictoriaMetrics has none | Erda, Micromanager |
+| `scripts/qa-smoke.sh` probes plain http against TLS listeners and is always red; systemd start limits are set so they cannot trip (wiki-server: 15 restarts, active) | Micromanager, BlackMage |
+
+**Wotan**
+
+| Finding | Seats |
+|---|---|
+| **The 68 reads a second are 34 poll loops** (item 4, answered). A "stream" on the client is a 500 ms poll per topic unless gRPC is used; a gRPC stream that fails once polls for ever; the health output still says stream. 79% fetch nothing anyone reads: 12 fill a discovery registry with no reader, 6 poll `alerts.critical` (no publisher), 9 are dashboard topics with no publisher | Developer; Micromanager and BlackMage reached the same code apart |
+| Up to four Wotan clients per process: 63 members for 14 processes | Developer |
+| Every trace event is published twice (`traces.*` and `ebpf.*.events`): 37% of Wotan's payload is a copy | Developer, Archimedes |
+| Room count times room size allows 78 GiB in a 256 MiB container; the rate limit is keyed on an address that every proxied client shares | Archimedes, BlackMage |
+
+**Services with no caller** (items 2 and 3)
+
+| Finding | Seats |
+|---|---|
+| architect, captain, micromanager: empty data directories; their only callers are a compliance probe and health checks | Developer, Micromanager |
+| monad runs demo handlers; sophia's inference loop has no body; Cuirass on west reconciles a mock LXD and nobody reads its drift topic | Developer |
+| timeguru keeps its database on tmpfs while the Well holds an empty table for the same data; kanban can fall back to a SQLite file of 10-28 and split the board | Erda |
+| East: seven units on the shared account west retired, with no memory ceiling; five have had no bus since east's Wotan was switched off on 11-10 (checked) and log refused connections (240 lines in a minute, checked) | Architect, Micromanager, Archimedes |
+| FRR on west runs three routing daemons with no configuration | Architect |
+
+**Akira, eBPF**
+
+| Finding | Seats |
+|---|---|
+| Akira (0.10 core, 64 MiB) is throttled in 44% of its periods at idle (checked), starts an interpreter every 30 s to check a certificate, has left 18 zombies (checked), and its verdicts are refused for lack of a signing key. Probing a role service costs more CPU than the service | Architect, Developer, BlackMage, Archimedes |
+| packet-marker's `FLOW_STATE` map is a plain hash, never deleted from, insert failures ignored, no reader found: full on east, full on west in about 30 h. flow-tracker's event ring is not drained: 94% dropped | BlackMage |
+| East's collector spends 2.0 cores and its events do not arrive: its fallback queue has read exactly its cap, 1,000, for five days | Archimedes, Scientist |
+
+**Network and cluster** (item 18)
+
+| Finding | Seats |
+|---|---|
+| One wire, and west's uplink is wifi. East reaches DNS, time and the internet only through west. Every alert sender is on west | Architect |
+| BGP and BFD run inside the only tunnel and announce a blackhole each way: if the session falls, no flow changes | Architect |
+| The WireGuard and bird files in the repository differ from what is deployed; west's sysctls were written once by a bootstrap script for a model server, east runs defaults, and no file in the repository is the source of either | Architect |
+| West has no input filter: node_exporter, huginn, Docker's metrics, kev-poller, the kanban task list and the dashboard's `/metrics` answer the wifi LAN with no credential. Alertmanager and Prometheus on loopback take no credential, so any local process can silence every alert | BlackMage, Architect |
+| East's CPU: 61 °C at the check, 68 °C in the seat's window, critical at 70 °C | Scientist |
+
+**Zhen assumed** (the tenant rule)
+
+Akira's default targets name `zhenai`, `inference` and `gateway`; 10 of 13 tables in `unheaded_app` are Zhen's and its role holds three connections with the model server down; the huge pages; the IOC audit and the health sweep are scheduled inside Zhen; Zhen's rules sit in the platform's rule set (`ZhenSchedulerStalled` fired for 3,617 minutes while Zhen was paused on purpose). Seats: Architect, Erda, Developer, BlackMage, Micromanager.
+
+**Measuring**
+
+No series exists for the blog, the site, orb or vor; nginx does not log request time; CPU and memory are recorded only for Go processes that export them; the recorders sit on the disk a disk run would load. Seats: Scientist, Archimedes.
+
+### The experiment (Scientist, Archimedes)
+
+- **38 runs, not the 1,792 of the full matrix.** Load is made at fixed rates inside a capped slice. Pressure is a result and a stop rule, never the setpoint.
+- **What can be told from noise:** a 20% change on a disk series needs six one-hour blocks each side, about 12 hours per tuning change. A 5% change needs about 7 days per change (whole-host CPU on west: about 130 days). 5% is not a usable bar.
+- **80 to 90% in units, west:** memory, of 10,976 MiB usable; CPU, 9.6 to 10.8 cpu-seconds a second of logical time, or 5.5 to 9.4 of real work because of SMT; `sdb`, about 55 flushes a second at most. Device ceilings stay estimates until `fio` may read the raw devices.
+- **Predicted at 85% disk busy:** I/O pressure about 41%, log inserts 9.5 times slower.
+- **Pass marks proposed:** the 99th percentile at 85% load at most three times idle; no drops and no page at 85%; growth under 1% a day.
+- **Instruments come before load:** latency buckets, resource alerts, per-cgroup series, series for the four applications.
+
+### Order of work proposed (Micromanager, Busboy)
+
+| Stage | What | Waits on |
+|---|---|---|
+| 0 | Stevie's decisions (below); one deduplicated finding list with the template: id, seat, evidence, fix, owner, before, after, status | Stevie |
+| 1 | **See and survive:** crashed containers return; mail or a watched terminal; resource alerts; latency buckets; per-cgroup and application series; the rules that cannot fire; backups for ClickHouse and VictoriaMetrics; a smoke check that can pass | decisions 1 to 4 |
+| 2 | **Waste out,** each measured before and after: Vector's batch; Postgres's limit; the heartbeat transaction; the poll loops, the unread registry, `alerts.critical`; the doubled trace topics; the tripled logs; Akira; `FLOW_STATE`; the services with no caller; Zhen's separation | the log store week (ends about 11-17) for anything touching Vector, ClickHouse or Postgres |
+| 3 | **Layout:** the databases off the spinning disk (three layouts in the Architect's report; the smallest is a 32 GiB volume on the NVMe, 5 to 10 minutes of stack downtime, undone by an unmount; flush time expected 17.9 → 1.7 ms); swap; huge pages; floors, weights and pid limits; an input filter | attended |
+| 4 | **East:** the trace collector deploy; its Wotan and its seven units | attended; S-E1-LIVE Evening 10B |
+| 5 | **Baseline:** five to seven quiet days on the new layout | stages 1 to 4 |
+| 6 | **The run:** the 38 conditions, inside the rails | Stevie present for east |
+| 7 | **Tuning,** one change at a time, about 12 hours each | |
+| 8 | **Soak** of seven days; done when every finding is fixed or has a written reason | |
+
+### Decisions for Stevie
+
+The seats asked 58 questions. Merged:
+
+1. **Restart.** Keep "nothing starts at boot" and let a crashed container return (`on-failure`)?
+2. **Alarm.** Mail on, or a watched terminal for the run? The cap of six a day? Rules with `urgency: none` such as `HostDiskFull`?
+3. **Who watches west.** East, or something outside both?
+4. **Does a planned stop spend error budget?** Six budgets are negative from stops that were ordered. And `ci-develop`, firing for 23.8 days: fix CI or take it out of the set?
+5. **The log store week.** Read its verdict knowing ClickHouse ran with one-second inserts and Postgres inside 256 MiB, or measure again after both are fixed? The log table in Postgres reaches its 4 GiB cap about 2026-11-24: which store keeps the logs?
+6. **Backups** for ClickHouse (audit logs, 455 days) and VictoriaMetrics, or "not backed up" in writing?
+7. **architect, captain, micromanager:** remove or fold into one. **monad, sophia:** the same question. **Cuirass on west:** mock, real LXD, or not run. **timeguru's** two homes.
+8. **`alerts.critical`:** build the publisher or drop the rule that every service subscribes. **Discovery:** build a reader or go back to static endpoints.
+9. **The dashboard's private metric store:** may every graph depend on VictoriaMetrics?
+10. **Prometheus beside VictoriaMetrics:** keep both, or evaluate rules against VictoriaMetrics (`vmalert`, third-party)?
+11. **Disks.** May `sdc` (512 GB SSD) and `sda` (500 GB), each holding an NTFS filesystem, be wiped? Which layout: the database volumes first, or all of `/var` in one attended sitting? Is the journal part of the move?
+12. **Swap:** none, or a small one on the NVMe only. **Huge pages:** release the 2 GiB?
+13. **Shares.** A floor for the stack (3 GiB and 2 cores proposed), a ceiling for all tenants together, a ceiling for login sessions. The GPU: Zhen's alone, or shared?
+14. **One way in for a tenant:** a systemd unit in a slice, a compose project, or an LXD instance. Will a tenant get Docker access? (If yes it is root.)
+15. **Zhen as a tenant:** its tables in their own database; the IOC audit and the health sweep on timers the platform owns.
+16. **West's open ports on the wifi LAN** (9100, 9110, 9323, 19120, the kanban task list): intended, or closed?
+17. **East.** What is it for: the every-host set only, or a second home for the once-per-environment services? Its own uplink? Its seven services: stop until Evening 10B, or do 10B first? Run it at 85% at all, given 68 °C against 70?
+18. **The network.** A second NIC or a switch for west? BGP carrying real routes over two paths, or static routes?
+19. **`FLOW_STATE`:** is anything meant to read it?
+20. **The experiment.** The pass marks; 20% as the smallest change worth keeping; the governor as shipped or pinned; a deploy freeze during each stage; the seven-day soak and who watches it; clock skew and a truly full disk in a lab only.
+21. **CPU at 80 to 90%:** of logical time or of real work? **The reserve:** 7% of memory held back?
+22. **Tools:** `fio` reading the raw devices; `iperf3` added.
+23. **Load.** May orion's nginx log, with client addresses removed, be the recorded day for the site? May vor get an access log? What counts as load on orb (viewers, refresh)?
+24. **Orphans:** the old `unheaded-well-data` volume, three ClickHouse tables with no retention, the SQLite fallback.
+25. **The seat reports:** into the repository, or kept on the host.
 
