@@ -56,3 +56,29 @@ Red run (Step 27, new probe on the object before the fix, D6 off): no `HR:` line
 - Step 43, mutant (`d6_user_miss` forced false): `hostile_pgd` reads `pgd=changed`. Restored: 893507.
 - Step 40: the commit of the opcode test alone has D6 off and counts 890279.
 - Gate `d6-after`: `same=12 diff=0 rc=0 doom=1 ascend=893507`; harness lines `hostile_reply: D6 closes the route to the reply word`, `hostile_pgd: a child's stores outside its slice are dropped (D6)`, `hostile_slot`, `hostile_tf` all PASS.
+
+## Slot 0 (Step 54, 2026-11-15)
+
+Slot 0's base is 0, so init's VAs are physical addresses.
+
+| Range | What |
+|---|---|
+| [0x0, 0x1000) | BootParams (0x160), init's `.text` and `.rodata` (`init.elf`: `.text` 0x0-0xEC4, `.rodata` to 0xF59). Refused for kernel-routed pointers already (`pa == 0`, ADR-135 D6) |
+| [0x1000, 0x1020) | `init.elf` `.data` and `.bss` |
+| up to 0x3010 | the largest image booted as init: `fdprobe` 0x3010, `pipeprobe` 0x2840 (`sh` ends at 0x2084, `ls` at 0x201F; neither runs in slot 0). Measured by linking every `.mbc`'s `.elf` once and reading `ALLOC` sections |
+| 0xC000-0xC003 | TTY registers |
+| [0xF000, 0x10000) | CSR window (SEPC at 0xF504, MEPC at 0xFD04), keyboard byte at 0xFFFF |
+| [0x20000, 0x28100) | kernel `.text` (the code runs from ROM) |
+| [0x28100, 0x289EC) | kernel `.rodata` |
+| [0x100000, 0x100008) | kernel `.data` |
+| [0x100100, 0x115520) | kernel `.bss`, the slot tables in it |
+| (0x400000, 0x500000) | init's stack: `uexec.c` sets `sp = 0x500000 - 16`, "1 MiB of stack room" |
+
+Init's stack is clear of every kernel range, so Step 55's override does not apply.
+
+## Phase 3 measurements (2026-11-15)
+
+- Red run (Step 56, probe on the tree before the fixes): `open-wild-refused=no` (the unbounded read found "README" in the next slot's slice), then exec of the planted "echo" succeeded and the child became `echo`; `slot0-kernel-name-refused=no` (the kernel made a directory from a name in its own `.rodata`), `slot0-copyout-refused=no` (`pipe` stored two fds in kernel `.data`).
+- Step 57 as written (`user_phys` inside the two arms): 942,421, +48,914: BUDGET-FAIL. The exec arm alone was +41,496 (935,003): the refused state runs the 16-byte hash loop and the table scan before it reaches -1. Appendix A1's remedy, hoisted: one guard arm ahead of open and exec. Count 895768, +2261 against 893507: BUDGET-OK, headroom 4232.
+- Step 61: six `=yes`, no `=no`, `done`; corpus sweep 8 of 8 SAME.
+- Step 63 mutants, each rebuilt, booted and restored: guard without open → `open-wild-refused=no` and `open-ceiling-refused=no`; slot 0 window removed → `slot0-kernel-name-refused=no` and `slot0-copyout-refused=no`; `pipewrite`'s -1 removed → `pipe-badbuf-refused=no`. After restoring: 895768, six `=yes`.

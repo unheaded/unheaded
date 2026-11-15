@@ -262,6 +262,12 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
     Some(phase12::pid_phys_offset(pid).wrapping_add(va))
 }
 
+/// xv6 `MAXPATH` (`param.h`): the span a user path may cover. ADR-135 D16: BPF's
+/// `open` and `exec` are reached only when `user_phys(pid, a0, MAXPATH_BYTES)`
+/// answers, so a path that starts outside the caller's slice, or within this many
+/// bytes of its ceiling, is refused before any byte of it is read.
+const MAXPATH_BYTES: u32 = 128;
+
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
@@ -2770,6 +2776,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         break;
                     }
                 }
+            } else if cfg!(feature = "ascend-linux")
+                && (syscall_nr == 15 || syscall_nr == 7)
+                && user_phys(cpu.current_pid, cpu.regs[8], MAXPATH_BYTES).is_none()
+            {
+                // ADR-135 D16 (R-F5): open(15) and exec(7) read their path at
+                // slice base + a0 with no walk. A path outside the caller's
+                // slice is refused here, ahead of both arms, so neither reads a
+                // byte of it. Checked on every re-entry: a0 is the live cursor.
+                cpu.regs[8] = (-1i32) as u32;
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 15 {
                 // ── xv6 SYS_open (15) — Gate D inode resolve + Epic 1.3.1
                 // multi-component path walk ──

@@ -309,6 +309,27 @@ With ADR-109 D6 off a child can write this word as it can the rest of the table.
 kernel, which answers correctly from the row's `cwd`. Clearing one sends an off-root open to BPF, which walks from the
 root: read-only, and the slot could have opened that path anyway. One more use of the same hole, and no new reach.
 
+### D16. Bounded user paths and slot 0's window (2026-11-15, S-STAGE-2C Phase 3)
+
+Three places took a user pointer further than its owner's memory. Each now refuses.
+
+- **BPF `open` and `exec` are reached only when `user_phys(pid, path_va, 128)` answers** (128 is `MAXPATH`,
+  `param.h`); otherwise a0 is -1 and no byte of the path is read. Before, both added `path_va` to the slice base with
+  no bound, so a chosen a0 read any physical byte (R-F5). The test is one arm ahead of both syscalls, run on every
+  re-entry. Written inside the arms it cost +48,914 verified instructions (the refused state was walked through the
+  path hash and the dirent scan as well); ahead of them it costs +2,261. A path that starts within 128 bytes of the 8 MiB ceiling is refused as well; no corpus path sits there (the
+  argv frame is at 0x600000, the stack top at 0x500000).
+- **`upc_user_pa()` answers slot 0 only inside init's own windows.** Slot 0's base is 0, so its VAs are physical
+  addresses and the 8 MiB ceiling alone let a kernel-routed pointer from init name kernel `.rodata`, `.data`, `.bss`
+  (the slot tables), the CSR window and the TTY registers. The windows are the image pages [0x1000, 0xC000) and the
+  stack [0x400000, 0x500000); everything else is 0, refused. The first page stays refused as before (D6). The image
+  window stops at the TTY registers; the largest image booted as init ends at 0x3010 (`fdprobe`).
+- **`pipewrite` returns -1 when its first `copyin` fails**, and the short count when a later one does, as Linux does.
+  It returned its byte count, so a write from a bad buffer answered 0.
+
+Init's trust model is otherwise unchanged: its own loads and stores still reach all of low memory through the identity
+directory. This narrows what the kernel will do on init's behalf, not what init can do by itself.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,

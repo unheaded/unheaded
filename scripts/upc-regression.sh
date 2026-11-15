@@ -213,6 +213,7 @@ rung_gate UPC_RUNG_FD fdprobe 5000000 FD 49
 rung_gate UPC_RUNG_CHDIR chdirprobe 5000000 CD 24
 rung_gate UPC_RUNG_PIPE pipeprobe 8000000 PI 20
 rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5
+rung_gate UPC_D6_MISS_FAULT hostile_path 4000000 HQ 6
 if rung_on UPC_RUNG_SLEEP; then
   SLL="$(probe_lines sleepprobe 3000000 SL)"
   if [ "$(grep -c '=yes$' <<<"$SLL")" = 4 ] && ! grep -q '=no$' <<<"$SLL" \

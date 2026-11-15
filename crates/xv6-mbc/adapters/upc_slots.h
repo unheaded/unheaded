@@ -34,6 +34,14 @@
 #define UPC_HEAP_TOP            0x00040000
 #define UPC_USER_VA_CEILING     0x00800000 // ADR-135 D6: USER_VA_CEILING in main.rs
 #define UPC_SLICE_BASE(s)       ((s) == 0 ? 0 : 0x01000000 + ((s) - 1) * 0x00800000) // ADR-135 D5; phase12.rs pid_phys_offset
+// ADR-135 D16: slot 0's base is 0, so its VAs are physical addresses. A kernel-routed
+// pointer from init is answered only inside init's own windows: the image pages above
+// the first (refused already, D6) and below the TTY registers, and the stack that
+// uexec.c gives it (sp = 0x500000 - 16, one MiB of room).
+#define UPC_INIT_IMAGE_LO       0x00001000
+#define UPC_INIT_IMAGE_HI       0x0000C000
+#define UPC_INIT_STACK_LO       0x00400000
+#define UPC_INIT_STACK_HI       0x00500000
 
 struct upc_tf_slot {
   struct trapframe tf;

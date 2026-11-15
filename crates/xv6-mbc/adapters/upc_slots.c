@@ -152,11 +152,16 @@ upc_pause(int n)
 // ADR-135 D6. A slot row's user VA to its physical address, 0 when refused.
 // Only inside a tagged trap. VA 0 is mapped, so for slots 1-7 0 only ever means
 // refused; slot 0's base is 0, which refuses its first page, the safe way round.
+// D16: slot 0 is answered only inside init's image and stack windows, so a pointer
+// from init cannot name kernel .rodata, .data, .bss, the CSR window or the TTY.
 uint64
 upc_user_pa(uint64 va)
 {
   uint32 s = myproc() - proc;
   if(s >= UPC_SLOTS || va >= UPC_USER_VA_CEILING)
+    return 0;
+  if(s == 0 && !(va >= UPC_INIT_IMAGE_LO && va < UPC_INIT_IMAGE_HI)
+            && !(va >= UPC_INIT_STACK_LO && va < UPC_INIT_STACK_HI))
     return 0;
   return UPC_SLICE_BASE(s) + va;
 }
