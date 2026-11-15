@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-11-15
-**Total:** 141 entries (ADR-001 to ADR-144, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 141 entries (ADR-001 to ADR-144, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-064 superseded by ADR-035; ADR-065 superseded by Phase A finding; ADR-69420 accepted with Phase 1 deferred). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -16,16 +16,17 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked). 2026-11-15: ADR-108 and ADR-110 Proposed → Accepted, ADR-103 Proposed → Implemented (rows had not followed the files; S-RESIDUE)).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked). 2026-11-15: ADR-108 and ADR-110 Proposed → Accepted, ADR-103 Proposed → Implemented (rows had not followed the files; S-RESIDUE). 2026-11-15: ADR-053 Pipe Dream → Active (its file since 2026-10-23) and ADR-69420 Deferred → Accepted with Phase 1 deferred (its file's status line); Active had no row here and has one now).
 
 | Status | Count |
 |--------|-------|
-| Accepted | 65 |
+| Accepted | 66 |
 | Proposed | 38 |
 | Planned | 10 |
 | In Progress | 1 |
-| Deferred | 3 |
-| Pipe Dream | 5 |
+| Deferred | 2 |
+| Pipe Dream | 4 |
+| Active | 1 |
 | PoC / Research | 2 |
 | Superseded / Deprecated | 9 |
 | Acknowledged | 1 |
@@ -102,7 +103,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **Withdrawn** | 2026-04-05 |
 | [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | Planned | 2026-04-05 |
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
-| [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Deferred to Q4 2026** | 2026-03-18 |
+| [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Accepted**; Phase 1 deferred to end of Age 2 (Q4 2026) | 2026-03-18 |
 | [039](ADR-039-cs-precision-reference-service.md) | CS Precision Reference Service | In Progress | 2026-04-05 |
 | [040](ADR-040-kubernetes-ecosystem-strategy.md) | Kubernetes Ecosystem Strategy | **Deferred** (ADR-047; decision 43) | 2026-04-05 |
 | [041](ADR-041-kanban-timeline-sync.md) | Kanban ↔ Timeline Bidirectional Sync | Planned | 2026-04-05 |
@@ -117,7 +118,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [050](ADR-050-wave12-gpu-resident-activations.md) | WAVE12 — GPU-Resident Forge Activations + Kingdom RAFT LoRA | Accepted | 2026-04-23 |
 | [051](ADR-051-wave13-generate-path.md) | WAVE13 — Forge generate-gemma4 path + KV-cache deferral | **Accepted** (verdict: RETRAIN) | 2026-04-28 |
 | [052](ADR-052-timeline-and-battleplan-source-of-truth.md) | Timeline & Battle-Plan Source-of-Truth Policy (drift ≤ 7 days, in-tree only) | **Accepted** (CI gate live) | 2026-04-27 |
-| [053](ADR-053-hybrid-claude-zhenai-workflow-templates.md) | Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing) | **Pipe Dream** (activates on cost/quality/strategic/personal trigger) | 2026-04-27 |
+| [053](ADR-053-hybrid-claude-zhenai-workflow-templates.md) | Hybrid Claude + Local Zhenai Workflow Templates (cost-driven hybrid routing) | **Active** (2026-10-23, activation criterion 4: Stevie wants it; routing thresholds measured in `eval/two-brains`; was Pipe Dream) | 2026-04-27 |
 | [055](ADR-055-kev-poller-always-on-service.md) | KEV Poller — Always-On Kingdom Service + K8s Cross-Host Pilot (CISA KEV + NIST NVD parity) | **Planned**; Phase 2 (NVD/GHSA pollers) closed KEV-only 2026-10-27; Phase 1 built 2026-10-19 (`cmd/kev-poller`), Phase 2 manifests written, nothing deployed | 2026-04-27 |
 | [056](ADR-056-pgvector-auxiliary-corpus-sharding.md) | pgvector Auxiliary Corpus Sharding for Trust-Tagged Retrieval (Wikipedia / Stack Overflow / RFCs / source code) | **Proposed** (gated on WAVE15 H0 passing) | 2026-05-02 |
 | [057](ADR-057-unheaded-source-code-indexing.md) | Unheaded Source Code Indexing for Semantic Retrieval (AST chunks + code-specialized embedder, first instance of ADR-056 pattern) | **Proposed** (gated on WAVE15 H0 + ADR-056 acceptance) | 2026-05-02 |
@@ -203,4 +204,4 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [141](ADR-141-chaos-controller-always-on.md) | The chaos controller runs all the time, slowly, after 1.0.0: a random allowlisted fault every n minutes inside the ADR-107 envelope, a recovery record per fault, stop and page when something does not come back | **Proposed** (parked) | 2026-11-12 |
 | [142](ADR-142-wotan-as-a-redis-class-store.md) | Wotan made fast and lean enough to stand beside Redis: measure first, bounded memory, a short list of data shapes with a first-party caller each, no Redis protocol, edge cryptography never traded for speed | **Proposed** (parked) | 2026-11-12 |
 | [143](ADR-143-terraform-multi-cloud-template.md) | A Terraform template that stands the whole kingdom up on AWS, Azure, GCP, LXD or Docker from a released, verified tag; an empty skeleton repository only, opens when 1.0.0 is tagged | **Proposed** (parked) | 2026-11-12 |
-| [144](ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west (trace collector 70% of all CPU: two readers walk an ever-growing BPF latency map key by key; east's has averaged 1.5 cores for 20 days), then a target for a small host and a budget gate | **Proposed** (parked; the trace collector item is a defect and can go first) | 2026-11-12 |
+| [144](ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west (trace collector 70% of all CPU: one reader walks an ever-growing BPF latency map key by key, first read as two; east's has averaged 1.5 cores for 20 days), then a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east) | 2026-11-12 |
