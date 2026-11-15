@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Loaded by Prometheus through scrape_config_files while the Zhen module is on (ADR-149).
+scrape_configs:
+  # zhen-agentd on west: its API stays on 127.0.0.1:20111; -metrics-addr
+  # (env ZHEN_METRICS_ADDR) serves /metrics alone on the WireGuard address,
+  # same port number. zhen_scheduler_heartbeat_timestamp_seconds feeds
+  # modules/zhen/prometheus/rules/zhen.yml (ZhenSchedulerStalled). The unit runs with -scheduler
+  # -metrics-addr since 2026-11-12 (S-CHAMPION-HARDENING E4).
+  - job_name: zhen-agentd
+    static_configs:
+      - targets: ['[fd00:dead:beef::1]:20111']
+        labels: {host: west}

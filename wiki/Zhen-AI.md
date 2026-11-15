@@ -217,7 +217,7 @@ Well refused. Events also go to `audit_events` and Wotan `zhen.agent.runs`
 **Heartbeat.** Every 60 s tick, paused or not, sets
 `zhen_scheduler_heartbeat_timestamp_seconds` and publishes
 `zhen.scheduler.heartbeat`. `ZhenSchedulerStalled`
-(`monitoring/prometheus/rules/zhen.yml`) fires when it is absent or stale for
+(`modules/zhen/prometheus/rules/zhen.yml`, loaded only while the Zhen module is on) fires when it is absent or stale for
 15 minutes; runbook `runbooks/observe/zhen-scheduler-stalled.yaml`.
 
 ## Vision

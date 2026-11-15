@@ -75,6 +75,7 @@ services:
       # The dev CA, for the https scrape targets (west's TLS services). Not
       # under /etc/prometheus: that mount is read-only.
       - ../configs/certs/dev/ca.pem:/etc/prometheus-tls/ca.pem:ro
+      - /run/unheaded/modules:/etc/unheaded-modules:ro   # modules' rules and scrape jobs while their switch is on (ADR-149)
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
@@ -82,7 +83,11 @@ services:
       - '--storage.tsdb.retention.time=30d'
       # No --web.enable-admin-api / --web.enable-lifecycle: 9090 is published
       # and those APIs have no auth (delete series, snapshots, /-/quit). Reload
-      # rules with `docker kill -s HUP unheaded-prometheus`.
+      # rules with `docker kill -s HUP unheaded-prometheus`; module files are
+      # picked up within 30 s on their own (ADR-149: the config and every file
+      # it names, globs included, are re-read when their checksum changes).
+      - '--config.auto-reload'
+      - '--config.auto-reload-interval=30s'
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks: [monitoring]

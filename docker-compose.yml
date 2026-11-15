@@ -331,6 +331,7 @@ services:
       - "-httpListenAddr=:8428"
       - "-selfScrapeInterval=15s"
       - "-promscrape.config=/etc/victoria/scrape.yml"
+      - "-promscrape.configCheckInterval=30s"   # module scrape jobs follow their switch within 30 s (ADR-149)
       # VictoriaMetrics dials and listens on IPv4 only unless told otherwise.
       # Without this every overlay target in scrape.yml fails to connect
       # (proved in a throwaway container, 2026-11-11: 12 of 27 up without, 21 with).
@@ -367,6 +368,7 @@ services:
     volumes:
       - victoria-data:/victoria-data
       - victoria-auth:/victoria-auth:ro
+      - /run/unheaded/modules:/etc/unheaded-modules:ro   # modules' rules and scrape jobs while their switch is on (ADR-149)
       - ./config/victoria/scrape.yml:/etc/victoria/scrape.yml:ro
       - ./configs/certs/dev/ca.pem:/etc/victoria/tls/ca.pem:ro   # S-IRON-GATE Phase 8: scrapes are https
     networks:
@@ -1349,6 +1351,7 @@ services:
       - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
+      - /run/unheaded/modules:/run/unheaded/modules:ro   # pkg/modules (ADR-149)
       - /proc:/host/proc:ro
       - /etc/hostname:/host/etc/hostname:ro
       # ADR-097 compliance crosswalk: catalog + evidence (cmd/compliance-evidence
@@ -1447,6 +1450,7 @@ services:
       - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
+      - /run/unheaded/modules:/run/unheaded/modules:ro   # pkg/modules (ADR-149)
     ports:
       - "127.0.0.1:20001:20001"
       - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20001:20001"   # VictoriaMetrics scrape; see victoria
