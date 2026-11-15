@@ -235,7 +235,7 @@ func TestSweepPublishesOnlyFresh(t *testing.T) {
 	}
 
 	// One thread takes a new sample.
-	e := LatencyEntry{RTTNS: 9000, MinRTTNS: 1000, MaxRTTNS: 9000, Samples: 2}
+	e := LatencyEntry{RTTNS: 9000, MinRTTNS: 1000, MaxRTTNS: 9000, Samples: 2, LastUpdateNS: ktimeNow()} // the probe stamps every sample
 	v := e.Encode()
 	m.values[2] = v[:]
 	if err := s.sweep(context.Background()); err != nil {

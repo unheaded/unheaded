@@ -393,6 +393,11 @@ type FlowReader struct {
 	// walker reads the flow map, in batches where it can (map_walk.go). It is
 	// made on the first poll and used only by the poll loop.
 	walker *mapWalker
+
+	// lastPollNS is the BPF clock at the start of the last complete poll (0
+	// before the first). An entry stamped at or before it has not changed
+	// since that poll read it.
+	lastPollNS uint64
 }
 
 // flowWalker returns the reader's walker over the flow map, making it on the
@@ -492,19 +497,49 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 	// Read all flow entries from the BPF map
 	var events []*FlowEventEntry
 
+	// One clock reading for the whole poll: the same "now" decides what is
+	// stale while reading and what expires afterwards.
+	nowNS := ktimeNow()
+	staleTTLNS := ttlNanos(fr.config.StaleTTL)
+
 	// One pass over the map: batch lookups where the kernel has them, the
 	// per-entry walk otherwise. key and value are reused between entries;
 	// everything kept below is a copy.
 	entries := 0
+	var flowsRead uint64
 	err := fr.flowWalker(flowMap).read(ctx, func(key, value []byte) {
 		entries++
-		fk, err := DecodeFlowKey(key)
-		if err != nil {
+		if len(key) < FlowKeySize {
 			atomic.AddUint64(&fr.stats.DecodeErrors, 1)
 			flowReaderErrors.WithLabelValues("decode_key").Inc()
 			return // Continue despite decode errors
 		}
+		if len(value) < FlowStateSize {
+			atomic.AddUint64(&fr.stats.DecodeErrors, 1)
+			flowReaderErrors.WithLabelValues("decode_state").Inc()
+			return
+		}
+		flowsRead++
 
+		// Nothing deletes a flow from the kernel map: an entry stays, with its
+		// last stamp, until the LRU needs the room, so most of a map that has
+		// run for a day is dead flows. One that went stale and has not changed
+		// since the last complete poll read it has nothing new to say: it is
+		// passed over on its stamp, before any decode or allocation. If the
+		// reader knows it, the expiry below ends it, once, from the state the
+		// last poll stored (the same state: it has not changed).
+		lastSeenNS := binary.LittleEndian.Uint64(value[24:32]) // FlowStateEntry.LastSeenNS
+		stale := olderThan(nowNS, lastSeenNS, staleTTLNS)
+		if stale && lastSeenNS <= fr.lastPollNS {
+			return
+		}
+
+		fk, err := DecodeFlowKey(key)
+		if err != nil {
+			atomic.AddUint64(&fr.stats.DecodeErrors, 1)
+			flowReaderErrors.WithLabelValues("decode_key").Inc()
+			return
+		}
 		fs, err := DecodeFlowState(value)
 		if err != nil {
 			atomic.AddUint64(&fr.stats.DecodeErrors, 1)
@@ -512,13 +547,17 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 			return
 		}
 
-		atomic.AddUint64(&fr.stats.FlowsRead, 1)
-
 		keyHex := fmt.Sprintf("%x", key)
-		seenKeys[keyHex] = true
 
 		// Check if this is a new or changed flow
 		existing, known := fr.knownFlows[keyHex]
+		if !known && stale {
+			// Dead before the reader ever saw it (the first poll after a
+			// start, or a poll after a stall). It used to be announced as new
+			// and expired in the same poll, and again on every poll after.
+			return
+		}
+		seenKeys[keyHex] = true
 		if !known {
 			// New flow
 			fr.knownFlows[keyHex] = &TrackedFlowState{
@@ -553,19 +592,20 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 			existing.State = *fs
 		}
 	})
+	atomic.AddUint64(&fr.stats.FlowsRead, flowsRead)
 
 	if err != nil {
-		// A partial read: nothing is expired on the strength of it.
+		// A partial read: nothing is expired on the strength of it, and the
+		// mark stays where the last complete poll left it.
 		flowReaderErrors.WithLabelValues("iterate").Inc()
 		log.Error().Err(err).Msg("error iterating flow map")
 		return
 	}
+	fr.lastPollNS = nowNS
 	flowMapEntries.Set(float64(entries))
 
 	// Expire stale flows: flows we previously knew about but are not in the BPF map,
 	// or flows that haven't been seen recently.
-	nowNS := ktimeNow()
-	staleTTLNS := ttlNanos(fr.config.StaleTTL)
 	expired := 0
 
 	for keyHex, flow := range fr.knownFlows {
