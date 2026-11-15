@@ -154,7 +154,27 @@ func compilePermissions(p *Permissions) (*compiledPermissions, error) {
 		}
 		cp.services[id] = cs
 	}
+	cp.startRefusalSeries()
 	return cp, nil
+}
+
+// startRefusalSeries creates, at zero, the refusal series of every caller
+// the section names and of callerOther, for the outcome its mode gives.
+// Without it a caller's series would first appear at its first refusal
+// with the value 1, and increase() over a series that starts at 1 is 0:
+// the first refusal would raise no alert. Adding zero changes no count, so
+// a reload is safe.
+func (cp *compiledPermissions) startRefusalSeries() {
+	outcome := outcomeDenied
+	if cp.audit {
+		outcome = outcomeAudited
+	}
+	for _, action := range []string{PermitSubscribe, PermitPublish} {
+		topicPermissionRefusals.WithLabelValues(action, outcome, callerOther).Add(0)
+		for id := range cp.services {
+			topicPermissionRefusals.WithLabelValues(action, outcome, id).Add(0)
+		}
+	}
 }
 
 // validAllowance checks one list entry: Wotan's pattern characters, no
@@ -182,6 +202,12 @@ func validAllowance(pat string) error {
 // callerOther is the caller label of every refusal whose identity
 // topics.permissions does not name.
 const callerOther = "other"
+
+// The refusal counter's outcomes.
+const (
+	outcomeDenied  = "denied"  // enforce: the caller got an error
+	outcomeAudited = "audited" // audit: counted and logged, the call went through
+)
 
 // Refusal counters, in the default registry Wotan's /metrics serves.
 // outcome is "denied" (enforce) or "audited" (audit: the call went through).
@@ -218,7 +244,7 @@ func (c *TopicConfig) Permit(identity *auth.Identity, action, pattern string) (a
 	}
 	caller := cp.callerLabel(identity)
 	if cp.audit {
-		topicPermissionRefusals.WithLabelValues(action, "audited", caller).Inc()
+		topicPermissionRefusals.WithLabelValues(action, outcomeAudited, caller).Inc()
 		log.Warn().
 			Str("identity", identity.Subject).
 			Str("action", action).
@@ -227,7 +253,7 @@ func (c *TopicConfig) Permit(identity *auth.Identity, action, pattern string) (a
 			Msg("topic_permission_refused_audit_only")
 		return true, ""
 	}
-	topicPermissionRefusals.WithLabelValues(action, "denied", caller).Inc()
+	topicPermissionRefusals.WithLabelValues(action, outcomeDenied, caller).Inc()
 	return false, reason
 }
 
