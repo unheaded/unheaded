@@ -11,7 +11,8 @@
 //! - Tracks tcp_recvmsg timing
 //! - Associates measurements with trace IDs
 //! - Sends latency events to userspace via ring buffer
-//! - Aggregates per-flow RTT statistics in LATENCY_MAP (min/max/avg)
+//! - Aggregates per-thread RTT statistics in LATENCY_MAP (LRU: the least
+//!   recently updated thread makes room)
 
 #![no_std]
 #![no_main]
@@ -21,10 +22,12 @@ mod common;
 use aya_ebpf::{
     helpers::{bpf_get_current_pid_tgid, bpf_ktime_get_ns},
     macros::{kprobe, kretprobe, map},
-    maps::{HashMap, RingBuf},
+    maps::{HashMap, LruHashMap, RingBuf},
     programs::{ProbeContext, RetProbeContext},
 };
-use common::{LatencyEntry, LatencyTraceKey, MAX_LATENCY_MAP_ENTRIES};
+use common::{
+    LatencyEntry, LatencyTraceKey, LATENCY_STATS_ENTRIES, MAX_LATENCY_MAP_ENTRIES, STAT_MAP_UPDATES,
+};
 use unheaded_common::{
     LatencyEvent, LatencyOperation, TraceId, MAX_LATENCY_ENTRIES, RING_BUFFER_SIZE,
 };
@@ -64,14 +67,17 @@ static LATENCY_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 
 /// Per-thread RTT statistics map.
 /// Key: LatencyTraceKey (trace id, pid, tid), Value: LatencyEntry (min/max/latest/samples).
-/// Read by Go userspace LatencyReader to publish to Wotan and expose as Prometheus histogram.
+/// An LRU hash: when it is full the kernel evicts the least recently used
+/// entry, so a thread that exited makes room and a new thread still gets
+/// samples. A plain hash filled up and refused every new key from then on.
+/// Read by the Go trace collector's sweep, which publishes to Wotan.
 #[map]
-static LATENCY_MAP: HashMap<LatencyTraceKey, LatencyEntry> =
-    HashMap::with_max_entries(MAX_LATENCY_MAP_ENTRIES, 0);
+static LATENCY_MAP: LruHashMap<LatencyTraceKey, LatencyEntry> =
+    LruHashMap::with_max_entries(MAX_LATENCY_MAP_ENTRIES, 0);
 
 /// Statistics counters.
 #[map]
-static LATENCY_STATS: HashMap<u32, u64> = HashMap::with_max_entries(16, 0);
+static LATENCY_STATS: HashMap<u32, u64> = HashMap::with_max_entries(LATENCY_STATS_ENTRIES, 0);
 
 // Stats keys
 const STAT_SEND_ENTER: u32 = 0;
@@ -82,7 +88,8 @@ const STAT_CONNECT_ENTER: u32 = 4;
 const STAT_CONNECT_EXIT: u32 = 5;
 const STAT_EVENTS_SENT: u32 = 6;
 const STAT_EVENTS_DROPPED: u32 = 7;
-const STAT_MAP_UPDATES: u32 = 8;
+// Keys 8 (STAT_MAP_UPDATES) and 9 (STAT_MAP_INSERT_FAILED) are in common.rs
+// with their host test: the code below relies on 9 being 8 + 1.
 
 /// Kprobe on tcp_sendmsg entry.
 /// Signature: int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
@@ -299,7 +306,7 @@ fn try_tcp_connect_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
     Ok(0)
 }
 
-/// Send latency event to userspace and update per-flow LATENCY_MAP.
+/// Send latency event to userspace and update the thread's LATENCY_MAP entry.
 #[inline(always)]
 fn send_latency_event(
     pid_tgid: u64,
@@ -338,8 +345,12 @@ fn send_latency_event(
         tid,
     };
 
-    // Read existing entry or create new one.
-    match unsafe { LATENCY_MAP.get(&map_key) } {
+    // Read the existing entry or start a new one. STAT_MAP_UPDATES counts the
+    // inserts the kernel took; a refused one is counted on the next key
+    // (STAT_MAP_INSERT_FAILED), so a map that stops taking samples shows. The
+    // key is computed, not branched on: a branch here doubles the paths the
+    // verifier walks through increment_stat.
+    let failed = match unsafe { LATENCY_MAP.get(&map_key) } {
         Some(existing) => {
             let min_rtt = if latency_ns < existing.min_rtt_ns {
                 latency_ns
@@ -358,7 +369,7 @@ fn send_latency_event(
                 samples: existing.samples.saturating_add(1),
                 last_update_ns: now,
             };
-            let _ = LATENCY_MAP.insert(&map_key, &updated, 0);
+            LATENCY_MAP.insert(&map_key, &updated, 0).is_err()
         }
         None => {
             let new_entry = LatencyEntry {
@@ -368,10 +379,10 @@ fn send_latency_event(
                 samples: 1,
                 last_update_ns: now,
             };
-            let _ = LATENCY_MAP.insert(&map_key, &new_entry, 0);
+            LATENCY_MAP.insert(&map_key, &new_entry, 0).is_err()
         }
-    }
-    increment_stat(STAT_MAP_UPDATES);
+    } as u32;
+    increment_stat(STAT_MAP_UPDATES + failed);
 }
 
 /// Increment a statistics counter.
