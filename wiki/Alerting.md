@@ -134,6 +134,10 @@ scripts/monitoring/maintenance.sh --list
 scripts/monitoring/maintenance.sh --end
 ```
 
+**Planned stops (ADR-147 decision 4).** A silence stops mail; the SLO budgets still burn. A planned-stop mark stops that too: `scripts/monitoring/planned-stop.sh all 30m` (or an SLO name, or one container's name) writes `unheaded_planned_stop_until_timestamp_seconds{scope}` into huginn's textfile directory (`planned_stop.prom`, root's: it uses `sudo -n` as a normal user). Every SLO's `slo:good` counts a minute under a mark for its name or `all` as good, and ContainerStopped stays quiet for the marked container. `planned-stop.sh --list` shows the marks; `--end [scope]` ends them. `maintenance.sh --planned 30m "why"` (or `--planned=<scope>`) silences and marks in one go; `maintenance.sh --end` ends both. `kingdom-shutdown.sh` marks `all` for 30 days and `kingdom-startup.sh` replaces it with 15 minutes of warm-up. A stale 30-day mark (a shutdown with no startup) makes every SLO read good: `planned-stop.sh --list` after a restart.
+
+**ci-develop** is recorded and notifies no one (`notify: false`, Stevie 2026-11-15, ADR-147 decision 4: out of the alert set until CI is fixed): its `slo:good` and budget are still there to read.
+
 Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
 
 ## Rules that cannot fire are deleted

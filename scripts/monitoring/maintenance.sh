@@ -62,7 +62,7 @@ for s in json.load(sys.stdin):
 	[[ -n "$ids" ]] || echo "[ok] no maintenance silence active"
 	;;
 "" | -h | --help)
-	sed -n '5,30p' "$0"
+	sed -n '5,28p' "$0"
 	;;
 *)
 	planned=""
