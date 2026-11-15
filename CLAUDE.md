@@ -1251,7 +1251,7 @@ h, err := auth.NewServiceHandler(mux, cfg, auth.ServiceRoutes{ // or auth.NewSer
 if err != nil { log.Fatal(err) }                            // a bad auth config refuses to start
 ```
 RBAC sits behind authentication: a write needs admin, operator or service (a service token carries service);
-an observer key can read but not write. `/health`, `/ready`, `/metrics` stay open. Identities are the key names,
+an observer key can read but not write. `/health`, `/ready`, `/metrics` stay open. With `AUTH_ANONYMOUS_FROM` (CIDRs) set, a service's `SourceGated` routes, `/metrics` among them, are open only to those networks (ADR-147 decision 16). Identities are the key names,
 not compose service names (Cuirass is `unheaded-daemon`). Compliance evidence: `scripts/compliance/check-service-auth.sh`
 (remaining without auth 2026-10-27: none; all 13 pass). Wotan clients call `wotanClient.InitServiceIdentity("<id>")` once in `main()`; Wotan verifies the token, `topics.auto_approve` lists verified identities, not display names, and `topics.permissions` (FND-043) bounds what each may read and publish, `unlisted: deny`; a new binary gets an entry there or its calls are refused (`services/wotan/internal/api/repo_config_test.go` checks the file). Browsers: dashboard-backend and kanban-app are BFFs (`pkg/bff`): they log the user in at the issuer (`AUTH_ISSUER_URL`, https with the deployment CA; `AUTH_BFF_DEV_PLAINTEXT` only for a stack without TLS), keep the token server-side and give the browser an HttpOnly, Secure, SameSite=Strict session cookie; the dashboard needs a login for every read.
 

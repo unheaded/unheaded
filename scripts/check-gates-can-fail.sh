@@ -1161,6 +1161,17 @@ provoke_unit_ceilings_compose_yaml() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_host_settings() {
+    # Contract (S-WEST-GROUND, ADR-147 decision 12): west's sysctl source
+    # reserves no huge pages. Set them back to 1024.
+    local f="deploy/sysctl.d/99-unheaded-west.conf"
+    backup "${f}"
+    sed -i 's/^vm.nr_hugepages = 0$/vm.nr_hugepages = 1024/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_json_responses() {
     # Contract: no handler encodes JSON to its ResponseWriter. Put one back
     # in Wotan's topic publish, which still imports encoding/json for its
@@ -1474,6 +1485,7 @@ check-unit-start-limits|provoke_unit_start_limits|fast|StartLimitIntervalSec rem
 check-unit-ceilings|provoke_unit_ceilings_compose|fast|GOMEMLIMIT removed from the akira service
 check-unit-ceilings|provoke_unit_ceilings_compose_yaml|fast|monitoring/docker-compose.yml no longer parses
 check-module-binds|provoke_module_binds|fast|zhen-agentd bound to 0.0.0.0
+check-host-settings|provoke_host_settings|fast|vm.nr_hugepages set back to 1024 in west's sysctl source
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)

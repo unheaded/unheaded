@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Structure only (ADR-147 decision 13): no weight, floor or ceiling until plan 8 has measured them. Accounting is on so that it can.
+[Unit]
+Description=Tenants: programs that are not Unheaded. Empty until plan 7.
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-147-every-service-earns-its-place.md
+
+[Slice]
+CPUAccounting=yes
+MemoryAccounting=yes
+IOAccounting=yes
+TasksAccounting=yes

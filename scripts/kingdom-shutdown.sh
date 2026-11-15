@@ -190,10 +190,17 @@ if [[ "$KEEP_CONTAINERS" != "true" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
     COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+    # An explicit -f does not load the override; west's restart policy lives
+    # there (ADR-147 decision 1). Name it too when the host has one.
+    OVERRIDE_FILE="$PROJECT_ROOT/docker-compose.override.yml"
+    COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+    if [[ -f "$OVERRIDE_FILE" ]]; then
+        COMPOSE_ARGS=(--project-directory "$PROJECT_ROOT" -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE")
+    fi
 
     if [[ -f "$COMPOSE_FILE" ]]; then
         log_info "  docker compose down..."
-        run docker compose -f "$COMPOSE_FILE" down 2>/dev/null || log_warn "  docker compose down failed (ignored)"
+        run docker compose "${COMPOSE_ARGS[@]}" down 2>/dev/null || log_warn "  docker compose down failed (ignored)"
     fi
 
     # Stop any straggler unheaded containers. The monitoring stack is left

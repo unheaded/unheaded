@@ -38,19 +38,19 @@ route:
       matchers:
         - alertname="AlertMailVolumeHigh"
         - urgency="none"
-    - receiver: ticket
-      group_wait: 1m
-      group_interval: 5m
-      repeat_interval: 24h
-      matchers:
-        - alertname="HealthSweepNotSucceeding"
-        - urgency="none"
     - receiver: page
       group_wait: 2m
       group_interval: 5m
       repeat_interval: 12h
       matchers:
         - alertname="ContainerStopped"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HealthSweepNotSucceeding"
         - urgency="none"
     - receiver: page
       group_wait: 2m
@@ -86,6 +86,20 @@ route:
       repeat_interval: 12h
       matchers:
         - alertname="HostMemoryPressure"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostSettingsCheckStale"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostSettingsDrift"
         - urgency="none"
     - receiver: ticket
       group_wait: 1m
@@ -141,20 +155,6 @@ route:
       group_interval: 5m
       repeat_interval: 24h
       matchers:
-        - alertname="NodeExporterDown"
-        - urgency="none"
-    - receiver: ticket
-      group_wait: 1m
-      group_interval: 5m
-      repeat_interval: 24h
-      matchers:
-        - alertname="PrometheusRemoteWriteFailing"
-        - urgency="none"
-    - receiver: ticket
-      group_wait: 1m
-      group_interval: 5m
-      repeat_interval: 24h
-      matchers:
         - alertname="ModuleListenerGuardNotRunning"
         - urgency="none"
     - receiver: page
@@ -163,6 +163,20 @@ route:
       repeat_interval: 12h
       matchers:
         - alertname="ModuleListenerPublic"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="NodeExporterDown"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="PrometheusRemoteWriteFailing"
         - urgency="none"
     - receiver: ticket
       group_wait: 1m
