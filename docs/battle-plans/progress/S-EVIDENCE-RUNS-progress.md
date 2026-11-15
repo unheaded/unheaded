@@ -40,6 +40,7 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 | Date | Steps | Note |
 |---|---|---|
+| 2026-11-15 | 28-33 | DE2 removals. Seven entries deleted by name, each on its newest record: `git-signatures:develop` (pass, 2026-11-15T01:29:05Z), `github-job:Static Analysis/Python (ruff + bandit)` (pass, 2026-11-11T22:55:53Z), `github-job:SBOM + Vulnerability Scan/sbom` (pass, 2026-11-11T22:57:14Z), `host-probe:west:alert-route` and `host-probe:west:db-backup-recent` (pass, 2026-11-15T01:29:09Z), and the resolved `FND-032` and `FND-043`. **Step 32 reads 1, not 0:** `FND-038` stays, because `TestRegister_FND038CanBeMetAndKeepsAttestation` fails without it (the test keeps the attestation half of the finding on record). The plan's grounding did not see that test. Register test `ok`, `check-ci-verdicts.sh` PASS. Open count 168 → 167. |
 | 2026-11-15 | 17-27 | E-01: FND-043 `resolved` added (register test `ok`). E-02: Step 24 is attended, not run; Steps 25-26 blocked on it. |
 | 2026-11-15 | 1-16 | Phase 0. Decisions copied; baseline green; findings report before written to the host (`var/compliance/findings-s-evidence-runs-before.md`). The worktree has no `var/`, so the report reads the main checkout's `var/compliance/evidence.json` through `-evidence`. |
 
@@ -48,7 +49,7 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 - E-01: **closed.** FND-043 has a `resolved` block dated 2026-11-15. Nine refusal tests pass under `-race`; `configs/wotan.yaml` reads `unlisted: deny`, `mode: enforce`; live refusals over 24 h read 0 on west. Wotan was recreated at 02:00:35Z today (S-WATCH-TRUE Phase 5), so the refusal series start at zero for every listed caller.
 - E-02: **open, waits on Stevie** (Step 24, attended root rerun of `tests/hopchecks` at HEAD). The pre-check differs from the plan's grounding: one commit since `60c4bb23` touches `ebpf/` (`33fb3754`, S-WATCH-TRUE, `latency-probe` only; nothing under `ebpf/hop-ebpf`, `crates/` or `tests/hopchecks`). The rerun at HEAD covers it. Steps 25-26 are `[BLOCKED]` on Step 24.
 - E-03:
-- E-04:
+- E-04: **removed.** `host-probe:west:alert-route` and `host-probe:west:db-backup-recent` both pass (newest record 2026-11-15T01:29:09Z) and are out of the register (DE2).
 - E-05:
 - E-06:
 - E-07:
@@ -62,6 +63,8 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 ## For Stevie
 
 - **Step 24 (E-02, FND-025):** run `tests/hopchecks` as root at HEAD (command from FND-033's plan text and `tests/hopchecks/README*`). 46 cases passed on 2026-11-09. A pass lets Step 26 add FND-025's `resolved` block.
+
+- **FND-038 and the "remove" list (Step 32):** the report will keep listing `FND-038` as "remove from the register" while `pkg/compliance/crosswalk/register_text_test.go` requires the entry. Either the entry and that test go together, or the plan's target ("an empty remove list") reads "empty except FND-038". Left as it is.
 
 ## Stuck
 

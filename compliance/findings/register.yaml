@@ -551,32 +551,6 @@ findings:
       sprint: one mechanical change across ~40 callers, the module diff read with scripts/dep-diff.sh first.
       Found by cmd/depaudit (S-LOW-FRUIT Phase 10); rule: >36 months on an input boundary is a register row.
 
-  - id: FND-032
-    title: >-
-      No ChromaDB release is free of PYSEC-2026-311, -3813, -3814 and -3815 (last_affected 1.5.9); Grimoire pins
-      1.5.9, and check-python-audit does not audit its requirements.txt because other lines there are ranges
-    verify: >-
-      no tracked manifest names chromadb (scripts/check-dependency-baseline.sh refuses it), go test ./cmd/zhen-codeindex
-      -run TestTomb passes, and a syft scan of the tree lists no chromadb
-    severity: low
-    class: package
-    opened: 2026-11-04
-    exposure: >-
-      none on west or east: Grimoire runs only on a provisioned air-gapped Tomb VM, through the embedded
-      PersistentClient; all four advisories need a Chroma HTTP server or its RBAC provider
-    lockout: none
-    step: 3
-    plan: >-
-      Stevie's call (S-SUPPLY-FIRST For Stevie 1): pin the remaining ranges with four accepted lines, take a fixed
-      release when one ships, or replace ChromaDB in Grimoire. Replaced: DP-719 option A, 2026-11-06.
-    resolved:
-      on: 2026-11-07
-      evidence: >-
-        S-ANSWERED lane retrieval: tomb/grimoire/rag/ deleted and the corpus served by pkg/retrieval. The dependency
-        baseline dropped chromadb and refuses it when added back (provoked, rc=1). syft 1.44.0 over a clean export of the
-        tree, the scan the SBOM jobs run: chromadb 1.5.9 before, none after. grype on those SBOMs: four chromadb
-        advisories before, none after.
-
   - id: FND-040
     title: >-
       check-python-audit does not audit notebooks/requirements.txt: all its lines are ranges, the gap FND-032 named for
@@ -1701,43 +1675,6 @@ findings:
     decision: the firewall rollout (same as host-iptables:east default deny)
 
   # --- CI and agents after the 2026-10-25 push (b3102c18) ---------------------
-  - source: "git-signatures:develop"
-    severity: low
-    class: ci
-    opened: 2026-10-25
-    exposure: provenance of 6 commits only; every commit since 2026-10-23 is signed
-    lockout: none
-    step: 1
-    plan: >-
-      The six unsigned commits are sprint/two-brains-runbooks Steps 321-338 (3a9665d7..b81695fe, 2026-10-23,
-      gpg-agent had timed out), merged and pushed in b3102c18. Re-signing them would rewrite pushed history
-      (scripts/resign-unpushed.py is for unpushed commits), so they are left; they leave the 50-commit window as
-      signed commits land (local develop 2026-10-25: 1 of 50)
-
-  - source: "github-job:Static Analysis/Python (ruff + bandit)"
-    severity: low
-    class: ci
-    opened: 2026-10-25
-    exposure: none on a host; a lint gate that went red unseen
-    lockout: none
-    step: 1
-    plan: >-
-      ruff was red since the eval sprints and nobody saw it: ruff is not installed on west, so the meta-gate
-      called check-ruff INCONCLUSIVE. Fixed on develop in ae99bc61 (579 findings in frozen eval fixtures
-      excluded by path with the reason, the rest fixed, outputs proven unchanged); closes on the next push
-
-  - source: "github-job:SBOM + Vulnerability Scan/sbom"
-    severity: low
-    class: ci
-    opened: 2026-10-25
-    exposure: filelock (GHSA-v4x8-3wr5-3wq8, high) in the ~/.venv/zhen freeze; a local-only lock-file race
-    lockout: none
-    step: 1
-    plan: >-
-      Fixed on develop in 354d866f (filelock 4.2.1, setuptools 84.1.0 in ~/.venv/zhen and the CI lock); grype at
-      medium passes on a git archive of develop (syft + grype from scripts/ci-install-tools.sh); closes on the
-      next push
-
   - source: "host-agent:east:baseline-report"
     severity: low
     class: service
@@ -1822,18 +1759,6 @@ findings:
     step: 3
     plan: Move east to the same supported release as west, east first. An OS upgrade is Stevie's to run
     decision: which LTS, and when
-  - source: "host-probe:west:alert-route"
-    severity: high
-    class: service
-    opened: 2026-11-05
-    exposure: >-
-      the alert path's four links do not all answer, so this control fails until E1 brings the stack on west back
-    lockout: none
-    step: 1
-    plan: >-
-      E1, attended: bring the stack up after the batch 2 list in the handoff. Passes when all four links answer.
-      The heartbeat's watcher still depends on west; moving it is a separate call
-    decision: when to run E1, and whether the heartbeat watcher moves off west
   - id: FND-036
     title: >-
       East's unheaded-wotan and unheaded-timeguru restart in a loop: the April 1.0.0 units pass a flag the binary does
@@ -1881,17 +1806,6 @@ findings:
     plan: >-
       West's profile is lab, which leaves out auditd-rules. Moving west to lab-hardened in the E-D host window, after
       east, loads them; a host change, so not done unattended
-  - source: "host-probe:west:db-backup-recent"
-    severity: medium
-    class: backup
-    opened: 2026-11-05
-    exposure: >-
-      unheaded-well-backup.service fails every night because the Well is stopped, and the newest set is from
-      2026-10-28. No new data goes unprotected while it is stopped, which is why this is medium; east's offsite check
-      fails daily for the same reason
-    lockout: none
-    step: 1
-    plan: Clears with E1 (host-probe:west:alert-route) at the next nightly run; if it does not within a day, treat it as a new failure
   - id: FND-037
     title: >-
       Evidence reads declared configuration, not what runs: UH-AUTHN-01 and others pass on the compose file, which says
@@ -1990,40 +1904,6 @@ findings:
     plan: >-
       Stevie 2026-11-06: after the first green CI, required status checks and no review count, since one person cannot
       review his own work. A GitHub setting, in Stevie's hands
-  - id: FND-043
-    title: >-
-      Wotan has no per-topic read permission: any authenticated service may stream every topic, wildcard included
-    verify: >-
-      configs/wotan.yaml names, per service identity, the topic prefixes it may subscribe to and publish on; a
-      StreamTopics or SubscribeTopic call for a pattern outside the caller's list, and any "#" or "*" pattern from a
-      service not named as a wildcard reader, is refused with PermissionDenied, and a test proves each refusal
-    severity: medium
-    class: app
-    opened: 2026-11-11
-    exposure: >-
-      needs a valid service token first (18 keys in trust.d, each 0400 under its own account; Wotan is on loopback,
-      the compose bridge and the overlay only, TLS 1.3). From there, StreamTopics approves any pattern for any
-      identity (services/wotan/internal/grpc/topic_service.go, the RequestJoin + Approve after callerIdentity), and the
-      HTTP SubscribeTopic path approves every identity on topics.auto_approve, which is the whole caller list. One
-      compromised service, kev-poller say, reads audit.*, alerts.*, system.health.*, kanban.* and the rest. Signed
-      prefixes stop forging, not reading. ADR-103 section 6 named topic ACLs as "a later step"
-    lockout: none
-    step: 7
-    plan: >-
-      Stevie 2026-11-11: record and fix. Per-identity allow lists in configs/wotan.yaml (read prefixes, publish
-      prefixes, wildcard readers such as dashboard-backend), enforced on both listeners before the join is approved;
-      default deny once the file names a service; the first list written from what each service subscribes to today
-      (grep of Subscribe calls per cmd/ and services/), so nothing live breaks; tests that a wrong pattern and a bare
-      "#" are refused. Fixed on develop first (ADR-089)
-    resolved:
-      on: 2026-11-15
-      evidence: >-
-        24025056 enforces topics.permissions (unlisted: deny, mode: enforce); 90e45458 closed the first list's gaps
-        (sophia knowledge.shared, gateway and upc-cartridgectl approved). Rerunnable: go test ./services/wotan/...
-        -run 'TestPermissions|TestShippedAllowlistCoversDeployedSubscribers|TestEveryWotanClientIdentityIsAllowedAndApproved'
-        (nine tests pass under -race at a36a8190); live refusals over 24 h read 0 on 2026-11-15 (west, VictoriaMetrics,
-        sum(increase(unheaded_wotan_topic_permission_refusals_total[24h])))
-
   - id: FND-044
     title: >-
       The eBPF trace collector sweeps LATENCY_MAP two system calls per entry every 200 ms; the map never shrinks and
