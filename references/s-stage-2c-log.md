@@ -339,3 +339,5 @@ What moves is the Phase 1.4 PC tracer's output. `TRACE_HEAD` is armed with 100 a
 
 **Measured for the decision, not committed.** With two further changes the rung is on and nothing moves: (a) `copyinstr` accepts slot 0's first page (reads only; the "slot 0 literal" question already filed), so init's and uinit's own `open("console")` succeed and their user-mode path is the golden's; (b) under the rung the tracer prints U-mode PCs only. Booted: `sweep12` **12 of 12 SAME** (`uinit_echo` among them, `init.c` and `uinit.c` untouched), `vcount` 532,152 (+2,847 for the tracer test over 529,305). Both changes were reverted before any commit: (a) is Stevie's to decide and was not to be landed by this lane.
 
+**Gate on the committed tree, rung off** (`a0c25e62`): `gate rung56-off: same=12 diff=0 rc=0 doom=1 ascend=883522`, harness ALL GREEN (55 passes): `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20, `hostile_path` 6 with the new line, `crprobe` 4 checks with `tty_r=17` (init's own read among them); `rwprobe gate skipped: UPC_RUNG56 is off`. The baseline row stays 883,522. Steps 229-244 are not run: they need the rung on.
+
