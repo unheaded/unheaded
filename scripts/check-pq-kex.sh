@@ -30,6 +30,12 @@
 #   postgres-groups-classical  ssl_groups / ssl_ecdh_curve with no hybrid group
 #   sshd-kex-classical         an sshd KexAlgorithms list with no hybrid at all
 #                              (mlkem768x25519-sha256 or sntrup761x25519 count)
+#   own-primitive-unlisted     the SHA-256 round constants in a shipped source
+#                              file that cmd/crypto-inventory's own-primitive
+#                              table does not list (a hand-written SHA-256).
+#                              Not a key-exchange rule; it rides this lint so
+#                              one gate reads the whole inventory. It cannot be
+#                              baselined: --update refuses additions.
 #
 # Line numbers are not part of a key, so editing an unrelated line above a
 # baselined site does not churn the baseline.

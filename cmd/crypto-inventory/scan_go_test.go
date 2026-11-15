@@ -230,3 +230,93 @@ func TestScanGo_ParseErrorIsLoud(t *testing.T) {
 		t.Fatal("a file that does not parse must fail the scan, not vanish from it")
 	}
 }
+
+// TestScanGo_SymmetricKDFHash: AEAD, KDF and SHA-3 imports are inventoried
+// with the CycloneDX primitive of their class (D-34).
+func TestScanGo_SymmetricKDFHash(t *testing.T) {
+	assets := scanGoFixtures(t)
+	tests := []struct {
+		name, path string
+		line       int
+		kind, prim string
+		param      string
+	}{
+		{"(o) x/crypto chacha20poly1305", "pkg/fx/o_aead.go", 5, kindAEADImport, primAE, "ChaCha20-Poly1305"},
+		{"(p) crypto/hkdf", "pkg/fx/p_kdf.go", 6, kindKDFImport, primKDF, "HKDF"},
+		{"(p) x/crypto argon2", "pkg/fx/p_kdf.go", 8, kindKDFImport, primKDF, "Argon2"},
+		{"(p) x/crypto hkdf, aliased", "pkg/fx/p_kdf.go", 9, kindKDFImport, primKDF, "HKDF"},
+		{"(q) crypto/aes with cipher.NewGCM", "pkg/fx/q_aesgcm.go", 6, kindAEADImport, primAE, "AES-GCM"},
+		{"(s) crypto/sha3", "pkg/fx/s_sha3.go", 6, kindHashImport, primHash, "SHA-3"},
+		{"(s) x/crypto sha3, aliased", "pkg/fx/s_sha3.go", 8, kindHashImport, primHash, "SHA-3"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := one(t, assets, tt.path, tt.line, tt.kind)
+			if a.AssetType != assetAlgorithm || a.Primitive != tt.prim || a.ParamSet != tt.param {
+				t.Errorf("%s: type=%q primitive=%q param=%q, want %q %q %q", a.Ref(), a.AssetType, a.Primitive, a.ParamSet, assetAlgorithm, tt.prim, tt.param)
+			}
+			if a.PQStatus != pqNA || a.Owner != ownerFirstParty || a.NISTLevel != -1 {
+				t.Errorf("%s: pq-status=%q owner=%q level=%d, want %q %q -1", a.Ref(), a.PQStatus, a.Owner, a.NISTLevel, pqNA, ownerFirstParty)
+			}
+			if len(rulesFor(a)) != 0 {
+				t.Errorf("%s: lint rules %v on a symmetric, KDF or hash import", a.Ref(), rulesFor(a))
+			}
+		})
+	}
+}
+
+// TestScanGo_AESWithoutGCMIsABlockCipher: crypto/aes with no GCM in the
+// file is still listed, as a block cipher whose mode the file does not show.
+func TestScanGo_AESWithoutGCMIsABlockCipher(t *testing.T) {
+	assets := scanGoFixtures(t)
+	a := one(t, assets, "pkg/fx/r_aesraw.go", 5, kindCipherImport)
+	if a.Primitive != primBlockCipher || a.ParamSet != "AES" || !strings.Contains(a.Detail, "mode") {
+		t.Errorf("raw AES asset = %+v", a)
+	}
+	if got := at(assets, "pkg/fx/r_aesraw.go", 0, kindAEADImport); len(got) != 0 {
+		t.Errorf("crypto/aes without GCM was called an AEAD: %v", got)
+	}
+	if got := at(assets, "pkg/fx/q_aesgcm.go", 0, kindCipherImport); len(got) != 0 {
+		t.Errorf("crypto/aes with GCM was listed twice: %v", got)
+	}
+}
+
+// TestScanGo_SHA256AloneIsNotInventoried: crypto/sha256 and crypto/sha512
+// are digests everywhere in this tree (content ids, cache keys, signature
+// pre-hashes). A row per import would bury the constructions, so SHA-2
+// from the standard library gives no row. The choice is deliberate.
+func TestScanGo_SHA256AloneIsNotInventoried(t *testing.T) {
+	for _, a := range scanGoFixtures(t) {
+		if a.Path == "pkg/fx/t_sha256.go" {
+			t.Errorf("a stdlib SHA-2 import was inventoried: %s (%s)", a.Ref(), a.Name)
+		}
+	}
+}
+
+// TestGoCryptoImports_TableIsConsistent: every symmetric, KDF and hash entry
+// carries the CycloneDX primitive of its kind, a name, and no security level
+// (the level belongs to the key size, which the import does not show).
+func TestGoCryptoImports_TableIsConsistent(t *testing.T) {
+	want := map[string]string{kindAEADImport: primAE, kindKDFImport: primKDF, kindHashImport: primHash}
+	seen := map[string]int{}
+	for pkg, spec := range goCryptoImports {
+		prim, ok := want[spec.kind]
+		if !ok {
+			continue
+		}
+		seen[spec.kind]++
+		if spec.primitive != prim || spec.name == "" || spec.param == "" || spec.level != -1 || spec.cnsa2 {
+			t.Errorf("%s: %+v, want primitive %q, a name, a parameter set, level -1", pkg, spec, prim)
+		}
+	}
+	for kind := range want {
+		if seen[kind] == 0 {
+			t.Errorf("no %s entry in the import table", kind)
+		}
+	}
+	for pkg := range goCryptoImports {
+		if pkg == "crypto/sha256" || pkg == "crypto/sha512" {
+			t.Errorf("%s is in the import table; stdlib SHA-2 is left out on purpose", pkg)
+		}
+	}
+}

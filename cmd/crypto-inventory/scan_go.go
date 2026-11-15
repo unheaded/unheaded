@@ -27,15 +27,22 @@ const (
 	kindKEMImport = "kem-import"  // a KEM implementation package
 	kindKexImport = "kex-import"  // a classical key-agreement package
 	kindSSHImport = "ssh-library" // golang.org/x/crypto/ssh
+
+	kindAEADImport   = "aead-import"   // an authenticated-encryption package
+	kindKDFImport    = "kdf-import"    // a key-derivation or password-hashing package
+	kindHashImport   = "hash-import"   // a hash that is a construction's input (SHA-3); not stdlib SHA-2
+	kindCipherImport = "cipher-import" // crypto/aes with no GCM in the file
 )
 
 const (
-	pkgTLS   = "crypto/tls"
-	pkgCreds = "google.golang.org/grpc/credentials"
-	pkgSSH   = "golang.org/x/crypto/ssh"
-	pkgPQC   = "unheaded/pkg/crypto/pqc"
-	pkgPQTLS = "unheaded/pkg/tls" // ApplyStrict / ApplyPreferred (ADR-105)
-	dirPQTLS = "pkg/tls"          // where those are called without a qualifier
+	pkgTLS    = "crypto/tls"
+	pkgCreds  = "google.golang.org/grpc/credentials"
+	pkgSSH    = "golang.org/x/crypto/ssh"
+	pkgPQC    = "unheaded/pkg/crypto/pqc"
+	pkgPQTLS  = "unheaded/pkg/tls" // ApplyStrict / ApplyPreferred (ADR-105)
+	dirPQTLS  = "pkg/tls"          // where those are called without a qualifier
+	pkgAES    = "crypto/aes"
+	pkgCipher = "crypto/cipher"
 )
 
 // ADR-105 profile functions in pkg/tls and what they do to a Config.
@@ -161,14 +168,37 @@ var goCryptoImports = map[string]importSpec{
 	"github.com/cloudflare/circl/kem/mlkem/mlkem768": {kindKEMImport, "ML-KEM-768", primKEM, "ML-KEM-768", pqNA, 3, false, "KEM implementation; key-exchange sites are inventoried separately"},
 	"github.com/cloudflare/circl/kem/mlkem/mlkem1024": {kindKEMImport, "ML-KEM-1024", primKEM, "ML-KEM-1024", pqNA, 5, true,
 		"KEM implementation; key-exchange sites are inventoried separately"},
-	"crypto/mlkem":                         {kindKEMImport, "ML-KEM (crypto/mlkem)", primKEM, "ML-KEM-768/1024", pqNA, -1, false, "KEM implementation; key-exchange sites are inventoried separately"},
-	"crypto/ed25519":                       {kindSigImport, "Ed25519", primSignature, "Ed25519", pqClassicalSig, 0, false, ""},
-	"golang.org/x/crypto/ed25519":          {kindSigImport, "Ed25519", primSignature, "Ed25519", pqClassicalSig, 0, false, ""},
-	"crypto/ecdsa":                         {kindSigImport, "ECDSA", primSignature, "ECDSA", pqClassicalSig, 0, false, ""},
-	"crypto/rsa":                           {kindSigImport, "RSA", primSignature, "RSA", pqClassicalSig, 0, false, "RSA signatures and/or encryption"},
-	"golang.org/x/crypto/curve25519":       {kindKexImport, "X25519", primKeyAgree, "X25519", pqClassical, 0, false, "classical key agreement"},
-	"crypto/ecdh":                          {kindKexImport, "ECDH", primKeyAgree, "ECDH", pqClassical, 0, false, "classical key agreement"},
-	"golang.org/x/crypto/chacha20poly1305": {}, // symmetric: out of scope (zero kind = skip)
+	"crypto/mlkem":                   {kindKEMImport, "ML-KEM (crypto/mlkem)", primKEM, "ML-KEM-768/1024", pqNA, -1, false, "KEM implementation; key-exchange sites are inventoried separately"},
+	"crypto/ed25519":                 {kindSigImport, "Ed25519", primSignature, "Ed25519", pqClassicalSig, 0, false, ""},
+	"golang.org/x/crypto/ed25519":    {kindSigImport, "Ed25519", primSignature, "Ed25519", pqClassicalSig, 0, false, ""},
+	"crypto/ecdsa":                   {kindSigImport, "ECDSA", primSignature, "ECDSA", pqClassicalSig, 0, false, ""},
+	"crypto/rsa":                     {kindSigImport, "RSA", primSignature, "RSA", pqClassicalSig, 0, false, "RSA signatures and/or encryption"},
+	"golang.org/x/crypto/curve25519": {kindKexImport, "X25519", primKeyAgree, "X25519", pqClassical, 0, false, "classical key agreement"},
+	"crypto/ecdh":                    {kindKexImport, "ECDH", primKeyAgree, "ECDH", pqClassical, 0, false, "classical key agreement"},
+
+	// Symmetric encryption, key derivation and hashes that feed a
+	// construction (backlog row D-34). They carry no post-quantum question
+	// of their own (pq-status n/a); the row says the primitive is in the
+	// tree and where.
+	//
+	// crypto/sha256 and crypto/sha512 are left out on purpose. They are
+	// digests everywhere they appear (content ids, cache keys, signature
+	// pre-hashes), and one row per import would bury the constructions.
+	// SHA-3 is listed because here it is the hash inside a key derivation.
+	// TestScanGo_SHA256AloneIsNotInventoried pins the choice.
+	"golang.org/x/crypto/chacha20poly1305": {kindAEADImport, "ChaCha20-Poly1305 / XChaCha20-Poly1305", primAE, "ChaCha20-Poly1305", pqNA, -1, false,
+		"RFC 8439; the 24-byte-nonce X variant comes from the same package"},
+	"golang.org/x/crypto/nacl/secretbox": {kindAEADImport, "XSalsa20-Poly1305 (secretbox)", primAE, "XSalsa20-Poly1305", pqNA, -1, false, ""},
+	"golang.org/x/crypto/nacl/box":       {kindAEADImport, "X25519 + XSalsa20-Poly1305 (box)", primAE, "XSalsa20-Poly1305", pqClassical, -1, false, "public-key box: the key agreement is classical X25519"},
+	"crypto/hkdf":                        {kindKDFImport, "HKDF", primKDF, "HKDF", pqNA, -1, false, "RFC 5869; the hash is chosen at the call site"},
+	"golang.org/x/crypto/hkdf":           {kindKDFImport, "HKDF", primKDF, "HKDF", pqNA, -1, false, "RFC 5869; the hash is chosen at the call site"},
+	"golang.org/x/crypto/argon2":         {kindKDFImport, "Argon2", primKDF, "Argon2", pqNA, -1, false, "RFC 9106 password hashing"},
+	"golang.org/x/crypto/scrypt":         {kindKDFImport, "scrypt", primKDF, "scrypt", pqNA, -1, false, "RFC 7914 password-based key derivation"},
+	"golang.org/x/crypto/bcrypt":         {kindKDFImport, "bcrypt", primKDF, "bcrypt", pqNA, -1, false, "password hashing"},
+	"crypto/pbkdf2":                      {kindKDFImport, "PBKDF2", primKDF, "PBKDF2", pqNA, -1, false, "RFC 8018; the hash is chosen at the call site"},
+	"golang.org/x/crypto/pbkdf2":         {kindKDFImport, "PBKDF2", primKDF, "PBKDF2", pqNA, -1, false, "RFC 8018; the hash is chosen at the call site"},
+	"crypto/sha3":                        {kindHashImport, "SHA-3", primHash, "SHA-3", pqNA, -1, false, "FIPS 202 (SHA3 and SHAKE)"},
+	"golang.org/x/crypto/sha3":           {kindHashImport, "SHA-3", primHash, "SHA-3", pqNA, -1, false, "FIPS 202 (SHA3 and SHAKE)"},
 }
 
 // killSwitch matches GODEBUG settings that turn Go's hybrid groups off.
@@ -269,6 +299,9 @@ func (g *goFile) imports(f *ast.File) {
 		case pkgPQC:
 			g.pqcImport(f, imp, name)
 			continue
+		case pkgAES:
+			g.aesImport(f, imp)
+			continue
 		}
 		spec, ok := goCryptoImports[p]
 		if !ok || spec.kind == "" {
@@ -281,6 +314,40 @@ func (g *goFile) imports(f *ast.File) {
 			Owner: ownerFirstParty,
 		})
 	}
+}
+
+// aesImport records crypto/aes by what the file does with the block: wrapped
+// by one of crypto/cipher's NewGCM constructors it is AES-GCM; otherwise it
+// is a block cipher whose mode this file does not show.
+func (g *goFile) aesImport(f *ast.File, imp *ast.ImportSpec) {
+	cipherName := ""
+	for _, other := range f.Imports {
+		if p, err := strconv.Unquote(other.Path.Value); err == nil && p == pkgCipher {
+			cipherName = localName(other, p)
+		}
+	}
+	gcm := false
+	if cipherName != "" {
+		ast.Inspect(f, func(n ast.Node) bool {
+			if sel, ok := n.(*ast.SelectorExpr); ok {
+				if x, ok := sel.X.(*ast.Ident); ok && x.Name == cipherName && strings.HasPrefix(sel.Sel.Name, "NewGCM") {
+					gcm = true
+				}
+			}
+			return !gcm
+		})
+	}
+	a := Asset{
+		Line: g.line(imp.Pos()), Kind: kindCipherImport, Name: "AES (" + pkgAES + ")",
+		AssetType: assetAlgorithm, Primitive: primBlockCipher, ParamSet: "AES",
+		NISTLevel: -1, PQStatus: pqNA, Owner: ownerFirstParty,
+		Detail: "FIPS 197; no cipher.NewGCM in this file, so the mode of operation is not visible here",
+	}
+	if gcm {
+		a.Kind, a.Name, a.Primitive, a.ParamSet = kindAEADImport, "AES-GCM ("+pkgAES+")", primAE, "AES-GCM"
+		a.Detail = "FIPS 197 with SP 800-38D; the key length is chosen at the call site"
+	}
+	g.add(a)
 }
 
 // sshImport records x/crypto/ssh: a live link only if the file dials or

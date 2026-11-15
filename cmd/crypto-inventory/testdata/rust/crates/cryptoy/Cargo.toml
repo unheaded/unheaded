@@ -1,0 +1,16 @@
+[package]
+name = "cryptoy"
+version = "0.1.0"
+
+[dependencies]
+x25519-dalek = { version = "2", features = ["static_secrets"], optional = true }
+aes-gcm = { version = "0.10", optional = true }
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+sha3 = "0.10"
+blake3 = "1"
+serde = "1"
+
+[dev-dependencies]
+argon2 = "0.5"
