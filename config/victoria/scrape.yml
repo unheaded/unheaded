@@ -46,56 +46,6 @@ scrape_configs:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: localhost
 
-  - job_name: "architect"
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["host.docker.internal:19001"]
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      ca_file: /etc/victoria/tls/ca.pem
-      server_name: localhost
-
-  - job_name: "captain"
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["host.docker.internal:19002"]
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      ca_file: /etc/victoria/tls/ca.pem
-      server_name: localhost
-
-  - job_name: "micromanager"
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["host.docker.internal:19003"]
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      ca_file: /etc/victoria/tls/ca.pem
-      server_name: localhost
-
-  - job_name: "monad"
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["host.docker.internal:19004"]
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      ca_file: /etc/victoria/tls/ca.pem
-      server_name: localhost
-
-  - job_name: "sophia"
-    scrape_interval: 10s
-    static_configs:
-      - targets: ["host.docker.internal:19005"]
-    metrics_path: /metrics
-    scheme: https
-    tls_config:
-      ca_file: /etc/victoria/tls/ca.pem
-      server_name: localhost
-
   # East runs it as a host unit on 17000, plain HTTP until its debs are
   # upgraded (S-E1-LIVE Evening 10B); __scheme__ overrides the job's https.
   - job_name: "unheaded-daemon"

@@ -179,11 +179,6 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 var defaultTargets = []health.ServiceTarget{
 	{Name: "wotan", Host: "localhost", Port: 18000, HealthPath: "/health"},
 	{Name: "timeguru", Host: "localhost", Port: 19000, HealthPath: "/health"},
-	{Name: "architect", Host: "localhost", Port: 19001, HealthPath: "/health"},
-	{Name: "captain", Host: "localhost", Port: 19002, HealthPath: "/health"},
-	{Name: "micromanager", Host: "localhost", Port: 19003, HealthPath: "/health"},
-	{Name: "monad", Host: "localhost", Port: 19004, HealthPath: "/health"},
-	{Name: "sophia", Host: "localhost", Port: 19005, HealthPath: "/health"},
 	{Name: "dashboard", Host: "localhost", Port: 20000, HealthPath: "/health"},
 	{Name: "kanban", Host: "localhost", Port: 20001, HealthPath: "/health"},
 	// The Zhen web UI is https whatever UNHEADED_TLS_ENABLED says:

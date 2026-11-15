@@ -27,12 +27,7 @@ type Config struct {
 
 // AlphaServicesConfig holds configuration for Alpha platform services.
 type AlphaServicesConfig struct {
-	TimeGuruHost     string `json:"timeguru_host"`
-	CaptainHost      string `json:"captain_host"`
-	ArchitectHost    string `json:"architect_host"`
-	MicromanagerHost string `json:"micromanager_host"`
-	MonadHost        string `json:"monad_host"`
-	SophiaHost       string `json:"sophia_host"`
+	TimeGuruHost string `json:"timeguru_host"`
 }
 
 // ServerConfig holds server-specific settings.
@@ -184,12 +179,7 @@ func DefaultConfig() *Config {
 			Path:    "/metrics",
 		},
 		AlphaServices: AlphaServicesConfig{
-			TimeGuruHost:     "timeguru:19000",
-			CaptainHost:      "captain:19002",
-			ArchitectHost:    "architect:19001",
-			MicromanagerHost: "micromanager:19003",
-			MonadHost:        "monad:19004",
-			SophiaHost:       "sophia:19005",
+			TimeGuruHost: "timeguru:19000",
 		},
 	}
 }
@@ -271,21 +261,6 @@ func LoadFromEnv() *Config {
 	// Alpha Services host configuration
 	if host := os.Getenv("TIMEGURU_HOST"); host != "" {
 		cfg.AlphaServices.TimeGuruHost = host
-	}
-	if host := os.Getenv("CAPTAIN_HOST"); host != "" {
-		cfg.AlphaServices.CaptainHost = host
-	}
-	if host := os.Getenv("ARCHITECT_HOST"); host != "" {
-		cfg.AlphaServices.ArchitectHost = host
-	}
-	if host := os.Getenv("MICROMANAGER_HOST"); host != "" {
-		cfg.AlphaServices.MicromanagerHost = host
-	}
-	if host := os.Getenv("MONAD_HOST"); host != "" {
-		cfg.AlphaServices.MonadHost = host
-	}
-	if host := os.Getenv("SOPHIA_HOST"); host != "" {
-		cfg.AlphaServices.SophiaHost = host
 	}
 
 	return cfg

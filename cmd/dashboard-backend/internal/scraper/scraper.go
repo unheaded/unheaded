@@ -930,18 +930,15 @@ func (s *Scraper) IsRunning() bool {
 // firstParty: services that listen through pkg/tls (keep in step with
 // internal/health.FirstParty).
 var firstParty = map[string]bool{
-	"timeguru": true, "captain": true, "architect": true, "micromanager": true,
-	"wotan": true, "monad": true, "sophia": true, "cuirass": true, "daemon": true,
+	"timeguru": true,
+	"wotan":    true, "cuirass": true, "daemon": true,
 	"kanban": true, "kanban-app": true, "dashboard": true, "akira": true,
 	"sword": true, "auth": true,
 }
 
 var DefaultServiceEndpoints = map[string]string{
-	"timeguru":     "localhost:19000",
-	"captain":      "localhost:19002",
-	"architect":    "localhost:19001",
-	"micromanager": "localhost:19003",
-	"wotan":        "localhost:18000", // HTTP: /health, /metrics (18001 is gRPC)
+	"timeguru": "localhost:19000",
+	"wotan":    "localhost:18000", // HTTP: /health, /metrics (18001 is gRPC)
 	// No "gateway": nothing serves localhost:21000 in any deployment (the
 	// gateway deb is gone; compose's edge is Traefik on 80/443), so it was
 	// permanently unhealthy and held every dashboard at "unhealthy". A

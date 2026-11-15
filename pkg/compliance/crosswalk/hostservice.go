@@ -74,14 +74,9 @@ func onWest(container string) map[string]ServiceRun {
 // two sets equal). East's entries are added when its redeploy is done
 // (S-E1-LIVE Step 218); until then UH-AUTHN-01 keeps `declared:`.
 var HostServices = map[string]HostService{
-	"wotan":        {Port: ports.WotanHTTP, Method: "GET", Route: "/api/v1/admin/pending", Runs: onWest("unheaded-wotan")},
-	"timeguru":     {Port: ports.Timeguru, Method: "GET", Route: "/api/v1/timeline", Runs: onWest("unheaded-timeguru")},
-	"captain":      {Port: ports.Captain, Method: "GET", Route: "/api/v1/strategy", Runs: onWest("unheaded-captain")},
-	"architect":    {Port: ports.Architect, Method: "GET", Route: "/design", Runs: onWest("unheaded-architect")},
-	"micromanager": {Port: ports.Micromanager, Method: "GET", Route: "/api/v1/backlog", Runs: onWest("unheaded-micromanager")},
-	"monad":        {Port: ports.Monad, Method: "GET", Route: "/api/v1/stats", Runs: onWest("unheaded-monad")},
-	"sophia":       {Port: ports.Sophia, Method: "GET", Route: "/api/v1/knowledge", Runs: onWest("unheaded-sophia")},
-	"cuirass":      {Port: ports.Cuirass, Method: "GET", Route: "/api/v1/containers", Runs: onWest("unheaded-cuirass")},
+	"wotan":    {Port: ports.WotanHTTP, Method: "GET", Route: "/api/v1/admin/pending", Runs: onWest("unheaded-wotan")},
+	"timeguru": {Port: ports.Timeguru, Method: "GET", Route: "/api/v1/timeline", Runs: onWest("unheaded-timeguru")},
+	"cuirass":  {Port: ports.Cuirass, Method: "GET", Route: "/api/v1/containers", Runs: onWest("unheaded-cuirass")},
 	"akira": {Port: ports.Akira, Method: "GET", Route: "/",
 		Why:  "Akira's one API route is an open read (cmd/akira apiHandler); every other path is refused before the mux",
 		Runs: onWest("unheaded-akira")},

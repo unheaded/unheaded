@@ -28,8 +28,6 @@ topics:
   auto_approve:
     - "akira"                # system.health.* consensus (cmd/akira)
     - "anomaly"              # anomaly.* consumer and anomaly.scores bridge (cmd/anomaly, ADR-108)
-    - "architect"
-    - "captain"
     - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
     - "ebpf-collector"       # ebpf.packet.events / ebpf.latency.events (cmd/ebpf-collector, Rust; no unit or compose service yet)
@@ -38,10 +36,7 @@ topics:
     - "kanban-app"
     - "kev-poller"           # threats.cisa-kev.{updates,delta} (ADR-055)
     - "loadbalancer"         # services/loadbalancer xdpsync: lb.* topics (library; no binary yet)
-    - "micromanager"
-    - "monad"
     - "perf-benchmark"       # cmd/perf-benchmark -scenario e2e-trace: bench.perf.packet only (S-WELL-SPRING Phase 10)
-    - "sophia"
     - "sword"                # deploy.{started,progress,succeeded,failed,rolled_back} (S-REAL-STEEL)
     - "timeguru"
     - "trace-collector"
@@ -58,10 +53,6 @@ topics:
   # matches them. Delete once auth is on everywhere (west and east).
   legacy_display_names:
     - "service"              # the default display_name of an unnamed caller
-    - "architect-service"
-    - "micromanager-service"
-    - "monad-service"
-    - "sophia-service"
     - "dashboard"
     - "kanban"
     - "kanban-app-timeline"
@@ -150,12 +141,6 @@ topics:
       anomaly:
         subscribe: ["anomaly.baseline", "alerts.critical"]
         publish: ["anomaly.alerts", "anomaly.scores"]
-      architect:
-        subscribe: ["alerts.critical"]
-        publish: ["architecture.updates", "system.discovery", "system.health.reports", "logs.architect.*"]
-      captain:
-        subscribe: ["alerts.critical"]
-        publish: ["decisions.created", "system.discovery", "system.health.reports"]
       chaos-controller:
         subscribe: ["chaos.abort"]
         publish: ["chaos.experiment.started", "chaos.experiment.completed", "chaos.refused", "chaos.revert_failed", "chaos.schedules", "system.discovery", "system.health.reports"]
@@ -181,20 +166,8 @@ topics:
         publish: ["tasks.created", "tasks.updated", "tasks.deleted", "system.discovery", "system.health.reports", "logs.kanban-app.*"]
       kev-poller:
         publish: ["threats.cisa-kev.updates", "threats.cisa-kev.delta"]
-      micromanager:
-        subscribe: ["alerts.critical"]
-        publish: ["tasks.created", "tasks.updated", "tasks.completed", "system.discovery", "system.health.reports", "logs.micromanager.*"]
-      monad:
-        subscribe: ["alerts.critical"]
-        publish: ["monad.operations", "system.discovery", "system.health.reports", "logs.monad.*"]
       perf-benchmark:
         publish: ["bench.perf.packet"]
-      sophia:
-        # knowledge.shared: sophia joins it at start (no handler reads it
-        # yet). Left off the first list, so from the 2026-11-12 enforce
-        # every restart of sophia was refused it every 30 s.
-        subscribe: ["alerts.critical", "knowledge.shared"]
-        publish: ["sophia.wisdom", "system.discovery", "system.health.reports", "logs.sophia.*"]
       sword:
         publish: ["deploy.started", "deploy.progress", "deploy.succeeded", "deploy.failed", "deploy.rolled_back", "system.discovery", "system.health.reports"]
       timeguru:

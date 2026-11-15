@@ -2202,11 +2202,6 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 	targets := []svcTarget{
 		{"wotan", "localhost:18000"},
 		{"timeguru", "localhost:19000"},
-		{"architect", "localhost:19001"},
-		{"captain", "localhost:19002"},
-		{"micromanager", "localhost:19003"},
-		{"monad", "localhost:19004"},
-		{"sophia", "localhost:19005"},
 	}
 
 	// Apply overrides from config

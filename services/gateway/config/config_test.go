@@ -52,21 +52,6 @@ func TestDefaultConfig_AlphaServices(t *testing.T) {
 	if cfg.AlphaServices.TimeGuruHost != "timeguru:19000" {
 		t.Errorf("expected timeguru:19000, got %q", cfg.AlphaServices.TimeGuruHost)
 	}
-	if cfg.AlphaServices.CaptainHost != "captain:19002" {
-		t.Errorf("expected captain:19002, got %q", cfg.AlphaServices.CaptainHost)
-	}
-	if cfg.AlphaServices.ArchitectHost != "architect:19001" {
-		t.Errorf("expected architect:19001, got %q", cfg.AlphaServices.ArchitectHost)
-	}
-	if cfg.AlphaServices.MicromanagerHost != "micromanager:19003" {
-		t.Errorf("expected micromanager:19003, got %q", cfg.AlphaServices.MicromanagerHost)
-	}
-	if cfg.AlphaServices.MonadHost != "monad:19004" {
-		t.Errorf("expected monad:19004, got %q", cfg.AlphaServices.MonadHost)
-	}
-	if cfg.AlphaServices.SophiaHost != "sophia:19005" {
-		t.Errorf("expected sophia:19005, got %q", cfg.AlphaServices.SophiaHost)
-	}
 }
 
 func TestValidate_ValidConfig(t *testing.T) {
@@ -259,25 +244,11 @@ func TestLoadFromEnv_CORSDisabled(t *testing.T) {
 
 func TestLoadFromEnv_AlphaServices(t *testing.T) {
 	t.Setenv("TIMEGURU_HOST", "timeguru.local:8000")
-	t.Setenv("CAPTAIN_HOST", "captain.local:8001")
-	t.Setenv("ARCHITECT_HOST", "architect.local:8002")
-	t.Setenv("MICROMANAGER_HOST", "micromanager.local:8003")
-	t.Setenv("MONAD_HOST", "monad.local:8004")
-	t.Setenv("SOPHIA_HOST", "sophia.local:8005")
 
 	cfg := LoadFromEnv()
 
 	if cfg.AlphaServices.TimeGuruHost != "timeguru.local:8000" {
 		t.Errorf("expected timeguru host from env, got %q", cfg.AlphaServices.TimeGuruHost)
-	}
-	if cfg.AlphaServices.CaptainHost != "captain.local:8001" {
-		t.Errorf("expected captain host from env, got %q", cfg.AlphaServices.CaptainHost)
-	}
-	if cfg.AlphaServices.MonadHost != "monad.local:8004" {
-		t.Errorf("expected monad host from env, got %q", cfg.AlphaServices.MonadHost)
-	}
-	if cfg.AlphaServices.SophiaHost != "sophia.local:8005" {
-		t.Errorf("expected sophia host from env, got %q", cfg.AlphaServices.SophiaHost)
 	}
 }
 
