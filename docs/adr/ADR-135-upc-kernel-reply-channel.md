@@ -389,6 +389,9 @@ copy (a3 clear, then all ones).
 is the earlier one exactly (895,767 without the guard). The tripwire and `hostile_fork` stay; the probe passes either
 way with D6 on.
 
+**On again 2026-11-15, after rung 3 (D19).** Rung 3 took the console byte loop out of the object (-14,552), so the
+mark fits: `UPC_FORK_MARK` is true, 885,529 verified, gate `mark-after` green with `hostile_fork`.
+
 ### D19. Rung 3: console write is the kernel's (2026-11-15, S-STAGE-2C Phase 9)
 
 Under `UPC_RUNG3`, `write` on a fd below 16 goes to the owned kernel unless BPF's table says the fd is a file.

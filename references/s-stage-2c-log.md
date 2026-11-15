@@ -15,6 +15,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | RV-1 block guard (fork mark off) | 895936 | 899906 | +3970 | 21130 | review-after |
 | rung 3 console write | 899906 | 885354 | -14552 | 35682 | rung3-after2 |
 | T-F3 interim (by rung 3's arm) | 885354 | 885354 | +0 | 35682 | rdwr-after |
+| fork mark on (`UPC_FORK_MARK`) | 885354 | 885529 | +175 | 35507 | mark-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -174,4 +175,12 @@ Run under Step 30's override, ahead of Phase 7 and with the fork mark off: the o
 - Mutant (Step 134): the arm answering n instead of -1: `rdwr-file-write-refused=no`, 50 yes, 1 no. Restored; `vcount` 885,354.
 - Gate `rdwr-after`: `same=12 diff=0 rc=0 doom=1 ascend=885354`; `fdprobe: 51 checks` PASS, ALL GREEN.
 - With `UPC_RUNG3` off the old behaviour is back (the bytes print, n is answered): the off object has no room for a refusal of its own.
+
+## Fork mark back on; Stop C (2026-11-15)
+
+- `flip UPC_FORK_MARK false true`: 885,529, +175 against 885,354 (it measured +169 on the Phase 6 object). BUDGET-OK, headroom 14,471.
+- `hostile_fork`: `copy-complete=yes`, `pde-plant-dropped=yes`, `a2-ignored=yes`, `HF: done`. `sweep` 8 of 8 SAME.
+- Gate `mark-after`: `same=12 diff=0 rc=0 doom=1 ascend=885529`; `hostile_fork: 3 checks`, `fdprobe: 51 checks`, `conprobe: 4 checks` PASS, ALL GREEN.
+- Order reached: Stop A, Stop B, rung 3 (the plan's Stop E, Phase 9), then Stop C (Phase 7 and the fork mark). Phase 8 (Stop D) and Phase 10 are not started.
+- Atomics, for the record: the shared-arm translation measured +16,855 and the headroom is 14,471, so it still does not fit, by 2,384. The linear-map form (+3,263) and a U-mode refusal (a few hundred) do.
 

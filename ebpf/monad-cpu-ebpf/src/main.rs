@@ -268,7 +268,7 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
 /// route that ADR-109 D6 already closes; it went off on 2026-11-15 to make room
 /// for the block-syscall guard (ADR-135 RV-1), and goes back on when a rung
 /// frees the instructions. Off, the object is the pde-keyed one exactly.
-const UPC_FORK_MARK: bool = false;
+const UPC_FORK_MARK: bool = true;
 
 /// Whether the BPF timer fires and switches processes: the Doom object only.
 /// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
