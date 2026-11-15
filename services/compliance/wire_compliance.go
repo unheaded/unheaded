@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"strconv"
@@ -177,6 +178,9 @@ type WireComplianceService struct {
 	auditLog   []AuditEntry              // audit trail, newest MaxAuditEntries
 	zones      map[string]*GeoZone       // zone_id -> zone
 	score      ComplianceScore           // running score
+	// extraMetrics, when set, writes the mounting process's own families at
+	// the end of /metrics (SetExtraMetrics).
+	extraMetrics func(io.Writer)
 
 	httpServer *http.Server
 	started    int32
@@ -335,7 +339,12 @@ func (s *WireComplianceService) handleMetrics(w http.ResponseWriter, r *http.Req
 	violationCount := len(s.violations)
 	auditCount := len(s.auditLog)
 	zoneCount := len(s.zones)
+	extra := s.extraMetrics
 	s.mu.RUnlock()
+	noData := 0
+	if sc.NoData {
+		noData = 1
+	}
 
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	fmt.Fprintf(w, "# HELP compliance_score_pct Overall compliance score percentage\n")
@@ -356,9 +365,25 @@ func (s *WireComplianceService) handleMetrics(w http.ResponseWriter, r *http.Req
 	fmt.Fprintf(w, "# HELP compliance_zones_total Total geographic zones\n")
 	fmt.Fprintf(w, "# TYPE compliance_zones_total gauge\n")
 	fmt.Fprintf(w, "compliance_zones_total %d\n", zoneCount)
-	fmt.Fprintf(w, "# HELP compliance_wotan_drops_total Messages dropped due to unavailable Wotan\n")
+	fmt.Fprintf(w, "# HELP compliance_no_data 1 until a packet has been evaluated; compliance_score_pct means nothing while it is 1\n")
+	fmt.Fprintf(w, "# TYPE compliance_no_data gauge\n")
+	fmt.Fprintf(w, "compliance_no_data %d\n", noData)
+	fmt.Fprintf(w, "# HELP compliance_wotan_drops_total Events not published: no Wotan client configured\n")
 	fmt.Fprintf(w, "# TYPE compliance_wotan_drops_total counter\n")
 	fmt.Fprintf(w, "compliance_wotan_drops_total %d\n", atomic.LoadInt64(&s.wotanDrops))
+	if extra != nil {
+		extra(w)
+	}
+}
+
+// SetExtraMetrics appends fn's output to /metrics, after the service's own
+// families: for the process that mounts Handler and has state of its own to
+// show (the audit ring consumer), so there is still one /metrics path. fn runs
+// on the request goroutine and writes whole Prometheus families.
+func (s *WireComplianceService) SetExtraMetrics(fn func(io.Writer)) {
+	s.mu.Lock()
+	s.extraMetrics = fn
+	s.mu.Unlock()
 }
 
 // handleComplianceScore returns the overall compliance score.
@@ -629,7 +654,14 @@ func (s *WireComplianceService) aggregationLoop(ctx context.Context) {
 func (s *WireComplianceService) aggregateViolations(_ context.Context) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.rescoreLocked()
+}
 
+// rescoreLocked derives NoData, Violations, ViolationRate and ScorePct from the
+// packet counters. The caller holds s.mu. The record paths call it too, so the
+// first evaluated packet clears NoData and moves the score at once, not one
+// aggregation window later.
+func (s *WireComplianceService) rescoreLocked() {
 	totalPackets := s.score.TotalPackets
 	if totalPackets == 0 {
 		s.score.NoData = true
@@ -677,6 +709,7 @@ func (s *WireComplianceService) RecordViolation(v Violation) {
 	}
 	s.score.Blocked++
 	s.score.TotalPackets++
+	s.rescoreLocked()
 
 	// Also add to audit log
 	s.appendAudit(AuditEntry{
@@ -716,6 +749,7 @@ func (s *WireComplianceService) RecordAllowed() {
 	s.mu.Lock()
 	s.score.Allowed++
 	s.score.TotalPackets++
+	s.rescoreLocked()
 	s.mu.Unlock()
 }
 
@@ -796,7 +830,8 @@ func (s *WireComplianceService) publishEvent(ctx context.Context, topic string, 
 	}
 }
 
-// WotanDrops returns the total number of messages dropped because Wotan was nil.
+// WotanDrops returns the number of events not published because no Wotan
+// client is configured.
 func (s *WireComplianceService) WotanDrops() int64 {
 	return atomic.LoadInt64(&s.wotanDrops)
 }
@@ -842,6 +877,7 @@ func (s *WireComplianceService) Stats() map[string]interface{} {
 		"total_packets":       s.score.TotalPackets,
 		"allowed_packets":     s.score.Allowed,
 		"blocked_packets":     s.score.Blocked,
+		"no_data":             s.score.NoData,
 		"wotan_drops":         atomic.LoadInt64(&s.wotanDrops),
 	}
 }

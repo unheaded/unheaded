@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -582,5 +583,72 @@ func TestScoreSurvivesTrimming(t *testing.T) {
 	}
 	if n := len(svc.ListViolations()); n != 100 {
 		t.Fatalf("violations kept = %d, want 100", n)
+	}
+}
+
+// metricsBody returns the service's /metrics text.
+func metricsBody(t *testing.T, svc *WireComplianceService) string {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	svc.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET /metrics status = %d, want 200", rec.Code)
+	}
+	return rec.Body.String()
+}
+
+// no_data is on /metrics and in Stats(), not only in the score JSON: a scrape
+// must be able to tell "0 %" from "nothing evaluated yet".
+func TestNoDataOnMetricsAndStats(t *testing.T) {
+	svc := newTestService(t)
+	if body := metricsBody(t, svc); !strings.Contains(body, "\ncompliance_no_data 1\n") {
+		t.Errorf("/metrics of a new service has no `compliance_no_data 1`:\n%s", body)
+	}
+	if got, ok := svc.Stats()["no_data"]; !ok || got != true {
+		t.Errorf("Stats()[no_data] = %v (present %v), want true", got, ok)
+	}
+}
+
+// The first evaluated record clears no_data at once. It used to clear only on
+// the next aggregation tick, one window late.
+func TestNoDataClearsOnFirstRecord(t *testing.T) {
+	for name, record := range map[string]func(*WireComplianceService){
+		"allowed": func(s *WireComplianceService) { s.RecordAllowed() },
+		"blocked": func(s *WireComplianceService) {
+			s.RecordViolation(Violation{Timestamp: time.Now(), SrcServiceID: "a", DstServiceID: "b", ViolationType: ViolationPolicy, ActionTaken: ActionBlock})
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc := newTestService(t)
+			record(svc) // no aggregateViolations call: there has been no tick
+			if body := metricsBody(t, svc); !strings.Contains(body, "\ncompliance_no_data 0\n") {
+				t.Errorf("/metrics after one record has no `compliance_no_data 0`:\n%s", body)
+			}
+			if got := svc.Stats()["no_data"]; got != false {
+				t.Errorf("Stats()[no_data] = %v, want false", got)
+			}
+			score := svc.GetScore()
+			if score.NoData {
+				t.Error("GetScore().NoData = true after one record, want false")
+			}
+			// The score must move with the flag: "evaluated, 0 %" for an allowed
+			// packet would be a false reading for one window.
+			want := 100.0
+			if name == "blocked" {
+				want = 0
+			}
+			if score.ScorePct != want {
+				t.Errorf("ScorePct = %.2f after one %s record, want %.2f", score.ScorePct, name, want)
+			}
+		})
+	}
+}
+
+// The drop counter counts events that had nowhere to go because no client was
+// configured (ADR-127); its HELP line must say so.
+func TestWotanDropsHelpText(t *testing.T) {
+	const want = "# HELP compliance_wotan_drops_total Events not published: no Wotan client configured\n"
+	if body := metricsBody(t, newTestService(t)); !strings.Contains(body, want) {
+		t.Errorf("/metrics lacks %q:\n%s", want, body)
 	}
 }

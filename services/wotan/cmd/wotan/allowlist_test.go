@@ -32,7 +32,10 @@ func TestShippedAllowlistCoversDeployedSubscribers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	subscribe := regexp.MustCompile(`\.Subscribe(?:Topic)?\(ctx, "[^"]+", "([^"]+)"\)`)
+	// The topic is a literal or a variable (a loop over topics): a pattern
+	// that wanted a quoted topic skipped dashboard-backend, kanban-app and
+	// trace-collector.
+	subscribe := regexp.MustCompile(`\.Subscribe(?:Topic)?\(ctx, (?:"[^"]+"|[A-Za-z_][\w.]*), "([^"]+)"\)`)
 	deployed := []string{
 		"services/architect", "services/captain", "services/micromanager", "services/timeguru",
 		"services/monad", "services/sophia", "cmd/dashboard-backend", "cmd/kanban-app",

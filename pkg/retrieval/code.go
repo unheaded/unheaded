@@ -36,8 +36,8 @@ func (c *CodeBackend) Name() string { return codeBackendName }
 
 // Retrieve returns the k best chunks. A shard holds source, which is "local". A
 // corpus built into its directory by mistake keeps the trust of a corpus.
-func (c *CodeBackend) Retrieve(_ context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
-	return retrieveShard(c.store, "code index", query, k, func(ch codeindex.Chunk) champion.Reference {
+func (c *CodeBackend) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
+	return retrieveShard(ctx, c.store, "code index", query, k, func(ch codeindex.Chunk) champion.Reference {
 		trust := "local"
 		if codeindex.IsCorpusText(ch) {
 			trust = codeindex.CorpusTrust(ch)
@@ -50,12 +50,14 @@ func (c *CodeBackend) Retrieve(_ context.Context, query string, k int) ([]champi
 	})
 }
 
-// retrieveShard searches one index. A missing index is no hits, not an error.
+// retrieveShard searches one index. An index never built is no hits, not an
+// error; a half-removed one (codeindex.ErrSlotMissing) is an error, and so is a
+// scan that ctx ended.
 // Test chunks give way while any real chunk matched, and a repeated ID drops,
 // since two texts under one topic would fail the agent's chain check. Both
 // happen before the cut, so neither uses up k. Past k an untrusted hit stays as
 // a reference with no text: the model never reads it and the gate always does.
-func retrieveShard(store *codeindex.Store, what, query string, k int, ref func(codeindex.Chunk) champion.Reference) ([]champion.Reference, []agent.TopicContent, error) {
+func retrieveShard(ctx context.Context, store *codeindex.Store, what, query string, k int, ref func(codeindex.Chunk) champion.Reference) ([]champion.Reference, []agent.TopicContent, error) {
 	ix, err := store.Get()
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil, nil
@@ -63,7 +65,10 @@ func retrieveShard(store *codeindex.Store, what, query string, k int, ref func(c
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s: %w", what, err)
 	}
-	hits := ix.Search(query, len(ix.Chunks))
+	hits, err := ix.SearchContext(ctx, query, len(ix.Chunks))
+	if err != nil {
+		return nil, nil, fmt.Errorf("%s: %w", what, err)
+	}
 	realHit := false
 	for _, h := range hits {
 		if !h.Chunk.IsTest {

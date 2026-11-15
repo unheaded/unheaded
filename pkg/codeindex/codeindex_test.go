@@ -5,6 +5,8 @@ package codeindex
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -322,5 +324,128 @@ func TestSearch_KeepsDigits(t *testing.T) {
 	}
 	if hits := ix.Search("1566", 5); len(hits) != 1 {
 		t.Fatalf("a number alone is a word: %+v", hits)
+	}
+}
+
+// CURRENT names a slot whose file is gone: a half-removed index. That is not
+// "no index was ever built", and a reader that takes fs.ErrNotExist for "no
+// index" must not see it as one.
+func TestStore_MissingSlotFileIsNotAnAbsentIndex(t *testing.T) {
+	dir := t.TempDir()
+	if err := Save(dir, &Index{Head: "aaaaaaaaaaaaaaaa"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(slotFile(dir, "a")); err != nil {
+		t.Fatal(err)
+	}
+	for name, get := range map[string]func() (*Index, error){
+		"Store.Get": NewStore(dir).Get,
+		"Load":      func() (*Index, error) { return Load(dir) },
+	} {
+		ix, err := get()
+		if err == nil {
+			t.Fatalf("%s: a missing slot file loaded: %+v", name, ix)
+		}
+		if !errors.Is(err, ErrSlotMissing) {
+			t.Errorf("%s: err = %v, want ErrSlotMissing", name, err)
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("%s: err = %v is fs.ErrNotExist: a reader would take it for no index", name, err)
+		}
+		if !strings.Contains(err.Error(), slotFile(dir, "a")) {
+			t.Errorf("%s: err = %v does not name the slot file", name, err)
+		}
+	}
+
+	// No CURRENT at all is still "no index built".
+	if _, err := NewStore(t.TempDir()).Get(); !errors.Is(err, fs.ErrNotExist) || errors.Is(err, ErrSlotMissing) {
+		t.Errorf("empty dir: err = %v, want fs.ErrNotExist and not ErrSlotMissing", err)
+	}
+}
+
+// A good index already in memory still wins over a slot that went missing.
+func TestStore_OlderIndexWinsOverAMissingSlot(t *testing.T) {
+	dir := t.TempDir()
+	if err := Save(dir, &Index{Head: "aaaaaaaaaaaaaaaa"}); err != nil {
+		t.Fatal(err)
+	}
+	st := NewStore(dir)
+	if _, err := st.Get(); err != nil {
+		t.Fatal(err)
+	}
+	if err := Save(dir, &Index{Head: "bbbbbbbbbbbbbbbb"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(slotFile(dir, "b")); err != nil {
+		t.Fatal(err)
+	}
+	ix, err := st.Get()
+	if err != nil || ix.Head != "aaaaaaaaaaaaaaaa" {
+		t.Fatalf("Get = %+v, %v; want the older index", ix, err)
+	}
+}
+
+// pollCtx is a context whose Err turns to Canceled on its nth call: it counts
+// how often a scan looks at its context.
+type pollCtx struct {
+	context.Context
+	calls, cancelAt int
+}
+
+func (c *pollCtx) Err() error {
+	c.calls++
+	if c.calls >= c.cancelAt {
+		return context.Canceled
+	}
+	return nil
+}
+
+func searchFixture(n int) *Index {
+	ix := &Index{}
+	for i := 0; i < n; i++ {
+		ix.Chunks = append(ix.Chunks, Chunk{ID: "a.go::F" + strings.Repeat("x", i%7), Path: "a.go", Symbol: "Greet", Content: "func Greet() {}"})
+	}
+	return ix
+}
+
+// A cancelled context ends the scan with its error and no hits. Search scanned
+// every chunk whatever its caller's deadline.
+func TestSearchContext_StopsAtItsContext(t *testing.T) {
+	ix := searchFixture(4 * searchCtxEvery)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	hits, err := ix.SearchContext(ctx, "Greet", 5)
+	if !errors.Is(err, context.Canceled) || hits != nil {
+		t.Fatalf("already cancelled: hits %d err %v, want none and context.Canceled", len(hits), err)
+	}
+
+	// Already cancelled: one look at the context, before any chunk.
+	first := &pollCtx{Context: context.Background(), cancelAt: 1}
+	if _, err := ix.SearchContext(first, "Greet", 5); !errors.Is(err, context.Canceled) || first.calls != 1 {
+		t.Fatalf("cancelled at the first look: calls %d err %v, want 1 and context.Canceled", first.calls, err)
+	}
+
+	// Cancelled mid-scan: it stops at the next look, not at the end.
+	mid := &pollCtx{Context: context.Background(), cancelAt: 3}
+	hits, err = ix.SearchContext(mid, "Greet", 5)
+	if !errors.Is(err, context.Canceled) || hits != nil {
+		t.Fatalf("cancelled mid-scan: hits %d err %v, want none and context.Canceled", len(hits), err)
+	}
+	if mid.calls != 3 {
+		t.Fatalf("cancelled mid-scan: %d looks at the context, want 3 (one every %d chunks)", mid.calls, searchCtxEvery)
+	}
+
+	// A live context: every chunk, and Search is the same answer.
+	live := &pollCtx{Context: context.Background(), cancelAt: 1 << 30}
+	hits, err = ix.SearchContext(live, "Greet", 5)
+	if err != nil || len(hits) != 5 {
+		t.Fatalf("live: hits %d err %v, want 5 and nil", len(hits), err)
+	}
+	if live.calls != 4 {
+		t.Fatalf("live: %d looks at the context over %d chunks, want 4", live.calls, len(ix.Chunks))
+	}
+	if got := ix.Search("Greet", 5); len(got) != 5 || got[0].Chunk.ID != hits[0].Chunk.ID {
+		t.Fatalf("Search and SearchContext disagree: %d hits", len(got))
 	}
 }
