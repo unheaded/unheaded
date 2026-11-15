@@ -77,7 +77,9 @@ func partitionVerdict(now time.Time, rows, bytes int64, oldest *time.Time, onlin
 // runner executes classes against the databases and records each.
 type runner struct {
 	app, ops    *sql.DB
-	zhen        *sql.DB // unheaded_zhen (ADR-149); nil when no class needs it or it does not exist
+	zhen        *sql.DB // unheaded_zhen (ADR-149); nil when no class needs it or the connect failed
+	zhenMissing bool    // the connect said SQLSTATE 3D000: the module is not installed
+	zhenErr     error   // any other connect failure
 	logLine     func(string, ...any)
 	dryRun      bool
 	batch       int
@@ -96,19 +98,60 @@ func (r *runner) db(name string) *sql.DB {
 	return r.ops
 }
 
+// errZhenNotInstalled: the connect to unheaded_zhen was refused with
+// SQLSTATE 3D000 (invalid_catalog_name). Only that means the module is not
+// installed here (or not yet moved, ADR-149).
+var errZhenNotInstalled = errors.New("the Zhen module is not installed here (SQLSTATE 3D000)")
+
+// isInvalidCatalog reports SQLSTATE 3D000 anywhere in err's chain.
+func isInvalidCatalog(err error) bool {
+	var st interface{ SQLState() string }
+	return errors.As(err, &st) && st.SQLState() == "3D000"
+}
+
+// openZhen connects to unheaded_zhen. SQLSTATE 3D000 from the connect means
+// the module is not installed: r.zhenMissing, one log line, no card held.
+// Any other failure is kept in r.zhenErr: every class that needs the
+// database (its own classes, and the board's purge, which holds cards by
+// Zhen's runs) fails with it. A transient failure never reads as "nothing
+// to hold" (REV-3, independent review 2026-11-15).
+func (r *runner) openZhen(ctx context.Context, connect func(context.Context) (*sql.DB, error)) {
+	db, err := connect(ctx)
+	switch {
+	case err == nil:
+		r.zhen = db
+	case isInvalidCatalog(err):
+		r.zhenMissing = true
+		r.logf("well-retention: %s: %v (Zhen classes fail; no card is held by a run)", dbZhen, err)
+	default:
+		r.zhenErr = err
+		r.logf("well-retention: %s: %v (every class that needs it fails)", dbZhen, err)
+	}
+}
+
+// zhenUnavailable is why r.zhen is nil.
+func (r *runner) zhenUnavailable() error {
+	switch {
+	case r.zhenErr != nil:
+		return fmt.Errorf("connect %s: %w", dbZhen, r.zhenErr)
+	case r.zhenMissing:
+		return fmt.Errorf("%s: %w", dbZhen, errZhenNotInstalled)
+	}
+	return fmt.Errorf("no connection to %s", dbZhen)
+}
+
 // heldCards returns the cards a Zhen run names: such a card is never
 // purged (runs are never deleted, and the run is the record). read is the
-// query on unheaded_zhen. No Zhen database or no runs table means the module
-// is not installed (or not yet moved, ADR-149): no card is held, with one
-// line in logf. Any other failure is an error, never an empty hold.
+// query on unheaded_zhen. Only errZhenNotInstalled (the connect's SQLSTATE
+// 3D000) holds nothing, with one line in logf. Any other failure, a missing
+// table included, is an error, never an empty hold.
 func heldCards(ctx context.Context, read func(context.Context) ([]string, error), logf func(string, ...any)) ([]string, error) {
 	ids, err := read(ctx)
 	if err == nil {
 		return ids, nil
 	}
-	msg := err.Error()
-	if strings.Contains(msg, "does not exist") && (strings.Contains(msg, `database "`) || strings.Contains(msg, "zhen_agent_runs")) {
-		logf("well-retention: no Zhen runs to hold cards (%s): the Zhen module is not installed here", msg)
+	if errors.Is(err, errZhenNotInstalled) {
+		logf("well-retention: no Zhen runs to hold cards (%v)", err)
 		return []string{}, nil
 	}
 	return nil, fmt.Errorf("read the cards Zhen runs name: %w", err)
@@ -121,11 +164,11 @@ func (r *runner) logf(format string, args ...any) {
 	}
 }
 
-// readHeldCards is heldCards' query on r.zhen; nil r.zhen reads as a missing
-// database.
+// readHeldCards is heldCards' query on r.zhen; with r.zhen nil it returns
+// why (zhenUnavailable).
 func (r *runner) readHeldCards(ctx context.Context) ([]string, error) {
 	if r.zhen == nil {
-		return nil, fmt.Errorf(`database "%s" does not exist (not connected)`, dbZhen)
+		return nil, r.zhenUnavailable()
 	}
 	rows, err := r.zhen.QueryContext(ctx, `SELECT DISTINCT card_id FROM zhen_agent_runs`)
 	if err != nil {
@@ -169,6 +212,9 @@ func (r *runner) do(ctx context.Context, c Class, res *result) error {
 	tg := targets[c.Table]
 	db := r.db(tg.db)
 	if db == nil {
+		if tg.db == dbZhen {
+			return r.zhenUnavailable()
+		}
 		return fmt.Errorf("no connection to %s", tg.db)
 	}
 	if c.Action == actionPartitionCheck {

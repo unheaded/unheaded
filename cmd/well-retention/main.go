@@ -34,6 +34,7 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"errors"
 	"flag"
@@ -184,15 +185,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		}
 	}
 	// unheaded_zhen (ADR-149) when a class lives there or holds cards by
-	// Zhen's runs. A Well without the Zhen module has no such database:
-	// its classes fail ("no connection") and no card is held.
+	// Zhen's runs. A Well without the Zhen module has no such database
+	// (SQLSTATE 3D000): its classes fail and no card is held. Any other
+	// connect failure fails every class that needs it (openZhen).
 	for _, c := range classes {
 		tg := targets[c.Table]
 		if tg.db == dbZhen || tg.heldCards {
-			if r.zhen, err = database.Connect(ctx, zhenCfg); err != nil {
-				fmt.Fprintf(stderr, "well-retention: %s: %v (Zhen classes skipped; no card held by a run)\n", zhenCfg.DBName, err)
-				r.zhen = nil
-			} else {
+			r.openZhen(ctx, func(ctx context.Context) (*sql.DB, error) { return database.Connect(ctx, zhenCfg) })
+			if r.zhen != nil {
 				defer r.zhen.Close()
 			}
 			break
