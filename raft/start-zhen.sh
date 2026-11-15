@@ -150,8 +150,8 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         else
             echo "  ! no AUTH_ISSUER_URL/AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only; nobody can log in to the UI)"
         fi
-        # bin/release/ is what `make binaries` builds and the units run. The
-        # old ./bin/zhen-agentd was whatever was last built by hand.
+        # bin/release/ is what `make binaries` builds and the units run; the
+        # copy one level up was whatever was last built by hand.
         if [[ ! -x ./bin/release/zhen-agentd ]]; then
             echo "  ✗ bin/release/zhen-agentd missing: run \`make binaries\` first"
             exit 1

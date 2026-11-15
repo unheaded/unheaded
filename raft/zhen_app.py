@@ -1528,7 +1528,7 @@ def switch_model():
         return jsonify({
             'status': 'error',
             'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
-            'note':   'Start the daemon with `bin/zhen-agentd -port 20111` (and WELL_DSN env).',
+            'note':   'Start the daemon: `sudo systemctl start zhen-agentd`, or `raft/start-zhen.sh -gated` (it runs bin/release/zhen-agentd).',
         }), 503
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
@@ -2469,7 +2469,7 @@ def execute_runbook(name):
             'name':   name,
             'status': 'error',
             'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
-            'note':   'WAVE15 Phase 2b requires the daemon. Start it with `bin/zhen-agentd -port 20111`.',
+            'note':   'WAVE15 Phase 2b requires the daemon. Start it: `sudo systemctl start zhen-agentd`, or `raft/start-zhen.sh -gated`.',
         }), 503
     except Exception as e:
         return jsonify({'name': name, 'status': 'error', 'error': str(e)}), 500
