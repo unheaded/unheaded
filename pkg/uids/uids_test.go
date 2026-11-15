@@ -52,6 +52,28 @@ func TestValidate_RejectsOutOfRange(t *testing.T) {
 	}
 }
 
+// TestVorRefreshHasItsOwnAccount: the account that may restart vor is not
+// the account vor runs as (S-WIKI-VOR D1: its own account, one polkit rule).
+func TestVorRefreshHasItsOwnAccount(t *testing.T) {
+	refresh, err := Lookup("vor-refresh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refresh != 16758 {
+		t.Errorf("vor-refresh = %d, want 16758", refresh)
+	}
+	vor, err := Lookup("vor")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if refresh == vor {
+		t.Errorf("vor-refresh shares uid %d with vor", vor)
+	}
+	if err := Validate(); err != nil {
+		t.Errorf("Validate: %v", err)
+	}
+}
+
 func TestLookup_UnknownService(t *testing.T) {
 	if _, err := Lookup("nonexistent"); err == nil {
 		t.Fatal("expected an error for an unassigned service")
@@ -95,6 +117,9 @@ var hostOnly = map[string]string{
 	"zhen-ui-front": "unheaded-zhen-ui-front",
 	// The wiki: deploy/systemd/unheaded-wiki-server.service (2026-11-11).
 	"wiki-server": "unheaded-wiki-server",
+	// The vor refresh oneshot: deploy/systemd/unheaded-vor-refresh.service
+	// (S-WIKI-VOR, D1 2026-11-12).
+	"vor-refresh": "unheaded-vor-refresh",
 }
 
 // composeOnly lists services that exist only in compose files (or as the

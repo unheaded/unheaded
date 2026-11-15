@@ -1,0 +1,25 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2026 Stevie Bellis.
+//
+// Lets the unheaded-vor-refresh system user ask systemd for one thing:
+// `try-restart` of unheaded-vor.service. Nothing else: no other unit, no
+// other verb (not start, stop, restart, reload or kill). Everything outside
+// this is left to the rest of policy, and the account has no session, so the
+// default policy refuses it.
+//
+// Why (S-WIKI-VOR, decision D1, Stevie 2026-11-12): vor reads its sources at
+// start, so a new export of develop needs a restart of vor. The refresh
+// service (deploy/systemd/unheaded-vor-refresh.service) does that as its own
+// account with this one rule, not as root.
+//
+// A static file, not rendered. Install:
+//   sudo install -m 0644 deploy/polkit/61-unheaded-vor-refresh.rules /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules
+// polkitd reads rules.d on change (`journalctl -u polkit -n 5`).
+polkit.addRule(function(action, subject) {
+    if (action.id != "org.freedesktop.systemd1.manage-units") { return polkit.Result.NOT_HANDLED; }
+    if (subject.user != "unheaded-vor-refresh") { return polkit.Result.NOT_HANDLED; }
+    if (action.lookup("unit") == "unheaded-vor.service" && action.lookup("verb") == "try-restart") {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});
