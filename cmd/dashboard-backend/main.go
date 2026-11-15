@@ -389,12 +389,10 @@ func getEventTopics() []string {
 		"tasks.*",
 		// Akira's consensus severity changes (ADR-029).
 		"system.health.consensus",
-		// Not ebpf.* / compute.*: the eBPF ingestor consumes those
-		// (ebpfPkg.Topics). Subscribed here too, each event reached the
-		// page a second time as a generic "event".
-		"traces.packet",
-		"traces.flow",
-		"traces.latency",
+		// Not ebpf.* / compute.* / traces.{packet,flow,latency}: the eBPF
+		// ingestor consumes those (ebpfPkg.Topics) and hands traces.* to the
+		// trace view itself (ADR-147 Phase 10). Subscribed here too, each
+		// event reached the page a second time as a generic "event".
 		"traces.correlated",
 	}
 }

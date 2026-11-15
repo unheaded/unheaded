@@ -90,7 +90,7 @@ func TestHandleEBPFEvents_AfterSeqPages(t *testing.T) {
 		`"dst_addr":"10.0.0.2","src_port":1,"dst_port":2,"protocol":6},"packet_len":60,` +
 		`"action":"pass","direction":"ingress"}`
 	for i := 0; i < 3; i++ {
-		wc.send(t, "ebpf.packet.events", pkt)
+		wc.send(t, "traces.packet", pkt)
 	}
 	deadline := time.Now().Add(2 * time.Second)
 	for ing.Stats().PacketsIngested < 3 {

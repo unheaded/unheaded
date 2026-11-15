@@ -2,7 +2,7 @@
 // Overview numbers: eBPF event paging, Events/sec, uptime, Active Flows.
 // Run: node overview.cjs ../static/dashboard.js
 const h = require('./harness.cjs');
-const ev = s => ({ seq: s, topic: 'ebpf.flow.events', type: 'flow', timestamp: '2026-09-29T00:00:00Z', data: {} });
+const ev = s => ({ seq: s, topic: 'traces.flow', type: 'flow', timestamp: '2026-09-29T00:00:00Z', data: {} });
 let lastSeq = 3, ignoreCursor = process.env.OLD_SERVER === '1';
 let stats = { packets_ingested: 1000, uptime_seconds: 100, flow_stats: { active_flows: 2 } };
 h.run({

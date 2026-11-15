@@ -31,7 +31,7 @@ topics:
     - "anomaly"              # anomaly.* consumer and anomaly.scores bridge (cmd/anomaly, ADR-108)
     - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
-    - "ebpf-collector"       # ebpf.packet.events / ebpf.latency.events (cmd/ebpf-collector, Rust; no unit or compose service yet)
+    - "ebpf-collector"       # traces.packet / traces.latency (cmd/ebpf-collector, Rust; no unit or compose service yet)
     - "gateway"              # gateway.requests and the alerts.critical subscription every service keeps (services/gateway)
     - "heimdall"             # drift.detected.<node> (signed; drift. keys decide what is taken)
     - "kanban-app"
@@ -150,15 +150,18 @@ topics:
       dashboard-backend:
         # The human-facing aggregator, on its one Wotan client (ADR-147
         # Phase 7): the event streamer reads timeline.*, tasks.*,
-        # system.health.consensus and traces.*; the eBPF ingestor
-        # ebpf.*.events, compute.*, anamnesis.* and bench.perf.packet; the
-        # health persister system.health.reports. metrics.*, health.*,
+        # system.health.consensus and traces.correlated; the eBPF ingestor
+        # traces.{packet,flow,latency} (one subscription each, both views,
+        # Phase 10), ebpf.syscall.events, compute.*, anamnesis.* and
+        # bench.perf.packet; the health persister system.health.reports.
+        # "ebpf.*.events" stays for ebpf.syscall.events alone: the packet,
+        # flow and latency mirrors are gone (Phase 10). metrics.*, health.*,
         # alerts.*, decisions.*, state.* and architecture.* went (no
         # running publisher), and with them "#".
         subscribe: ["alerts.critical", "timeline.*", "tasks.*", "system.health.consensus", "system.health.reports", "traces.*", "ebpf.*.events", "compute.*", "anamnesis.*", "bench.perf.packet"]
         publish: ["system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
       ebpf-collector:
-        publish: ["ebpf.packet.events", "ebpf.latency.events"]
+        publish: ["traces.packet", "traces.latency"]
       gateway:
         # On auto_approve since 2026-11-12 (Stevie); before that its
         # subscriptions stayed pending.
@@ -182,13 +185,13 @@ topics:
         publish: ["timeline.updates", "system.discovery", "system.health.reports", "logs.timeguru.*"]
       trace-collector:
         subscribe: ["alerts.critical"]
-        publish: ["traces.*", "ebpf.*.events", "anamnesis.*", "system.discovery", "system.health.reports", "logs.trace-collector.*"]
+        publish: ["traces.*", "anamnesis.*", "system.discovery", "system.health.reports", "logs.trace-collector.*"]
       unheaded-baseline:
         publish: ["compliance.deviation.*"]
       unheaded-cli:
         # The operator's key: the demo trace injector, scripts/run-runbook.py
         # by hand, and the chaos abort nothing in the repo publishes yet.
-        publish: ["ebpf.*.events", "runbooks.progress", "chaos.abort"]
+        publish: ["traces.packet", "traces.flow", "traces.latency", "runbooks.progress", "chaos.abort"]
       unheaded-daemon:
         subscribe: ["alerts.critical"]
         publish: ["cuirass.drift", "cuirass.metrics", "cuirass.chaos", "system.discovery", "system.health.reports", "logs.unheaded-daemon.*"]

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # trace-collector-go: loads the packet-marker (XDP), flow-tracker (TC) and
 # latency-probe (kprobe) eBPF programs and publishes their events to Wotan
-# (traces.* and the ebpf.*.events mirrors).
+# (traces.*, each event once; the ebpf.*.events mirrors went with ADR-147).
 #
 # Install (users first: deploy/sysusers.d/unheaded.conf). Build the binary AND
 # latency-probe from the same commit; install both, then restart. The

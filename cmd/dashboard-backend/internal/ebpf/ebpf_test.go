@@ -566,7 +566,7 @@ func TestIngestor_PacketIngestion(t *testing.T) {
 		Direction:   DirectionIngress,
 	}
 	data, _ := json.Marshal(pkt)
-	mock.send("ebpf.packet.events", string(data))
+	mock.send("traces.packet", string(data))
 
 	// Wait for processing
 	time.Sleep(50 * time.Millisecond)
@@ -609,7 +609,7 @@ func TestIngestor_LatencyIngestion(t *testing.T) {
 		PID:         1234,
 	}
 	data, _ := json.Marshal(lat)
-	mock.send("ebpf.latency.events", string(data))
+	mock.send("traces.latency", string(data))
 	time.Sleep(50 * time.Millisecond)
 
 	stats := ing.Stats()
@@ -647,7 +647,7 @@ func TestIngestor_FlowIngestion(t *testing.T) {
 		EventType:   FlowNew,
 	}
 	data, _ := json.Marshal(fe)
-	mock.send("ebpf.flow.events", string(data))
+	mock.send("traces.flow", string(data))
 	time.Sleep(50 * time.Millisecond)
 
 	stats := ing.Stats()
@@ -673,7 +673,7 @@ func TestIngestor_ParseErrors(t *testing.T) {
 	}
 	time.Sleep(50 * time.Millisecond)
 
-	mock.send("ebpf.packet.events", "not valid json")
+	mock.send("traces.packet", "not valid json")
 	time.Sleep(50 * time.Millisecond)
 
 	stats := ing.Stats()
@@ -706,7 +706,7 @@ func TestIngestor_RecentEvents(t *testing.T) {
 			Direction:   DirectionIngress,
 		}
 		data, _ := json.Marshal(pkt)
-		mock.send("ebpf.packet.events", string(data))
+		mock.send("traces.packet", string(data))
 	}
 	time.Sleep(100 * time.Millisecond)
 
@@ -752,7 +752,7 @@ func TestIngestor_BatchedFlowArray(t *testing.T) {
 		},
 	}
 	data, _ := json.Marshal(flows)
-	mock.send("ebpf.flow.events", string(data))
+	mock.send("traces.flow", string(data))
 	time.Sleep(100 * time.Millisecond)
 
 	stats := ing.Stats()
@@ -784,7 +784,7 @@ func TestIngestor_BatchedPacketArray(t *testing.T) {
 		{TimestampNs: uint64(time.Now().UnixNano()), FlowKey: FlowKey{SrcAddr: "10.0.0.3", DstAddr: "10.0.0.4", SrcPort: 22, DstPort: 22, Protocol: 6}, PacketLen: 64, Direction: DirectionEgress},
 	}
 	data, _ := json.Marshal(packets)
-	mock.send("ebpf.packet.events", string(data))
+	mock.send("traces.packet", string(data))
 	time.Sleep(100 * time.Millisecond)
 
 	stats := ing.Stats()
@@ -812,7 +812,7 @@ func TestIngestor_BatchedLatencyArray(t *testing.T) {
 		{TimestampNs: uint64(time.Now().UnixNano()), LatencyNs: 2500000, Operation: OpTcpRecv},
 	}
 	data, _ := json.Marshal(latencies)
-	mock.send("ebpf.latency.events", string(data))
+	mock.send("traces.latency", string(data))
 	time.Sleep(100 * time.Millisecond)
 
 	stats := ing.Stats()
@@ -1122,10 +1122,10 @@ func TestIngestorStats_UptimeCoversCounterWindow(t *testing.T) {
 func TestIngestor_EnvelopeTimeIsObservedTime(t *testing.T) {
 	ing := NewIngestor(DefaultIngestorConfig(), nil, nil)
 	before := time.Now()
-	ing.dispatch("ebpf.packet.events", `[{"timestamp_ns":888379526520896,"trace_id":{"high":0,"low":0},"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":56636,"dst_port":18001,"protocol":6},"packet_len":4366,"action":"pass","direction":"ingress"}]`)
-	ing.dispatch("ebpf.flow.events", `[{"timestamp_ns":857754687850080,"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":19005,"dst_port":51738,"protocol":6},"flow_state":{"state":"established"},"event_type":"new"}]`)
+	ing.dispatch("traces.packet", `[{"timestamp_ns":888379526520896,"trace_id":{"high":0,"low":0},"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":56636,"dst_port":18001,"protocol":6},"packet_len":4366,"action":"pass","direction":"ingress"}]`)
+	ing.dispatch("traces.flow", `[{"timestamp_ns":857754687850080,"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":19005,"dst_port":51738,"protocol":6},"flow_state":{"state":"established"},"event_type":"new"}]`)
 	wall := time.Now().Add(-2 * time.Second)
-	ing.dispatch("ebpf.latency.events", fmt.Sprintf(`{"timestamp_ns":%d,"latency_ns":98879,"operation":"tcp_send"}`, wall.UnixNano()))
+	ing.dispatch("traces.latency", fmt.Sprintf(`{"timestamp_ns":%d,"latency_ns":98879,"operation":"tcp_send"}`, wall.UnixNano()))
 
 	evs := ing.RecentEvents(3)
 	if len(evs) != 3 {
@@ -1142,7 +1142,7 @@ func TestIngestor_EnvelopeTimeIsObservedTime(t *testing.T) {
 }
 
 // cmd/perf-benchmark's e2e-trace publishes its packet on bench.perf.packet
-// (never on ebpf.packet.events); the ingestor must consume it like any
+// (never on traces.packet); the ingestor must consume it like any
 // packet so the measured path is the one a real event takes.
 func TestIngestor_BenchTopicIsAPacketTopic(t *testing.T) {
 	found := false

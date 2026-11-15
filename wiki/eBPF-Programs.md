@@ -49,14 +49,13 @@ Other services' traffic to Wotan is still traced: it is real Kingdom traffic.
 
 ## Trace topics: shapes, clocks, units
 
-`trace-collector-go --unified` publishes every topic as a JSON array (a batch). Audited end to end 2026-10-23 against east's live payloads.
+`trace-collector-go --unified` publishes every topic as a JSON array (a batch), each event once. Audited end to end 2026-10-23 against east's live payloads. The `ebpf.packet.events`, `ebpf.flow.events` and `ebpf.latency.events` mirrors, which carried the same events a second time, are gone (ADR-147 Phase 10): dashboard-backend's eBPF ingestor holds the one subscription to each `traces.*` topic and hands each message to both of its views (flow graph and trace view).
 
 | Topic | Record | `timestamp_ns` clock |
 |-------|--------|----------------------|
-| `traces.packet` | `trace_id` (32 hex), `src_ip`/`dst_ip`, `src_port`/`dst_port` (host order), `protocol` name, `packet_len` | ktime |
-| `ebpf.packet.events` | `trace_id {high,low}`, `flow_key {src_addr,dst_addr,src_port,dst_port,protocol number}`, `packet_len`, `action`, `direction` | ktime |
-| `traces.flow`, `ebpf.flow.events` | `flow_key`, `flow_state {trace_id {high,low}, start_ns, last_seen_ns, packets_*, bytes_*, state}`, `event_type` (new/state_change/expired) | ktime (all three) |
-| `traces.latency`, `ebpf.latency.events` | `latency_ns`, `min_rtt_ns`, `max_rtt_ns`, `samples`, `operation` | wall clock |
+| `traces.packet` | `trace_id {high,low}`, `flow_key {src_addr,dst_addr,src_port,dst_port,protocol number}`, `packet_len`, `action`, `direction` | ktime |
+| `traces.flow` | `flow_key`, `flow_state {trace_id {high,low}, start_ns, last_seen_ns, packets_*, bytes_*, state}`, `event_type` (new/state_change/expired) | ktime (all three) |
+| `traces.latency` | `latency_ns`, `min_rtt_ns`, `max_rtt_ns`, `samples`, `operation` | wall clock |
 | `traces.correlated` | `forward`/`reverse {five_tuple {SrcIP,DstIP: [16]byte}, first_seen_ns, ...}`, `rtt_ns` | ktime |
 | `traces.stats` | flow_tracker's `FLOW_STATS` counters under its `STAT_*` names, totals since the program loaded: `packets_ingress`, `packets_egress`, `flows_new`, `flows_closed`, `tcp_syns`, `tcp_fins`, `tcp_rsts`, `events_sent`, `events_dropped`, `migrations`, `migration_expired`, `cancelled`. One snapshot every `--stats-interval` (default 10s) while flow_tracker is loaded; no subscriber yet | none |
 

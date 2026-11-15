@@ -1909,29 +1909,50 @@ func (s *Server) broadcastEBPFEvents(ctx context.Context) {
 	<-ctx.Done()
 }
 
-// broadcastTraceEvents listens for events on traces.* topics and pushes them
-// to the trace buffer and all WebSocket clients with type "trace".
+// broadcastTraceEvents pushes traces.* events to the trace buffer and all
+// WebSocket clients with type "trace". traces.packet, traces.flow and
+// traces.latency arrive through the eBPF ingestor's one subscription
+// (ADR-147 Phase 10: one subscriber per topic, fanned out in the process);
+// traces.correlated, which the ingestor does not read, through the event
+// streamer.
 func (s *Server) broadcastTraceEvents(ctx context.Context) {
 	defer s.wg.Done()
 
+	if s.ebpfIngestor != nil {
+		s.ebpfIngestor.OnMessage(func(topic, payload string, at time.Time) {
+			if !strings.HasPrefix(topic, "traces.") {
+				return
+			}
+			s.handleTraceEvent(events.Event{
+				Topic:     topic,
+				Source:    "trace-collector",
+				Timestamp: at,
+				Raw:       json.RawMessage(payload),
+			})
+		})
+	}
 	s.eventStreamer.AddListener(func(event events.Event) {
 		// Only handle traces.* topics
-		if len(event.Topic) < 7 || event.Topic[:7] != "traces." {
+		if !strings.HasPrefix(event.Topic, "traces.") {
 			return
 		}
-
-		for _, d := range traceRecords(event) {
-			if (event.Topic == "traces.packet" || event.Topic == "traces.flow") && s.isViewerTraceEvent(d) {
-				s.viewerPacketsDropped.Add(1)
-				continue
-			}
-			one := event
-			one.Data = d
-			s.publishTrace(s.parseTraceTopicEvent(one))
-		}
+		s.handleTraceEvent(event)
 	})
 
 	<-ctx.Done()
+}
+
+// handleTraceEvent buffers and broadcasts each record of one traces.* message.
+func (s *Server) handleTraceEvent(event events.Event) {
+	for _, d := range traceRecords(event) {
+		if (event.Topic == "traces.packet" || event.Topic == "traces.flow") && s.isViewerTraceEvent(d) {
+			s.viewerPacketsDropped.Add(1)
+			continue
+		}
+		one := event
+		one.Data = d
+		s.publishTrace(s.parseTraceTopicEvent(one))
+	}
 }
 
 // traceRecords returns the records one traces.* message carries. The
@@ -1939,23 +1960,47 @@ func (s *Server) broadcastTraceEvents(ctx context.Context) {
 // objects used to be read, so each batch became one trace with every field
 // empty, and its packets skipped the viewer filter. Live on east
 // 2026-10-23: 1000 of 1000 buffered traces were blank.
+//
+// A trace_id given as {high, low} (the PacketEvent shape traces.packet
+// carries since ADR-147 Phase 10) becomes its 32-digit hex string here,
+// decoded as uint64s: through a map[string]interface{} its halves would be
+// float64s and lose their low bits.
 func traceRecords(event events.Event) []map[string]interface{} {
-	if event.Data != nil {
-		return []map[string]interface{}{event.Data}
-	}
 	raw := bytes.TrimSpace(event.Raw)
-	if len(raw) == 0 || raw[0] != '[' {
-		return nil
-	}
-	var batch []map[string]interface{}
-	if err := json.Unmarshal(raw, &batch); err != nil {
-		return nil
-	}
-	out := batch[:0]
-	for _, d := range batch {
-		if d != nil {
-			out = append(out, d)
+	if len(raw) == 0 {
+		if event.Data != nil {
+			return []map[string]interface{}{event.Data}
 		}
+		return nil
+	}
+	var items []json.RawMessage
+	switch raw[0] {
+	case '[':
+		if err := json.Unmarshal(raw, &items); err != nil {
+			return nil
+		}
+	case '{':
+		items = []json.RawMessage{raw}
+	default:
+		return nil
+	}
+	out := make([]map[string]interface{}, 0, len(items))
+	for _, it := range items {
+		var d map[string]interface{}
+		if json.Unmarshal(it, &d) != nil || d == nil {
+			continue
+		}
+		if _, ok := d["trace_id"].(map[string]interface{}); ok {
+			var t struct {
+				TraceID ebpfPkg.TraceID `json:"trace_id"`
+			}
+			if json.Unmarshal(it, &t) == nil {
+				d["trace_id"] = t.TraceID.String()
+			} else {
+				delete(d, "trace_id")
+			}
+		}
+		out = append(out, d)
 	}
 	return out
 }
@@ -2051,7 +2096,9 @@ func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
 
 	// Extract fields from event data. Each traces.* topic has its own shape
 	// (trace-collector publisher.go / correlator.go / main.go):
-	//   packet:     trace_id hex, src_ip/dst_ip + src_port/dst_port, protocol name
+	//   packet:     the ingestor's PacketEvent: trace_id (hex once traceRecords
+	//               read it), flow_key{...}, packet_len; the older flat
+	//               shape (src_ip/dst_ip + src_port/dst_port) is still read
 	//   flow:       flow_key{src_addr,...,protocol number}, flow_state{state,...}
 	//   latency:    latency_ns, flow_key
 	//   correlated: forward.five_tuple{SrcIP:[16]byte,...}, rtt_ns
