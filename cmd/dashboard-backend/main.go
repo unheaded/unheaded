@@ -59,6 +59,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -303,6 +304,7 @@ func main() {
 	defer cancel()
 
 	// Service discovery registration
+	critalert.Attach(ctx, wc, "dashboard-backend") // ADR-147 Phase 8: state on /metrics
 	discovery.Start(ctx, wc, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
 	healthreport.StartService(ctx, wc, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
 

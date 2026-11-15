@@ -23,6 +23,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -142,8 +143,17 @@ func main() {
 
 	// Initialize HTTP handler
 	handler := api.NewHandler(store)
+	// crit is set once the subscriptions start (below), after serving
+	// begins, so /health reads it through an atomic pointer.
+	var crit atomic.Pointer[critalert.Tracker]
 	if wotan != nil {
 		handler.SetWotanHealth(func() any { return wotan.Health() })
+		handler.SetCriticalAlerts(func() any {
+			if t := crit.Load(); t != nil {
+				return t.Health()
+			}
+			return nil
+		})
 	}
 
 	// Initialize file syncer if sync directory is configured
@@ -246,7 +256,7 @@ func main() {
 	// This sits AFTER the listener is bound: the first cut announced right
 	// after the Wotan connect, kanban refetched immediately, and hit
 	// connection refused because /timeline was not serving yet.
-	// Wotan subscriptions (alerts.critical, timeline.updates) join in the
+	// Wotan subscriptions (alerts.critical through pkg/critalert, timeline.updates) join in the
 	// background and retry until Wotan answers; the startup announcement
 	// goes out once the timeline topic is joined.
 	if wotan != nil {
@@ -254,7 +264,7 @@ func main() {
 		if timelineLoaded {
 			onJoined = func() { publishTimelineUpdate(wotan, "timeline_loaded") }
 		}
-		startWotanSubscriptions(ctx, wotan, onJoined)
+		crit.Store(startWotanSubscriptions(ctx, wotan, onJoined))
 	}
 
 	// Start file watcher for timeline.md auto-reload + sync
@@ -497,15 +507,14 @@ func initWotan(cfg transport.Config) (*wotanClient.Client, error) {
 	return client, nil
 }
 
-// startWotanSubscriptions joins alerts.critical (required by CLAUDE.md) and
-// the timeline topic in the background, streaming both, and keeps retrying
+// startWotanSubscriptions attaches pkg/critalert (alerts.critical, as every
+// service on the bus does) and joins the timeline topic in the background,
+// streaming both, and keeps retrying
 // (1 s doubling to 30 s) until ctx ends, so a Wotan that starts after
 // timeguru, or restarts, is picked up without restarting timeguru. onJoined,
 // if not nil, runs once the timeline topic is first joined.
-func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, onJoined func()) {
-	go func() {
-		_ = client.SubscribeWithRetry(ctx, "alerts.critical", wotanDisplayName, handleAlert)
-	}()
+func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, onJoined func()) *critalert.Tracker {
+	crit := critalert.Attach(ctx, client, wotanDisplayName)
 	go func() {
 		_ = client.SubscribeWithRetry(ctx, wotanTopic, wotanDisplayName, handleTimelineMessage)
 	}()
@@ -523,6 +532,7 @@ func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, on
 			onJoined()
 		}()
 	}
+	return crit
 }
 
 // publishTimelineUpdate publishes an update event to Wotan with trace_id
@@ -554,13 +564,4 @@ func handleTimelineMessage(msg *wotanClient.Message) {
 		Str("topic", msg.Topic).
 		Str("sender", msg.SenderID).
 		Msg("received message (processing deferred)")
-}
-
-// handleAlert logs a critical alert from Wotan.
-func handleAlert(msg *wotanClient.Message) {
-	log.Warn().
-		Str("message_id", msg.MessageID).
-		Int64("seq", msg.Seq).
-		Str("payload", msg.Payload).
-		Msg("CRITICAL ALERT received")
 }

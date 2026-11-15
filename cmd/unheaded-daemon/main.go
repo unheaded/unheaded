@@ -40,6 +40,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -588,6 +589,7 @@ func main() {
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
+	critalert.Attach(discoveryCtx, wc, wotanDisplayName) // ADR-147 Phase 8: state on /metrics
 	discovery.Start(discoveryCtx, wc, "unheaded-daemon", ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))
 	healthreport.StartService(discoveryCtx, wc, "unheaded-daemon", healthreport.HealthURL(cfg.HTTPAddr, ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))) // ADR-029: a vote on Akira's ballot
 

@@ -50,6 +50,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/healthreport"
@@ -1255,6 +1256,7 @@ func main() {
 
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	announceAddr := httputil.ListenAddrs(listenList)[0]
+	critalert.Attach(ctx, wc, wotanName) // ADR-147 Phase 8: state on /metrics
 	discovery.Start(ctx, wc, "trace-collector", ports.PortOf(announceAddr, ports.TraceCollectorHTTP))
 	healthreport.StartService(ctx, wc, "trace-collector", healthreport.HealthURL(announceAddr, ports.PortOf(announceAddr, ports.TraceCollectorHTTP))) // ADR-029: a vote on Akira's ballot
 

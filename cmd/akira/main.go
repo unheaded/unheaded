@@ -36,6 +36,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/health"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
@@ -285,6 +286,9 @@ func main() {
 			}
 		}
 	}
+	// Every service on the bus tracks critical alerts (ADR-147 Phase 8);
+	// the state is on /metrics (unheaded_critical_alerts_state).
+	critalert.Attach(context.Background(), wotan, "akira")
 	var wp *wotanPublisher
 	if wotan != nil {
 		wp = newWotanPublisher(wotan, healthSigner, metrics.DefaultRegistry)

@@ -45,10 +45,12 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/threatfeed/kev"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -171,7 +173,10 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("refusing to start")
 	}
-	d := &daemon{cfg: cfg, poller: p, stack: stack, metrics: m, publish: connectWotan(cfg.wotan), auth: auth.SetupMiddleware(authCfg)}
+	pub, wc := connectWotan(cfg.wotan)
+	// Every service on the bus tracks critical alerts (ADR-147 Phase 8).
+	crit := critalert.Attach(context.Background(), wc, serviceName)
+	d := &daemon{cfg: cfg, poller: p, stack: stack, metrics: m, publish: pub, crit: crit, auth: auth.SetupMiddleware(authCfg)}
 	if st := p.Current(); st != nil {
 		m.count.Set(float64(st.Count))
 	}
@@ -288,15 +293,19 @@ func newPollMetrics() *pollMetrics {
 // publisher sends one payload to one topic; nil when Wotan is off.
 type publisher func(topic string, payload []byte) error
 
-func connectWotan(addr string) publisher {
+func connectWotan(addr string) (publisher, *wotanClient.Client) {
 	if addr == "" {
-		return nil
+		return nil, nil
 	}
 	wotanClient.InitServiceIdentity("kev-poller") // ADR-103 §6: Wotan calls carry kev-poller's service token
-	c, err := wotanClient.NewClient(strings.TrimPrefix(addr, "http://"))
+	// The process's one client: HTTP to publish, gRPC to stream
+	// alerts.critical (ADR-147 Phase 8); WOTAN_GRPC_ADDR, else the --wotan
+	// host on 18001.
+	httpAddr := strings.TrimPrefix(addr, "http://")
+	c, err := wotanClient.NewClientWithGRPC(httpAddr, transport.WotanGRPCAddr(httpAddr, os.Getenv("WOTAN_GRPC_ADDR")))
 	if err != nil {
 		log.Warn().Err(err).Str("addr", addr).Msg("Wotan unavailable; running without publishing")
-		return nil
+		return nil, nil
 	}
 	// A client must subscribe to a topic before it may publish there.
 	var mu sync.Mutex
@@ -313,7 +322,7 @@ func connectWotan(addr string) publisher {
 			joined[topic] = true
 		}
 		return c.Publish(ctx, topic, payload)
-	}
+	}, c
 }
 
 type daemon struct {
@@ -322,6 +331,7 @@ type daemon struct {
 	stack   *kev.Stack // nil: no tagging
 	metrics *pollMetrics
 	publish publisher
+	crit    *critalert.Tracker              // /health's critical_alerts; nil-safe
 	auth    func(http.Handler) http.Handler // nil: no auth (loopback only)
 
 	mu      sync.Mutex
@@ -494,7 +504,7 @@ func (d *daemon) handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprint(w, `{"status":"ok","service":"kev-poller"}`)
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "kev-poller", "critical_alerts": d.crit.Health()})
 	}))
 	// Ready once a valid catalog is on disk, pulled now or loaded at start:
 	// consumers read latest.json, not this process.

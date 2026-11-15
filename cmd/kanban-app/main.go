@@ -28,11 +28,13 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
@@ -1228,6 +1230,10 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHealth returns health status
+// kanbanCrit is the process's critical-alert tracker (ADR-147 Phase 8),
+// set at startup and read by /health.
+var kanbanCrit atomic.Pointer[critalert.Tracker]
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -1486,6 +1492,7 @@ func main() {
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
+	kanbanCrit.Store(critalert.Attach(discoveryCtx, wc, "kanban-app")) // ADR-147 Phase 8
 	discovery.Start(discoveryCtx, wc, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
 	healthreport.StartService(discoveryCtx, wc, "kanban-app", healthreport.HealthURL(":"+cfg.Port, ports.PortOf(":"+cfg.Port, ports.KanbanApp))) // ADR-029: a vote on Akira's ballot
 

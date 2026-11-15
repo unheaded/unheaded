@@ -261,8 +261,15 @@ type Deps struct {
 	Resolver   Resolver     // Cuirass; nil refuses LXD targets
 	Publisher  Publisher    // nil: no events
 	Subscriber AbortSource  // Wotan chaos.abort; nil: that path is off
+	Hold       ChangeHold   // critical alerts (pkg/critalert); nil: never held
 	HTTPClient *http.Client // probes; nil: a no-redirect, no-proxy client
 	Log        *logger.Logger
+}
+
+// ChangeHold says whether change is held now and why: pkg/critalert's
+// Tracker, held while a critical alert fires (unknown allows).
+type ChangeHold interface {
+	Hold() (held bool, why string)
 }
 
 type running struct {
@@ -579,6 +586,11 @@ func (s *Service) StartExperiment(ctx context.Context, exp *Experiment) (*Experi
 	limit := s.config.MaxConcurrentExperiments
 	if s.deps.Allowlist != nil && s.deps.Allowlist.Limits.MaxConcurrent < limit {
 		limit = s.deps.Allowlist.Limits.MaxConcurrent
+	}
+	if s.deps.Hold != nil {
+		if held, why := s.deps.Hold.Hold(); held {
+			return nil, s.refused(e, refuse(RefuseCriticalAlert, "%s", why))
+		}
 	}
 	rt, err := s.deps.Allowlist.Check(ctx, e, s.env())
 	if err != nil {

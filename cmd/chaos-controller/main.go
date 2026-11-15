@@ -53,6 +53,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -82,6 +83,8 @@ type config struct {
 	wotanGRPC  string
 	// wc is the process's one Wotan client (main builds it; ADR-147 Phase 7).
 	wc *wotanClient.Client
+	// crit holds new experiments while a critical alert fires (Phase 8).
+	crit *critalert.Tracker
 	// getenv reads WELL_* for the journal store; nil reads nothing (files).
 	getenv func(string) string
 }
@@ -220,6 +223,9 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 		deps.Publisher = &wotanPublisher{c: c.wc, joined: map[string]bool{}}
 		deps.Subscriber = c.wc // the chaos.abort listener rides the same client
 	}
+	if c.crit != nil {
+		deps.Hold = c.crit
+	}
 	cfg := yaldabaoth.DefaultConfig()
 	cfg.StateDir = c.stateDir
 	cfg.AbortFile = c.abortFile
@@ -289,6 +295,7 @@ type api struct {
 	s           *yaldabaoth.Service
 	gameday     *yaldabaoth.GameDayScheduler
 	authEnabled bool
+	crit        *critalert.Tracker // /health's critical_alerts; nil-safe
 }
 
 const maxBody = 64 << 10
@@ -303,7 +310,7 @@ func refusalStatus(err error) int {
 		return http.StatusBadRequest
 	case yaldabaoth.RefuseAllowlist, yaldabaoth.RefuseLimits:
 		return http.StatusForbidden
-	case yaldabaoth.RefuseConcurrency, yaldabaoth.RefuseAbortFile:
+	case yaldabaoth.RefuseConcurrency, yaldabaoth.RefuseAbortFile, yaldabaoth.RefuseCriticalAlert:
 		return http.StatusConflict
 	case yaldabaoth.RefuseNoInjector:
 		return http.StatusNotImplemented
@@ -335,7 +342,7 @@ func (a *api) routes(reg *metrics.Registry) *http.ServeMux {
 		httputil.WriteJSON(w, http.StatusOK, a.gameday.Status())
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": serviceName, "stats": a.s.Stats()})
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": serviceName, "stats": a.s.Stats(), "critical_alerts": a.crit.Health()})
 	})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 		httputil.WriteJSON(w, http.StatusOK, map[string]any{"ready": true})
@@ -567,12 +574,13 @@ func main() {
 	if c.wc, err = transport.NewWotanClient(transportCfg); err != nil {
 		log.Warn().Err(err).Msg("Wotan client: events, the chaos.abort path, discovery and health reports are off")
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	c.crit = critalert.Attach(ctx, c.wc, serviceName) // no experiment starts while one fires
 	s, err := build(c, log)
 	if err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 	if err := s.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
@@ -581,6 +589,7 @@ func main() {
 		log.Warn().Msg("AUTH_ENABLED is not true: every chaos write answers 403")
 	}
 	a := newAPI(s, nil, authCfg.Enabled)
+	a.crit = c.crit
 	h, err := handler(a, authCfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")

@@ -58,6 +58,8 @@ type Handler struct {
 	syncer *tsync.Syncer // optional file syncer, nil if not configured
 	// wotanHealth, when set before serving, supplies /health's Wotan detail.
 	wotanHealth func() any
+	// critHealth supplies /health's critical_alerts detail.
+	critHealth func() any
 }
 
 // NewHandler creates a new Handler with defensive validation
@@ -101,6 +103,8 @@ type HealthResponse struct {
 	Timestamp time.Time `json:"timestamp"`
 	// Wotan is the Wotan client's Health() (transport, streams), when set.
 	Wotan any `json:"wotan,omitempty"`
+	// CriticalAlerts is pkg/critalert's state (ADR-147 Phase 8).
+	CriticalAlerts any `json:"critical_alerts,omitempty"`
 }
 
 // KanbanTask represents a task in kanban format for the frontend
@@ -526,7 +530,15 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	if h.wotanHealth != nil {
 		resp.Wotan = h.wotanHealth()
 	}
+	if h.critHealth != nil {
+		resp.CriticalAlerts = h.critHealth()
+	}
 	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// SetCriticalAlerts sets where /health reads the critical-alert state from.
+func (h *Handler) SetCriticalAlerts(f func() any) {
+	h.critHealth = f
 }
 
 // SetWotanHealth sets where /health reads the Wotan client's state from.
