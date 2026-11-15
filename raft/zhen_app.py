@@ -389,12 +389,26 @@ def _add_to_history(session_id, role, content):
     if len(history) > _MAX_HISTORY_TURNS * 2:  # *2 because user+assistant = 2 entries per turn
         _conversation_histories[session_id] = history[-_MAX_HISTORY_TURNS * 2:]
 
+# Two connections, both as app_zhen (ADR-149, migrations 051-053): Zhen's own
+# rows (zhen_memories, zhen_conversations, zhen_actions) live in unheaded_zhen
+# (ZHEN_DB_NAME); the board's kanban_tasks stays in unheaded_app
+# (ZHEN_BOARD_DB_NAME), read for the live Kanban context only.
 def _pg_connect():
+    """Connect to Zhen's own database. Returns connection or None."""
+    return _connect_db(os.environ.get('ZHEN_DB_NAME', 'unheaded_zhen'), 'Zhen data')
+
+
+def _board_connect():
+    """Connect to the board's database for kanban_tasks reads. Returns connection or None."""
+    return _connect_db(os.environ.get('ZHEN_BOARD_DB_NAME', 'unheaded_app'), 'the board')
+
+
+def _connect_db(dbname, what):
     """Try connecting to Postgres. Returns connection or None."""
     try:
         import psycopg2
         conn = psycopg2.connect(
-            dbname=os.environ.get('ZHEN_DB_NAME', 'unheaded_app'),
+            dbname=dbname,
             user=os.environ.get('ZHEN_DB_USER', 'app_zhen'),
             password=os.environ.get('ZHEN_DB_PASSWORD', ''),
             host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
@@ -404,13 +418,14 @@ def _pg_connect():
             connect_timeout=3,
         )
         conn.autocommit = True
-        log.info("[zhen] Connected to The Well (PostgreSQL)")
+        log.info(f"[zhen] Connected to The Well (PostgreSQL), {what}: {dbname}")
         return conn
     except Exception as e:
-        log.warning(f"[zhen] The Well not available — conversations will not be persisted: {e}")
+        log.warning(f"[zhen] The Well not available for {what} ({dbname}): {e}")
         return None
 
 pg_conn = _pg_connect()
+board_conn = _board_connect()
 
 # zhen_memories comes from The Well's migrations (008, ADR-101), never from
 # this app: app_zhen may read and write rows, not create tables (ERDA 3.3).
@@ -625,9 +640,9 @@ def _build_live_context(question, max_chars=4096):
 
     parts = []
 
-    if 'kanban' in intents and pg_conn is not None:
+    if 'kanban' in intents and board_conn is not None:
         try:
-            cur = pg_conn.cursor()
+            cur = board_conn.cursor()
             cur.execute("""
                 SELECT status, COUNT(*) FROM kanban_tasks
                  WHERE deleted_at IS NULL AND archived_at IS NULL

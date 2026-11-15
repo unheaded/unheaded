@@ -53,7 +53,8 @@ class ActionManager:
         try:
             import psycopg2
             conn = psycopg2.connect(
-                dbname=os.environ.get('ZHEN_DB_NAME', 'unheaded_app'),
+                # zhen_actions and its snapshots live in unheaded_zhen (ADR-149).
+                dbname=os.environ.get('ZHEN_DB_NAME', 'unheaded_zhen'),
                 user=os.environ.get('ZHEN_DB_USER', 'app_zhen'),
                 password=os.environ.get('ZHEN_DB_PASSWORD', ''),
                 host=os.environ.get('ZHEN_DB_HOST', 'localhost'),

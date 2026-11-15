@@ -57,7 +57,7 @@ WEBUI_USER = os.environ.get("ZHEN_UI_USER", "")
 WEBUI_PASSWORD_FILE = os.environ.get("ZHEN_UI_PASSWORD_FILE", "")
 PG_HOST = os.environ.get("ZHEN_DB_HOST", "localhost")
 PG_PORT = int(os.environ.get("ZHEN_DB_PORT", "5432"))
-PG_DBNAME = os.environ.get("ZHEN_DB_NAME", "unheaded_app")
+PG_DBNAME = os.environ.get("ZHEN_DB_NAME", "unheaded_zhen")  # zhen_memories (ADR-149)
 PG_USER = os.environ.get("ZHEN_DB_USER", "app_zhen")
 PG_PASSWORD = os.environ.get("ZHEN_DB_PASSWORD", "")
 
