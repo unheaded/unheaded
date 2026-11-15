@@ -148,3 +148,121 @@ Escapes: [one](../../etc/passwd) [two](%2e%2e/%2e%2e/etc/passwd) [three](../docs
 		t.Errorf("the Markdown file changed (err %v)", err)
 	}
 }
+
+// TestRenderPage_PageDotMdLinks: a link written "Page.md" (what GitHub's own
+// view of wiki/ needs) opens the page here. Served as written it would ask
+// for Page.md.md and 404.
+func TestRenderPage_PageDotMdLinks(t *testing.T) {
+	t.Parallel()
+	dir := t.TempDir()
+	const src = `# Links
+
+[a](Architecture.md) [b](Architecture.md#wire) [c](Port%20Registry.md) [home](README.md)
+[missing](Nope.md) [repo](../docs/a.md) [slug](Architecture) [abs](https://example.com/x.md)
+[sub](sub/Page.md) [up](../Architecture.md) [furniture](_Sidebar.md) [query](Architecture.md?x=1)
+[rooted](/Architecture.md) [dots](..%2FArchitecture.md) [notmd](Architecture.mdx) [ref][r]
+
+Code is not a link: ` + "`[x](Architecture.md)`" + `
+
+[r]: Architecture.md "titled"
+`
+	for name, body := range map[string]string{
+		"Links.md":         src,
+		"Architecture.md":  "# Architecture\n",
+		"Port Registry.md": "# Ports\n",
+		"README.md":        "# Home\n",
+		"_Sidebar.md":      "- x\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sub"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sub", "Page.md"), []byte("# Sub\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	ws, err := NewWikiServer(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, out, err := ws.renderPage("Links")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		`<a href="/wiki/Architecture">a</a>`,
+		`<a href="/wiki/Architecture#wire">b</a>`,
+		`<a href="/wiki/Port%20Registry">c</a>`,
+		`<a href="/wiki/README">home</a>`,
+		`<a href="/wiki/Architecture" title="titled">ref</a>`,
+		// No such page: left as written.
+		`<a href="Nope.md">missing</a>`,
+		// The repository link still goes to GitHub; a slug and an absolute
+		// URL are untouched.
+		`<a href="https://github.com/unheaded/unheaded/blob/develop/docs/a.md">repo</a>`,
+		`<a href="Architecture">slug</a>`,
+		`<a href="https://example.com/x.md">abs</a>`,
+		// Only a page of this directory: no subdirectory, no furniture, no
+		// query, no rooted path, nothing that is not ".md".
+		`<a href="sub/Page.md">sub</a>`,
+		`<a href="_Sidebar.md">furniture</a>`,
+		`<a href="Architecture.md?x=1">query</a>`,
+		`<a href="/Architecture.md">rooted</a>`,
+		`<a href="Architecture.mdx">notmd</a>`,
+		`<code>[x](Architecture.md)</code>`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("rendered page lacks %s:\n%s", want, out)
+		}
+	}
+	// "../Architecture.md" is the repository's Architecture.md, not the
+	// wiki's: it goes to GitHub like any other repository path.
+	for _, text := range []string{"up", "dots"} {
+		if !strings.Contains(out, `<a href="https://github.com/unheaded/unheaded/blob/develop/Architecture.md">`+text+`</a>`) {
+			t.Errorf("the %q link was not sent to GitHub:\n%s", text, out)
+		}
+	}
+	after, err := os.ReadFile(filepath.Join(dir, "Links.md"))
+	if err != nil || string(after) != src {
+		t.Errorf("the Markdown file changed (err %v)", err)
+	}
+}
+
+func TestWikiPageLink(t *testing.T) {
+	t.Parallel()
+	pages := map[string]bool{"Architecture": true, "Port Registry": true, "a.b": true, "100%": true}
+	cases := []struct {
+		dest, want string
+		ok         bool
+	}{
+		{"Architecture.md", "/wiki/Architecture", true},
+		{"Architecture.md#wire-format", "/wiki/Architecture#wire-format", true},
+		{"./Architecture.md", "/wiki/Architecture", true},
+		{"Port%20Registry.md", "/wiki/Port%20Registry", true},
+		{"a.b.md", "/wiki/a.b", true},
+		{"100%25.md", "/wiki/100%25", true},
+		{"Nope.md", "", false},
+		{"Architecture", "", false},
+		{"architecture.md", "", false}, // slugs are case-sensitive, as files are
+		{"Architecture.md?x=1", "", false},
+		{"sub/Architecture.md", "", false},
+		{"../Architecture.md", "", false},
+		{"/Architecture.md", "", false},
+		{"..%2FArchitecture.md", "", false},
+		{"https://example.com/Architecture.md", "", false},
+		{"//example.com/Architecture.md", "", false},
+		{"mailto:Architecture.md", "", false},
+		{"#Architecture.md", "", false},
+		{".md", "", false},
+		{"", "", false},
+		{"%zz.md", "", false},
+	}
+	for _, c := range cases {
+		got, ok := wikiPageLink(c.dest, pages)
+		if ok != c.ok || got != c.want {
+			t.Errorf("wikiPageLink(%q) = %q, %v; want %q, %v", c.dest, got, ok, c.want, c.ok)
+		}
+	}
+}

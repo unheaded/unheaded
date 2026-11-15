@@ -63,3 +63,42 @@ func repoLink(dest string) (string, bool) {
 	}
 	return out, true
 }
+
+// rewriteWikiPageLinks points the links written "Page.md" at the page. The
+// files link each other that way because GitHub's own view of wiki/ needs
+// the file name; this server serves a page at /wiki/Page, so "Page.md"
+// would ask for Page.md.md and 404. The files are not edited. pages is the
+// set of slugs on disk (pageSlugs): a link to a page that is not there is
+// left as written.
+func rewriteWikiPageLinks(doc ast.Node, pages map[string]bool) {
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if link, ok := n.(*ast.Link); ok && entering {
+			if dest, ok := wikiPageLink(string(link.Destination), pages); ok {
+				link.Destination = []byte(dest)
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+}
+
+// wikiPageLink returns "/wiki/<slug>", with dest's fragment, when dest is a
+// relative link to "<slug>.md" in the wiki directory itself and that page
+// exists. Anything with a scheme, a host, a query or a directory in it is
+// not such a link.
+func wikiPageLink(dest string, pages map[string]bool) (string, bool) {
+	u, err := url.Parse(dest)
+	if err != nil || u.Scheme != "" || u.Host != "" || u.RawQuery != "" || u.Path == "" {
+		return "", false
+	}
+	// u.Path is decoded: "..%2FPage.md" has a slash here and is refused.
+	name := strings.TrimPrefix(u.Path, "./")
+	slug, isMD := strings.CutSuffix(name, ".md")
+	if !isMD || strings.ContainsAny(name, `/\`) || !pages[slug] {
+		return "", false
+	}
+	out := "/wiki/" + url.PathEscape(slug)
+	if u.Fragment != "" {
+		out += "#" + u.EscapedFragment()
+	}
+	return out, true
+}
