@@ -19,6 +19,10 @@
 Description=vor retrieval corpus server for Zhen
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-056-pgvector-auxiliary-corpus-sharding.md
 After=network.target
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 Type=simple

@@ -30,6 +30,10 @@ Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-138
 # the model in when the app is started, and does not stop the app if it fails.
 After=network-online.target unheaded-llama.service zhen-agentd.service unheaded-vor.service
 Wants=network-online.target unheaded-llama.service
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 Type=simple

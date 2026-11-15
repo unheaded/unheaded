@@ -30,6 +30,10 @@ Requires=unheaded-syslog-relay.socket
 After=unheaded-syslog-relay.socket
 # [fd00:dead:beef::1] is wg0's; the metrics listener retries until it exists.
 After=snap.lxd.daemon.service wg-quick@wg0.service
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 Type=simple

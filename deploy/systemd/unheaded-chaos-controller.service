@@ -27,6 +27,10 @@ Description=Unheaded chaos-controller — Yaldabaoth inside its safety envelope
 After=network-online.target
 Wants=network-online.target
 After=unheaded-wotan.service unheaded-daemon.service
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 Type=simple

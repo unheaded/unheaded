@@ -28,10 +28,13 @@ After=unheaded-vor.service
 # exits when it cannot reach the Well. Ordering only: neither is required, and
 # After= on a unit a host does not have is harmless.
 After=docker.service wg-quick@wg0.service
-# Never give up. With the default limit (5 starts in 10 s) a start that fails
-# fast while the Well is still coming up would leave the unit failed until a
-# person restarts it. 0 turns the limit off: retry every RestartSec, forever.
-StartLimitIntervalSec=0
+# Not for ever (ADR-147 SS3, 2026-11-15; was StartLimitIntervalSec=0, "never
+# give up"): with the default limit (5 starts in 10 s) a start that fails fast
+# while the Well is still coming up would leave the unit failed at once; 10
+# starts in 15 minutes rides out a slow Well, then the unit stays failed and
+# UnitFailed mails.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC

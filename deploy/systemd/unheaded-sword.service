@@ -21,6 +21,10 @@ Description=Unheaded Sword — deploys through Cuirass
 After=network-online.target
 Wants=network-online.target
 After=unheaded-daemon.service unheaded-wotan.service
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 Type=simple

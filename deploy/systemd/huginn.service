@@ -18,6 +18,10 @@ Description=Huginn — Kingdom host metrics agent
 Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/huginn
 After=network-online.target wg-quick@wg0.service
 Wants=network-online.target
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC

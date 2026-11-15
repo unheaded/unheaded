@@ -23,6 +23,10 @@ Description=Unheaded Zhen UI front: hybrid-only TLS 1.3 to the app's socket
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md
 After=network-online.target
 Wants=network-online.target
+# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
+# UnitFailed mails, instead of restarting for ever.
+StartLimitIntervalSec=15min
+StartLimitBurst=10
 
 [Service]
 Type=simple
