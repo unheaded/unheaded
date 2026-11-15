@@ -42,4 +42,5 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - Review finding RV-3 (Low, open): the host engine crates/monad-mbc/src/execute.rs has neither the priv-3 refusal nor D6; refusals and D6 misses count nothing. A counter needs instructions the object does not have.
 - Seen, not acted on: a user program's ebreak becomes HALT, and HALT has no privilege test, so any user program can halt the machine. Refuse HALT at U-mode (cost unmeasured), or leave it?
 - ascend baseline row now 899906 (net vs 921036: 21130)
+- Reorder (Step 30's override): Phase 7's refusal measures +622 and does not fit (headroom 94). Order from here: Phase 9 (rung 3) first, then Phase 7, then UPC_FORK_MARK back on. Stop C is not reached; the last named Stop is B. Everything after it (Phase 6, the review fixes) is committed and gated green: gate review-after same=12 diff=0 rc=0 doom=1 ascend=899906.
 

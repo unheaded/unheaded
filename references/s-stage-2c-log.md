@@ -143,3 +143,8 @@ Findings, each verified here before it was acted on (ADR-135, section of this da
 - **RV-3 (Low).** Recorded For Stevie.
 - Seen while verifying RV-2, not acted on: the translator turns `ebreak` into `HALT`, and `HALT` has no privilege test, so a user program that executes `ebreak` halts the machine. No built user image holds a `HALT`. For Stevie.
 - Gate `review-after`: `same=12 diff=0 rc=0 doom=1 ascend=899906`; `hostile_block: 3 checks`, `hostile_fork: 3 checks`, the opcode scan line and `hostile_reply` PASS. The kernel's own block calls are unaffected: all 12 corpus boots read the ramdisk.
+
+## Phase 7, measured and not landed (2026-11-15)
+
+- Step 132's refusal (an inode-kind fd in the BPF write arm answers -1): 900,528, +622 against 899,906: BUDGET-FAIL with 94 of headroom. `main.rs` restored, count 899,906.
+- Reorder under Step 30's override: Phase 9 (rung 3, which compiles the BPF console write loop out) runs next; Phase 7 and `UPC_FORK_MARK` (+169) follow it. Phase 9 was not started in this session.
