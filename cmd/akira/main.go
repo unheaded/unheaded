@@ -266,13 +266,9 @@ func main() {
 	var wotan *wotanClient.Client
 	if *wotanAddr != "" {
 		httpAddr := strings.TrimPrefix(*wotanAddr, "http://")
-		var c *wotanClient.Client
-		var err error
-		if healthSigner != nil {
-			c, err = wotanClient.NewClientWithGRPC(httpAddr, wotanGRPCAddr(*wotanAddr, *wotanGRPC))
-		} else {
-			c, err = wotanClient.NewClient(httpAddr)
-		}
+		// The one client (ADR-147 Phase 7) streams over gRPC whether or not
+		// a signing key is set: the key decides only what is published.
+		c, err := wotanClient.NewClientWithGRPC(httpAddr, wotanGRPCAddr(*wotanAddr, *wotanGRPC))
 		if err != nil {
 			log.Warn().Err(err).Str("addr", *wotanAddr).Msg("Wotan connection failed — running without publish")
 		} else {

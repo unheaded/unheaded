@@ -19,7 +19,10 @@ import (
 // subscribe once per topic and give up.
 func TestLateWotan_Anomaly(t *testing.T) {
 	fake := wotantest.Reserve(t)
-	client, err := wotanClient.NewClient(fake.Addr)
+	// The process's client streams over gRPC (ADR-147 Phase 7); the fake
+	// is HTTP only, so gRPC is refused and the stream takes the HTTP
+	// fallback, which is what the fake counts.
+	client, err := wotanClient.NewClientWithGRPC(fake.Addr, "127.0.0.1:1")
 	if err != nil {
 		t.Fatal(err)
 	}

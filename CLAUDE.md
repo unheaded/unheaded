@@ -152,7 +152,7 @@ Four-layer approach implemented in `pkg/discovery/`:
 3. **Convention scan:** /opt/unheaded/<service>/config.yaml discovery
 4. **Static fallback:** configs/services.yaml for known-good defaults
 
-12 services call `discovery.Start(ctx, transportCfg, name, port)` on startup (and each also reports its own `/health` to Akira every 30 s through `pkg/healthreport`, as `<service>@<host>` on `system.health.reports`; a test fails a service that announces without reporting): it joins `system.discovery` as `name` (must be on Wotan's `topics.auto_approve`), announces `$DISCOVERY_ADDR` or the hostname every 15 s, and retries in the background until Wotan answers. Until 2026-10-22 every service passed a nil connection and nothing ever registered.
+Each service calls `discovery.Start(ctx, wc, name, port)` with its one Wotan client (`transport.NewWotanClient`): it announces on `system.discovery` every 15 s and opens no stream. The same client carries its health reports (`pkg/healthreport`: its own `/health` to Akira every 30 s as `<service>@<host>` on `system.health.reports`; a test fails a service that announces without reporting) and its logs; `pkg/wotan-client/policy_test.go` fails a binary that builds a second client or a library that builds one. `name` must be on Wotan's `topics.auto_approve`; it announces `$DISCOVERY_ADDR` or the hostname and retries in the background until Wotan answers. Until 2026-10-22 every service passed a nil connection and nothing ever registered.
 
 ### Log Aggregation — "The Chronicler's Well"
 

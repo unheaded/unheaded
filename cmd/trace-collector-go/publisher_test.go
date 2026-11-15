@@ -444,21 +444,37 @@ func TestTracePublisher_PublishStats(t *testing.T) {
 	}
 }
 
-// Connect joins traces.stats along with the other trace topics.
-func TestTracePublisher_ConnectJoinsStatsTopic(t *testing.T) {
+// A stats snapshot is published on traces.stats through the process's
+// client, which joins the topic on first publish (ADR-147 Phase 7: Connect
+// no longer builds a client of its own).
+func TestTracePublisher_StatsJoinsStatsTopic(t *testing.T) {
 	srv := newTestWotanHTTPServer(t)
 	defer srv.Close()
 
-	config := DefaultTracePublisherConfig()
-	config.WotanAddr = "localhost:19999" // nothing there
-	config.WotanHTTPAddr = strings.TrimPrefix(srv.URL, "http://")
-	pub := NewTracePublisher(config)
-	if err := pub.Connect(context.Background()); err != nil {
+	wc := testWotan(t, strings.TrimPrefix(srv.URL, "http://"))
+	pub := NewTracePublisher(DefaultTracePublisherConfig())
+	if err := pub.Connect(wc); err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
-	defer pub.tsc.Close()
-	if _, ok := pub.tsc.GetSubscriber(TopicTracesStats); !ok {
-		t.Errorf("Connect did not join %s", TopicTracesStats)
+	pub.PublishStats(json.RawMessage(`{"packets_ingress":1}`))
+	pub.Flush(context.Background())
+	if _, ok := wc.GetSubscriber(TopicTracesStats); !ok {
+		t.Errorf("publishing stats did not join %s", TopicTracesStats)
+	}
+}
+
+// Connect refuses a missing client: batches are dropped, not panicked on.
+func TestTracePublisher_ConnectNilClient(t *testing.T) {
+	pub := NewTracePublisher(DefaultTracePublisherConfig())
+	if err := pub.Connect(nil); err == nil {
+		t.Fatal("Connect(nil) returned no error")
+	}
+	var none *wotanClient.Client
+	if err := pub.Connect(none); err == nil {
+		t.Fatal("Connect of a nil *Client returned no error")
+	}
+	if pub.IsConnected() {
+		t.Error("connected without a client")
 	}
 }
 
@@ -518,13 +534,17 @@ func TestTracePublisher_ConnectWithHTTPFallback(t *testing.T) {
 	config.BatchSize = 1000
 
 	pub := NewTracePublisher(config)
-	err := pub.Connect(context.Background())
+	// gRPC refused: the process's client publishes over HTTP.
+	wc, err := wotanClient.NewClientWithGRPC(config.WotanHTTPAddr, config.WotanAddr)
 	if err != nil {
-		t.Fatalf("Connect should succeed (gRPC lazy dial): %v", err)
+		t.Fatal(err)
 	}
-
-	if pub.tsc == nil {
-		t.Fatal("TopicStreamClient should be set after Connect")
+	defer wc.Close()
+	if err := pub.Connect(wc); err != nil {
+		t.Fatalf("Connect: %v", err)
+	}
+	if pub.wc == nil {
+		t.Fatal("the client should be set after Connect")
 	}
 	if !pub.IsConnected() {
 		t.Error("should be connected after successful Connect()")
@@ -570,8 +590,7 @@ func TestTracePublisher_FlushViaHTTPFallback(t *testing.T) {
 	config.BatchSize = 1000
 
 	pub := NewTracePublisher(config)
-	err := pub.Connect(context.Background())
-	if err != nil {
+	if err := pub.Connect(testWotan(t, httpAddr)); err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
 
@@ -613,7 +632,9 @@ func TestTracePublisher_RunWithHTTPFallback(t *testing.T) {
 	config.WotanHTTPAddr = httpAddr
 
 	pub := NewTracePublisher(config)
-	pub.Connect(context.Background())
+	if err := pub.Connect(testWotan(t, httpAddr)); err != nil {
+		t.Fatal(err)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -658,20 +679,15 @@ func TestFlush_LogsOncePerOutage(t *testing.T) {
 	log.Logger = zerolog.New(&buf)
 	defer func() { log.Logger = prev }()
 
-	// Nothing listens here: every gRPC publish fails, and there is no
-	// HTTP fallback.
-	tsc, err := wotanClient.NewTopicStreamClient("127.0.0.1:1")
+	// Nothing listens here: every publish fails (gRPC refused, then HTTP
+	// refused).
+	wc, err := wotanClient.NewClientWithGRPC("127.0.0.1:1", "127.0.0.1:1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tsc.Close()
-	for _, topic := range []string{TopicTracesFlow, "ebpf.flow.events"} { // flow events are mirrored
-		if _, err := tsc.Subscribe(context.Background(), topic, "trace-collector"); err != nil {
-			t.Fatal(err)
-		}
-	}
+	defer wc.Close()
 	pub := NewTracePublisher(DefaultTracePublisherConfig())
-	pub.tsc = tsc
+	pub.wc = wc
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -703,15 +719,12 @@ func TestPublishRaw_LogsOncePerOutage(t *testing.T) {
 	log.Logger = zerolog.New(&buf)
 	defer func() { log.Logger = prev }()
 
-	tsc, err := wotanClient.NewTopicStreamClient("127.0.0.1:1")
+	wc, err := wotanClient.NewClientWithGRPC("127.0.0.1:1", "127.0.0.1:1") // nothing listens
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer tsc.Close()
-	if _, err := tsc.Subscribe(context.Background(), "ebpf.flow.events", "trace-collector"); err != nil {
-		t.Fatal(err)
-	}
-	wp := &WotanPublisher{tsc: tsc}
+	defer wc.Close()
+	wp := NewWotanPublisher(wc, 100, time.Second)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

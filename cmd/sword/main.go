@@ -73,6 +73,8 @@ type config struct {
 	policy     string
 	wotanHTTP  string
 	wotanGRPC  string
+	// wc is the process's one Wotan client (main builds it; ADR-147 Phase 7).
+	wc *wotanClient.Client
 }
 
 func envOr(getenv func(string) string, k, def string) string {
@@ -161,18 +163,8 @@ func build(c config, log *zerolog.Logger) (*sword.Service, error) {
 	if !cfg.AuthEnabled {
 		log.Warn().Msg("AUTH_ENABLED is not true: every deployment request answers 403")
 	}
-	if c.wotanHTTP != "" {
-		var wc *wotanClient.Client
-		if c.wotanGRPC != "" {
-			wc, err = wotanClient.NewClientWithGRPC(c.wotanHTTP, c.wotanGRPC)
-		} else {
-			wc, err = wotanClient.NewClient(c.wotanHTTP)
-		}
-		if err != nil {
-			log.Warn().Err(err).Msg("Wotan client: deploy events off")
-		} else {
-			cfg.Publisher = sword.NewWotanPublisher(wc)
-		}
+	if c.wotanHTTP != "" && c.wc != nil {
+		cfg.Publisher = sword.NewWotanPublisher(c.wc)
 	}
 	return sword.New(cfg)
 }
@@ -236,6 +228,13 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("sword cannot start")
 	}
+	// The process's one Wotan client (ADR-147 Phase 7): deploy events,
+	// discovery and health reports share it.
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if c.wc, err = transport.NewWotanClient(transportCfg); err != nil {
+		log.Warn().Err(err).Msg("Wotan client: deploy events, discovery and health reports off")
+	}
 	s, err := build(c, &log)
 	if err != nil {
 		log.Fatal().Err(err).Msg("sword cannot start")
@@ -244,10 +243,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	transportCfg := transport.DefaultConfig()
-	transport.ConfigFromEnv(&transportCfg)
-	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Sword))
-	healthreport.StartService(ctx, transportCfg, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Sword))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, c.wc, serviceName, ports.PortOf(c.addr, ports.Sword))
+	healthreport.StartService(ctx, c.wc, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Sword))) // ADR-029: a vote on Akira's ballot
 
 	h, err := handler(s, auth.LoadServiceAuthConfig(serviceName))
 	if err != nil {

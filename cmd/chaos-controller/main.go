@@ -80,6 +80,8 @@ type config struct {
 	policy     string
 	wotanHTTP  string
 	wotanGRPC  string
+	// wc is the process's one Wotan client (main builds it; ADR-147 Phase 7).
+	wc *wotanClient.Client
 	// getenv reads WELL_* for the journal store; nil reads nothing (files).
 	getenv func(string) string
 }
@@ -214,20 +216,9 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 	} else {
 		log.Warn().Msg("VM_URL is not set: no SLO guard, so every experiment is refused")
 	}
-	if c.wotanHTTP != "" {
-		wotanClient.InitServiceIdentity("chaos-controller") // ADR-103 §6: Wotan calls carry chaos-controller's service token
-		var wc *wotanClient.Client
-		if c.wotanGRPC != "" {
-			wc, err = wotanClient.NewClientWithGRPC(c.wotanHTTP, c.wotanGRPC)
-		} else {
-			wc, err = wotanClient.NewClient(c.wotanHTTP)
-		}
-		if err != nil {
-			log.Warn().Err(err).Msg("Wotan client: events and the chaos.abort path are off")
-		} else {
-			deps.Publisher = &wotanPublisher{c: wc, joined: map[string]bool{}}
-			deps.Subscriber = wc
-		}
+	if c.wotanHTTP != "" && c.wc != nil {
+		deps.Publisher = &wotanPublisher{c: c.wc, joined: map[string]bool{}}
+		deps.Subscriber = c.wc // the chaos.abort listener rides the same client
 	}
 	cfg := yaldabaoth.DefaultConfig()
 	cfg.StateDir = c.stateDir
@@ -561,6 +552,21 @@ func main() {
 		}
 	}
 	log := logger.New(os.Stderr)
+	// The process's one Wotan client (ADR-147 Phase 7): events, the
+	// chaos.abort listener, discovery and health reports share it.
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if c.wotanHTTP != "" {
+		wotanClient.InitServiceIdentity("chaos-controller") // ADR-103 §6: Wotan calls carry chaos-controller's service token
+		transportCfg.WotanHTTPAddr = c.wotanHTTP
+	}
+	if c.wotanGRPC != "" {
+		transportCfg.WotanGRPCAddr = c.wotanGRPC
+	}
+	var err error
+	if c.wc, err = transport.NewWotanClient(transportCfg); err != nil {
+		log.Warn().Err(err).Msg("Wotan client: events, the chaos.abort path, discovery and health reports are off")
+	}
 	s, err := build(c, log)
 	if err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
@@ -580,10 +586,8 @@ func main() {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
 
-	transportCfg := transport.DefaultConfig()
-	transport.ConfigFromEnv(&transportCfg)
-	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Chaos))
-	healthreport.StartService(ctx, transportCfg, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Chaos))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, c.wc, serviceName, ports.PortOf(c.addr, ports.Chaos))
+	healthreport.StartService(ctx, c.wc, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Chaos))) // ADR-029: a vote on Akira's ballot
 
 	srv, tlsOn, err := newHTTPServer(c.addr, h)
 	if err != nil {

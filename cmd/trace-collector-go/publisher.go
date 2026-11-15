@@ -31,7 +31,6 @@ import (
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
-	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ── Wotan topic constants ─────────────────────────────────────────────────
@@ -146,8 +145,9 @@ type TracePublisher struct {
 	failMu   sync.Mutex
 	failures map[string]uint64
 
-	// gRPC client for Wotan topic publishing
-	tsc *wotanClient.TopicStreamClient
+	// wc is the process's one Wotan client (ADR-147 Phase 7): gRPC while
+	// healthy, HTTP otherwise.
+	wc topicPublisher
 }
 
 // failLogEvery: during a long outage, one reminder per this many failed
@@ -163,45 +163,19 @@ func NewTracePublisher(config TracePublisherConfig) *TracePublisher {
 	}
 }
 
-// Connect establishes the gRPC connection to Wotan and subscribes to
-// all trace topics. Must be called before Run().
-func (tp *TracePublisher) Connect(ctx context.Context) error {
-	// Create HTTP fallback client
-	var opts []wotanClient.TopicStreamOption
-	if tp.config.WotanHTTPAddr != "" {
-		httpClient, err := wotanClient.NewClient(tp.config.WotanHTTPAddr)
-		if err == nil {
-			opts = append(opts, wotanClient.WithHTTPFallback(httpClient))
-		}
+// Connect gives the publisher the process's one Wotan client. Topics are
+// joined on first publish. Must be called before Run(); a nil client is an
+// error and batches are dropped until one is given.
+func (tp *TracePublisher) Connect(wc topicPublisher) error {
+	if wc == nil || isNilClient(wc) {
+		return fmt.Errorf("no Wotan client")
 	}
-
-	tsc, err := wotanClient.NewTopicStreamClient(tp.config.WotanAddr, opts...)
-	if err != nil {
-		return fmt.Errorf("connect to Wotan gRPC at %s: %w", tp.config.WotanAddr, err)
-	}
-	tp.tsc = tsc
-
-	// Subscribe to all trace topics + mirror topics for dashboard ingestor
-	topics := []string{
-		TopicTracesPacket, TopicTracesFlow,
-		TopicTracesLatency, TopicTracesCorrelated, TopicTracesStats,
-		TopicEBPFPacket, TopicEBPFFlow, TopicEBPFLatency,
-	}
-	for _, topic := range topics {
-		// "trace-collector" is on the auto_approve list in configs/wotan.yaml;
-		// the HTTP fallback joins under it too.
-		if _, err := tsc.Subscribe(ctx, topic, "trace-collector"); err != nil {
-			tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
-			return fmt.Errorf("subscribe to %s: %w", topic, err)
-		}
-	}
-
+	tp.wc = wc
 	tp.connected.Store(true)
 	log.Info().
 		Str("grpc_addr", tp.config.WotanAddr).
 		Str("http_addr", tp.config.WotanHTTPAddr).
-		Int("topics", len(topics)).
-		Msg("trace publisher connected to Wotan (gRPC-first)")
+		Msg("trace publisher on the process's Wotan client (gRPC-first)")
 	return nil
 }
 
@@ -317,10 +291,6 @@ func (tp *TracePublisher) Run(ctx context.Context) {
 		case <-ctx.Done():
 			// Final flush on shutdown
 			tp.Flush(context.Background())
-			// Close gRPC connection
-			if tp.tsc != nil {
-				tp.tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
-			}
 			log.Info().Msg("trace publisher stopped")
 			return
 		case <-ticker.C:
@@ -395,12 +365,12 @@ func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages 
 	}
 
 	// Use gRPC client if connected, fall back to no-op if not yet connected
-	if tp.tsc == nil {
+	if tp.wc == nil {
 		log.Debug().Str("topic", topic).Msg("Wotan not connected, dropping batch")
 		return nil
 	}
 
-	if err := tp.tsc.Publish(ctx, topic, payload); err != nil {
+	if err := tp.wc.PublishPreferGRPC(ctx, topic, wotanName, payload); err != nil {
 		tp.connected.Store(false)
 		return fmt.Errorf("publish to %s: %w", topic, err)
 	}

@@ -115,7 +115,8 @@ func New(cfg *config.Config, log *logger.Logger) (*Gateway, error) {
 	var client *wotanClient.Client
 	if cfg.Wotan.Enabled {
 		var err error
-		client, err = wotanClient.NewClient(cfg.Wotan.URL)
+		// gRPC for streams, HTTP polling only while gRPC is down (ADR-147).
+		client, err = wotanClient.NewClientWithGRPC(cfg.Wotan.URL, cfg.Wotan.GRPCAddr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create wotan client: %w", err)
 		}

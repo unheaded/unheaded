@@ -101,6 +101,7 @@ type CircuitConfig struct {
 type WotanConfig struct {
 	Enabled     bool   `json:"enabled"`
 	URL         string `json:"url"`
+	GRPCAddr    string `json:"grpc_addr"` // host:port; streams need it (ADR-147 Phase 6)
 	Topic       string `json:"topic"`
 	ServiceName string `json:"service_name"`
 }
@@ -171,6 +172,7 @@ func DefaultConfig() *Config {
 		Wotan: WotanConfig{
 			Enabled:     true,
 			URL:         "http://localhost:18000",
+			GRPCAddr:    "localhost:18001",
 			Topic:       "gateway.requests",
 			ServiceName: "api-gateway",
 		},
@@ -217,6 +219,9 @@ func LoadFromEnv() *Config {
 
 	if wotanURL := os.Getenv("WOTAN_URL"); wotanURL != "" {
 		cfg.Wotan.URL = wotanURL
+	}
+	if grpcAddr := os.Getenv("WOTAN_GRPC_ADDR"); grpcAddr != "" {
+		cfg.Wotan.GRPCAddr = grpcAddr
 	}
 
 	if tlsCert := os.Getenv("GATEWAY_TLS_CERT"); tlsCert != "" {

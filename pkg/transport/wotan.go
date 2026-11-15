@@ -5,7 +5,11 @@ package transport
 
 import (
 	"errors"
+	"net"
+	"strconv"
+	"strings"
 
+	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -21,4 +25,23 @@ func NewWotanClient(cfg Config, opts ...wotanClient.ClientOption) (*wotanClient.
 		return nil, errors.New("transport: no Wotan gRPC address (WOTAN_GRPC_ADDR, --wotan-grpc-addr); streams need one")
 	}
 	return wotanClient.NewClientWithGRPC(cfg.WotanHTTPAddr, cfg.WotanGRPCAddr, opts...)
+}
+
+// WotanGRPCAddr is grpcAddr, or, when it is empty, the host of httpAddr
+// (a URL or host:port) on Wotan's gRPC port: for a binary configured with
+// one --wotan address (akira, anomaly).
+func WotanGRPCAddr(httpAddr, grpcAddr string) string {
+	if grpcAddr != "" {
+		return grpcAddr
+	}
+	hostport := httpAddr
+	if i := strings.Index(hostport, "://"); i >= 0 {
+		hostport = hostport[i+3:]
+	}
+	hostport = strings.TrimSuffix(hostport, "/")
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	return net.JoinHostPort(host, strconv.Itoa(ports.WotanGRPC))
 }

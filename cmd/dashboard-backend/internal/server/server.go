@@ -71,7 +71,10 @@ type Config struct {
 	WriteTimeout time.Duration
 
 	// Wotan
-	WotanAddr   string
+	WotanAddr string
+	// WotanClient is the process's one Wotan client (ADR-147 Phase 7):
+	// the health persister streams on it; nil turns persistence off.
+	WotanClient *wotanClient.Client
 	ServiceName string
 
 	// Components
@@ -156,6 +159,7 @@ func (c *Config) Validate() error {
 	if c.EventsConfig == nil {
 		c.EventsConfig = events.DefaultConfig()
 		c.EventsConfig.WotanAddr = c.WotanAddr
+		c.EventsConfig.Client = c.WotanClient
 		c.EventsConfig.ServiceName = c.ServiceName
 	}
 	return nil
@@ -861,7 +865,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// Akira's health reports into The Well (service_health_current and
 	// _transitions), when The Well is connected. Its own stream, not the
 	// UI event stream: every check of every service would flood the page.
-	if s.wellBridge != nil && s.config.WotanAddr != "" {
+	if s.wellBridge != nil && s.config.WotanAddr != "" && s.config.WotanClient != nil {
 		go s.persistHealthReports(ctx)
 	}
 
@@ -3539,10 +3543,8 @@ func (s *Server) persistHealthReports(ctx context.Context) {
 	const retry = 10 * time.Second
 	gate := newHealthReportGate(s.metricsRegistry, s.log)
 	for ctx.Err() == nil {
-		c, err := wotanClient.NewClient(strings.TrimPrefix(s.config.WotanAddr, "http://"))
-		if err == nil {
-			_, err = c.Subscribe(ctx, database.HealthReportTopic, "dashboard-backend")
-		}
+		c := s.config.WotanClient // the process's client (ADR-147 Phase 7)
+		_, err := c.Subscribe(ctx, database.HealthReportTopic, "dashboard-backend")
 		var ch <-chan *wotanClient.Message
 		if err == nil {
 			ch, err = c.StreamMessages(ctx, database.HealthReportTopic)

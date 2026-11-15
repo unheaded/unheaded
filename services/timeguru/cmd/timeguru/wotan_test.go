@@ -13,6 +13,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"unheaded/pkg/transport"
 )
 
 // lateWotan reserves an address with nothing listening; start brings an HTTP
@@ -67,7 +69,10 @@ func lateWotan(t *testing.T) (string, func(), func() []string) {
 // to subscribe once at start and, on failure, run without Wotan for good.
 func TestTimeguru_SubscribesWhenWotanStartsLater(t *testing.T) {
 	addr, start, joins := lateWotan(t)
-	client, err := initWotan(addr, "")
+	cfg := transport.DefaultConfig()
+	cfg.WotanHTTPAddr = addr
+	cfg.WotanGRPCAddr = "127.0.0.1:1" // no gRPC: the client starts degraded and polls
+	client, err := initWotan(cfg)
 	if err != nil {
 		t.Fatalf("initWotan with Wotan down: %v (it must not need Wotan to be up)", err)
 	}

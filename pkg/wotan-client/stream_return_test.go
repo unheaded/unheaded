@@ -40,6 +40,9 @@ type switchWotan struct {
 	wake  chan struct{} // closed and replaced on every publish
 	gs    *grpc.Server
 	polls map[string]int
+	// server is what accept registers; nil registers w (a wrapper that
+	// adds PublishTopic sets itself here).
+	server chatpb.TopicStreamServer
 }
 
 func newSwitchWotan(t *testing.T) *switchWotan {
@@ -68,7 +71,11 @@ func (w *switchWotan) accept() {
 		w.t.Fatalf("listen %s: %v", w.grpcAddr, err)
 	}
 	gs := grpc.NewServer()
-	chatpb.RegisterTopicStreamServer(gs, w)
+	var srv chatpb.TopicStreamServer = w
+	if w.server != nil {
+		srv = w.server
+	}
+	chatpb.RegisterTopicStreamServer(gs, srv)
 	healthpb.RegisterHealthServer(gs, health.NewServer())
 	go func() { _ = gs.Serve(lis) }()
 	w.mu.Lock()
@@ -109,6 +116,14 @@ func (w *switchWotan) after(topic string, since int64) ([]*chatpb.TopicEvent, ch
 
 func (w *switchWotan) StreamTopics(req *chatpb.TopicStreamRequest, stream chatpb.TopicStream_StreamTopicsServer) error {
 	since := req.SinceSeq
+	if since < 0 { // as Wotan: a negative cursor replays nothing
+		w.mu.Lock()
+		since = 0
+		for _, m := range w.msgs {
+			since = max(since, m.Seq)
+		}
+		w.mu.Unlock()
+	}
 	for {
 		msgs, wake := w.after(req.TopicPattern, since)
 		for _, m := range msgs {

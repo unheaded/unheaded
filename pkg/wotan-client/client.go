@@ -175,6 +175,7 @@ type Client struct {
 	streamClient  *http.Client // long timeout for GetMessages, polling (30s)
 	grpcAddr      string       // gRPC endpoint for streaming (empty = HTTP-only mode)
 	grpcClient    *GRPCClient  // Lazy-initialized gRPC client
+	publishJoinMu sync.Mutex   // PublishPreferGRPC: one HTTP join per topic
 	grpcMu        sync.RWMutex // guards grpcClient initialization (allows retry on failure)
 
 	// Transport state — gRPC primary, HTTP fallback
@@ -909,6 +910,23 @@ func (c *Client) pollUntil(ctx context.Context, topic string, sc *safeChannel, c
 				return true
 			}
 			wotanClientPolls.WithLabelValues(topic).Inc()
+			if *cursor < 0 {
+				// Live start (WithLiveStreams): take the server's last_seq
+				// as the cursor and deliver nothing older. Wotan rejects a
+				// negative after_seq.
+				_, serverLast, err := c.getMessagesPage(ctx, topic, 0, 1)
+				if err != nil {
+					consecutiveFailures++
+					timer.Reset(backoff(consecutiveFailures))
+					continue
+				}
+				*cursor = 0
+				if serverLast != nil {
+					*cursor = *serverLast
+				}
+				timer.Reset(pollBackoffMin)
+				continue
+			}
 			msgs, serverLast, err := c.getMessagesPage(ctx, topic, *cursor, pollPageSize)
 			if err != nil {
 				if ctx.Err() == nil {

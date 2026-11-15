@@ -17,30 +17,36 @@ Four-layer service name resolution, implemented in `pkg/discovery/`.
 - `scanner.go` — Convention-based filesystem scanner
 - `resolver.go` — Multi-layer resolution cascade
 - `static.go` — Static YAML fallback config
-- `wotan.go` — `Start()`: joins Wotan, registers, retries until Wotan answers
+- `wotan.go` — `Start()`: joins Wotan, announces every 15 s, retries until Wotan answers; no stream
 
 ## Registration
 
-Services register on startup; an entry not re-announced within 30 s is reaped:
+Each service announces itself on startup with its one Wotan client:
 
 ```go
-discovery.Start(ctx, transportCfg, "timeguru", 19000)
+wc, err := transport.NewWotanClient(transportCfg) // the process's one client
+discovery.Start(ctx, wc, "timeguru", ports.PortOf(addr, ports.Timeguru))
 ```
 
-11 services call this (timeguru, captain, architect, micromanager, monad,
-sophia, dashboard-backend, kanban-app, unheaded-daemon, trace-collector,
-chaos-controller). It joins `system.discovery` under the service's name,
-which must be on `topics.auto_approve` in `configs/wotan.yaml`, announces
+Seven services call it (timeguru, dashboard-backend, kanban-app,
+unheaded-daemon, trace-collector, sword, chaos-controller). It joins
+`system.discovery` under the service's name, which must be on
+`topics.auto_approve` in `configs/wotan.yaml`, and announces
 `$DISCOVERY_ADDR` (else the hostname; in compose the container's short ID,
-which Docker's DNS resolves) every 15 s, and fills a local registry from
-everyone else's announcements. Best-effort: if Wotan is not up yet it
+which Docker's DNS resolves) every 15 s. It opens no stream and builds no
+registry (ADR-147 Phase 7: twelve announcers each streamed the topic and
+nobody read what they gathered). Best-effort: if Wotan is not up yet it
 retries in the background (1 s doubling to 1 min), logging only the first
 failure and the recovery. Until 2026-10-22 every caller passed a nil
 connection, so nothing ever registered.
 
+The same client carries the service's health reports and its logs;
+`pkg/wotan-client/policy_test.go` fails a binary that builds a second client
+or a library that builds one.
+
 Announcements are not authenticated: any member auto-approved on the topic
-can announce any name. Nothing resolves through the registry yet; sign the
-announcements before something does.
+can announce any name. Nothing reads them yet; the registry (`New`,
+`Resolve`, the reaper) stays in the package for the reader.
 
 ## Static Fallback
 

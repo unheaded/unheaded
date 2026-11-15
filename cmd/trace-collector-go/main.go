@@ -324,20 +324,17 @@ func TransformEvent(ev *ebpf.AnamnesisEvent) ([]byte, error) {
 // batch also went out over the REST path below, duplicating what
 // TracePublisher had already sent.
 type WotanPublisher struct {
-	addr      string
 	batchSize int
 	batchTime time.Duration
 	connected atomic.Bool
 	published uint64
-	tsc       *wotanClient.TopicStreamClient
-	// rest publishes when gRPC never connected: wotan-client's HTTP client,
-	// which joins the topic and sends {subscriber_id, payload}. This path
-	// used to POST the raw batch as the body; Wotan answered 400 to every
-	// one ("invalid request body" for an array, "payload is required" for
-	// an object) and the status was never read, so it counted as success
-	// (~150 rejected requests/s on west, 2026-10-18).
-	rest   *wotanClient.Client
-	restMu sync.Mutex // one join per topic
+	// wc is the process's one Wotan client (ADR-147 Phase 7): gRPC while
+	// it is healthy, else wotan-client's HTTP path, which joins the topic
+	// and sends {subscriber_id, payload}. An older path POSTed the raw
+	// batch as the body; Wotan answered 400 to every one and the status was
+	// never read, so it counted as success (~150 rejected requests/s on
+	// west, 2026-10-18).
+	wc topicPublisher
 
 	// failures: each topic's run of failed PublishRaw calls, logged like
 	// TracePublisher's (first, every failLogEvery-th, recovery). The readers
@@ -347,59 +344,38 @@ type WotanPublisher struct {
 	failures map[string]uint64
 }
 
-// NewWotanPublisher creates a publisher.
-func NewWotanPublisher(addr string, batchSize int, batchTimeout time.Duration) *WotanPublisher {
-	wp := &WotanPublisher{addr: addr, batchSize: batchSize, batchTime: batchTimeout}
-	if c, err := wotanClient.NewClient(addr); err == nil {
-		wp.rest = c
+// topicPublisher is the part of the process's Wotan client a publisher
+// needs (wotanClient.Client.PublishPreferGRPC).
+type topicPublisher interface {
+	PublishPreferGRPC(ctx context.Context, topic, displayName string, payload []byte) error
+}
+
+// wotanName is the display name trace-collector joins topics with; it is
+// on topics.auto_approve in configs/wotan.yaml.
+const wotanName = "trace-collector"
+
+// NewWotanPublisher creates a publisher on wc, the process's one Wotan
+// client; nil publishes nothing (every publish is an error).
+func NewWotanPublisher(wc topicPublisher, batchSize int, batchTimeout time.Duration) *WotanPublisher {
+	wp := &WotanPublisher{batchSize: batchSize, batchTime: batchTimeout}
+	if wc != nil && !isNilClient(wc) {
+		wp.wc = wc
 	}
 	return wp
 }
 
-// restPublish publishes over Wotan's REST API, joining the topic first.
-func (wp *WotanPublisher) restPublish(ctx context.Context, topic string, payload []byte) error {
-	if wp.rest == nil {
-		return fmt.Errorf("no Wotan address for REST publishing")
-	}
-	wp.restMu.Lock()
-	if _, ok := wp.rest.GetSubscriber(topic); !ok {
-		if _, err := wp.rest.Subscribe(ctx, topic, "trace-collector"); err != nil {
-			wp.restMu.Unlock()
-			return fmt.Errorf("join %s: %w", topic, err)
-		}
-	}
-	wp.restMu.Unlock()
-	return wp.rest.Publish(ctx, topic, payload)
+// isNilClient reports a nil *wotanClient.Client held in the interface.
+func isNilClient(wc topicPublisher) bool {
+	c, ok := wc.(*wotanClient.Client)
+	return ok && c == nil
 }
 
-// ConnectGRPC establishes a gRPC TopicStream connection to Wotan.
-// If this fails, PublishBatch falls back to HTTP.
-func (wp *WotanPublisher) ConnectGRPC(ctx context.Context, grpcAddr, httpAddr string) error {
-	var opts []wotanClient.TopicStreamOption
-	if httpAddr != "" {
-		httpFallback, err := wotanClient.NewClient(httpAddr)
-		if err == nil {
-			opts = append(opts, wotanClient.WithHTTPFallback(httpFallback))
-		}
+// publish sends payload on topic through the process's client.
+func (wp *WotanPublisher) publish(ctx context.Context, topic string, payload []byte) error {
+	if wp.wc == nil {
+		return fmt.Errorf("no Wotan client")
 	}
-	tsc, err := wotanClient.NewTopicStreamClient(grpcAddr, opts...)
-	if err != nil {
-		return fmt.Errorf("connect gRPC at %s: %w", grpcAddr, err)
-	}
-
-	// Subscribe to all topics we'll publish to
-	topics := []string{
-		TopicBirth, TopicHop, TopicDeath, TopicAnomaly, TopicChaos,
-		"ebpf.flow.events", "ebpf.packet.events", "ebpf.latency.events",
-	}
-	for _, topic := range topics {
-		if _, err := tsc.Subscribe(ctx, topic, "trace-collector"); err != nil {
-			log.Warn().Err(err).Str("topic", topic).Msg("failed to subscribe")
-		}
-	}
-
-	wp.tsc = tsc
-	return nil
+	return wp.wc.PublishPreferGRPC(ctx, topic, wotanName, payload)
 }
 
 // PublishBatch publishes a batch of events to a Wotan topic.
@@ -418,15 +394,10 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 		return fmt.Errorf("marshal batch: %w", err)
 	}
 
-	// Publish via gRPC TracePublisher if available, else HTTP fallback.
-	if wp.tsc != nil {
-		if err := wp.tsc.Publish(ctx, topic, payload); err != nil {
-			wp.connected.Store(false)
-			return fmt.Errorf("gRPC publish to %s: %w", topic, err)
-		}
-	} else if err := wp.restPublish(ctx, topic, payload); err != nil {
+	// gRPC while the client's gRPC side is healthy, else HTTP.
+	if err := wp.publish(ctx, topic, payload); err != nil {
 		wp.connected.Store(false)
-		return fmt.Errorf("HTTP publish to %s: %w", topic, err)
+		return fmt.Errorf("publish to %s: %w", topic, err)
 	}
 
 	atomic.AddUint64(&wp.published, uint64(len(events)))
@@ -441,12 +412,7 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 // PublishRaw publishes a raw JSON payload to a Wotan topic. Callers treat
 // it as best-effort; failures are logged here, once per outage.
 func (wp *WotanPublisher) PublishRaw(ctx context.Context, topic string, payload []byte) error {
-	var err error
-	if wp.tsc != nil {
-		err = wp.tsc.Publish(ctx, topic, payload)
-	} else {
-		err = wp.restPublish(ctx, topic, payload)
-	}
+	err := wp.publish(ctx, topic, payload)
 	wp.notePublish(topic, err)
 	return err
 }
@@ -622,7 +588,7 @@ func resolveEBPFObjDir() string {
 // BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
 // It returns an error, before anything runs, when packet_marker is enabled
 // and its PACKET_EVENTS ring buffer cannot be opened.
-func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) error {
+func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, wc *wotanClient.Client, authCfg auth.ServiceAuthConfig, ls listeners) error {
 	log.Info().
 		Str("interface", *iface).
 		Str("wotan_addr", *wotanAddr).
@@ -649,7 +615,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	publisher := NewTracePublisher(pubConfig)
 
 	// Connect publisher to Wotan via gRPC
-	if err := publisher.Connect(ctx); err != nil {
+	if err := publisher.Connect(wc); err != nil {
 		log.Warn().Err(err).Msg("Wotan gRPC connection failed, events will be dropped until connected")
 	}
 	state.Publisher = publisher
@@ -1014,7 +980,7 @@ func serveOn(ctx context.Context, srv *http.Server, ls listeners) {
 // ── Legacy Anamnesis mode runner ────────────────────────────────────────
 
 // runAnamnesisMode starts the original Anamnesis-based trace collector.
-func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) {
+func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, wc *wotanClient.Client, authCfg auth.ServiceAuthConfig, ls listeners) {
 	// Resolved addresses, not raw flags: this is the DEFAULT mode, and it
 	// read the flags directly, so WOTAN_GRPC_ADDR / WOTAN_ADDR were ignored
 	// entirely on the path that actually runs.
@@ -1030,14 +996,9 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 		Msg("trace-collector-go starting in anamnesis mode")
 
 	// Create components
-	publisher := NewWotanPublisher(wotanHTTP, *batchSize, *batchTimeout)
-
-	// Connect via gRPC for reliable publishing
-	if err := publisher.ConnectGRPC(ctx, wotanGRPC, wotanHTTP); err != nil {
-		log.Warn().Err(err).Msg("gRPC connection failed, falling back to HTTP")
-	} else {
-		log.Info().Str("grpc", wotanGRPC).Msg("anamnesis publisher connected via gRPC")
-	}
+	// The process's one Wotan client: gRPC first, HTTP while gRPC is down.
+	publisher := NewWotanPublisher(wc, *batchSize, *batchTimeout)
+	log.Info().Str("grpc", wotanGRPC).Str("http", wotanHTTP).Msg("anamnesis publisher on the process's Wotan client")
 
 	correlator := NewFlowCorrelator(60 * time.Second)
 	limiter := NewRateLimiter(*maxRate)
@@ -1203,11 +1164,11 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 // runCollector is the run itself, in the mode the flags chose. It returns when
 // ctx ends, or at once with the reason it cannot start; a test swaps it to
 // reach the end of main without BPF programs.
-var runCollector = func(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, authCfg auth.ServiceAuthConfig, ls listeners) error {
+var runCollector = func(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config, wc *wotanClient.Client, authCfg auth.ServiceAuthConfig, ls listeners) error {
 	if *unifiedMode {
-		return runUnifiedMode(ctx, healthSrv, transportCfg, authCfg, ls)
+		return runUnifiedMode(ctx, healthSrv, transportCfg, wc, authCfg, ls)
 	}
-	runAnamnesisMode(ctx, healthSrv, transportCfg, authCfg, ls)
+	runAnamnesisMode(ctx, healthSrv, transportCfg, wc, authCfg, ls)
 	return nil
 }
 
@@ -1251,11 +1212,20 @@ func main() {
 	// Unified health server for transport-aware readiness
 	healthSrv := transport.NewHealthServer("trace-collector")
 
+	// The process's one Wotan client (ADR-147 Phase 7): trace publishing,
+	// log forwarding, discovery and health reports share it.
+	wc, err := transport.NewWotanClient(transportCfg)
+	if err != nil {
+		log.Warn().Err(err).Msg("Wotan client: traces, log forwarding, discovery and health reports off")
+	} else {
+		defer wc.Close() // #nosec G104 -- process exit; nothing buffered a close error could lose
+	}
+
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if *wotanAddr != "" {
+	if *wotanAddr != "" && wc != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "trace-collector"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wc, transportCfg.WotanHTTPAddr, "trace-collector"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -1285,8 +1255,8 @@ func main() {
 
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	announceAddr := httputil.ListenAddrs(listenList)[0]
-	discovery.Start(ctx, transportCfg, "trace-collector", ports.PortOf(announceAddr, ports.TraceCollectorHTTP))
-	healthreport.StartService(ctx, transportCfg, "trace-collector", healthreport.HealthURL(announceAddr, ports.PortOf(announceAddr, ports.TraceCollectorHTTP))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, wc, "trace-collector", ports.PortOf(announceAddr, ports.TraceCollectorHTTP))
+	healthreport.StartService(ctx, wc, "trace-collector", healthreport.HealthURL(announceAddr, ports.PortOf(announceAddr, ports.TraceCollectorHTTP))) // ADR-029: a vote on Akira's ballot
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -1296,7 +1266,7 @@ func main() {
 		cancel(nil)
 	}()
 
-	if err := runCollector(ctx, healthSrv, transportCfg, authCfg, ls); err != nil {
+	if err := runCollector(ctx, healthSrv, transportCfg, wc, authCfg, ls); err != nil {
 		log.Fatal().Err(err).Msg("refusing to start")
 	}
 	if err := runFailure(ctx); err != nil {

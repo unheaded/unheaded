@@ -172,11 +172,23 @@ func main() {
 		Str("transport", string(transportCfg.Type)).
 		Msg("transport config initialized")
 
+	// The process's one Wotan client (ADR-147 Phase 7): the eBPF ingestor,
+	// the event streamer, the health persister, log forwarding, discovery
+	// and health reports share it. A live view: streams start at the live
+	// position, not with Wotan's held history.
+	wc, err := transport.NewWotanClient(transportCfg, wotanClient.WithLiveStreams())
+	if err != nil {
+		log.Warn().Err(err).Msg("Wotan client: events, eBPF ingestion, health persistence, log forwarding, discovery and health reports off")
+		healthSrv.SetGRPCStatus(false)
+	} else {
+		defer wc.Close() // #nosec G104 -- process exit; nothing buffered a close error could lose
+	}
+
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if wotanHTTP != "" {
+	if wotanHTTP != "" && wc != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "dashboard-backend"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wc, transportCfg.WotanHTTPAddr, "dashboard-backend"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -208,6 +220,7 @@ func main() {
 	config := &server.Config{
 		ListenAddr:   *listenAddr,
 		WotanAddr:    wotanHTTP,
+		WotanClient:  wc,
 		ServiceName:  "dashboard-backend",
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -240,6 +253,7 @@ func main() {
 
 		EventsConfig: &events.Config{
 			WotanAddr:         wotanHTTP,
+			Client:            wc,
 			ServiceName:       "dashboard-backend",
 			Topics:            getEventTopics(),
 			BufferSize:        1000,
@@ -265,26 +279,10 @@ func main() {
 	// WOTAN_GRPC_ADDR, then the transport default). It used to need the flag
 	// or env explicitly, so the deb (no dashboard.env) never started it and
 	// /api/v1/flows and /api/v1/ebpf/* stayed dead on east.
-	grpcAddr := transportCfg.WotanGRPCAddr
-	if grpcAddr != "" {
-		log.Info().Str("grpc_addr", grpcAddr).Msg("creating TopicStreamClient for eBPF event ingestion")
-
-		httpFallback, _ := wotanClient.NewClient(wotanHTTP)
-		tsc, err := wotanClient.NewTopicStreamClient(grpcAddr,
-			wotanClient.WithHTTPFallback(httpFallback),
-			// The dashboard is a live view: replaying Wotan's held history on
-			// every start re-counted ~30k old events as just ingested and
-			// flooded the WebSocket broadcast.
-			wotanClient.WithLiveStart(),
-		)
-		if err != nil {
-			log.Warn().Err(err).Msg("failed to create TopicStreamClient, eBPF events disabled")
-			healthSrv.SetGRPCStatus(false)
-		} else {
-			ingestorConfig := ebpfPkg.DefaultIngestorConfig()
-			config.EBPFIngestor = ebpfPkg.NewIngestor(ingestorConfig, tsc, log)
-			log.Info().Msg("eBPF event ingestor configured")
-		}
+	if wc != nil {
+		ingestorConfig := ebpfPkg.DefaultIngestorConfig()
+		config.EBPFIngestor = ebpfPkg.NewIngestor(ingestorConfig, wc, log)
+		log.Info().Str("grpc_addr", transportCfg.WotanGRPCAddr).Msg("eBPF event ingestor configured on the process's Wotan client")
 	}
 
 	// Create server
@@ -305,8 +303,8 @@ func main() {
 	defer cancel()
 
 	// Service discovery registration
-	discovery.Start(ctx, transportCfg, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
-	healthreport.StartService(ctx, transportCfg, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, wc, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
+	healthreport.StartService(ctx, wc, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
 
 	// Profiling. Off unless PPROF_ADDR is set, and it must be a loopback address
 	// (anything else is refused): reach it inside the container with
@@ -382,14 +380,11 @@ func parseAllowedOrigins(origins string) []string {
 // getEventTopics returns the list of Wotan topics to subscribe to
 func getEventTopics() []string {
 	return []string{
-		"metrics.*",
-		"health.*",
-		"alerts.*",
+		// Only what a running binary publishes (ADR-147 Phase 7, Step 112):
+		// metrics.*, health.*, alerts.*, decisions.*, state.* and
+		// architecture.* had no publisher once the role services left.
 		"timeline.*",
 		"tasks.*",
-		"decisions.*",
-		"state.*",
-		"architecture.*",
 		// Akira's consensus severity changes (ADR-029).
 		"system.health.consensus",
 		// Not ebpf.* / compute.*: the eBPF ingestor consumes those

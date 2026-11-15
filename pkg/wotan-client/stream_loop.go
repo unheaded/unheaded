@@ -30,6 +30,9 @@ var ErrNoStreamTransport = errors.New("wotan client: no gRPC address; streaming 
 func (c *Client) streamLoop(ctx context.Context, topic, displayName string, sc *safeChannel) {
 	defer c.endStream(topic, sc)
 	var cursor int64
+	if collectOptions(c.opts).liveStreams {
+		cursor = -1 // live start: see WithLiveStreams and pollUntil
+	}
 	var gsub *Subscriber
 	for {
 		if streamOver(ctx, sc) {

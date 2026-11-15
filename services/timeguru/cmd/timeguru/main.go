@@ -114,11 +114,11 @@ func main() {
 	}
 	healthSrv := transport.NewHealthServer("timeguru")
 
-	// Initialize wotan client using transport config addresses. Creating
-	// it does not need Wotan up; the subscriptions start below and keep
-	// retrying in the background.
-	var wotan *wotanClient.Client
-	wotan, err = initWotan(transportCfg.WotanHTTPAddr, transportCfg.WotanGRPCAddr)
+	// The process's one Wotan client (ADR-147 Phase 7): discovery, health
+	// reports, log forwarding and the subscriptions below all use it.
+	// Creating it does not need Wotan up; the subscriptions keep retrying
+	// in the background.
+	wotan, err := initWotan(transportCfg)
 	if err != nil {
 		log.Warn().Err(err).Msg("Wotan client could not be created (bad address?), continuing without Wotan integration")
 		wotan = nil
@@ -131,7 +131,7 @@ func main() {
 	var logConn transport.Connection
 	if wotan != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "timeguru"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wotan, transportCfg.WotanHTTPAddr, "timeguru"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -216,8 +216,8 @@ func main() {
 	defer stop()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.Start(ctx, transportCfg, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
-	healthreport.StartService(ctx, transportCfg, "timeguru", healthreport.HealthURL(":"+config.Port, ports.PortOf(":"+config.Port, ports.Timeguru))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, wotan, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
+	healthreport.StartService(ctx, wotan, "timeguru", healthreport.HealthURL(":"+config.Port, ports.PortOf(":"+config.Port, ports.Timeguru))) // ADR-029: a vote on Akira's ballot
 
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is a
 	// startup failure, never a plaintext listener.
@@ -482,28 +482,18 @@ func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	}
 }
 
-// initWotan creates the Wotan client: HTTP for the control plane
-// (subscribe/publish), gRPC for streaming when grpcAddr is set. It does not
-// talk to Wotan; startWotanSubscriptions joins the topics. It used to
-// subscribe here once and, when Wotan was not up yet, timeguru ran without
-// Wotan until it was restarted.
-func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
-	var client *wotanClient.Client
-	var err error
-	if grpcAddr != "" {
-		client, err = wotanClient.NewClientWithGRPC(httpAddr, grpcAddr)
-		if err != nil {
-			return nil, fmt.Errorf("create dual-transport client: %w", err)
-		}
-		log.Info().Str("http", httpAddr).Str("grpc", grpcAddr).Msg("Wotan client created (dual transport)")
-	} else {
-		client, err = wotanClient.NewClient(httpAddr)
-		if err != nil {
-			return nil, fmt.Errorf("create HTTP client: %w", err)
-		}
-		log.Info().Str("http", httpAddr).Msg("Wotan client created (HTTP-only)")
+// initWotan creates the process's one Wotan client: HTTP for the control
+// plane (subscribe/publish), gRPC for streams (transport.NewWotanClient;
+// a missing gRPC address is an error). It does not talk to Wotan;
+// startWotanSubscriptions joins the topics. It used to subscribe here once
+// and, when Wotan was not up yet, timeguru ran without Wotan until it was
+// restarted.
+func initWotan(cfg transport.Config) (*wotanClient.Client, error) {
+	client, err := transport.NewWotanClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create Wotan client: %w", err)
 	}
-
+	log.Info().Str("http", cfg.WotanHTTPAddr).Str("grpc", cfg.WotanGRPCAddr).Msg("Wotan client created")
 	return client, nil
 }
 

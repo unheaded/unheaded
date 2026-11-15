@@ -1452,11 +1452,24 @@ func main() {
 	// Health server — dual-protocol health tracking
 	healthSrv := transport.NewHealthServer("kanban-app")
 
+	// WOTAN_ADDR = HTTP control plane (subscribe, publish, the polling
+	// fallback); WOTAN_GRPC_ADDR = gRPC streams. The process's one Wotan
+	// client (ADR-147 Phase 7) carries tasks.*, timeline.updates, runbook
+	// progress, log forwarding, discovery and health reports.
+	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:18001")
+	if wotanGRPCAddr != "" {
+		transportCfg.WotanGRPCAddr = wotanGRPCAddr
+	}
+	wc, wcErr := transport.NewWotanClient(transportCfg)
+	if wcErr != nil {
+		log.Warn().Err(wcErr).Msg("Wotan client: log forwarding, discovery and health reports off")
+	}
+
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if cfg.WotanAddr != "" {
+	if cfg.WotanAddr != "" && wc != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "kanban-app"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wc, transportCfg.WotanHTTPAddr, "kanban-app"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -1473,24 +1486,12 @@ func main() {
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
-	discovery.Start(discoveryCtx, transportCfg, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
-	healthreport.StartService(discoveryCtx, transportCfg, "kanban-app", healthreport.HealthURL(":"+cfg.Port, ports.PortOf(":"+cfg.Port, ports.KanbanApp))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(discoveryCtx, wc, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
+	healthreport.StartService(discoveryCtx, wc, "kanban-app", healthreport.HealthURL(":"+cfg.Port, ports.PortOf(":"+cfg.Port, ports.KanbanApp))) // ADR-029: a vote on Akira's ballot
 
-	// Initialize Wotan client
-	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
-	// WOTAN_GRPC_ADDR = gRPC data plane (TopicStream) — primary transport for streaming
-	//
-	// Transport strategy (Campaign 1 — TopicStream gRPC Sprint):
-	//   1. If WOTAN_GRPC_ADDR is set → create TopicStreamClient (gRPC streaming primary)
-	//      with HTTP Client as circuit-breaker fallback
-	//   2. If gRPC unavailable → create plain HTTP Client (polling mode)
-	//   3. If WOTAN_ENABLED=false → standalone mode (no Wotan)
+	// Wotan for tasks (WOTAN_ENABLED=false: standalone mode, no Wotan).
 	var server *Server
 	wotanEnabled := getEnv("WOTAN_ENABLED", "true") == "true"
-	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:18001")
-	if wotanGRPCAddr != "" {
-		transportCfg.WotanGRPCAddr = wotanGRPCAddr
-	}
 
 	if wotanEnabled {
 		log.Info().
@@ -1499,55 +1500,11 @@ func main() {
 			Msg("Initializing Wotan client")
 
 		var busClient WotanClient
-		var err error
-		var transportName string
-
-		if wotanGRPCAddr != "" {
-			// Primary path: TopicStreamClient with gRPC streaming + HTTP fallback
-			// Create HTTP client first as circuit-breaker fallback
-			httpFallback, httpErr := wotanClient.NewClient(cfg.WotanAddr)
-			if httpErr != nil {
-				log.Warn().Err(httpErr).Msg("HTTP fallback client creation failed — TopicStream will run without fallback")
-			}
-
-			var tsOpts []wotanClient.TopicStreamOption
-			tsOpts = append(tsOpts, wotanClient.WithRetryPolicy(
-				100*time.Millisecond, // initial backoff
-				30*time.Second,       // max backoff cap
-				10,                   // max consecutive failures before circuit break
-			))
-			tsOpts = append(tsOpts, wotanClient.WithBufferSize(256))
-			if httpFallback != nil {
-				tsOpts = append(tsOpts, wotanClient.WithHTTPFallback(httpFallback))
-			}
-
-			tsc, tsErr := wotanClient.NewTopicStreamClient(wotanGRPCAddr, tsOpts...)
-			if tsErr != nil {
-				log.Warn().Err(tsErr).Msg("TopicStreamClient creation failed — falling back to HTTP polling client")
-				busClient, err = wotanClient.NewClient(cfg.WotanAddr)
-				transportName = "http-poll"
-			} else {
-				// Probe gRPC health to provide an informative startup log message.
-				// The client will handle reconnection automatically regardless of the probe's outcome.
-				probeCtx, probeCancel := context.WithTimeout(context.Background(), 3*time.Second)
-				defer probeCancel()
-				if pingErr := tsc.Ping(probeCtx); pingErr != nil {
-					log.Warn().Err(pingErr).Msg("gRPC health probe failed. Client will attempt to connect in the background")
-					transportName = "grpc-stream (degraded)"
-				} else {
-					transportName = "grpc-stream"
-				}
-				busClient = tsc
-			}
-		} else {
-			// No gRPC address — HTTP-only mode
-			bc, bcErr := wotanClient.NewClient(cfg.WotanAddr)
-			if bcErr != nil {
-				err = bcErr
-			} else {
-				busClient = bc
-				transportName = "http-poll"
-			}
+		err := wcErr
+		transportName := ""
+		if wc != nil {
+			busClient = wc
+			transportName = wc.Health().Transport
 		}
 
 		if transportName != "" {

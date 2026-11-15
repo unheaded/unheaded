@@ -59,7 +59,6 @@ topics:
     - "daemon"
     - "cuirass"
     - "anomaly-service"
-    - "anomaly-bridge"
     - "wiki"
     - "zhenai"
     - "zhen-eval"
@@ -145,13 +144,15 @@ topics:
         subscribe: ["chaos.abort"]
         publish: ["chaos.experiment.started", "chaos.experiment.completed", "chaos.refused", "chaos.revert_failed", "chaos.schedules", "system.discovery", "system.health.reports"]
       dashboard-backend:
-        # The human-facing aggregator: it streams metrics.*, health.*,
-        # alerts.*, timeline.*, tasks.*, decisions.*, state.*,
-        # architecture.*, traces.*, ebpf.*.events, compute.*, anamnesis.*,
-        # bench.perf.packet and system.health.*, and "*" when its list is
-        # empty. The one reader of everything.
-        subscribe: ["#"]
-        publish: ["metrics.*", "health.*", "alerts.*", "system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
+        # The human-facing aggregator, on its one Wotan client (ADR-147
+        # Phase 7): the event streamer reads timeline.*, tasks.*,
+        # system.health.consensus and traces.*; the eBPF ingestor
+        # ebpf.*.events, compute.*, anamnesis.* and bench.perf.packet; the
+        # health persister system.health.reports. metrics.*, health.*,
+        # alerts.*, decisions.*, state.* and architecture.* went (no
+        # running publisher), and with them "#".
+        subscribe: ["timeline.*", "tasks.*", "system.health.consensus", "system.health.reports", "traces.*", "ebpf.*.events", "compute.*", "anamnesis.*", "bench.perf.packet"]
+        publish: ["system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
       ebpf-collector:
         publish: ["ebpf.packet.events", "ebpf.latency.events"]
       gateway:
