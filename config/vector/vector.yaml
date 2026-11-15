@@ -218,6 +218,155 @@ transforms:
         name: ssh_accepted_total
         tags: {host: "{{host}}", user: "{{user}}", src: "{{src}}", method: "{{method}}"}
 
+  # Host events for the indicator-of-compromise audit (S-WATCH-TRUE Phase 9,
+  # D-18; read by runbooks/security/ioc-audit.yaml). Counted by kind:
+  #   account       useradd, usermod, userdel, groupadd, groupmod, groupdel,
+  #                 gpasswd, passwd, chpasswd, chage, systemd-sysusers
+  #                 (op = the tool, user = the account or group it named)
+  #   sudo_command  a command sudo ran (user = who, runas = as whom)
+  #   cron_edit     a crontab replaced or deleted (user = who, runas = whose)
+  #   kernel        class oom_kill, segfault or module_untrusted (op = the
+  #                 module's name for module_untrusted)
+  # One counter, unheaded_host_events_total{host, kind, op, class, user,
+  # runas}; a label a kind does not use is empty. The line itself never
+  # leaves the transform: no directory, no command line, no victim process.
+  # A name that does not look like an account name is counted as "invalid",
+  # so a crafted line cannot mint label values.
+  #
+  # Read from the raw journal on fields journald sets itself, never on
+  # SYSLOG_IDENTIFIER, which logger(1) sets to anything (the journal_ssh
+  # rule). Kernel lines: _TRANSPORT kernel and facility kern (a process that
+  # writes into /dev/kmsg has another facility). The account tools: _COMM
+  # and _UID 0. sudo, crontab, passwd, gpasswd and chage are set-id programs
+  # that log under the uid of whoever ran them, so _UID 0 cannot be asked of
+  # them; for a sender that is not root they are taken on _EXE, the path of
+  # the program journald saw. That is weaker: a local account that can build
+  # its own mount namespace can show that path. Such an account can make the
+  # real line anyway (its own sudo, crontab or passwd), and it cannot make a
+  # root-only event (useradd, usermod, a kernel line). The audit treats a
+  # count here as a reason to read the journal, where _UID tells the two
+  # apart; it is not proof by itself.
+  #
+  # One change, one count where the tool logs several lines: groupadd's two
+  # file lines, usermod's shadow-group line, useradd's own group line and
+  # the kernel's other lines about one out-of-memory kill are dropped.
+  # Tests: tests/host_events.yaml.
+  journal_host:
+    type: filter
+    inputs:
+      - journal
+    condition: |
+      comm = string(."_COMM") ?? ""
+      exe = string(."_EXE") ?? ""
+      kernel = (string(."_TRANSPORT") ?? "") == "kernel" && (string(.SYSLOG_FACILITY) ?? "") == "0"
+      root = (string(."_UID") ?? "") == "0" && includes(["useradd", "usermod", "userdel", "groupadd", "groupmod", "groupdel", "gpasswd", "passwd", "chpasswd", "chage", "systemd-sysuser", "sudo", "crontab"], comm)
+      setid = (comm == "sudo" && includes(["/usr/bin/sudo", "/usr/lib/cargo/bin/sudo"], exe)) || (comm == "crontab" && exe == "/usr/bin/crontab") || (comm == "passwd" && exe == "/usr/bin/passwd") || (comm == "gpasswd" && exe == "/usr/bin/gpasswd") || (comm == "chage" && exe == "/usr/bin/chage")
+      kernel || root || setid
+
+  journal_host_events:
+    type: remap
+    inputs:
+      - journal_host
+    drop_on_abort: true
+    source: |
+      msg = string(.message) ?? ""
+      comm = string(."_COMM") ?? ""
+      kind = ""
+      op = ""
+      class = ""
+      user = ""
+      runas = ""
+      if (string(."_TRANSPORT") ?? "") == "kernel" {
+        kind = "kernel"
+        if match(msg, r'^(Out of memory|Memory cgroup out of memory): Killed process [0-9]+ ') {
+          class = "oom_kill"
+        } else if match(msg, r'^.{1,16}\[[0-9]+\]: segfault at [0-9a-f]+ ip ') {
+          class = "segfault"
+        } else {
+          p = parse_regex(msg, r'^(?P<n>[A-Za-z0-9_]+): (loading out-of-tree module taints kernel\.|module verification failed: signature and/or required key missing - tainting kernel)$') ?? {}
+          if !exists(p.n) { abort }
+          class = "module_untrusted"
+          op = string(p.n) ?? ""
+          if !match(op, r'^[a-z0-9_]{1,32}$') { op = "invalid" }
+        }
+      } else if comm == "sudo" {
+        # "<user> : [TTY=x ; ]PWD=<dir> ; USER=<runas> ; COMMAND=<line>".
+        # A refusal puts its reason before TTY= and is not matched.
+        p = parse_regex(msg, r'^\s*(?P<n>\S+) :\s+(TTY=\S+ ; )?PWD=') ?? {}
+        if !exists(p.n) || !contains(msg, " ; COMMAND=") { abort }
+        kind = "sudo_command"
+        user = string(p.n) ?? ""
+        # The directory and the command are the caller's text and may carry
+        # " ; USER=" themselves: only a line with exactly one is believed.
+        parts = split(msg, " ; USER=")
+        runas = "invalid"
+        if length(parts) == 2 {
+          r = parse_regex(string(parts[1]) ?? "", r'^(?P<n>[^ ;]+) ;') ?? {}
+          runas = string(r.n) ?? "invalid"
+        }
+        if !match(runas, r'^[a-z_][a-z0-9_-]{0,31}$') { runas = "invalid" }
+      } else if comm == "crontab" {
+        # "(who) REPLACE (whose)". BEGIN EDIT, END EDIT and LIST change nothing.
+        p = parse_regex(msg, r'^\((?P<n>[^)]*)\) (REPLACE|DELETE) \((?P<o>[^)]*)\)$') ?? {}
+        if !exists(p.n) { abort }
+        kind = "cron_edit"
+        user = string(p.n) ?? ""
+        runas = string(p.o) ?? ""
+        if !match(runas, r'^[a-z_][a-z0-9_-]{0,31}$') { runas = "invalid" }
+      } else {
+        kind = "account"
+        op = comm
+        p = {}
+        if comm == "useradd" {
+          p = parse_regex(msg, r'^new user: name=(?P<n>[^,]*),') ?? {}
+        } else if comm == "userdel" {
+          p = parse_regex(msg, r'^delete user \x27(?P<n>[^\x27]*)\x27') ?? {}
+        } else if comm == "usermod" {
+          if starts_with(msg, "pam_") || contains(msg, "shadow group") { abort }
+          p = parse_regex(msg, r'\x27(?P<n>[^\x27]*)\x27') ?? {"n": ""}
+        } else if comm == "groupadd" {
+          p = parse_regex(msg, r'^new group: name=(?P<n>[^,]*),') ?? {}
+        } else if comm == "groupdel" {
+          p = parse_regex(msg, r'^group \x27(?P<n>[^\x27]*)\x27 removed$') ?? {}
+        } else if comm == "groupmod" {
+          p = parse_regex(msg, r'^group changed in /etc/group \(group (?P<n>[^/]*)/') ?? {}
+        } else if comm == "gpasswd" {
+          p = parse_regex(msg, r'^user (?P<n>\S+) (added|removed) by \S+ (to|from) group \S+$') ?? parse_regex(msg, r'^members of group (?P<n>\S+) set by ') ?? {}
+        } else if comm == "passwd" {
+          p = parse_regex(msg, r'^pam_unix\(passwd:chauthtok\): password changed for (?P<n>\S+)$') ?? parse_regex(msg, r'^password for \x27(?P<n>[^\x27]*)\x27 changed by ') ?? {}
+        } else if comm == "chpasswd" {
+          p = parse_regex(msg, r'^pam_unix\(chpasswd:chauthtok\): password changed for (?P<n>\S+)$') ?? {}
+        } else if comm == "chage" {
+          p = parse_regex(msg, r'^changed password expiry for (?P<n>\S+)$') ?? {}
+        } else if comm == "systemd-sysuser" {
+          # The journal keeps 15 characters of a process name.
+          op = "systemd-sysusers"
+          p = parse_regex(msg, r'^Creating (user|group) \x27(?P<n>[^\x27]*)\x27') ?? {}
+        }
+        if !exists(p.n) { abort }
+        user = string(p.n) ?? ""
+      }
+      if kind != "kernel" && !match(user, r'^[a-z_][a-z0-9_-]{0,31}$') { user = "invalid" }
+      . = {
+        "host": string(.host) ?? "unknown",
+        "kind": kind,
+        "op": op,
+        "class": class,
+        "user": user,
+        "runas": runas
+      }
+
+  journal_host_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_host_events
+    metrics:
+      - type: counter
+        field: kind
+        namespace: unheaded
+        name: host_events_total
+        tags: {host: "{{host}}", kind: "{{kind}}", op: "{{op}}", class: "{{class}}", user: "{{user}}", runas: "{{runas}}"}
+
   # Secrets that a process printed to the journal (an uhk_ API key, a
   # bearer token, a PGPASSWORD) are masked before the row leaves the host
   # (S-LOW-FRUIT Phase 7). Tests: tests/redact.yaml. A doubled dollar sign is
@@ -328,6 +477,7 @@ sinks:
       - journal_volume_metrics
       - journal_auth_metrics
       - journal_ssh_metrics
+      - journal_host_metrics
     address: "0.0.0.0:9598"
     # A series not updated within this many seconds is dropped. The default
     # (60) drops a unit that logs less than once a minute, which would read
