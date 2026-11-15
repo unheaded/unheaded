@@ -233,7 +233,7 @@ rung_gate UPC_D6_MISS_FAULT hostile_path 4000000 HQ 6
 rung_gate UPC_RUNG_SBRK bssprobe 6000000 BS 2
 rung_gate UPC_D6_MISS_FAULT hostile_fork 4000000 HF 3
 rung_gate UPC_D6_MISS_FAULT hostile_block 4000000 HB 3
-rung_gate UPC_RUNG3 conprobe 4000000 CW 4
+rung_gate UPC_RUNG3 conprobe 4000000 CW 5
 rung_gate UPC_RUNG_FD bigprobe 8000000 BG 3
 # S-STAGE-2C Phase 12, ADR-135 D21 (rungs 5+6): the kernel's fd table is the
 # only one. A plain O_RDWR file can be written and read back (T-F3 closed), dup

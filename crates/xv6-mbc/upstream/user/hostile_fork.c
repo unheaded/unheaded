@@ -33,12 +33,23 @@
 #define CANARY_WORDS 64
 #define PAST_COPY    0x0003F000u  // a cursor beyond the last word fork copies
 
-static int
-canary_whole(void)
+#define CANARY_FIRST  0xC0DE0000u
+#define CANARY_SECOND 0xFACE0000u  // written before the a2 forks (see worker)
+
+static void
+canary_set(uint tag)
 {
   volatile uint *c = (volatile uint *)CANARY_VA;
   for(uint i = 0; i < CANARY_WORDS; i++)
-    if(c[i] != (0xC0DE0000u | i))
+    c[i] = tag | i;
+}
+
+static int
+canary_whole(uint tag)
+{
+  volatile uint *c = (volatile uint *)CANARY_VA;
+  for(uint i = 0; i < CANARY_WORDS; i++)
+    if(c[i] != (tag | i))
       return 0;
   return 1;
 }
@@ -59,9 +70,7 @@ worker(void)
 {
   // Heap up to past the canary, then the canary itself.
   sbrk(0x5000);
-  volatile uint *c = (volatile uint *)CANARY_VA;
-  for(uint i = 0; i < CANARY_WORDS; i++)
-    c[i] = 0xC0DE0000u | i;
+  canary_set(CANARY_FIRST);
 
   // plant
   int planter = fork();
@@ -72,7 +81,7 @@ worker(void)
   }
   pause(20); // let the planter run first
   if(fork() == 0){
-    SAY("HF: copy-complete", canary_whole());
+    SAY("HF: copy-complete", canary_whole(CANARY_FIRST));
     SAY("HF: pde-plant-dropped", *(volatile uint *)(PGD_BASE + PLANT_SLOT * 4096) == 0);
     exit(0);
   }
@@ -81,14 +90,19 @@ worker(void)
   wait(0);
 
   // a2: the first child speaks only if its copy is short, the second always.
+  // The slots these forks reuse held the first canary (their last occupants
+  // were copies of this worker), so a skipped copy would still show it whole:
+  // the worker changes its canary first, and only a real copy carries the new
+  // one (security pass review, finding 4).
+  canary_set(CANARY_SECOND);
   if(fork_with(PAST_COPY, 0) == 0){
-    if(!canary_whole())
+    if(!canary_whole(CANARY_SECOND))
       printf("HF: a2-ignored=no\n");
     exit(0);
   }
   wait(0);
   if(fork_with(PAST_COPY, 0xFFFFFFFFu) == 0){
-    SAY("HF: a2-ignored", canary_whole());
+    SAY("HF: a2-ignored", canary_whole(CANARY_SECOND));
     exit(0);
   }
   wait(0);

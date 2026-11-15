@@ -361,7 +361,7 @@ Resume gate first, on the committed tree at `99ae2fa9`: `gate resume7: same=12 d
 
 This is the plan's one named recapture. No other golden was written in S-STAGE-2C.
 
-## Phase 16, security pass (2026-11-15; Steps 291-292 and 295-296 done, Steps 293-294 pending)
+## Phase 16, security pass (2026-11-15)
 
 The plan closes from Stop F (rungs 5+6 are wired and off, rung 7 is not built), so the table holds what is on in the tree at `070654cc`: no `REAP` flag, no wait status, no fd call routed by `UPC_RUNG56`.
 
@@ -403,13 +403,33 @@ Not in the table because they did not land: the atomics through `translate_addre
 
 Known and open, already filed For Stevie: a user `ebreak` halts the machine with no privilege test; R-P1, BPF's file read writes up to 15 bytes past a short read inside the caller's slice (gone when rungs 5+6 are on); the host engine `crates/monad-mbc` has neither the priv-3 refusal nor D6; refusals and D6 misses count nothing.
 
-### Step 293-294: independent review (PENDING)
+### Steps 293-294: independent review and dispositions (2026-11-15)
 
-**Not done in this shift.** The coordinator runs the read-only review over `git diff develop...HEAD -- crates/xv6-mbc ebpf/monad-cpu-ebpf cmd/upc-bootctl scripts/upc-regression.sh` at `99ae2fa9` (before Phase 15's `ush.c` and this phase's two harness lines). Its findings and their dispositions go here and in ADR-135's "Security pass review of S-STAGE-2C" table. Until then Step 297's and Step 300's commits are not written, and Phase 16's exit gate is not met.
+The coordinator's read-only reviewer read `git diff develop...HEAD -- crates/xv6-mbc ebpf/monad-cpu-ebpf cmd/upc-bootctl scripts/upc-regression.sh` at `99ae2fa9` (before Phase 15's `ush.c` and Step 292's two harness lines). The table with each finding's full text is ADR-135, "Security pass review of S-STAGE-2C". Each finding was checked against the code first; `gate resume8` on the committed tree before any change: `same=12 diff=0 rc=0 doom=1 ascend=883522`.
 
-| # | Finding | Severity | Disposition |
-|---|---|---|---|
-| (pending) | | | |
+| # | Finding | Severity | Disposition | Proof |
+|---|---|---|---|---|
+| SP-1 | sidecar addresses unbounded | Medium | fixed, `b0526886` | cargo `sidecar_fatal`: 5 new tests red, then 11 pass; harness line "sidecar check refuses a record in kernel memory, one that wraps and a resident span over the staging stride"; dry run of all 43 shipped user images: 0 refused |
+| SP-2 | the scan skips the kernel and the bootstub | Low, latent | fixed, `b0526886` | cargo `opcode_scan`: 2 new tests red, then 7 pass; harness line "opcode scan refuses a kernel image with PUSH and passes the kernel"; the kernel holds MRET 1, SRET 2, the bootstub MRET 1, neither any of the eight |
+| SP-3 | a sidecar cannot say whether `.bss` is in it | Low | Makefile prerequisite added; the format marker is filed | touched translator: all 43 sidecars regenerated, `fs.img`, `sh.mbc`, `init.mbc` sha256 unchanged |
+| SP-4a | `open-unterminated-refused` vacuous | Harness | fixed | mutant (open's bound 4 bytes): `open-unterminated-refused=no`, the other five `yes` |
+| SP-4b | `unlink-bad`, `link-old-bad`, `link-new-bad` vacuous (and `chdir-bad`, `ceiling-refused`) | Harness | fixed | kernel mutant (`upc_user_pa` without the ceiling): six lines `no` |
+| SP-4c | `a2-ignored` vacuous | Harness | fixed | mutant (fork keeps the probe's a2): `a2-ignored=no` twice |
+| SP-4d | no boot makes `UPC_FORK_MARK` the deciding control | Harness | recorded (D18), filed | |
+| SP-5a | `consolewrite` has no count clamp | Low | fixed | `CW: clamp=no` on the kernel before the clamp, `=yes` after; sweep 8 of 8 SAME |
+| SP-5b | JMPR/CALLR diagnostics store at 0xE0000/0xE1000 from U-mode | Low | recorded, filed | |
+
+Every mutant was rebuilt, booted and restored; after the last restore the ascend object verifies at 883,522. No fix added an eBPF instruction: the changes are in `cmd/upc-bootctl`, the kernel's `consolewrite`, three probes, the harness and the userland Makefile.
+
+Attack-surface rows the fixes add (same columns as the table above):
+
+| Landed change | What a hostile caller can try | What bounds it | Probe line that proves it | Harness line | Count |
+|---|---|---|---|---|---|
+| Sidecar records bounded (SP-1) | a `.data` record in kernel memory, in the next slot, wrapping, or a span over the staging stride | `opscan::check_user_regions`, by path before the object opens and again on the bytes loaded | three dry runs | `sidecar check refuses a record in kernel memory` | 1 |
+| Kernel and bootstub scanned (SP-2) | reach an atomic, PUSH, POP, INT or IRET in privileged ROM by a tagged RET | `opscan::scan_privileged_image`: the boot is refused | a dry run of a kernel copy with one PUSH word | `opcode scan refuses a kernel image with PUSH` | 1 |
+| `consolewrite` takes at most 4096 bytes a call (SP-5a) | print the whole slice in one trap | the clamp; a short write | `CW: clamp` | `rung_gate UPC_RUNG3 conprobe` (5 checks) | 1 |
+
+Gate `review3-after`, with every fix and the two new harness lines: `same=12 diff=0 rc=0 doom=1 ascend=883522`; `hostile_ptr: 9 checks`, `hostile_path: 6 checks`, `hostile_fork: 3 checks`, `conprobe: 5 checks` PASS, the five scan and sidecar lines PASS, ALL GREEN.
 
 ### Steps 295-296
 

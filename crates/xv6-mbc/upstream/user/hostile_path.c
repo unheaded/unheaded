@@ -8,8 +8,11 @@
 // path only proves something if the unbounded read would have found a name, so a
 // grandchild (slot 2, the next slice up) first leaves "README" and "echo" in its
 // own memory at VA 0x100000: slot 1's VA 0x900000 is that byte when the path is
-// added to the slice base with no bound. The child also puts "README" in the last
-// eight bytes below its ceiling, and writes to a pipe from a buffer past it.
+// added to the slice base with no bound. The grandchild also leaves "ME" at its
+// VA 0, and the child puts "READ" in the last four bytes below its ceiling: read
+// with no bound the two halves are "README" (security pass review, finding 4:
+// a made-up name there answered -1 with the bound removed). The child also
+// writes to a pipe from a buffer past its ceiling.
 //
 // Init then hands the kernel two pointers into kernel memory. Its base is 0, so
 // its VAs are physical addresses: it finds a name in the kernel's .rodata by
@@ -19,7 +22,9 @@
 // Observables (fixed classes; the MBC userland varargs ABI is unreliable):
 //   "HQ: open-wild-refused=yes|no"          open of a path past the ceiling is -1
 //   "HQ: exec-wild-refused=yes|no"          exec of a path past the ceiling is -1
-//   "HQ: open-unterminated-refused=yes|no"  a path with no NUL before the ceiling is -1
+//   "HQ: open-unterminated-refused=yes|no"  a path with no NUL before the ceiling is
+//                                           -1, though the bytes past it finish a
+//                                           real name
 //   "HQ: pipe-badbuf-refused=yes|no"        write to a pipe from a bad buffer is -1
 //   "HQ: slot0-kernel-name-refused=yes|no"  mkdir of a kernel .rodata pointer is -1,
 //                                           and that directory does not exist after
@@ -33,7 +38,7 @@
 
 #define NEXT_SLICE_VA   0x00900000u  // slot s's VA for slot s+1's VA 0x100000
 #define PLANT_VA        0x00100000u
-#define CEILING_PATH    0x007FFFF8u
+#define CEILING_PATH    0x007FFFFCu  // "READ"; the next slot's VA 0 holds "ME"
 #define KERNEL_TEXT     0x00020000u  // kernel .text and .rodata sit in this 64 KiB
 #define KERNEL_SPAN     0x00010000u
 #define KERNEL_DATA     0x00100000u
@@ -53,6 +58,7 @@ child(void)
   if(fork() == 0){
     put((volatile char *)PLANT_VA, "README");
     put((volatile char *)(PLANT_VA + 16), "echo");
+    put((volatile char *)0, "ME");
     exit(0);
   }
   wait(0);
@@ -66,8 +72,12 @@ child(void)
   // because the next page is not the caller's. (A short terminated path here,
   // which D16 refused for the same 128 bytes, opens once open is the kernel's:
   // ADR-135 D21, review F2.)
-  for(int i = 0; i < 8; i++)
-    ((volatile char *)CEILING_PATH)[i] = 'R';
+  // The four bytes are the start of a real name, and the next slot's first
+  // bytes finish it: with no bound the open finds README.
+  ((volatile char *)CEILING_PATH)[0] = 'R';
+  ((volatile char *)CEILING_PATH)[1] = 'E';
+  ((volatile char *)CEILING_PATH)[2] = 'A';
+  ((volatile char *)CEILING_PATH)[3] = 'D';
   SAY("HQ: open-unterminated-refused", open((char *)CEILING_PATH, 0) < 0);
 
   int p[2];

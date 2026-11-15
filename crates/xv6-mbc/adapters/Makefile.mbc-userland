@@ -108,8 +108,13 @@ $T/sh.elf: $A/crt0_mbc.o $U/ush.o $(USER_LIB_OBJS) $U/user.ld
 # program a zeroed .bss, ADR-135 R-NC. User programs only; the kernel's Makefile
 # does not pass it, the kernel zeroes its own).
 # sidecar upc-bootctl checks the .rv2mbc against (S-ASCEND-2 Item 5).
-$T/%.mbc: $T/%.elf
-	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@ --with-bss
+# The translator is a prerequisite: a tree whose sidecars were written before
+# --with-bss existed regenerates every one of them once the translator is
+# rebuilt, instead of keeping a .data with no .bss in it that upc-bootctl
+# cannot tell from a good one (security pass review, finding 3, 2026-11-15).
+RV2MBC = ../../monad-mbc/target/release/rv32i-to-mbc
+$T/%.mbc: $T/%.elf $(RV2MBC)
+	$(RV2MBC) $< -o $@ --with-bss
 	set -e; h=$$(sha256sum $T/$*.rv2mbc); echo "$${h%% *}" > $T/$*.rv2mbc.sha256
 
 # A tree built before the sidecar existed gets it without a retranslation.

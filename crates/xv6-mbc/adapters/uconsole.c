@@ -77,11 +77,19 @@ void uartputc_byte(int c);
 // uart, 32 at a time. Returns bytes written (short on copy failure). Each byte
 // goes out as one byte (uartputc_byte), not as uartwrite's word per character:
 // under UPC_RUNG3 this is what a user's write(1, ...) prints through.
+// One call takes at most CONSOLE_WRITE_MAX bytes and answers that count (a
+// short write), as BPF's console arm did: without it a single
+// write(1, p, 0x7fffffff) prints the caller's whole slice inside one trap
+// (security pass review, finding 5, 2026-11-15).
+#define CONSOLE_WRITE_MAX 4096
 int
 consolewrite(int user_src, uint64 src, int n)
 {
   char buf[32];
   int i = 0;
+
+  if(n > CONSOLE_WRITE_MAX)
+    n = CONSOLE_WRITE_MAX;
 
   while(i < n){
     int nn = sizeof(buf);

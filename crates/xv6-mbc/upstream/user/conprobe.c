@@ -12,6 +12,9 @@
 //   "CW: ret-four=yes|no"    write(1, "abc\n", 4) returns 4
 //   "CW: long-write=yes|no"  one 600-byte write returns 600
 //   "CW: zero=yes|no"        a write of 0 bytes returns 0
+//   "CW: clamp=yes|no"       one 4200-byte write returns 4096: the kernel's
+//                            console write takes at most 4096 bytes a call, as
+//                            BPF's did (security pass review, finding 5)
 //   "CW: badptr=yes|no"      a child's write from an unmapped address returns -1
 //   "CW: done"               init, after the child is reaped
 #include "kernel/types.h"
@@ -21,10 +24,13 @@
 #define SAY(t, c) do { if(c) printf(t "=yes\n"); else printf(t "=no\n"); } while(0)
 
 #define LONG       600
+#define CLAMP      4096
+#define OVER       4200
 #define UNMAPPED   ((char *)0x00900000)  // past a child's 8 MiB of mapped VA
 
 static char abc[4];
 static char big[LONG];
+static char over[OVER];
 
 int
 main(void)
@@ -39,6 +45,11 @@ main(void)
   int six = write(1, big, LONG);
   SAY("CW: long-write", six == LONG);
   SAY("CW: zero", write(1, abc, 0) == 0);
+  for(int i = 0; i < OVER; i++)
+    over[i] = 'y';
+  over[CLAMP - 1] = '\n';
+  int cl = write(1, over, OVER);
+  SAY("CW: clamp", cl == CLAMP);
 
   if(fork() == 0){
     SAY("CW: badptr", write(1, UNMAPPED, 4) == -1);

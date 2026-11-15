@@ -30,6 +30,10 @@ The floor is `UPC_HEAP_BASE` (`ebpf/monad-cpu-ebpf/src/phase12.rs`), read by bot
 - No verifier cost: neither check is in the BPF object.
 - Until this is opened, D2's sentence stands as written: an assumption, measured once, enforced nowhere.
 
+## Related change (2026-11-15, S-STAGE-2C security pass, ADR-135 SP-1)
+
+bootctl now bounds every user `.data` record, for a different reason (a record outside the image's memory overwrote the kernel or another slot): the `--userland` image's must lie below 0xC000, the top of the window the kernel accepts for slot 0's image, and a resident program's inside its slice with a span of at most the staging stride. That is not this ADR's check: a resident record between 0x10000 and the slice's end is still accepted, and nothing looks at `_end`. Both of this ADR's checks stay unbuilt.
+
 ## Not decided
 
 Whether the window should move instead (a larger image area costs heap, and a third fork copy band costs verifier instructions). That is ADR-135's to answer if a real program approaches the floor.
