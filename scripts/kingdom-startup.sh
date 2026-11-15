@@ -150,7 +150,7 @@ fi
 "$SCRIPT_DIR/monitoring/maintenance.sh" 15m "kingdom-startup warm-up" >/dev/null 2>&1 ||
     log_warn "Alertmanager not reachable; warm-up not silenced"
 # ADR-147 decision 4: the warm-up is the planned tail; this replaces the
-# shutdown's 30d mark with 15m.
+# shutdown's mark (2h, or its --planned length) with 15m.
 run "$SCRIPT_DIR/monitoring/planned-stop.sh" all 15m >/dev/null 2>&1 ||
     log_warn "planned-stop mark not written: the warm-up will spend SLO budget"
 

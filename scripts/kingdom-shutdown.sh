@@ -37,10 +37,23 @@ KEEP_CONTAINERS=false
 KEEP_BPF=false
 RESET_EAST=false
 DRY_RUN=false
+# How long the planned-stop mark lasts (ADR-147 decision 4). This script runs
+# on every reboot (kingdom-shutdown.service) and kingdom-startup.sh, which
+# replaces the mark, may not, so the default covers a reboot and a manual
+# start, not a month: a stale "all" mark mutes ContainerStopped and reads
+# every SLO good (review 2026-11-15, REV-2). A longer planned stop names its
+# length with --planned.
+PLANNED_FOR=2h
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --force) FORCE=true; shift ;;
+        --planned)
+            [[ "${2:-}" =~ ^[0-9]+[mhd]$ ]] || { log_error "--planned: want <n>m, <n>h or <n>d (at most 30d)"; exit 1; }
+            n="${2%[mhd]}"
+            case "${2: -1}" in m) secs=$((10#$n * 60)) ;; h) secs=$((10#$n * 3600)) ;; d) secs=$((10#$n * 86400)) ;; esac
+            ((secs > 0 && secs <= 30 * 86400)) || { log_error "--planned $2: at most 30d"; exit 1; }
+            PLANNED_FOR="$2"; shift 2 ;;
         --keep-containers) KEEP_CONTAINERS=true; shift ;;
         --keep-bpf) KEEP_BPF=true; shift ;;
         --east) RESET_EAST=true; shift ;;
@@ -54,6 +67,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --keep-bpf         Skip eBPF state cleanup"
             echo "  --east             Also shut down EAST server services"
             echo "  --dry-run          Show what would be done without doing it"
+            echo "  --planned DUR      Mark the stop as planned for DUR (<n>m, <n>h, <n>d; default ${PLANNED_FOR}, at most 30d)"
             echo "  -h, --help         Show this help"
             exit 0
             ;;
@@ -118,8 +132,10 @@ log_info "Phase 0: Silencing pages and tickets for 30m..."
 run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/maintenance.sh" 30m "kingdom-shutdown" >/dev/null 2>&1 ||
     log_warn "  Alertmanager not reachable; nothing silenced"
 # ADR-147 decision 4: a planned stop spends no error budget. The mark runs
-# 30d; kingdom-startup.sh replaces it with its 15m warm-up.
-run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/planned-stop.sh" all 30d >/dev/null 2>&1 ||
+# PLANNED_FOR (default 2h, --planned); kingdom-startup.sh replaces it with its
+# 15m warm-up.
+log_info "  Planned-stop mark: all, ${PLANNED_FOR}"
+run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/planned-stop.sh" all "${PLANNED_FOR}" >/dev/null 2>&1 ||
     log_warn "  planned-stop mark not written: the SLO budgets will burn while the stack is down"
 
 # ── Phase 1: Graceful SIGTERM to Go services ──────────────────────────

@@ -67,5 +67,25 @@ check "8 no file is left beside it" bash -c "[[ \"\$(ls -A '$T' | grep -v -x -e 
 bash "$SCRIPT" --end >/dev/null
 check "9 --end with no scope empties the marks" bash -c "[[ $(samples) -eq 0 ]] && [[ \$(grep -c '^# ' '$F') -eq 2 ]] && [[ \$(wc -l <'$F') -eq 2 ]]"
 
+# 10. kingdom-shutdown.sh runs on every reboot (kingdom-shutdown.service,
+# ExecStop) while kingdom-startup.service may not run at boot, so its "all"
+# mark must end on its own within hours, not 30 days: a stale "all" mark mutes
+# ContainerStopped and reads every SLO good (review 2026-11-15, REV-2). Read
+# from the script, never run: it stops the stack.
+SHUTDOWN="$(cd "$(dirname "$0")/.." && pwd)/kingdom-shutdown.sh"
+default="$(sed -n 's/^PLANNED_FOR=\([0-9][0-9]*[mh]\)$/\1/p' "$SHUTDOWN")"
+hours_ok() { # the default is minutes or hours, at most 12h
+    local d="$1"
+    case "$d" in
+    *m) (( ${d%m} > 0 && ${d%m} <= 720 )) ;;
+    *h) (( ${d%h} > 0 && ${d%h} <= 12 )) ;;
+    *) return 1 ;;
+    esac
+}
+check "10 kingdom-shutdown's mark defaults to hours ('${default}')" hours_ok "$default"
+check "10 kingdom-shutdown marks for PLANNED_FOR, no fixed 30d" bash -c "grep -q 'planned-stop.sh\" all \"\${PLANNED_FOR}\"' '$SHUTDOWN' && ! grep -q 'planned-stop.sh\" all 30d' '$SHUTDOWN'"
+check "10 kingdom-shutdown --planned refuses a bad duration" bash -c "! bash '$SHUTDOWN' --planned 99x --help >/dev/null 2>&1 && ! bash '$SHUTDOWN' --planned 31d --help >/dev/null 2>&1"
+check "10 kingdom-shutdown --help names --planned" bash -c "bash '$SHUTDOWN' --help | grep -q -- '--planned'"
+
 echo "planned-stop: $pass passed, $fail failed"
 [[ "$fail" -eq 0 ]]
