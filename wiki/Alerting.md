@@ -145,6 +145,19 @@ series and no job scrapes `haproxy_*`/`nginx_*` (checked live: zero series).
 deleted rule comes back with its producer and a promtool test; the load
 balancer rules return with an HAProxy/Nginx exporter.
 
+On 2026-11-15 (S-WATCH-TRUE) the `heimdall` rule group and its tests went the
+same way, with the `heimdall` scrape jobs in Prometheus and VictoriaMetrics and
+the `sword` job in VictoriaMetrics: no host runs heimdall-daemon, and sword is
+up only during a deploy. Their code and runbooks stay.
+
+The same sprint added three things that can fire: `WotanTopicPermissionRefused`
+(the refusal counter has a bounded `caller` label, and every listed caller's
+series starts at zero so a first refusal counts); `ZhenSchedulerStalled` as two
+rules under one name, `reason: absent` and `reason: stale`; and
+`unheaded_host_events_total` from Vector, which the IOC audit runbook reads
+(account changes, crontab edits, untrusted module loads, sudo commands, OOM
+kills and segfaults).
+
 ## Dead-man's switch
 
 Two alerts watch the watchers (ADR-100 section 4):
