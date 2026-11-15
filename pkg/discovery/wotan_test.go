@@ -90,7 +90,7 @@ func TestStart_RegistersOnceWotanAnswers(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	f := &fakeTopics{}
-	reg := start(ctx, f, ServiceEntry{Name: "timeguru", Address: "west", Port: 19000}, time.Millisecond, 4*time.Millisecond)
+	start(ctx, f, ServiceEntry{Name: "timeguru", Address: "west", Port: 19000}, time.Millisecond, 4*time.Millisecond, time.Hour)
 
 	waitFor(t, "join retries while Wotan is down", func() bool { j, _ := f.snapshot(); return j >= 3 })
 	if _, p := f.snapshot(); len(p) != 0 {
@@ -104,16 +104,46 @@ func TestStart_RegistersOnceWotanAnswers(t *testing.T) {
 	if err := json.Unmarshal(p[0], &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Name != "timeguru" || got.Address != "west" || got.Port != 19000 {
-		t.Errorf("announced %+v, want timeguru at west:19000", got)
+	if got.Name != "timeguru" || got.Address != "west" || got.Port != 19000 || got.Health != "healthy" {
+		t.Errorf("announced %+v, want timeguru at west:19000, healthy", got)
 	}
+}
 
-	// A peer's announcement lands in the registry through the stream.
-	peer, _ := json.Marshal(ServiceEntry{Name: "captain", Address: "west", Port: 19002})
-	if err := f.Publish(ctx, DiscoveryTopic, peer); err != nil {
-		t.Fatal(err)
+// announceOnly is an Announcer and nothing more: Start cannot open a
+// stream on it, so a stream cannot compile (ADR-147 Phase 7, Developer D3).
+type announceOnly struct{ f *fakeTopics }
+
+func (a announceOnly) Subscribe(ctx context.Context, topic, name string) (*wotanClient.Subscriber, error) {
+	return a.f.Subscribe(ctx, topic, name)
+}
+
+func (a announceOnly) Publish(ctx context.Context, topic string, payload []byte) error {
+	return a.f.Publish(ctx, topic, payload)
+}
+
+// TestStartAnnouncesAndDoesNotStream: announcing a service opens no stream
+// and builds no registry; it publishes once on join and then every interval.
+func TestStartAnnouncesAndDoesNotStream(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := &fakeTopics{up: true}
+	start(ctx, announceOnly{f}, ServiceEntry{Name: "sword", Address: "west", Port: 19011}, time.Millisecond, 4*time.Millisecond, 20*time.Millisecond)
+
+	waitFor(t, "two announcements", func() bool { _, p := f.snapshot(); return len(p) >= 2 })
+	f.mu.Lock()
+	streams := len(f.streams)
+	f.mu.Unlock()
+	if streams != 0 {
+		t.Fatalf("Start opened %d streams; announcing must open none", streams)
 	}
-	waitFor(t, "the peer to resolve", func() bool { _, err := reg.Resolve("captain"); return err == nil })
+}
+
+// TestStart_NilClientIsQuiet: a process without a Wotan client announces
+// nothing and does not panic.
+func TestStart_NilClientIsQuiet(t *testing.T) {
+	Start(context.Background(), nil, "kev-poller", 19120)
+	var none *wotanClient.Client
+	Start(context.Background(), none, "kev-poller", 19120)
 }
 
 // TestStart_PendingJoinRetries: a display name missing from Wotan's
@@ -122,7 +152,7 @@ func TestStart_PendingJoinRetries(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	f := &fakeTopics{up: true, pending: true}
-	start(ctx, f, ServiceEntry{Name: "chaos-controller", Address: "west", Port: 19300}, time.Millisecond, 4*time.Millisecond)
+	start(ctx, f, ServiceEntry{Name: "chaos-controller", Address: "west", Port: 19300}, time.Millisecond, 4*time.Millisecond, time.Hour)
 
 	waitFor(t, "repeated pending joins", func() bool { j, _ := f.snapshot(); return j >= 3 })
 	if _, p := f.snapshot(); len(p) != 0 {
@@ -133,7 +163,7 @@ func TestStart_PendingJoinRetries(t *testing.T) {
 func TestStart_StopsWithContext(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	f := &fakeTopics{}
-	start(ctx, f, ServiceEntry{Name: "monad", Address: "west", Port: 19004}, time.Millisecond, 4*time.Millisecond)
+	start(ctx, f, ServiceEntry{Name: "timeguru", Address: "west", Port: 19000}, time.Millisecond, 4*time.Millisecond, time.Hour)
 	waitFor(t, "a join attempt", func() bool { j, _ := f.snapshot(); return j >= 1 })
 	cancel()
 	time.Sleep(20 * time.Millisecond)

@@ -5,26 +5,34 @@ package discovery
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"time"
 
-	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
-// topicClient is the part of Wotan's HTTP client Start needs.
-type topicClient interface {
+// Announcer is the part of the process's one Wotan client Start needs: it
+// joins system.discovery and publishes on it. It has no StreamMessages, so
+// announcing cannot open a stream (ADR-147 Phase 7, Developer D3, D6).
+type Announcer interface {
 	Subscribe(ctx context.Context, topic, displayName string) (*wotanClient.Subscriber, error)
 	Publish(ctx context.Context, topic string, payload []byte) error
+}
+
+// streamer is an Announcer that can also stream: what a reader of
+// system.discovery needs (the Registry, through wotanTopics).
+type streamer interface {
+	Announcer
 	StreamMessages(ctx context.Context, topic string) (<-chan *wotanClient.Message, error)
 }
 
-// wotanTopics adapts topicClient to the Registry's WotanClient.
+// wotanTopics adapts a streamer to the Registry's WotanClient.
 type wotanTopics struct {
 	ctx context.Context
-	c   topicClient
+	c   streamer
 }
 
 func (w *wotanTopics) Publish(topic string, data []byte) error {
@@ -62,46 +70,46 @@ func replayed(created, now time.Time) bool {
 	return !created.IsZero() && now.Sub(created) > DefaultTTL
 }
 
-// Start registers name on Wotan's system.discovery topic and keeps it
-// announced (AnnounceInterval, DefaultTTL); peers' announcements fill the
-// returned Registry. The address announced is $DISCOVERY_ADDR, else the
+// Start announces name on Wotan's system.discovery topic through c, the
+// process's one Wotan client (transport.NewWotanClient), and keeps it
+// announced every AnnounceInterval. It opens no stream, builds no registry
+// and returns nothing: announcing is all a service does here (the reader is
+// a separate role). The address announced is $DISCOVERY_ADDR, else the
 // hostname (in compose, the container's short ID, which Docker's DNS
 // resolves). name is also the Wotan display name, so it must be on
 // topics.auto_approve (configs/wotan.yaml).
 //
 // Best-effort: a service may start before Wotan, so joining is retried in
 // the background (1 s doubling to 1 min) until ctx ends, and only the first
-// failure and the recovery are logged. Returns nil only when cfg's Wotan
-// address cannot be parsed.
-func Start(ctx context.Context, cfg transport.Config, name string, port int) *Registry {
-	c, err := wotanClient.NewClient(cfg.WotanHTTPAddr)
-	if err != nil {
-		log.Printf("[discovery] %s: no Wotan client (%v); not registered", name, err)
-		return nil
+// failure and the recovery are logged. A nil c logs once and does nothing.
+func Start(ctx context.Context, c Announcer, name string, port int) {
+	if wc, ok := c.(*wotanClient.Client); c == nil || ok && wc == nil { // a nil *Client is nil too
+		log.Printf("[discovery] %s: no Wotan client; not announced", name)
+		return
 	}
 	addr := os.Getenv("DISCOVERY_ADDR")
 	if addr == "" {
+		var err error
 		if addr, err = os.Hostname(); err != nil || addr == "" {
 			addr = "localhost"
 		}
 	}
-	return start(ctx, c, ServiceEntry{Name: name, Address: addr, Port: port}, time.Second, time.Minute)
+	start(ctx, c, ServiceEntry{Name: name, Address: addr, Port: port}, time.Second, time.Minute, AnnounceInterval)
 }
 
-func start(ctx context.Context, c topicClient, self ServiceEntry, first, max time.Duration) *Registry {
-	reg := New(&wotanTopics{ctx: ctx, c: c})
-	go func() { // #nosec G118 -- runs until ctx ends; the registry's own loops stop with it
+func start(ctx context.Context, c Announcer, self ServiceEntry, first, max, every time.Duration) {
+	if self.Health == "" {
+		self.Health = "healthy"
+	}
+	go func() { // #nosec G118 -- runs until ctx ends
 		backoff, failures := first, 0
 		for {
 			err := join(ctx, c, self.Name)
 			if err == nil {
-				err = reg.Start(ctx)
-			}
-			if err == nil {
 				if failures > 0 {
 					log.Printf("[discovery] %s: registered after %d failed attempts", self.Name, failures)
 				}
-				_ = reg.Register(self) // the announce loop repeats it every AnnounceInterval
+				announceLoop(ctx, c, self, every)
 				return
 			}
 			if failures == 0 {
@@ -118,13 +126,39 @@ func start(ctx context.Context, c topicClient, self ServiceEntry, first, max tim
 			}
 		}
 	}()
-	return reg
+}
+
+// announceLoop publishes self now and every interval until ctx ends. A
+// failed publish is not fatal: the next tick repeats it, and a peer's TTL
+// (DefaultTTL, two intervals) absorbs one miss.
+func announceLoop(ctx context.Context, c Announcer, self ServiceEntry, every time.Duration) {
+	ticker := time.NewTicker(every)
+	defer ticker.Stop()
+	for {
+		_ = announce(ctx, c, self)
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+func announce(ctx context.Context, c Announcer, self ServiceEntry) error {
+	self.LastSeen = time.Now()
+	data, err := json.Marshal(self)
+	if err != nil {
+		return fmt.Errorf("marshal announcement: %w", err)
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return c.Publish(ctx, DiscoveryTopic, data)
 }
 
 // join makes name an approved member of the discovery topic: Wotan only
 // lets members publish, and only display names on auto_approve are
 // approved without an operator.
-func join(ctx context.Context, c topicClient, name string) error {
+func join(ctx context.Context, c Announcer, name string) error {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	sub, err := c.Subscribe(ctx, DiscoveryTopic, name)

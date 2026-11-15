@@ -7,27 +7,26 @@ import (
 	"context"
 	"log"
 
-	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
-// joiner is the part of the Wotan client StartService needs.
-type joiner interface {
+// Joiner is the part of the Wotan client StartService needs.
+type Joiner interface {
 	Publisher
 	SubscribeWithRetry(ctx context.Context, topic, name string, onMsg func(*wotanClient.Message)) error
 }
 
 // StartService makes the service a reporter, beside its discovery.Start:
-// it joins Topic on cfg's Wotan as displayName (which must be on
+// through c, the process's one Wotan client (transport.NewWotanClient), it
+// joins Topic as displayName (which must be on
 // topics.auto_approve, as for discovery), then reports BallotName(
 // displayName) on HostName() every DefaultInterval, probing healthURL
 // (see HealthURL). Joining is retried in the background until ctx ends, so a
-// service may start before Wotan. Best-effort like discovery: when cfg's
-// Wotan address cannot be parsed it logs and reports nothing.
-func StartService(ctx context.Context, cfg transport.Config, displayName, healthURL string) {
-	c, err := wotanClient.NewClient(cfg.WotanHTTPAddr)
-	if err != nil {
-		log.Printf("[healthreport] %s: no Wotan client (%v); not reporting", displayName, err)
+// service may start before Wotan. Best-effort like discovery: a nil c (no
+// Wotan configured) logs and reports nothing.
+func StartService(ctx context.Context, c Joiner, displayName, healthURL string) {
+	if wc, ok := c.(*wotanClient.Client); c == nil || ok && wc == nil { // a nil *Client is nil too
+		log.Printf("[healthreport] %s: no Wotan client; not reporting", displayName)
 		return
 	}
 	startWith(ctx, c, displayName, Config{
@@ -37,7 +36,7 @@ func StartService(ctx context.Context, cfg transport.Config, displayName, health
 	})
 }
 
-func startWith(ctx context.Context, c joiner, displayName string, cfg Config) {
+func startWith(ctx context.Context, c Joiner, displayName string, cfg Config) {
 	go func() { // #nosec G118 -- runs until ctx ends
 		// With onMsg nil this only joins, returning nil once Wotan approves.
 		if err := c.SubscribeWithRetry(ctx, Topic, displayName, nil); err != nil {

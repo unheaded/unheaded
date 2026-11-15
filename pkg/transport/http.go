@@ -20,21 +20,6 @@ type httpConnection struct {
 	mu      sync.RWMutex
 }
 
-// newHTTPConnection creates an HTTP connection to Wotan.
-func newHTTPConnection(_ context.Context, addr string) (*httpConnection, error) {
-	client, err := wotanClient.NewClient(addr)
-	if err != nil {
-		return nil, err
-	}
-
-	hc := &httpConnection{
-		client: client,
-		addr:   addr,
-	}
-	hc.healthy.Store(true)
-	return hc, nil
-}
-
 func (h *httpConnection) Type() Type { return HTTP }
 
 func (h *httpConnection) Publish(ctx context.Context, topic string, data []byte) error {
