@@ -150,16 +150,38 @@ loaded. An alert on "no success for N days" reads this gauge.
 (job `ioc-audit`, `daily@02:00`, `catch_up: true`; commented out in the shipped
 schedule until the runbook is approved, since a draft makes the file refuse to
 load). It reads VictoriaMetrics on loopback and nothing else: SSH logins by
-host, account, source and method, and authentication failures by host and kind,
-over the last two days. The run fails, and its card lands in Review, on a login
-from outside the operator networks (`IOC_OPERATOR_NETS`, by default every
-private range), a login as root, or failures over the limits; it also fails
-when it could not see (VictoriaMetrics down, the journal shipped in no hour of
-the window), so blind never reads as clean. New sources inside the operator
-networks, logins not by key and hosts that ship no journal are notes. It reads
-counters, not log text: account changes, sudo command lines and kernel messages
-are not covered. Three days without a successful run is the alert
-`IOCAuditNotSucceeding` (a ticket in `observability/alerting/policy.yaml`).
+host, account, source and method, authentication failures by host and kind, and
+host events by kind (`unheaded_host_events_total`, counted by Vector from the
+journal), over the last two days. The run fails, and its card lands in Review,
+on a login from outside the operator networks (`IOC_OPERATOR_NETS`, by default
+every private range), a login as root, or failures over the limits; it also
+fails when it could not see (VictoriaMetrics down, the journal shipped in no
+hour of the window), so blind never reads as clean. New sources inside the
+operator networks, logins not by key and hosts that ship no journal are notes.
+Three days without a successful run is the alert `IOCAuditNotSucceeding` (a
+ticket in `observability/alerting/policy.yaml`).
+
+Host events and how the audit judges them (Stevie's defaults of 2026-11-12;
+each indicator has a switch that makes it a note):
+
+| Kind | What is counted | Judgment | Switch |
+|---|---|---|---|
+| `account` | useradd, usermod, userdel, groupadd, groupmod, groupdel, gpasswd, passwd, chpasswd, chage, systemd-sysusers: the tool and the account or group it named | indicator | `IOC_ACCOUNT_CHANGE_IS_INDICATOR=0` |
+| `cron_edit` | a crontab replaced or deleted: who, and whose | indicator | `IOC_CRON_EDIT_IS_INDICATOR=0` |
+| `kernel` / `module_untrusted` | an out-of-tree or unsigned module load, with the module's name | indicator, unless the module is in `IOC_KNOWN_MODULES` | `IOC_MODULE_UNTRUSTED_IS_INDICATOR=0` |
+| `sudo_command` | commands sudo ran, per host, user and target account | note (a count) | none |
+| `kernel` / `oom_kill`, `segfault` | out-of-memory kills and segfaults | note | none |
+
+It reads counters, not log text: which command sudo ran, what a crontab now
+holds and which process was killed stay in the journal. An install that creates
+an account, your own crontab edit, and a boot that loads an out-of-tree module
+(west loads `spl` for ZFS at every boot) each fail the run for the two-day
+window unless the switch or `IOC_KNOWN_MODULES` says otherwise. The account
+tools and the kernel are counted on fields only root or the kernel can produce;
+sudo, crontab and passwd log under the invoking uid and are counted on the
+program's path, so a count is a reason to read that host's journal, not proof
+(`config/vector/vector.yaml`, the comment above `journal_host`). A host that
+ships its journal but counted no host event in the window is named in a note.
 
 **Adding a job.** Edit the file and restart the daemon, or in `zhen-cli` type
 `/schedule add <name> <every> [runbook]`, `/schedule remove <name>` or
