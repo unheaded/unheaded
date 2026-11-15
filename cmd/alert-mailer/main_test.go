@@ -30,6 +30,26 @@ func writePolicy(t *testing.T, runDays string) string {
 	return p
 }
 
+// pipeline.silent_after: absent is off, under 10m is refused.
+func TestLoadSettingsPipeline(t *testing.T) {
+	for v, want := range map[string]string{"": "0s", "pipeline:\n  silent_after: 20m\n": "20m0s", "pipeline:\n  silent_after: 5m\n": "error"} {
+		p := writePolicy(t, "")
+		b, _ := os.ReadFile(p)
+		if err := os.WriteFile(p, append(b, v...), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		s, err := loadSettings(p)
+		switch {
+		case want == "error" && (err == nil || !strings.Contains(err.Error(), "pipeline.silent_after")):
+			t.Errorf("%q: err %v, want a pipeline.silent_after refusal", v, err)
+		case want != "error" && err != nil:
+			t.Errorf("%q: %v", v, err)
+		case want != "error" && s.PipelineSilentAfter.String() != want:
+			t.Errorf("%q: %s, want %s", v, s.PipelineSilentAfter, want)
+		}
+	}
+}
+
 // ADR-147 decision 2 (SS2): mailer.run_days raises the caps on listed dates.
 func TestLoadSettingsRunDays(t *testing.T) {
 	for _, tc := range []struct {

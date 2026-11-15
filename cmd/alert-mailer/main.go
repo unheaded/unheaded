@@ -17,6 +17,9 @@
 //	GET  /v1/status   cap, counts, open tickets
 //	GET  /v1/outbox   the last 50 mails: sent, dry-run, capped or failed
 //	POST /v1/alerts/page, /v1/alerts/ticket   Alertmanager webhooks
+//	POST /v1/alerts/pipeline   the pipeline receipt (AlertPipelineHeartbeat
+//	                           every 5 minutes); none for pipeline.silent_after
+//	                           mails "alert pipeline silent" once
 //
 // With HEARTBEAT_HOSTS set it also runs the dead-man's switch on its own
 // listener (-heartbeat-addr, heartbeat.go):
@@ -68,6 +71,9 @@ func loadSettings(path string) (Settings, error) {
 		Page struct {
 			RepeatInterval string `yaml:"repeat_interval"`
 		} `yaml:"page"`
+		Pipeline struct {
+			SilentAfter string `yaml:"silent_after"`
+		} `yaml:"pipeline"`
 	}
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return Settings{}, fmt.Errorf("%s: %w", path, err)
@@ -96,6 +102,13 @@ func loadSettings(path string) (Settings, error) {
 	}
 	if s.Loc, err = time.LoadLocation(p.Timezone); err != nil || p.Timezone == "" {
 		return s, fmt.Errorf("mailer.timezone %q: not an IANA zone", p.Timezone)
+	}
+	// pipeline.silent_after: absent turns the pipeline mail off; present, at
+	// least 10m (two of Alertmanager's 5-minute repeats can be missed).
+	if v := doc.Pipeline.SilentAfter; v != "" {
+		if s.PipelineSilentAfter, err = parseDuration(v); err != nil || s.PipelineSilentAfter < 10*time.Minute {
+			return s, fmt.Errorf("pipeline.silent_after %q: want a duration of at least 10m", v)
+		}
 	}
 	return s, nil
 }
@@ -193,6 +206,14 @@ func main() {
 		func() float64 { return float64(m.Status(false).MaxPerDay) }))
 	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_open_tickets", "Tickets waiting for the next digest", nil,
 		func() float64 { return float64(m.Status(false).OpenTickets) }))
+	reg.MustRegister(metrics.NewFuncGauge("unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds",
+		"Unix time of the last AlertPipelineHeartbeat Alertmanager handed over (0: none since start of state)", nil,
+		func() float64 {
+			if t := m.PipelineLast(); !t.IsZero() {
+				return float64(t.UnixNano()) / 1e9
+			}
+			return 0
+		}))
 	if hb != nil {
 		reg.MustRegister(hb.Gauge())
 	}
@@ -287,5 +308,8 @@ func handler(m *Mailer, reg *metrics.Registry) http.Handler {
 	}
 	mux.HandleFunc("POST /v1/alerts/page", hook(m.Page))
 	mux.HandleFunc("POST /v1/alerts/ticket", hook(m.Ticket))
+	// The pipeline receipt: the body is read through the same limit and only
+	// its arrival counts (pipeline.silent_after, ADR-116 R4).
+	mux.HandleFunc("POST /v1/alerts/pipeline", hook(func(Webhook) error { return m.PipelineSeen() }))
 	return httputil.SecurityHeaders(httputil.NewServiceMetrics("alert-mailer").Instrument(mux, mux))
 }
