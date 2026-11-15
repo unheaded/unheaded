@@ -30,3 +30,23 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 - One boot with `UPC_VERIFIER_STATS=1`: `verified 889941 insns` (the baseline row).
 - eBPF ascend build: Maximum resident set size (kbytes): 975276.
 - Gate p0: sweep12 about 2 min, harness about 7 min (other lanes' Go tests were running).
+
+## Phase 2 review (Step 29, 2026-11-15)
+
+Read-only pass by the lane itself: a fork cannot start a review agent, so this is not the independent read the plan asks for. It is filed under For Stevie as owed.
+
+| Question | Disposition |
+|---|---|
+| Does a legitimate path run `MRET` or `SRET` at priv 3? | No. Privilege is set in three places: `MRET` (from `MPP`), `SRET` (from `SPP`) and trap injection (`priv_level = 1`, `main.rs`). The image's only `mret` is `start_mbc.c`'s, at priv 0 (bootctl seeds M-mode); the `sret` sites are `trampoline_mbc.S` and `kernelvec_mbc.S`, both entered at priv 1. U-mode is reached only by an `sret` with `SPP = 0`. |
+| Does D6 drop a store the corpus makes? | Not by reading: a child maps PDEs 0 and 1 (8 MiB); the heap window, the stack top (0x500000) and the argv frame (0x600000) are below it; init has an identity directory over the low 64 MiB. D6 on was booted on 2026-10-30 with 12 SAME, before the S-STAGE-2B rungs. Step 39's sweep is the test. |
+| Do `hostile_slot` and `hostile_tf` change meaning with D6 on? | No. Both store below 8 MiB, in the child's own slice; the harness comment already says "Both hold with D6 off or on". |
+| Found by the pass | The host-side executor (`crates/monad-mbc/src/execute.rs`) still takes `MRET` and `SRET` at any privilege. It is not in a boot and no parity test compares the two on this; noted For Stevie, not changed (outside Step 31's file). |
+| Found by the pass | With the opcode test in, the harness's D6-off branch could no longer want `sret-forged=yes` and `kill-init-refused=yes`: the alias `sret` is refused too. The branch now wants `sret-forged=no` and pins only the fork-note forgery; the probe prints the KILL line only when the `sret` route forged. Needed for A7 (a D6 rollback must leave a green harness with the priv-3 test on). |
+
+Red run (Step 27, new probe on the object before the fix, D6 off): no `HR:` line at all. The first child's `mret` was taken: the boot ended at `priv=1`, `num_proc=6`, `cur_pid=5`, `forks=5`, `rom_fault=805166`. R-F1 is a demonstrated loss of control, not only a claimed one.
+
+## Phase 2 measurements (2026-11-15)
+
+- Priv-3 test on both arms, D6 off: 890279 (delta +338 against 889941). Under the +3,000 line of Step 33, so Step 34's hoist was not needed.
+- Step 35, D6 off: `mret-refused=yes`, `sret-refused=yes`, `own-slice-intact=yes`, `table-reached=yes`, `heap-intact=yes`, `note-refused=yes`, `note-forged=yes`, `sret-forged=no`, `done`.
+- Step 36, mutant (no test on `SRET` only): `sret-refused=no`, `sret-forged=yes`, `kill-init-refused=yes`; `mret-refused=yes` holds. Restored: count back at 890279.

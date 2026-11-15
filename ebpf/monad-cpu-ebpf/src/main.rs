@@ -1408,7 +1408,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if cfg!(feature = "ascend-linux") && opc == op::FENCE {
             // Full memory barrier. No-op on single-CPU MBC.
             // ADR-067 Decision 5.
-        } else if cfg!(feature = "ascend-linux") && opc == op::MRET {
+        } else if cfg!(feature = "ascend-linux") && opc == op::MRET && cpu.priv_level != 3 {
+            // ADR-109 D6 (2026-11-15), ADR-135 R-F1: refused at U-mode. At priv 3
+            // the arm does not match and the opcode falls to the unknown-opcode
+            // NOP below, so a child cannot take MPP's privilege or jump to MEPC.
+            //
             // Machine-mode return. Pop MEPC + restore priv from MSTATUS.MPP.
             // MEPC holds an RV32 byte address (xv6 stores `&main` directly);
             // translate through RV2MBC_MAP to land on the correct MBC PC.
@@ -1443,7 +1447,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             };
             cpu.reservation_address = 0xFFFF_FFFF;
-        } else if cfg!(feature = "ascend-linux") && opc == op::SRET {
+        } else if cfg!(feature = "ascend-linux") && opc == op::SRET && cpu.priv_level != 3 {
+            // ADR-109 D6 (2026-11-15), ADR-135 R-F1: refused at U-mode, as MRET is.
+            // A U-mode sret would jump to SEPC and run the reply read with no
+            // trap entry (no wipe).
+            //
             // Supervisor-mode return. SEPC + SSTATUS.SPP. Same RV2MBC translation
             // as MRET — SEPC holds an RV byte address.
             //

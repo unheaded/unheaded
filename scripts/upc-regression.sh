@@ -252,20 +252,25 @@ want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: g
 # S-STAGE-2B Step 258, ADR-135 R-F9: a child forges the reply word through a PDE it
 # adds. In every build a word stored ahead of a trap must not take effect. With
 # UPC_D6_MISS_FAULT on the PDE store is dropped and the route ends at closed. Off,
-# the sret route and a forged fork note land (the open hole, as hostile_pgd); if they
-# stop landing, the probe no longer reaches the hole and proves nothing about a fix.
+# a forged fork note lands (the open hole, as hostile_pgd); if it stops landing, the
+# probe no longer reaches the hole and proves nothing about a fix.
+# S-STAGE-2C Phase 2 (ADR-135 R-F1): MRET and SRET are refused at priv 3 in every
+# build, so both branches want a U-mode mret and a U-mode sret to do nothing, and
+# with D6 off the sret route through the alias must no longer forge.
 if rung_on UPC_REPLY; then
   HRL="$(probe_lines hostile_reply 3000000 HR)"
   if rung_on UPC_D6_MISS_FAULT; then
-    want_counts "$HRL" "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
+    want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
+      "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
       "HR: heap-intact=yes" 1 "HR: done" 1 \
       && pass "hostile_reply: D6 closes the route to the reply word" || fail "hostile_reply (D6 on)"
-  elif ! want_counts "$HRL" "HR: own-slice-intact=yes" 1 "HR: table-reached=yes" 1 "HR: heap-intact=yes" 1 \
-    "HR: note-refused=yes" 1 "HR: kill-init-refused=yes" 1 "HR: done" 1; then
-    fail "hostile_reply (ecall route, or init reached)"; note "$(tr '\n' ' ' <<<"$HRL")"
-  elif want_counts "$HRL" "HR: note-forged=yes" 1 "HR: sret-forged=yes" 1; then
-    pass "hostile_reply: a word stored ahead of a trap is wiped, init stays out of reach"
-    note "hostile_reply: D6 is off, a child forged the reply by sret and a fork note (ADR-135 open)"
+  elif ! want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
+    "HR: own-slice-intact=yes" 1 "HR: table-reached=yes" 1 "HR: heap-intact=yes" 1 \
+    "HR: note-refused=yes" 1 "HR: sret-forged=no" 1 "HR: done" 1; then
+    fail "hostile_reply (a privileged return at U-mode, the ecall route, or the sret route)"; note "$(tr '\n' ' ' <<<"$HRL")"
+  elif want_counts "$HRL" "HR: note-forged=yes" 1; then
+    pass "hostile_reply: U-mode mret and sret do nothing, a word stored ahead of a trap is wiped"
+    note "hostile_reply: D6 is off, a child forged a fork note through its own PDE (ADR-135 open)"
   else
     fail "hostile_reply (D6 off: the probe no longer reaches the hole)"
   fi

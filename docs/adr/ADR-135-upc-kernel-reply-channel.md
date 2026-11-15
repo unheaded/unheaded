@@ -395,6 +395,12 @@ One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`
   slot the note would close that row's fds and hand it the forger's: read from the code, not booted. The harness pins both
   forgeries, so a change to either shows up. All of this needs D6 off, and none of it is closed here.
 
+- **2026-11-15, S-STAGE-2C Phase 2: `MRET` and `SRET` at priv 3 are NOPs** (ADR-109, dated section of that day).
+  R-F1 is closed: a U-mode `mret` or `sret` does nothing, by an inline instruction or by a tagged `ret` to a ROM word.
+  R-F2's `sret` route and R-S1 close with it. `hostile_reply` runs both opcodes in a child of their own before the PDE
+  route and wants `mret-refused=yes` and `sret-refused=yes` in every build; with D6 off, `sret-forged` now says no and
+  the forged KILL, which rode the same `sret`, is not tried. The fork-note forgery still needs D6 on to close.
+
 ## Review
 
 Plan Step 119 asks for a separate read-only review. The agent that wrote this ADR reviewed it first, which was not
