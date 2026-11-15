@@ -201,5 +201,12 @@ What follows from them:
 - **Design flaws are in scope by name.** The table looks for what was built wrong, not only for what is slow: loops on timers, queues with no bound, state with no owner, a second copy of something, a service with no caller.
 - **The freeze (ADR-112) is lifted for this ADR's analysis.** The battle plan still waits on Stevie's word after he reads the table's answers.
 
+Stevie, a few minutes later, verbatim:
+
+> we can add other services I might like to have local in the house - music/video streaming something or whatever - something game related - zhenai should be treated like a production application in itself not a default part of unheaded
+
+- **Tenants.** The hosts are to carry programs that are not Unheaded: a media server, something for games, others not yet named. None is chosen here and none is installed without Stevie's yes (each is third-party). The table designs for a tenant it has not met: what a tenant is given (CPU, memory, disk, network, a name, a login), what it is refused, and how the stack keeps its own share.
+- **Zhen is a tenant.** Zhenai is treated as a production application that runs on the platform, with its own budget, its own alerts and its own place in the load, not as a default part of Unheaded. Where the stack assumes Zhen is there, that is a finding.
+
 The table's answers are written below this line as they come in, each under its skill's name, dated.
 
