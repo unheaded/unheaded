@@ -20,6 +20,16 @@
 #     exchange only, proxying to that socket. Left alone when the installed
 #     unheaded-zhen-ui-front.service already runs.
 #
+# Units win. When unheaded-llama.service or unheaded-zhen-app.service is active
+# (deploy/systemd/), llama-server and the app are theirs: this script leaves
+# them alone and says so, as it does for the front. It then starts only what no
+# unit runs.
+#
+# What it starts, it records: one PID file per process in
+# $XDG_RUNTIME_DIR/unheaded-zhen/<name>.pid. The stop line at the end names
+# those PIDs, and `systemctl stop` for what a unit runs. Never a kill by
+# pattern: the pattern also matches the shell that typed it.
+#
 # The socket: ZHEN_UI_SOCKET, else /run/unheaded-zhen-ui/app.sock when the host
 # has made that directory (deploy/systemd/README.md#zhen-ui-front), else
 # $XDG_RUNTIME_DIR/unheaded-zhen-ui/app.sock, mode 0600 in a 0700 directory.
@@ -32,7 +42,7 @@
 # goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
 # on :20111 chat and mutations answer 503 "the gate is required".
 #
-# Login: everything but the page and /health needs one. Set AUTH_ISSUER_URL to
+# Login: everything but the page, /health and the stylesheet needs one. Set AUTH_ISSUER_URL to
 # unheaded-auth (its -audiences must list zhen-agentd; AUTH_BFF_DEV_PLAINTEXT=true
 # only for a stack without TLS). The UI sends the person's token to the daemon,
 # which verifies it, so the daemon needs AUTH_OIDC_ISSUER_URL too. -gated sets
@@ -48,6 +58,38 @@ CONTEXT_SIZE="${ZHEN_CONTEXT_SIZE:-16384}"
 
 # Durable logs (ADR-092): never /tmp.
 LOGPATH="$HOME/tmp/unheaded/scripts/lib/logpath.sh"
+
+# PID files for what this script starts, and the stop line built from them.
+PIDDIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/unheaded-zhen"
+install -d -m 0700 "$PIDDIR"
+STOP_HINTS=()
+
+record_pid() {  # record_pid NAME PID
+    printf '%s\n' "$2" > "$PIDDIR/$1.pid"
+    STOP_HINTS+=("kill \$(cat $PIDDIR/$1.pid)")
+}
+
+unit_active() {
+    systemctl is-active --quiet "$1" 2>/dev/null
+}
+
+# A process this script started on an earlier run and that is still alive.
+# The PID file alone is not trusted: the PID must still be that program.
+started_earlier() {  # started_earlier NAME PROGRAM-WORD
+    local pid
+    pid="$(cat "$PIDDIR/$1.pid" 2>/dev/null)" || return 1
+    [[ "$pid" =~ ^[0-9]+$ ]] || return 1
+    tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q -- "$2"
+}
+
+# What to say about a listener this script did not start this time.
+stop_hint_for() {  # stop_hint_for NAME PROGRAM-WORD UNIT
+    if unit_active "$3"; then
+        STOP_HINTS+=("sudo systemctl stop $3")
+    elif started_earlier "$1" "$2"; then
+        STOP_HINTS+=("kill \$(cat $PIDDIR/$1.pid)")
+    fi
+}
 
 # 1. Pre-flight: backends MUST already be up.
 echo "[1/4] Pre-flight backend checks..."
@@ -66,7 +108,11 @@ if ! curl -sf --max-time 3 http://127.0.0.1:8081/health > /dev/null; then
     echo ""
     exit 1
 fi
-echo "  ✓ llama-server :8081 (qwen-coder-7b)"
+if unit_active unheaded-llama.service; then
+    echo "  ✓ llama-server :8081 (unheaded-llama.service — leaving alone)"
+else
+    echo "  ✓ llama-server :8081 (qwen-coder-7b)"
+fi
 
 if ! curl -sf --max-time 3 http://127.0.0.1:20110/api/health > /dev/null; then
     echo "  ✗ vor :20110 not reachable"
@@ -104,12 +150,19 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         else
             echo "  ! no AUTH_ISSUER_URL/AUTH_API_KEYS/AUTH_API_KEY_FILE/AUTH_JWT_KEY: zhen-agentd runs -no-auth on 127.0.0.1 (dev only; nobody can log in to the UI)"
         fi
-        nohup ./bin/zhen-agentd \
+        # bin/release/ is what `make binaries` builds and the units run; the
+        # copy one level up was whatever was last built by hand.
+        if [[ ! -x ./bin/release/zhen-agentd ]]; then
+            echo "  ✗ bin/release/zhen-agentd missing: run \`make binaries\` first"
+            exit 1
+        fi
+        nohup ./bin/release/zhen-agentd \
             -host 127.0.0.1 \
             -port 20111 \
             -project-root "$HOME/tmp/unheaded" \
             "${AGENTD_AUTH[@]}" \
             > "$AGENTD_LOG" 2>&1 &
+        record_pid zhen-agentd "$!"
         echo "  zhen-agentd PID: $!"
         for _ in $(seq 1 10); do
             curl -sf http://127.0.0.1:20111/health > /dev/null && break
@@ -123,6 +176,7 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         fi
     else
         echo "[2/4] zhen-agentd already running on :20111 — leaving alone"
+        stop_hint_for zhen-agentd zhen-agentd zhen-agentd.service
     fi
 else
     echo "[2/4] Skipping zhen-agentd: chat and mutations answer 503 until one runs on :20111 ('-gated' starts it)"
@@ -146,8 +200,15 @@ app_answers() {
     curl -s -o /dev/null --max-time 3 --unix-socket "$ZHEN_UI_SOCKET" http://localhost/health
 }
 
-if app_answers; then
-    echo "[3/4] Web UI already listening on $ZHEN_UI_SOCKET — leaving alone (use 'pkill -f zhen_app.py' to restart)"
+if unit_active unheaded-zhen-app.service; then
+    echo "[3/4] unheaded-zhen-app.service is running — leaving alone"
+    STOP_HINTS+=("sudo systemctl stop unheaded-zhen-app.service")
+    if [[ "$ZHEN_UI_SOCKET" != /run/unheaded-zhen-ui/app.sock ]]; then
+        echo "  ! the unit serves /run/unheaded-zhen-ui/app.sock, but this run looks at $ZHEN_UI_SOCKET"
+    fi
+elif app_answers; then
+    echo "[3/4] Web UI already listening on $ZHEN_UI_SOCKET — leaving alone"
+    stop_hint_for zhen-app zhen_app.py unheaded-zhen-app.service
 else
     echo "[3/4] Starting Zhen Web UI on $ZHEN_UI_SOCKET..."
     source "$HOME/.venv/zhen/bin/activate" 2>/dev/null || true
@@ -187,6 +248,7 @@ else
     cd "$HOME/tmp/unheaded/raft"
     nohup python3 zhen_app.py &> "$WEBAPP_LOG" &
     WEBAPP_PID=$!
+    record_pid zhen-app "$WEBAPP_PID"
     echo "  webapp PID: $WEBAPP_PID"
 fi
 
@@ -194,11 +256,13 @@ fi
 UI_LISTEN="${ZHEN_UI_LISTEN:-127.0.0.1:20103}"
 if systemctl is-active --quiet unheaded-zhen-ui-front.service 2>/dev/null; then
     echo "[4/4] unheaded-zhen-ui-front.service is running — leaving alone"
+    STOP_HINTS+=("sudo systemctl stop unheaded-zhen-ui-front.service")
     if [[ "$ZHEN_UI_SOCKET" != /run/unheaded-zhen-ui/app.sock ]]; then
         echo "  ! the unit proxies to /run/unheaded-zhen-ui/app.sock, but the app is on $ZHEN_UI_SOCKET"
     fi
 elif ss -lnt 2>/dev/null | awk '$4 ~ /:20103$/ {f=1} END {exit !f}'; then
-    echo "[4/4] :20103 already bound — leaving alone (use 'pkill -f bin/zhen-ui-front' to restart the front)"
+    echo "[4/4] :20103 already bound — leaving alone"
+    stop_hint_for zhen-ui-front zhen-ui-front unheaded-zhen-ui-front.service
 else
     echo "[4/4] Starting zhen-ui-front on $UI_LISTEN (hybrid-only TLS 1.3)..."
     FRONT="$REPO/bin/zhen-ui-front"
@@ -220,6 +284,7 @@ else
         --socket "$ZHEN_UI_SOCKET" \
         --metrics 127.0.0.1:20112 \
         &> "$FRONT_LOG" &
+    record_pid zhen-ui-front "$!"
     echo "  front PID: $!"
 fi
 
@@ -257,4 +322,9 @@ echo "Chat API:      POST $UI_URL/api/v1/query"
 echo "Runbooks API:  POST $UI_URL/api/v1/runbooks/<n>/execute  (operator login)"
 echo "Daemon API:    POST http://localhost:20111/api/v1/tool/exec  (when -gated)"
 echo ""
-echo "Stop:  pkill -f zhen_app.py; pkill -f bin/zhen-ui-front; pkill -f bin/zhen-agentd"
+if [[ "${#STOP_HINTS[@]}" -gt 0 ]]; then
+    echo "Stop:"
+    printf '  %s\n' "${STOP_HINTS[@]}"
+else
+    echo "Stop:  nothing here was started by this script or by a unit it knows; find the listener with 'ss -ltnp' and stop that PID."
+fi

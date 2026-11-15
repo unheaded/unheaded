@@ -30,6 +30,8 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
 | `unheaded-zhen-ui-front.service` | 20103, 20112 (loopback, /metrics) | TLS front of the Zhen web UI (ADR-138): hybrid-only TLS 1.3 to the app's Unix socket; see [zhen-ui-front](#zhen-ui-front) |
+| `unheaded-zhen-app.service` | none (Unix socket `/run/unheaded-zhen-ui/app.sock`) | The Zhen web UI's app (`raft/zhen_app.py`) as `unheaded-zhen-app` (uid 16764); reached only through the front above. Shipped disabled; see [zhen-ui-front](#zhen-ui-front) |
+| `unheaded-llama.service` | 8081 (loopback) | llama-server for Zhen as `unheaded-llama` (uid 16792, groups `render` and `video`): the GPU and one loopback port, nothing else. Shipped disabled |
 | `unheaded-wiki-server.service` | 20002 (loopback; a drop-in adds addresses) | The wiki over TLS, behind the dashboard's login (pkg/bff) when `/etc/unheaded/wiki-server.env` names `AUTH_ISSUER_URL`; vor search when vor runs on the host; see [wiki-server](#wiki-server) |
 | `unheaded-auth.service`         | 19020         | Built-in OIDC issuer (ADR-103, `wiki/Service-Auth.md`); needs its key, a users file and TLS (`UNHEADED_TLS_*` in `/etc/unheaded/auth.env`), see the unit's header |
 | `unheaded-anomaly.service`      | 19018 (loopback) | Anomaly service + cartridge bridge (`cmd/anomaly`), consumes `anomaly.scores` from Wotan; no capabilities. Reads only the `CART_EVENTS` pin (bind-mounted; `upc-cartridgectl -events-group unheaded-anomaly up`) |
@@ -267,18 +269,26 @@ By hand: `scripts/vor-export-source.sh /var/zhen/vor-source/unheaded develop`.
 UI from a browser: TLS 1.3 with hybrid ML-KEM key exchange only
 (`X25519MLKEM768`), no plaintext mode and no profile switch. It proxies to
 the app's Unix socket, `/run/unheaded-zhen-ui/app.sock`. The app
-(`raft/zhen_app.py`, started by `raft/start-zhen.sh`) has no unit and no
-account of its own yet: it runs as the account that starts it, binds that
-socket and no TCP port.
+(`raft/zhen_app.py`) binds that socket and no TCP port. It has its own unit
+and account: `unheaded-zhen-app.service`, as `unheaded-zhen-app` (uid 16764),
+with the model beside it in `unheaded-llama.service` as `unheaded-llama`
+(uid 16792, groups `render` and `video`). Both ship disabled and are not
+started by an install; the install steps are in each unit's header.
+`raft/start-zhen.sh` still starts the app by hand as the person who runs it,
+and leaves alone whatever a unit already runs.
 
-The socket directory is the one step the unit cannot do, because it names
-the account the app runs as. One tmpfiles.d line, as root:
+The socket directory is the one step the units cannot do. One tmpfiles.d
+line, kept in the repo, as root:
 
 ```bash
-echo 'd /run/unheaded-zhen-ui 2750 <app account> unheaded-zhen-ui-front -' |
-  sudo tee /etc/tmpfiles.d/unheaded-zhen-ui.conf
+sudo install -m 0644 deploy/tmpfiles.d/unheaded-zhen-ui.conf /etc/tmpfiles.d/
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/unheaded-zhen-ui.conf
 ```
+
+The app's environment file, `/etc/unheaded/zhen-app.env` (0640
+`root:unheaded-zhen-app`), holds the Well's password for `app_zhen`. Root
+writes it unseen with `scripts/write-zhen-app-env.sh --db-host HOST:PORT`;
+`deploy/systemd/zhen-app.env.example` lists its keys.
 
 Owner: the app's account, the only one that can create the socket. Group:
 the front's own, with the setgid bit, so the socket is born in that group

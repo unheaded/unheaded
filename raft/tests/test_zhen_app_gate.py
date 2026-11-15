@@ -36,6 +36,8 @@ import zhen_login
 import zhen_rag
 
 ORIGIN = 'http://zhen.test'
+# A password is taken over plain http only on loopback, so the login is asked there.
+LOCAL = 'http://127.0.0.1:20103'
 
 
 @pytest.fixture
@@ -79,6 +81,7 @@ def test_csrf_cookie_is_samesite_strict_and_random(client):
 
 
 def test_csrf_browser_post_without_header_is_403(client):
+    _log_in(client)
     _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN})
@@ -87,12 +90,14 @@ def test_csrf_browser_post_without_header_is_403(client):
 
 
 def test_csrf_cross_site_post_without_cookie_is_403(client):
+    _log_in(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': 'http://evil.test', 'Sec-Fetch-Site': 'cross-site'})
     assert r.status_code == 403
 
 
 def test_csrf_browser_post_with_wrong_header_is_403(client):
+    _log_in(client)
     _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN, 'X-Zhen-CSRF': 'not-the-token'})
@@ -100,6 +105,7 @@ def test_csrf_browser_post_with_wrong_header_is_403(client):
 
 
 def test_csrf_browser_post_with_header_reaches_handler(client):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN, 'Sec-Fetch-Site': 'same-origin',
@@ -109,8 +115,11 @@ def test_csrf_browser_post_with_header_reaches_handler(client):
 
 
 def test_csrf_non_browser_post_is_not_csrf(client):
-    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []})
-    assert r.status_code == 200
+    # No issuer in the test, so the login answers 400 or 503; the point is
+    # that a request with no browser headers is not a CSRF refusal.
+    r = client.post('/auth/login', base_url=LOCAL, json={})
+    assert _reached_handler(r)
+    assert r.status_code in (400, 503)
 
 
 def test_csrf_get_is_never_blocked(client):
@@ -123,6 +132,56 @@ def test_csrf_page_sends_header_on_same_origin_posts():
     html = (RAFT / 'static' / 'index.html').read_text()
     assert 'X-Zhen-CSRF' in html
     assert 'zhen_csrf' in html
+
+
+def _js_function(html, name):
+    """The source of one top-level `function name(` in the page, to the next
+    top-level function."""
+    import re
+    m = re.search(r'^(async )?function ' + re.escape(name) + r'\(', html, re.MULTILINE)
+    assert m, f'the page has no function {name}'
+    nxt = re.search(r'^(async )?function \w+\(', html[m.end():], re.MULTILINE)
+    return html[m.start():m.end() + (nxt.start() if nxt else len(html))]
+
+
+def test_page_refetches_stats_after_login():
+    """D-03: stats need a login, and were fetched once at page load, so the
+    sidebar showed `?` after logging in. One refreshStats(), called at load
+    and from the login handler; before login it says so instead of `?`."""
+    html = (RAFT / 'static' / 'index.html').read_text()
+    stats_fetch = "fetch(API + '/api/v1/stats')"
+    assert stats_fetch in _js_function(html, 'refreshStats')
+    # The health check and the welcome go through refreshStats; neither keeps
+    # a fetch of its own that a login would not repeat. (The model switch
+    # polls stats for its own reason and is left alone.)
+    assert stats_fetch not in _js_function(html, 'checkHealth')
+    welcome = html[html.index('// Welcome'):]
+    assert stats_fetch not in welcome and 'refreshStats()' in welcome
+    assert "|| '?'" not in welcome
+    login = html[html.index("getElementById('login-form').addEventListener('submit'"):
+                 html.index("getElementById('login-logout').addEventListener")]
+    assert 'refreshStats()' in login
+    assert 'refreshStats()' in _js_function(html, 'checkHealth')
+    assert 'log in to see' in _js_function(html, 'refreshStats')
+    assert "'?'" not in _js_function(html, 'refreshStats')
+
+
+def test_page_keeps_the_question_when_the_session_has_ended():
+    """D-03: a 401 on the chat send opens the login panel (the fetch wrapper),
+    puts the question back in the box, and sends nothing again by itself."""
+    html = (RAFT / 'static' / 'index.html').read_text()
+    ask = _js_function(html, 'ask')
+    i = ask.index('r.status === 401')
+    branch = ask[i:ask.index('}', ask.index('return;', i))]
+    assert 'qInput.value = question' in branch
+    assert "qInput.value = ''" not in branch
+    assert 'ask(' not in branch and 'fetch(' not in branch
+    # A login after the session ended keeps the page (and the box) as it is;
+    # only the first login of a page load reloads it.
+    login = html[html.index("getElementById('login-form').addEventListener('submit'"):
+                 html.index("getElementById('login-logout').addEventListener")]
+    assert 'loadedLoggedIn' in login
+    assert login.count('location.reload()') == 1
 
 
 def test_csrf_view_source_escapes_path(client):
@@ -363,15 +422,24 @@ def test_gated_route_needs_a_browser_session_with_no_headers_at_all(client, rout
     assert 'CSRF' in r.get_json()['error']
 
 
-@pytest.mark.parametrize('route', ['/api/v1/highlight'])
+@pytest.mark.parametrize('route', ['/auth/login'])
 def test_scripted_routes_stay_open_to_a_caller_with_no_browser_headers(client, route):
-    assert _reached_handler(client.post(route, base_url=ORIGIN, json={'blocks': []}))
+    assert _reached_handler(client.post(route, base_url=LOCAL, json={}))
+
+
+def test_the_highlighter_is_not_a_scripted_route(client):
+    """It was open before login until S-ZHEN-FRONT; a bare POST is now a CSRF
+    refusal like any other route the page alone calls."""
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []})
+    assert r.status_code == 403
+    assert 'CSRF' in r.get_json()['error']
 
 
 @pytest.mark.parametrize('origin', [
     'http://evil.test', 'https://zhen.test.evil.test', 'http://zhen.test:1', 'null', 'zhen.test', 'file://zhen.test',
 ])
 def test_a_token_does_not_excuse_another_origin(client, origin):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': origin, 'X-Zhen-CSRF': tok})
@@ -380,6 +448,7 @@ def test_a_token_does_not_excuse_another_origin(client, origin):
 
 @pytest.mark.parametrize('site', ['cross-site', 'same-site', 'none'])
 def test_a_token_does_not_excuse_another_fetch_site(client, site):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN, 'Sec-Fetch-Site': site, 'X-Zhen-CSRF': tok})
@@ -387,6 +456,7 @@ def test_a_token_does_not_excuse_another_fetch_site(client, site):
 
 
 def test_a_browser_marker_without_origin_is_refused(client):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok})
@@ -541,28 +611,98 @@ def test_source_view_page_is_not_served_without_its_headers(client):
         assert client.get('/static/' + name, base_url=ORIGIN).status_code == 200
 
 
+_SHEET = '# Top\n\n<script>alert(1)</script> [x](javascript:alert(1))\n\n```sh\necho "hi"\n```\n'
+
+
 def test_source_api_returns_the_sheet_rendered_and_raw(client, monkeypatch):
-    sheet = '# Top\n\n<script>alert(1)</script> [x](javascript:alert(1))\n\n```sh\necho "hi"\n```\n'
-    asked = _vor(monkeypatch, {'content': sheet, 'title': 'T', 'category': 'net',
-                               'source_trust': 'external', 'source_kind': 'user-source',
+    asked = _vor(monkeypatch, {'name': 'a/b c', 'content': _SHEET, 'title': 'T', 'category': 'net',
+                               'source_trust': 'canonical', 'source_kind': 'user-source',
                                'source_path': '/p/t.md'})
     _log_in(client)
     r = client.get('/api/v1/source?id=a/b c', base_url=ORIGIN)
     assert r.status_code == 200
     assert asked == ['http://vor.test/api/topics/a%2Fb%20c']
     body = r.get_json()
-    assert body['content'] == sheet
-    assert body['trust'] == 'external' and body['title'] == 'T' and body['category'] == 'net'
+    assert body['content'] == _SHEET
+    assert body['trust'] == 'canonical' and body['title'] == 'T' and body['category'] == 'net'
     assert body['outline'] == [{'level': 1, 'id': 'md-top', 'text': 'Top'}]
     assert '<script' not in body['html'] and '&lt;script&gt;' in body['html']
     assert 'href="javascript' not in body['html']
     assert 'class="hl-' in body['html']
 
 
-def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatch):
-    _vor(monkeypatch, {'content': 'plain words'})
+def test_source_api_shows_an_external_sheets_code_plain(client, monkeypatch):
+    """D-06: Pygments is not run on text from an `external` source. The block
+    is escaped and shown, with no highlighter spans; a lexer is never built."""
+    _vor(monkeypatch, {'name': 'ext', 'content': _SHEET, 'source_trust': 'external'})
 
-    def boom(source):
+    def no_lexer(*a, **kw):
+        raise AssertionError('the highlighter was reached for an external sheet')
+
+    monkeypatch.setattr(zhen_app.zhen_markdown.zhen_highlight, 'lexer_for', no_lexer)
+    monkeypatch.setattr(zhen_app.zhen_markdown.zhen_highlight, 'highlight_one', no_lexer)
+    _log_in(client)
+    r = client.get('/api/v1/source?id=ext', base_url=ORIGIN)
+    assert r.status_code == 200
+    body = r.get_json()
+    assert body['trust'] == 'external'
+    assert 'class="hl-' not in body['html']
+    assert 'echo &quot;hi&quot;' in body['html']
+    assert '<script' not in body['html'] and '&lt;script&gt;' in body['html']
+
+
+def test_the_same_text_is_not_served_highlighted_from_the_cache(client, monkeypatch):
+    """The renderer caches by content: a canonical sheet rendered first must
+    not hand its highlighted html to an external sheet with the same text."""
+    _log_in(client)
+    _vor(monkeypatch, {'name': 'c', 'content': _SHEET, 'source_trust': 'canonical'})
+    assert 'class="hl-' in client.get('/api/v1/source?id=c', base_url=ORIGIN).get_json()['html']
+    _vor(monkeypatch, {'name': 'e', 'content': _SHEET, 'source_trust': 'external'})
+    assert 'class="hl-' not in client.get('/api/v1/source?id=e', base_url=ORIGIN).get_json()['html']
+
+
+@pytest.mark.parametrize('topic', [
+    {'name': 'wotan', 'content': 'the nearest sheet'},   # vor answered with another sheet
+    {'content': 'a sheet with no name'},
+    {'name': '', 'content': 'x'},
+    {'name': ['x'], 'content': 'x'},
+    ['not', 'a', 'topic'],
+])
+def test_source_api_404s_an_id_vor_did_not_answer_exactly(client, monkeypatch, topic):
+    """D-06: vor answers an unknown id with the nearest sheet. The viewer shows
+    a sheet only when it carries the name that was asked for."""
+    _vor(monkeypatch, topic)
+    _log_in(client)
+    r = client.get('/api/v1/source?id=x', base_url=ORIGIN)
+    assert r.status_code == 404
+    assert r.get_json() == {'error': 'no such topic'}
+
+
+def test_source_api_by_path_wants_the_name_the_search_hit_named(client, monkeypatch):
+    import urllib.request
+    monkeypatch.setattr(zhen_app, 'rag', types.SimpleNamespace(vor_url='http://vor.test'))
+    topic = {'name': 'other', 'content': 'the nearest sheet', 'source_path': '/p/t.md'}
+
+    def fake(url, timeout=None):
+        if '/api/search' in url:
+            return _VorReply(json.dumps([{'topic': 'asked', 'source_path': '/p/t.md'}]).encode())
+        return _VorReply(json.dumps(topic).encode())
+
+    monkeypatch.setattr(urllib.request, 'urlopen', fake)
+    _log_in(client)
+    r = client.get('/api/v1/source?path=/p/t.md', base_url=ORIGIN)
+    assert r.status_code == 404
+    assert r.get_json() == {'error': 'no such topic'}
+    topic['name'] = 'asked'
+    r = client.get('/api/v1/source?path=/p/t.md', base_url=ORIGIN)
+    assert r.status_code == 200
+    assert r.get_json()['id'] == 'asked'
+
+
+def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatch):
+    _vor(monkeypatch, {'name': 'x', 'content': 'plain words'})
+
+    def boom(source, **kw):
         raise RuntimeError('renderer bug')
 
     monkeypatch.setattr(zhen_app.zhen_markdown, 'render', boom)
@@ -573,7 +713,7 @@ def test_source_api_falls_back_to_raw_when_the_renderer_fails(client, monkeypatc
 
 
 def test_source_api_treats_non_text_content_as_empty(client, monkeypatch):
-    _vor(monkeypatch, {'content': {'not': 'text'}})
+    _vor(monkeypatch, {'name': 'x', 'content': {'not': 'text'}})
     _log_in(client)
     body = client.get('/api/v1/source?id=x', base_url=ORIGIN).get_json()
     assert body['content'] == '' and body['html'] == ''
@@ -589,3 +729,85 @@ def test_highlight_css_covers_answers_and_the_viewer(client):
     css = client.get('/api/v1/highlight.css', base_url=ORIGIN).get_data(as_text=True)
     assert '.msg.zhen pre code .hl-k' in css
     assert '.md-body pre code .hl-k' in css
+
+
+# ── the route list (D-01): what is open before login cannot drift ────────
+
+ROUTES_GOLDEN = Path(__file__).with_name('zhen_routes.golden')
+_OPEN_BEFORE_LOGIN = {
+    'GET /', 'GET /health', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me',
+    'GET /api/v1/highlight.css',
+}
+
+
+def _route_lines():
+    lines = set()
+    for rule in zhen_app.app.url_map.iter_rules():
+        if rule.endpoint == 'static':
+            continue
+        for method in sorted(rule.methods - {'HEAD', 'OPTIONS'}):
+            lines.add(f'{method} {rule.rule}')
+    return sorted(lines)
+
+
+def _golden_lines():
+    return [ln for ln in ROUTES_GOLDEN.read_text().splitlines() if ln.strip()]
+
+
+def test_route_list_is_current():
+    """zhen_routes.golden is what scripts/zhen-lan-proof.sh walks on the live
+    front. A route added to the app and not to the file fails here, so the
+    live proof cannot test a stale list. ZHEN_UPDATE_GOLDEN=1 rewrites it."""
+    import os
+    got = _route_lines()
+    if os.environ.get('ZHEN_UPDATE_GOLDEN') == '1':
+        ROUTES_GOLDEN.write_text('\n'.join(got) + '\n')
+    assert ROUTES_GOLDEN.exists(), 'run once with ZHEN_UPDATE_GOLDEN=1'
+    assert _golden_lines() == got
+
+
+def test_the_open_list_is_the_apps_open_list():
+    assert {ln.split(' ', 1)[1] for ln in _OPEN_BEFORE_LOGIN} == set(zhen_app._LOGIN_OPEN)
+    assert _OPEN_BEFORE_LOGIN <= set(_golden_lines())
+
+
+class _Untouchable:
+    """Stands in for the RAG pipeline: any use of it is a handler that ran."""
+
+    def __getattr__(self, name):
+        raise AssertionError(f'a handler reached rag.{name} with no login')
+
+
+def _concrete(path):
+    import re
+    return re.sub(r'<int:[^>]+>', '1', re.sub(r'<(?!int:)[^>]+>', 'x', path))
+
+
+def test_every_route_but_the_open_ones_refuses_a_stranger(client, monkeypatch):
+    """Three strangers: a script with no headers, a browser on this origin with
+    the CSRF cookie and no session, and a page on another origin. Each gets
+    401 or 403 on every route that is not open, and no handler runs."""
+    ran = []
+    monkeypatch.setattr(zhen_app, 'rag', _Untouchable())
+    closed = [ln for ln in _golden_lines() if ln not in _OPEN_BEFORE_LOGIN]
+    assert len(closed) >= 30
+    for rule in zhen_app.app.url_map.iter_rules():
+        if rule.endpoint == 'static' or rule.rule in zhen_app._LOGIN_OPEN:
+            continue
+        monkeypatch.setitem(zhen_app.app.view_functions, rule.endpoint,
+                            lambda *a, _ep=rule.endpoint, **kw: ran.append(_ep) or ('ran', 200))
+    same_origin = _browser(client)
+    strangers = [
+        ('no headers', {}),
+        ('same origin, no session', same_origin),
+        ('cross site', {'Origin': 'http://evil.test', 'Sec-Fetch-Site': 'cross-site'}),
+    ]
+    for line in closed:
+        method, path = line.split(' ', 1)
+        for who, headers in strangers:
+            kwargs = {'base_url': ORIGIN, 'headers': headers}
+            if method != 'GET':
+                kwargs['json'] = {}
+            r = client.open(_concrete(path), method=method, **kwargs)
+            assert r.status_code in (401, 403), f'{line} ({who}) answered {r.status_code}'
+    assert not ran

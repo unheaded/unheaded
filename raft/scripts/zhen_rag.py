@@ -1024,12 +1024,17 @@ class RAGPipeline:
         if not answer:
             answer = "(empty answer from zhen-agentd)"
 
-        # The daemon doesn't surface a token count today; use 0.
+        # Completion tokens summed over the ask's model calls, the same
+        # meaning as the direct path's tokens_used. A daemon older than the
+        # field, or a value that is not a count, reads as 0.
+        tokens_out = body.get("tokens_output")
+        if isinstance(tokens_out, bool) or not isinstance(tokens_out, int) or tokens_out < 0:
+            tokens_out = 0
         # The model id is annotated with @agentd so the audit trail in
         # zhen_conversations records the gate-protected path.
         return {
             "answer":      answer,
-            "tokens_used": 0,
+            "tokens_used": tokens_out,
             "model":       f"{self.model_name}@agentd",
             # Pass through useful daemon-side metadata for the caller.
             "agent_trace":  body.get("trace", []),

@@ -112,7 +112,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 CSRF_COOKIE = 'zhen_csrf'
 CSRF_HEADER = 'X-Zhen-CSRF'
 _CSRF_SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
-_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight', '/auth/login'})
+_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/auth/login'})
 
 
 def _allowed_hosts():
@@ -172,6 +172,25 @@ def _with_csrf_cookie(resp):
 def _agentd_headers():
     return agentd_headers(None)
 
+# Where the project is (D-05). Every path the app derives (runbooks, skills,
+# the Champion read root, the model-switch script) comes from this one value,
+# so the app can run under its own account with no home directory to read
+# (deploy/systemd/unheaded-zhen-app.service sets ZHEN_PROJECT_ROOT). Unset, it
+# is the checkout the app has always run from. tests/test_zhen_paths.py holds
+# this function to being the only place that names a home.
+def _project_root():
+    root = os.environ.get('ZHEN_PROJECT_ROOT', '').strip()
+    if not root:
+        return os.path.expanduser('~/tmp/unheaded')
+    if not os.path.isabs(root):
+        # A relative root would move with the working directory: stop, loudly.
+        raise RuntimeError(f'ZHEN_PROJECT_ROOT must be an absolute path, got {root!r}')
+    return os.path.normpath(root)
+
+
+PROJECT_ROOT = _project_root()
+SKILLS_DIR = Path(PROJECT_ROOT) / 'skills'
+
 # Initialize RAG pipeline.
 #
 # WAVE15 REWIRE: index_dir / corpus_file are vestigial — RAGPipeline accepts
@@ -179,8 +198,8 @@ def _agentd_headers():
 # :20110; inference is qwen-coder via llama-server on :8081. Both URLs are
 # overridable via env (VOR_URL, ZHEN_INFERENCE_URL); defaults match the
 # Go-stack production deployment.
-index_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
-corpus_dir = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus'
+index_dir = Path(PROJECT_ROOT) / 'raft' / 'index'
+corpus_dir = Path(PROJECT_ROOT) / 'raft' / 'corpus'
 corpus_file = corpus_dir / 'ring_all.jsonl'
 if not corpus_file.exists():
     corpus_file = corpus_dir / 'ring1.jsonl'  # fallback
@@ -207,19 +226,21 @@ ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20111'
 
 # ---------------------------------------------------------------------------
 # Login (F4, H5): zhen_login.py. Everything here is behind it but the page, the
-# probe, the highlighter (which holds no data) and the login routes themselves;
-# a route added later is closed until it is listed. No issuer configured means
-# nobody logs in, and nothing opens.
+# probe, the constant stylesheet the page shell loads, and the login routes
+# themselves; a route added later is closed until it is listed. No issuer
+# configured means nobody logs in, and nothing opens.
+# tests/zhen_routes.golden lists every route; the gate tests and
+# scripts/zhen-lan-proof.sh walk that list.
 # ---------------------------------------------------------------------------
 LOGIN = zhen_login.Login.from_env(ZHEN_AGENTD_URL)
 _LOGIN_OPEN = frozenset({
     '/', '/health', '/auth/login', '/auth/logout', '/auth/me',
-    '/api/v1/highlight', '/api/v1/highlight.css',
+    '/api/v1/highlight.css',
 })
 # Where the page redeems a pending token: this origin, never the daemon's.
 CONFIRM_ENDPOINT = '/api/v1/agent/confirm'
 # POSTs that only read; every other write takes an operator or admin login.
-_READ_POSTS = frozenset({'/api/v1/search', '/api/v1/context'})
+_READ_POSTS = frozenset({'/api/v1/search', '/api/v1/context', '/api/v1/highlight'})
 
 
 def _session_cookie_name():
@@ -761,8 +782,9 @@ def health():
         'status': 'ok' if rag else 'degraded',
         'rag_ready': rag is not None,
         'well_connected': pg_conn is not None,
-        'session_id': _session_id,
-        'error': startup_error,
+        # Open before login: a fixed word, never the reason. The text is on
+        # /api/v1/system/state, behind the login.
+        'error': 'startup_failed' if startup_error else None,
     })
 
 
@@ -1382,7 +1404,7 @@ def _load_model_keys():
     if _MODEL_KEYS_CACHE is not None:
         return _MODEL_KEYS_CACHE
 
-    project_root = os.environ.get('UNHEADED_ROOT', '/home/govan/tmp/unheaded')
+    project_root = os.environ.get('UNHEADED_ROOT', PROJECT_ROOT)
     script_path = os.path.join(project_root, 'scripts', 'switch-model.sh')
     keys = []
     file_to_key = {}
@@ -1525,7 +1547,7 @@ def switch_model():
         return jsonify({
             'status': 'error',
             'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
-            'note':   'Start the daemon with `bin/zhen-agentd -port 20111` (and WELL_DSN env).',
+            'note':   'Start the daemon: `sudo systemctl start zhen-agentd`, or `raft/start-zhen.sh -gated` (it runs bin/release/zhen-agentd).',
         }), 503
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
@@ -1631,7 +1653,8 @@ def system_state():
     state = {
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'webui':     {'status': 'ok', 'rag_ready': rag is not None,
-                      'well_connected': pg_conn is not None},
+                      'well_connected': pg_conn is not None,
+                      'startup_error': startup_error},
     }
 
     # vor
@@ -1886,7 +1909,7 @@ def get_context():
 @app.route('/api/v1/skills', methods=['GET'])
 def list_skills():
     """List all Kingdom skills Zhen knows about."""
-    skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
+    skills_dir = SKILLS_DIR
     skills = []
 
     for skill_file in sorted(skills_dir.glob('*.skill')):
@@ -1936,7 +1959,7 @@ def list_skills():
 @app.route('/api/v1/skill/<name>', methods=['GET'])
 def get_skill(name):
     """Return the full content of a specific skill."""
-    skills_dir = Path.home() / 'tmp' / 'unheaded' / 'skills'
+    skills_dir = SKILLS_DIR
 
     skill_zip = skills_dir / f'{name}.skill'
     if skill_zip.exists():
@@ -2184,7 +2207,7 @@ def generate_file():
 # ──────────────────────────────────────────────────────────────────────
 
 CHAMPION_ALLOWED = [
-    os.path.expanduser('~/tmp/unheaded/'),
+    PROJECT_ROOT + os.sep,
     '/var/zhen/',
 ]
 CHAMPION_DENIED = ['.ssh', '.env', 'credentials', 'secrets', 'shadow', 'id_rsa', 'id_ed25519']
@@ -2274,7 +2297,7 @@ def champion_health():
 # ADR-024: Zhen Runbook Automation
 # ──────────────────────────────────────────────────────────────────────
 
-RUNBOOKS_DIR = os.path.expanduser('~/tmp/unheaded/runbooks')
+RUNBOOKS_DIR = os.path.join(PROJECT_ROOT, 'runbooks')
 
 # Trust levels — controls what Zhenai can do autonomously vs what needs approval
 # Mirrors real NOC/sysadmin permission model:
@@ -2465,7 +2488,7 @@ def execute_runbook(name):
             'name':   name,
             'status': 'error',
             'error':  f'zhen-agentd unreachable at {agentd_url}: {e}',
-            'note':   'WAVE15 Phase 2b requires the daemon. Start it with `bin/zhen-agentd -port 20111`.',
+            'note':   'WAVE15 Phase 2b requires the daemon. Start it: `sudo systemctl start zhen-agentd`, or `raft/start-zhen.sh -gated`.',
         }), 503
     except Exception as e:
         return jsonify({'name': name, 'status': 'error', 'error': str(e)}), 500
@@ -2583,6 +2606,13 @@ def deny_request(approval_id):
 # Source Viewer — view full source content in a new tab
 # ──────────────────────────────────────────────────────────────────────
 
+def _is_topic(t, name):
+    """True when vor's answer is the topic that was asked for. vor answers an
+    unknown id with the nearest sheet (its own fix is D-11); the viewer shows
+    a sheet only under the name it was asked by."""
+    return isinstance(t, dict) and isinstance(t.get('name'), str) and t['name'] == name and name != ''
+
+
 def _source_payload(topic_id, source, t):
     """What /api/v1/source answers for one vor topic: the raw text, and the
     same text rendered for the viewer (raft/zhen_markdown.py). `html` is None
@@ -2590,8 +2620,12 @@ def _source_payload(topic_id, source, t):
     content = t.get('content', '')
     if not isinstance(content, str):
         content = ''
+    trust = t.get('source_trust', 'canonical')
     try:
-        rendered = zhen_markdown.render(content)
+        # Code in a sheet from an `external` source is shown plain: Pygments is
+        # not run on text the kingdom did not write (D-06). The renderer's time
+        # budget is checked between blocks, not inside one lexer call.
+        rendered = zhen_markdown.render(content, highlight=(trust != 'external'))
     except Exception:  # a renderer bug must not make a sheet unreadable
         log.exception('source viewer: render failed for %r', topic_id)
         rendered = {'html': None, 'outline': [],
@@ -2600,7 +2634,7 @@ def _source_payload(topic_id, source, t):
         'id':       topic_id,
         'source':   source,
         'type':     t.get('source_kind', ''),
-        'trust':    t.get('source_trust', 'canonical'),
+        'trust':    trust,
         'label':    t.get('source_label', ''),
         'title':    t.get('title', ''),
         'category': t.get('category', ''),
@@ -2640,6 +2674,8 @@ def view_source():
                 t = json.loads(resp.read().decode())
         except Exception as exc:
             return jsonify({'error': f'vor topic lookup failed: {exc}'}), 404
+        if not _is_topic(t, source_id):
+            return jsonify({'error': 'no such topic'}), 404
         return jsonify(_source_payload(source_id, t.get('source_path', ''), t))
 
     # Path-based lookup: search vor and filter by source_path.
@@ -2656,6 +2692,9 @@ def view_source():
                 turl = f'{rag.vor_url}/api/topics/{_up.quote(topic, safe="")}'
                 with _ur.urlopen(turl, timeout=5) as tr:
                     t = json.loads(tr.read().decode())
+                # The topic fetched must be the one the search hit named.
+                if not _is_topic(t, topic):
+                    return jsonify({'error': 'no such topic'}), 404
                 return jsonify(_source_payload(topic, source_path, t))
         return jsonify({'error': f'Source not found: {source_path}'}), 404
     except Exception as exc:

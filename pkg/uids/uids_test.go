@@ -113,6 +113,12 @@ var hostOnly = map[string]string{
 	"syslog-relay": "unheaded-syslog-relay",
 	// The retrieval corpus server: deploy/systemd/unheaded-vor.service (DP-712).
 	"vor": "unheaded-vor",
+	// The Zhen web UI's Flask app: deploy/systemd/unheaded-zhen-app.service
+	// (S-ZHEN-FRONT, D-05).
+	"zhen-app": "unheaded-zhen-app",
+	// llama-server for Zhen, on the GPU: deploy/systemd/unheaded-llama.service
+	// (S-ZHEN-FRONT, D-05). Groups render and video.
+	"llama": "unheaded-llama",
 	// The web UI's TLS front: deploy/systemd/unheaded-zhen-ui-front.service (ADR-138).
 	"zhen-ui-front": "unheaded-zhen-ui-front",
 	// The wiki: deploy/systemd/unheaded-wiki-server.service (2026-11-11).

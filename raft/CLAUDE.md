@@ -130,8 +130,14 @@ script stops and says so; there is no plaintext fallback.
 
 ## Stopping
 
+`start-zhen.sh` writes one PID file per process it starts and prints the stop
+line for them when it ends. Stop by PID, or by unit for what a unit runs.
+Never kill by pattern: the pattern also matches the shell that typed it.
+
 ```bash
-pkill -f zhen_app.py
-pkill -f bin/zhen-ui-front
-pkill -f bin/zhen-agentd
+kill "$(cat "$XDG_RUNTIME_DIR/unheaded-zhen/zhen-app.pid")"
+kill "$(cat "$XDG_RUNTIME_DIR/unheaded-zhen/zhen-ui-front.pid")"
+kill "$(cat "$XDG_RUNTIME_DIR/unheaded-zhen/zhen-agentd.pid")"
+# What a unit runs:
+sudo systemctl stop unheaded-zhen-ui-front.service zhen-agentd.service
 ```
