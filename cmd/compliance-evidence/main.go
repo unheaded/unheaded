@@ -181,6 +181,15 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	// What runs, per first-party service (FND-037): state, auth setting and
+	// an unauthenticated request. A host that cannot be read gives no
+	// record, so its sources stay NOT_ASSESSED.
+	services := &collect.HostServices{}
+	if recs, err = services.Collect(ctx, sources); err != nil {
+		return err
+	}
+	fresh = append(fresh, recs...)
+
 	host := &collect.HostSysctl{}
 	if recs, err = host.Collect(ctx, sources); err != nil {
 		return err

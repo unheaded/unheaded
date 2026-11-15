@@ -315,6 +315,10 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 				if !SLORefRe.MatchString(s.Ref) {
 					return nil, invalid("control %q: %s ref %q is not an SLO name", ctl.ID, s.Kind, s.Ref)
 				}
+			case KindHostService:
+				if why := checkHostServiceRef(s.Ref); why != "" {
+					return nil, invalid("control %q: %s ref %q %s", ctl.ID, s.Kind, s.Ref, why)
+				}
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)
 			}
