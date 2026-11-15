@@ -281,3 +281,16 @@ Not sites: `exit` 2 (kernel-routed since D13, no BPF fd work), `exec` 7 (residen
 Slot 0: `proc[0]` is the `userinit` process and its `ofile` is empty until something opens. `init.c` and `uinit.c` do `open("console", O_RDWR)`, then `dup(0)` twice; the literal is in `.rodata`, which `user.ld` places in the first page (`init.elf` `.rodata` ends at 0xF59), and the kernel's copy-in refuses that page for slot 0 (D6, D16). `fs.img` has no `T_DEVICE` inode: the `ls` golden's only "console" is the kernel's `after consoleinit` line. Of the 36 gate programs, 33 never open a console and print on fd 1; nine call `open` with a literal path.
 
 **Step 209.** ADR-135 D21 written (design only). Departures from the plan's eight points are tabled there. The two that change the shape: the kernel gives the first image its console (`upc_slots_init`, three references to one console file), because init's literal is unreadable to the kernel and 33 first images open nothing; and rung 4's keyboard offer is made on every routed read, because "fd below 16" no longer means "the console". Step 209.3's [DECIDE] taken by the recommendation (name match, no disk inode). Review (Step 210) pending.
+
+**Steps 210-211, the independent review and its dispositions.** A separate read-only agent read D21 at `ae44692b` against the code (nothing built or booted). The lane re-read each finding in the tree before writing its disposition; the table is in ADR-135 under D21.
+
+| Id | What the reviewer found | Checked in the tree | Disposition |
+|---|---|---|---|
+| F1 | A console read gated on `upc_is_slot_row()` would send slot 0 to `consoleread`, which sleeps | `upc_is_slot_row` is `p > &proc[0]`; `sleep()` and `sched()` panic only for it; `upc_slot_active()` is set for every tagged trap, slot 0 too; `crprobe` reads only in a child | Accepted: `upc_slot_active()`. `crprobe` gains a slot 0 read (Step 216) |
+| F2 | `hostile_path`'s `open-ceiling-refused` flips: the kernel finds the NUL inside the slice | The probe plants `README` at 0x007FFFF8; BPF refuses it by `user_phys(pid, a0, 128)` ahead of the arm; `open` is aliased to 11 before that arm under the const | Accepted: D16's rule is exec-only under the const; the line becomes `open-unterminated-refused` |
+| F3 | `fd_kind` heads the `read` arm outside the guarded branch; helper names | `let kind = fd_kind(pid, fd)` is the arm's third statement; `name_match_phys` and `name_is` are the helpers | Accepted: the whole arm is guarded |
+| F4 | A recycled `struct file` keeps its `ip` | `fileclose` stores `ref = 0` and `type = FD_NONE` only; `filealloc` sets `ref = 1` only | Accepted: both console-file makers store `ip = 0`; guards on `ip == 0` |
+| F5 | Five things left to guess | read against `usysfile.c`, `ufile.c`, `upc_slots.h` | Settled in D21: mode by `omode`; `#define UPC_RUNG56` in `upc_slots.h` with a parity check against the const; D19's -1 in `filewrite`'s device branch; the match before `begin_op`; `cwd->inum == ROOTINO` |
+| Q2, Q3, Q4, Q6, Q8 | No problem found | the reviewer's evidence re-read | Recorded, a line each, in ADR-135 |
+| Q7 | Which goldens could move | `fs.img`'s contents by `Makefile.mbc-userland` | A moved golden is a stop, not a recapture |
+
