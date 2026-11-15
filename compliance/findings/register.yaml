@@ -357,7 +357,10 @@ findings:
       what runs
     lockout: none
     step: 7
-    plan: redeploy east from develop, then a check that reads the deployed services (FND-037)
+    plan: >-
+      redeploy east from develop, then a check that reads the deployed services (FND-037).
+      2026-11-15: failed since 2026-11-10 on logstore-writer read as open; the gate now knows token-auth
+      services; still DECLARED until Phase 5 reads both hosts (FND-037)
     decision: mode settled - Stevie 2026-09-30 wants several (SSO/OIDC, JWT, API key), selectable per deployment; where keys and the IdP live is proposed in ADR-103 (2026-10-23, 4 open questions for Stevie)
 
   - source: "slo:dashboard"
@@ -1759,7 +1762,11 @@ findings:
       target, ten targets, twice. 43bf9199 runs it at 5 s per target in the meta-gate (150 s for the gate,
       measured on west, was over 20 min); the rest of the full meta-gate passes locally with every gate biting,
       ruff and pip-audit included. Closes when the next push's run finishes inside the limit; if it does not,
-      raise timeout-minutes with the measured time
+      raise timeout-minutes with the measured time.
+      2026-11-15: reproduced in a clean clone at the pushed commit: monitoring/test-alert-path had been failing
+      since eafa3806 (the test's policy rewrite broke the hourly-cap rule and the mailer exited), fixed in
+      4991fab4, it passes and bites. 97 gates bite in the full run. check-python-audit is still red (soupsieve
+      2.10 in the Zhen venv's freeze; the bump waits on Stevie)
 
   - source: "github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)"
     severity: low
@@ -1772,7 +1779,36 @@ findings:
       The S24 merges (S-IRON-GATE, S-WELL-SPRING, S-CHAMPION-HARDENING) were gated on build, -race and the
       repo's own scripts, not gosec. All 18 reviewed in ce860d92: none a bug, each annotated with its current
       rule ID (G704, G703, G124, G306, G706) and reason; gosec ./... 0 issues locally with the job's pinned
-      build. Closes on the next push's Security Scan run
+      build. Closes on the next push's Security Scan run.
+      2026-11-15: red on the 11-11 push for G104 in cmd/wiki-server/nav.go and one suppression above
+      baseline; fixed in 1dcae498; 0 issues in a clean clone
+
+  - source: "github-job:Security Scan (Daily + PR)/Go Vulnerability Check"
+    severity: low
+    class: ci
+    opened: 2026-11-15
+    exposure: >-
+      none on a host from the job itself; the cause is GO-2026-6859 (net/http server crash, MaxBytesReader
+      header race) in go1.27.3, which every Go binary built before the fix carries until it is rebuilt
+    lockout: none
+    step: 1
+    plan: >-
+      Every live Go pin moved to 1.27.4 in 1c90b9ed (30 files); govulncheck reports no vulnerabilities in a
+      clean clone. Closes on the next push's Security Scan run. The running services are rebuilt at their
+      next deploy
+
+  - source: "github-job:Security Scan (Daily + PR)/Secret Scan (gitleaks)"
+    severity: low
+    class: ci
+    opened: 2026-11-15
+    exposure: >-
+      none: the history step flagged a 14-character all-caps placeholder in a curl example of a file deleted
+      by 2613b0c2, whose ignore line left with it. Not a credential
+    lockout: none
+    step: 1
+    plan: >-
+      One history-baseline row added in ec11410b; .gitleaksignore is untouched. Closes on the next push's
+      Security Scan run
 
   - source: "slo:ci-develop"
     severity: medium
