@@ -134,6 +134,56 @@ def test_csrf_page_sends_header_on_same_origin_posts():
     assert 'zhen_csrf' in html
 
 
+def _js_function(html, name):
+    """The source of one top-level `function name(` in the page, to the next
+    top-level function."""
+    import re
+    m = re.search(r'^(async )?function ' + re.escape(name) + r'\(', html, re.MULTILINE)
+    assert m, f'the page has no function {name}'
+    nxt = re.search(r'^(async )?function \w+\(', html[m.end():], re.MULTILINE)
+    return html[m.start():m.end() + (nxt.start() if nxt else len(html))]
+
+
+def test_page_refetches_stats_after_login():
+    """D-03: stats need a login, and were fetched once at page load, so the
+    sidebar showed `?` after logging in. One refreshStats(), called at load
+    and from the login handler; before login it says so instead of `?`."""
+    html = (RAFT / 'static' / 'index.html').read_text()
+    stats_fetch = "fetch(API + '/api/v1/stats')"
+    assert stats_fetch in _js_function(html, 'refreshStats')
+    # The health check and the welcome go through refreshStats; neither keeps
+    # a fetch of its own that a login would not repeat. (The model switch
+    # polls stats for its own reason and is left alone.)
+    assert stats_fetch not in _js_function(html, 'checkHealth')
+    welcome = html[html.index('// Welcome'):]
+    assert stats_fetch not in welcome and 'refreshStats()' in welcome
+    assert "|| '?'" not in welcome
+    login = html[html.index("getElementById('login-form').addEventListener('submit'"):
+                 html.index("getElementById('login-logout').addEventListener")]
+    assert 'refreshStats()' in login
+    assert 'refreshStats()' in _js_function(html, 'checkHealth')
+    assert 'log in to see' in _js_function(html, 'refreshStats')
+    assert "'?'" not in _js_function(html, 'refreshStats')
+
+
+def test_page_keeps_the_question_when_the_session_has_ended():
+    """D-03: a 401 on the chat send opens the login panel (the fetch wrapper),
+    puts the question back in the box, and sends nothing again by itself."""
+    html = (RAFT / 'static' / 'index.html').read_text()
+    ask = _js_function(html, 'ask')
+    i = ask.index('r.status === 401')
+    branch = ask[i:ask.index('}', ask.index('return;', i))]
+    assert 'qInput.value = question' in branch
+    assert "qInput.value = ''" not in branch
+    assert 'ask(' not in branch and 'fetch(' not in branch
+    # A login after the session ended keeps the page (and the box) as it is;
+    # only the first login of a page load reloads it.
+    login = html[html.index("getElementById('login-form').addEventListener('submit'"):
+                 html.index("getElementById('login-logout').addEventListener")]
+    assert 'loadedLoggedIn' in login
+    assert login.count('location.reload()') == 1
+
+
 def test_csrf_view_source_escapes_path(client):
     # A reflected script would read the CSRF cookie and defeat the token.
     _log_in(client)
