@@ -169,6 +169,13 @@ pub const PROC_TABLE_PGD_SLOT: usize = 20;
 /// disjoint RV2MBC_MAP region. Grows the row from `[u32;21]` to `[u32;22]`.
 #[allow(dead_code)]
 pub const PROC_TABLE_RV2MBC_SLOT: usize = 21;
+/// PROC_TABLE row word 17, the state word: the saved flags in its low byte.
+/// ADR-135 D18: while a fork is copying into a slot, that slot's row carries
+/// `PROC_FORK_RESERVED | parent << 8` here. The row is BPF's own (PROC_TABLE is
+/// not guest memory), so no process can set or clear it; fork's finalize writes
+/// the whole row and the mark goes with it.
+pub const PROC_TABLE_STATE_SLOT: usize = 17;
+pub const PROC_FORK_RESERVED: u32 = 0x8000_0000;
 
 // ───────────────────────────────────────────────────────────────────────
 // Option A — per-task pgd (CHOSEN)

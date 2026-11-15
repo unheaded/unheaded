@@ -355,6 +355,33 @@ Two parts were decided (Stevie's answer A-61: fix it, plus an opcode scan):
 
 Until part 2 lands, a U-mode atomic is unreachable only because no loadable image can hold one.
 
+### D18. Fork's first entry is BPF's to decide; no timer switch under ascend (2026-11-15, S-STAGE-2C Phase 6)
+
+Fork copies the parent's working set over several ticks, re-entering the same `ecall` with its cursor in a2. It took
+"the child's pde 0 is not present" to mean "this is the first entry: build the directory, zero the cursor". While
+ADR-109 D6 was off a process could write that word, so a planted present bit skipped the first entry and the caller's
+a2 became the cursor (R-F3). Booted with D6 off for the experiment: the child in the planted slot had an incomplete
+copy.
+
+- **First entry is read from the child slot's PROC_TABLE row.** While a fork copies into a slot, the row's state word
+  (word 17) carries `PROC_FORK_RESERVED | parent << 8`; the first entry writes it, builds the directory and zeroes the
+  cursor; finalize writes the whole row and the mark goes with it. PROC_TABLE is BPF's own map, not guest memory, so
+  no store and no register decides it. With D6 off and the plant landed, the copy is now complete.
+- **Not a tag in a3.** The first design here keyed the entry on a3 carrying `FORK_TAG | child_slot`, as exec and open
+  key theirs. a3 is the caller's register: a process that sets the tag itself before the `ecall` is back where the
+  planted bit put it. Exec and open can afford that, because a forged tag there hurts only the forger's own image; a
+  fork that skips its copy hands the child the slot's last occupant. So the mark lives where the caller cannot write.
+- **A slot is marked from the first copy tick (R-F6), and that is all the reservation there is.** The slot scan does
+  not skip a row another parent has marked, and nothing clears a mark when a parent dies mid-fork: measured, the skip
+  alone is +11,789 verified instructions against 4,064 of headroom. Neither case can happen while nothing else runs
+  between a fork's first tick and its finalize, which is the next point.
+- **I9 is a compile-time fact.** `TIMER_SWITCH` is `!cfg!(feature = "ascend-linux")`, the timer block tests it, and a
+  `const` assertion fails any ascend build in which it is true. Preemption under ascend has to bring the scan skip and
+  the death clear with it.
+
+Cost: +169 verified instructions. `hostile_fork` holds the plant, and a hand-made fork with a2 past the end of the
+copy (a3 clear, then all ones).
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,

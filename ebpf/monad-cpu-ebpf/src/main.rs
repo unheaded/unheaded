@@ -262,6 +262,17 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
     Some(phase12::pid_phys_offset(pid).wrapping_add(va))
 }
 
+/// Whether the BPF timer fires and switches processes: the Doom object only.
+/// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
+/// its cursor in a2 and one reservation mark per slot, and relies on nothing
+/// else running until it finalizes. A timer switch under `ascend-linux` breaks
+/// that, so such a build does not compile.
+const TIMER_SWITCH: bool = !cfg!(feature = "ascend-linux");
+const _: () = assert!(
+    !(cfg!(feature = "ascend-linux") && TIMER_SWITCH),
+    "ADR-135 I9: ascend fork assumes no timer switch; add slot reservation and the tagged cursor review first"
+);
+
 /// xv6 `MAXPATH` (`param.h`): the span a user path may cover. ADR-135 D16: BPF's
 /// `open` and `exec` are reached only when `user_phys(pid, a0, MAXPATH_BYTES)`
 /// answers, so a path that starts outside the caller's slice, or within this many
@@ -780,7 +791,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // not programmed our flat IVT. Firing a BPF-level timer here causes
     // mem_read_word(ivt_addr) = 0 → PC reset to 0 → silent reboot. Gate the
     // timer behind feature so xv6 builds skip it. Doom path keeps firing.
-    if cfg!(not(feature = "ascend-linux"))
+    if TIMER_SWITCH
         && cpu.tick_counter >= intr::TIMER_TICK_DIVISOR
         && cpu.interrupts_enabled != 0
         && cpu.interrupt_pending == 0
@@ -2364,13 +2375,30 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let child_pgd = phase12::pgd_base_for_pid(child_pid as u8);
                     let child_off = phase12::pid_phys_offset(child_pid as u8);
                     // ── Gate 2: give the child its own address space (ADR-074) ──
-                    // First entry for this pid (child pgd pde[0] not yet present):
-                    // build a per-pid page directory mapping VA[0,8MiB) onto the
-                    // child's disjoint physical slice via two 4 MiB superpage
-                    // leaves, and reset the copy cursor (a2/regs[10] — caller-saved,
-                    // fork has no args so it's free scratch across the re-entries).
-                    let pde0 = mem_read_word(child_pgd >> 2);
-                    if (pde0 & mmu::PTE_PRESENT) == 0 {
+                    // First entry for this fork: build a per-pid page directory
+                    // mapping VA[0,8MiB) onto the child's disjoint physical slice
+                    // via two 4 MiB superpage leaves, and reset the copy cursor
+                    // (a2/regs[10] — caller-saved, fork has no args so it's free
+                    // scratch across the re-entries).
+                    //
+                    // ADR-135 D18 (R-F3, R-F6): "first entry" is read from the
+                    // child slot's own PROC_TABLE row, which carries
+                    // PROC_FORK_RESERVED | parent while a fork copies into it.
+                    // It used to be read from the child's pde 0, which a process
+                    // could write while ADR-109 D6 was off: a planted present
+                    // bit skipped this block and made the caller's a2 the cursor.
+                    // No register and no guest memory decides it now.
+                    let want = phase12::PROC_FORK_RESERVED | ((cpu.current_pid as u32) << 8);
+                    let reserved = match PROC_TABLE.get(child_pid) {
+                        Some(row) => row[phase12::PROC_TABLE_STATE_SLOT] == want,
+                        None => false,
+                    };
+                    if !reserved {
+                        if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
+                            unsafe {
+                                (*p)[phase12::PROC_TABLE_STATE_SLOT] = want;
+                            }
+                        }
                         let flags =
                             mmu::PTE_PRESENT | mmu::PTE_LEAF | mmu::PTE_WRITE | mmu::PTE_USER;
                         mem_write_word(child_pgd >> 2, (child_off & mmu::SUPERPAGE_MASK) | flags);

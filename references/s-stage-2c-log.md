@@ -110,3 +110,14 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 100 mutants, each restored: no `--with-bss` → `bss-zero=no`; the SRET mask back → no `malloc` line.
 - Steps 102-104: `cmd/upc-bootctl/tests/sidecar_fatal.rs` red first (4 of 5 failed), then green. The check runs before the eBPF object opens (`UserSidecarMissing`, `UserSidecarBad`), and the two live-path sites are fatal as well. Two older fixtures needed a valid empty sidecar (`tests/opcode_scan.rs`, `tests/rv2mbc_sha.rs`). All bootctl test results ok; fmt and clippy clean.
 - Gate `bss-after`: `same=12 diff=0 rc=0 doom=1 ascend=895767`; `bssprobe: 2 checks (UPC_RUNG_SBRK)` PASS; no corpus boot refused for a sidecar.
+
+## Phase 6 measurements (2026-11-15)
+
+- Step 114, departure: D18's first design (a `FORK_TAG` in a3) is not built. a3 is the caller's register, so a process can set the tag itself and skip the copy with no page-directory write at all, D6 on or off. The first entry is keyed on a mark in the child slot's PROC_TABLE row instead, which is the reservation mark of point (2) put to use.
+- Probe on the tree before the change, D6 on: `copy-complete=yes`, `pde-plant-dropped=yes`, `a2-ignored=yes`, `done` (the plant is dropped by D6).
+- The hole, old fork code with D6 off for the experiment: `copy-complete=no`, `pde-plant-dropped=no`.
+- Key and tripwire: 895936, +169 against 895767: BUDGET-OK, headroom 4064. Doom object builds.
+- The slot scan skipping rows marked by another parent: 907,725, +11,958 in all: BUDGET-FAIL. `[STUCK]` with that number (Step 118's own ruling: preemption, which needs it, is out of scope); the death clear with it.
+- Step 119, D6 on: three `=yes`, `done`.
+- Step 120, new fork code with D6 off for the experiment: `copy-complete=yes`, `pde-plant-dropped=no` (the plant landed and did not matter), `a2-ignored=yes`. D6 back on: 895936.
+- Step 121: with `TIMER_SWITCH` forced true the ascend build fails, the message naming ADR-135 I9 (2 hits); restored, 895936.
