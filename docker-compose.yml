@@ -1026,7 +1026,8 @@ services:
     # (Origin host == request Host), which works from localhost, the LAN IP, and
     # any future reverse proxy. A literal "*" here is NOT allow-all — isOriginAllowed
     # does exact matching, so "*" silently denies every real browser origin.
-    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--compliance-root", "/opt/unheaded"]
+    # ADR-147 decision 9: every graph reads VictoriaMetrics (shared network: observe)
+    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--compliance-root", "/opt/unheaded", "--vm-url", "http://victoria:8428"]
     ports:
       # The nav links in the dashboard and kanban pages name the host's LAN
       # address. Set UNHEADED_LAN_BIND to that address to keep them working;
