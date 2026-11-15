@@ -15,7 +15,8 @@
 #
 # ASSUMPTIONS:
 #   - NixOS already installed and booted on EAST hardware
-#   - SSH access working (root@fd00:dead:beef::2)
+#   - SSH access working as EAST_USER (default govan, with sudo there):
+#     govan@fd00:dead:beef::2
 #   - WEST is online at fd00:dead:beef::1
 #   - Repo cloned/copied to ~/tmp/unheaded/ on EAST
 set -euo pipefail
@@ -26,6 +27,7 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-$HOME/tmp/unheaded}"
 WEST_IP="fd00:dead:beef::1"
 EAST_IP="fd00:dead:beef::2"
+EAST_USER="${EAST_USER:-govan}"
 EAST_WG_IP="fd00:dead:beef:wg::2"
 WEST_WG_IP="fd00:dead:beef:wg::1"
 EAST_SUBNET="fd00:dead:beef:2::/64"
@@ -230,11 +232,11 @@ phase_services() {
     info "Copy binaries from WEST:"
     echo "  # On WEST:"
     echo "  tar czf /tmp/east-svc.tar.gz -C /opt/unheaded/bin wotan monad sophia anamnesis gateway dashboard-backend"
-    echo "  scp /tmp/east-svc.tar.gz root@${EAST_IP}:${EAST_SVC_DIR}/"
+    echo "  scp /tmp/east-svc.tar.gz ${EAST_USER}@[${EAST_IP}]:/tmp/"
     echo ""
-    echo "  # On EAST:"
-    echo "  tar xzf ${EAST_SVC_DIR}/east-svc.tar.gz -C ${EAST_SVC_DIR}/bin/"
-    echo "  chmod +x ${EAST_SVC_DIR}/bin/*"
+    echo "  # On EAST (the service directory is root's, so through sudo):"
+    echo "  sudo tar xzf /tmp/east-svc.tar.gz -C ${EAST_SVC_DIR}/bin/"
+    echo "  sudo chmod +x ${EAST_SVC_DIR}/bin/*"
     return
   fi
 

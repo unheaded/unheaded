@@ -7,7 +7,8 @@
 // zhen-claude. It replaces raft/zhen_mcp_server.py (S-CHAMPION-HARDENING
 // Phase 10, M-132). `.mcp.json` starts it through scripts/zhen-mcp.sh.
 //
-// Six read-only tools are always listed: corpus_search (vor), file_read,
+// Eight read-only tools are always listed: corpus_search (vor),
+// code_definition and code_callers (the code index), file_read,
 // service_health, runbook_list, runbook_show, local_llm (one completion
 // from the running llama-server; it never starts or swaps a model).
 // Three mutate the host and are neither listed nor callable unless the

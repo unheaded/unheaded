@@ -105,18 +105,18 @@ These maps have corresponding struct definitions in `pkg/protocol/bpfschema/`:
 
 | Existing Map | bpfschema Struct | Status | Action |
 |-------------|------------------|--------|--------|
-| (new) HMAC_KEYS | HMACKeyKey/Value | Scaffolded | Wire to Shield XDP |
+| (new) HMAC_KEYS | HMACKeyKey/Value | Scaffolded | In hop-ebpf (ADR-125) |
 | (new) SEQ_COUNTERS | SeqCounterKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) MIGRATION_TOKENS | FlowMigrationTokenValue* | ✅ Wired | Flow Tracker (IPv4-based) |
-| (new) RETRY_TOKENS | MigrationTokenKey/Value | Scaffolded | Wire to Shield XDP (IPv6) |
+| (new) RETRY_TOKENS | RetryTokenKey/Value | Scaffolded | In hop-ebpf (ADR-125) |
 | (new) ERROR_COUNTERS | ErrorCounterKey/Value | Scaffolded | Wire to Shield TC |
 | (new) SETTINGS | SettingsKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) DOS_STATE | DoSStateKey/Value | Scaffolded | Wire to Hop XDP |
 | (new) FLOW_TYPES | FlowTypeEntry | Scaffolded | Wire to Hop XDP |
 | ~~GOAWAY_STATE~~ | — | Removed (S-TRUE-WIRE Step 207) | — |
 | (new) CANCEL_FLOWS | FlowCancelValue* | ✅ Wired | Flow Tracker (IPv4-based) |
-| (new) HOP_VALIDATORS | HopValidatorKey/Value | Scaffolded | Wire to Shield XDP |
-| (new) AUTHORITY | AuthorityKey/Value | Scaffolded | Wire to Shield TC |
+| (new) HOP_VALIDATORS | HopValidatorKey/Value | Scaffolded | In hop-ebpf (ADR-125) |
+| ~~AUTHORITY~~ | — | Removed (S-WIRE-HONEST, 2026-11-04) | — |
 
 ### Maps Needing bpfschema Definitions (Existing eBPF Maps)
 

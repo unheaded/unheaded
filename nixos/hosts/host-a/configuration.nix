@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
-# Host-A: The Forge — Full Unheaded stack + vLLM/ROCm (OPNsense firewall VM removed 2026-11-03)
+# Host-A: The Forge — Full Unheaded stack + llama-server (ROCm) (OPNsense firewall VM removed 2026-11-03)
 # nixos-rebuild switch to apply
 { config, pkgs, lib, ... }:
 

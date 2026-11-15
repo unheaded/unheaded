@@ -15,12 +15,12 @@ package pqc
 //   - HQC-128: NIST security level 1 (pk ~2249 bytes, ct ~4481 bytes)
 //   - HQC-192: NIST security level 3 (pk ~4522 bytes, ct ~6882 bytes)
 //
-// Status: ROADMAP (Q3 2026). cloudflare/circl does not provide an HQC
-// implementation. The circl kem/ directory contains: frodo, hybrid,
-// kyber, mlkem, schemes, sike, xwing. No hqc package exists.
+// Status: reserved; no implementation. cloudflare/circl does not provide HQC.
+// At v1.6.5 the circl kem/ directory contains: frodo, hybrid, kyber, mlkem,
+// schemes, sike, xwing. No hqc package exists.
 //
 // Alternative Go libraries considered:
-//   - No mature, audited Go implementation of HQC exists as of March 2026.
+//   - No Go implementation of HQC is vendored or referenced in this tree.
 //   - HQC was only announced as a FIPS 207 selection in 2024, making it
 //     the newest of the NIST PQC standards.
 //   - The NIST reference implementation is in C; a CGo wrapper is possible
