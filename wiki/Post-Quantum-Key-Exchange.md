@@ -30,7 +30,7 @@ A Preferred listener guarantees a hybrid only to a client that offers one. Rust:
 
 | Gate | Fails when | Baseline |
 |---|---|---|
-| `scripts/check-pq-kex.sh` | a classical-only key-exchange config appears: `CurvePreferences` without a hybrid, a first-party TLS floor below 1.3, `tlsmlkem=0`, a `go` directive below 1.24, the rustls `ring` provider, Postgres below 18 serving TLS, an sshd `KexAlgorithms` with no hybrid | `docs/policy/pq-kex-baseline.txt`, shrink-only; a fixed line must be removed (`--update`) |
+| `scripts/check-pq-kex.sh` | a classical-only key-exchange config appears: `CurvePreferences` without a hybrid, a first-party TLS floor below 1.3, `tlsmlkem=0`, a `go` directive below 1.24, the rustls `ring` provider, Postgres below 18 serving TLS, an sshd `KexAlgorithms` with no hybrid. Also when the SHA-256 round constants appear in a shipped source file the own-primitive table does not list (`own-primitive-unlisted`, never baselined) | `docs/policy/pq-kex-baseline.txt`, shrink-only; a fixed line must be removed (`--update`) |
 | `scripts/check-crypto-inventory.sh` | `compliance/crypto/cbom.cdx.json` differs from a regeneration (`--schema` also validates CycloneDX 1.6) | none |
 
 There are no runtime PQ counters. The eight `unheaded_pqc_*` metrics in `pkg/metrics/pqc_metrics.go` were never set by any code path and were deleted 2026-10-27 (M-086): PQ key exchange is measured by these two gates, the CBOM and the probes below. A counter comes back the day code that does PQC work sets it.
@@ -40,6 +40,21 @@ Both run in CI and the meta-gate proves each can fail. Explain one file: `go run
 ## The inventory (CBOM)
 
 `compliance/crypto/cbom.cdx.json`: CycloneDX 1.6, one component per TLS, SSH, WireGuard, Postgres or signature site, with `unheaded:pq-status` (`hybrid-strict`, `hybrid`, `hybrid-opportunistic`, `classical`, `pq-psk-static`, `pq-signature`, ...). Count by status: `go run ./cmd/crypto-inventory summary`. Host facts come from read-only snapshots in `compliance/crypto/hosts/<host>.json` (`collect-host --host east --ssh govan@east --out compliance/crypto/hosts/east.json`); `scan` never connects anywhere.
+
+Since 2026-11-15 the inventory also lists symmetric encryption, key derivation and hashes that feed a construction. These carry `pq-status: n/a`: the row says the primitive is in the tree and where.
+
+| Kind (last part of the `bom-ref`) | What gives a row | CycloneDX primitive |
+|---|---|---|
+| `aead-import` | a Go import of `x/crypto/chacha20poly1305` or `x/crypto/nacl/{secretbox,box}`; `crypto/aes` in a file that calls one of `crypto/cipher`'s `NewGCM` constructors | `ae` |
+| `cipher-import` | `crypto/aes` in a file with no `NewGCM` (the mode is not visible there) | `block-cipher` |
+| `kdf-import` | a Go import of HKDF (`crypto/hkdf`, `x/crypto/hkdf`), Argon2, scrypt, bcrypt or PBKDF2 | `kdf` |
+| `hash-import` | a Go import of SHA-3 (`crypto/sha3`, `x/crypto/sha3`) | `hash` |
+| `rust-crypto-dep` | a `[dependencies]` line in a `Cargo.toml` naming `x25519-dalek`, `aes-gcm`, `chacha20poly1305`, `hkdf`, `sha2`, `sha3` or `blake3` | per crate |
+| `own-primitive` | a primitive written in this repository, from a fixed table in `cmd/crypto-inventory/scan_own.go`: the SHA-256 in `crates/upc-api/src/surface_hash.rs` and the HKDF in `services/sophia/hkdf_derive.go` | `hash`, `kdf` |
+
+Not listed, on purpose: Go's `crypto/sha256` and `crypto/sha512`. They are digests everywhere they appear here (content ids, cache keys, signature pre-hashes), and a row per import would bury the constructions. A test pins the choice. `crypto/hmac` is not listed either.
+
+Adding a hand-written primitive means adding its file to the table with the reason no library fits, and telling whoever keeps the export record.
 
 ## Probes
 
