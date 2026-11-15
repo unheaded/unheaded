@@ -35,6 +35,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -637,6 +638,32 @@ type askResponse struct {
 	BudgetHit bool         `json:"budget_hit"`
 	Trace     []traceEntry `json:"trace"`
 	SessionID string       `json:"session_id"`
+	// The sum of llama-server's usage over this ask's model calls; 0 when
+	// the model reported none.
+	TokensInput  int64 `json:"tokens_input"`
+	TokensOutput int64 `json:"tokens_output"`
+}
+
+// askUsage adds up what the model calls of one ask used. It rides in the
+// request context, so the LLM needs no knowledge of which ask it serves and
+// one ask never counts another's.
+type askUsage struct {
+	in, out atomic.Int64
+}
+
+type askUsageKey struct{}
+
+func withAskUsage(ctx context.Context) (context.Context, *askUsage) {
+	u := &askUsage{}
+	return context.WithValue(ctx, askUsageKey{}, u), u
+}
+
+// addAskUsage is a no-op outside an ask (the worker, the scheduler).
+func addAskUsage(ctx context.Context, in, out int64) {
+	if u, ok := ctx.Value(askUsageKey{}).(*askUsage); ok {
+		u.in.Add(in)
+		u.out.Add(out)
+	}
 }
 
 type traceEntry struct {
@@ -717,7 +744,8 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
-	res, err := a.Run(withRunID(r.Context()), req.Goal)
+	ctx, usage := withAskUsage(withRunID(r.Context()))
+	res, err := a.Run(ctx, req.Goal)
 	if err != nil {
 		agentRunsTotal.WithLabelValues("error").Inc()
 		writeJSONError(w, http.StatusInternalServerError, "agent.Run: %v", err)
@@ -744,6 +772,9 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		BudgetHit: res.BudgetHit,
 		SessionID: req.SessionID,
 		Trace:     traceFor(res.Trace),
+
+		TokensInput:  usage.in.Load(),
+		TokensOutput: usage.out.Load(),
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
@@ -897,7 +928,8 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
-	res, err := a.Stream(withRunID(r.Context()), req.Goal, func(t agent.Turn) bool {
+	ctx, usage := withAskUsage(withRunID(r.Context()))
+	res, err := a.Stream(ctx, req.Goal, func(t agent.Turn) bool {
 		entry := traceEntryFromAgent(t)
 		return emit("turn", entry)
 	})
@@ -922,10 +954,12 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	emit("done", map[string]any{
-		"answer":     res.Answer,
-		"turns_used": res.TurnsUsed,
-		"budget_hit": res.BudgetHit,
-		"session_id": req.SessionID,
+		"answer":        res.Answer,
+		"turns_used":    res.TurnsUsed,
+		"budget_hit":    res.BudgetHit,
+		"session_id":    req.SessionID,
+		"tokens_input":  usage.in.Load(),
+		"tokens_output": usage.out.Load(),
 	})
 }
 
@@ -1398,6 +1432,7 @@ func (l *llamaLLM) Complete(ctx context.Context, msgs []agent.Message, maxTokens
 	run := l.energy.Start(ctx)
 	text, u, err := l.complete(ctx, msgs, maxTokens, temp, seed)
 	est := run.Stop()
+	addAskUsage(ctx, u.PromptTokens, u.CompletionTokens)
 	if l.audit != nil {
 		rec := claudebridge.RequestRecord{
 			EnergyJoules: est.Joules, EnergyMethod: est.Method,
