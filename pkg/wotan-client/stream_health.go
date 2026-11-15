@@ -42,6 +42,15 @@ var wotanClientPolls = auto.NewCounterVec(
 	[]string{"topic"},
 )
 
+// wotanClientStreamRefused counts per-topic stream refusals (REV-9).
+var wotanClientStreamRefused = auto.NewCounterVec(
+	prom.CounterOpts{
+		Name: "unheaded_wotan_client_stream_refused_total",
+		Help: "Topic streams Wotan refused (PermissionDenied, Unauthenticated, NotFound, InvalidArgument, FailedPrecondition), by topic and code; a refusal does not degrade the client to HTTP",
+	},
+	[]string{"topic", "code"},
+)
+
 // wotanClientStreamTransport is 1 for the transport a topic's stream uses
 // now; the series for the other transport is absent.
 var wotanClientStreamTransport = auto.NewGaugeVec(

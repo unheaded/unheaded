@@ -6,11 +6,17 @@ package wotanClient
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	chatpb "unheaded/services/wotan/proto"
 )
+
+// refusedDelayMax caps the wait between tries of a refused topic stream.
+const refusedDelayMax = 5 * time.Minute
 
 // ErrNoStreamTransport is StreamMessages on a client with no gRPC address
 // that was not built WithHTTPPollStreams (ADR-147 Phase 6).
@@ -69,8 +75,13 @@ func streamOver(ctx context.Context, sc *safeChannel) bool {
 // grpcPhase streams topic over gRPC from *cursor, reconnecting on transient
 // errors within the gRPC client's budget (maxRetries per outage, the delay
 // growing 1.5x to 10 s; a stream that delivered or stayed up healthyAge
-// starts a fresh budget). It returns false when the caller ended the
-// stream, true after degrading the client to HTTP (the caller polls).
+// starts a fresh budget). Wotan refusing this topic (isTopicRefusal) is
+// not a transport failure (REV-9): it is counted and logged for the topic,
+// and the stream is tried again on gRPC after refusedDelay, doubling to
+// refusedDelayMax; the client stays on gRPC, so the other topics do not
+// fall to HTTP polling and back on every re-probe. It returns false when
+// the caller ended the stream, true after degrading the client to HTTP
+// (the caller polls).
 func (c *Client) grpcPhase(ctx context.Context, topic, displayName string, gsub *Subscriber, sc *safeChannel, cursor *int64) (*Subscriber, bool) {
 	gc, err := c.getOrCreateGRPCClient()
 	if err == nil && gsub == nil {
@@ -87,6 +98,11 @@ func (c *Client) grpcPhase(ctx context.Context, topic, displayName string, gsub 
 	if healthyAge == 0 {
 		healthyAge = 30 * time.Second
 	}
+	firstRefused := gc.refusedDelay
+	if firstRefused == 0 {
+		firstRefused = 5 * time.Second
+	}
+	refusedWait := firstRefused
 	for {
 		start := time.Now()
 		delivered, err := gc.streamMessagesSingle(ctx, topic, gsub, sc, cursor)
@@ -95,6 +111,21 @@ func (c *Client) grpcPhase(ctx context.Context, topic, displayName string, gsub 
 		}
 		if delivered > 0 || time.Since(start) >= healthyAge {
 			retries, delay = 0, gc.retryDelay
+			refusedWait = firstRefused
+		}
+		if isTopicRefusal(err) {
+			code := status.Code(err).String()
+			wotanClientStreamRefused.WithLabelValues(topic, code).Inc()
+			log.Printf("[WARN] wotan_client: Wotan refused the stream for %s (%s: %s); the client stays on gRPC, retrying this topic in %s", topic, code, status.Convert(err).Message(), refusedWait)
+			select {
+			case <-time.After(refusedWait):
+			case <-ctx.Done():
+				return gsub, false
+			case <-sc.done:
+				return gsub, false
+			}
+			refusedWait = min(refusedWait*2, refusedDelayMax)
+			continue
 		}
 		if isTransientError(err) && retries < gc.maxRetries {
 			retries++
@@ -110,6 +141,23 @@ func (c *Client) grpcPhase(ctx context.Context, topic, displayName string, gsub 
 		}
 		c.degradeToHTTP()
 		return gsub, true
+	}
+}
+
+// isTopicRefusal reports whether err is Wotan refusing this topic's stream
+// (its permissions, the caller's identity, the topic or the request), as
+// opposed to the transport failing: HTTP polling would be refused the same,
+// so a refusal must not degrade the client.
+func isTopicRefusal(err error) bool {
+	st, ok := status.FromError(err)
+	if !ok || err == nil {
+		return false
+	}
+	switch st.Code() {
+	case codes.PermissionDenied, codes.Unauthenticated, codes.NotFound, codes.InvalidArgument, codes.FailedPrecondition:
+		return true
+	default:
+		return false
 	}
 }
 

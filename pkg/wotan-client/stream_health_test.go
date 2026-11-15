@@ -130,7 +130,10 @@ func TestStreamHealth_IdleStreamStaysUp(t *testing.T) {
 func TestStreamHealth_FallbackToPollingReportsTransportHTTP(t *testing.T) {
 	const topic = "alerts.critical"
 	c, srv, _ := grpcAndHTTPWotan(t, topic)
-	srv.setStreamError(status.Error(codes.PermissionDenied, "gone")) // non-transient: gRPC gives up
+	// Non-transient and not a per-topic refusal: gRPC gives up. (A
+	// PermissionDenied here before REV-9; a refusal no longer degrades the
+	// client, TestTopicRefusalDoesNotDegradeTransport.)
+	srv.setStreamError(status.Error(codes.Internal, "gone"))
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	if _, err := c.StreamMessages(ctx, topic); err != nil {

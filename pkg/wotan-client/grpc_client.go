@@ -41,6 +41,9 @@ type GRPCClient struct {
 	// Reconnection settings
 	maxRetries int
 	retryDelay time.Duration
+	// refusedDelay is the first wait before a refused topic stream is
+	// tried again on gRPC (doubling to refusedDelayMax); 0 means 5 s.
+	refusedDelay time.Duration
 
 	// queryTimeout bounds GetMessages; 0 means defaultQueryTimeout.
 	queryTimeout time.Duration
