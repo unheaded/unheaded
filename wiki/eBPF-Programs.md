@@ -88,6 +88,8 @@ Series on the collector's `/metrics`:
 | `trace_collector_latency_probe_events_total{stat}` | the probe's own counters (`LATENCY_STATS`), read at scrape time: `send_enter`, `send_exit`, `recv_enter`, `recv_exit`, `connect_enter`, `connect_exit`, `events_sent`, `events_dropped`, `map_updates`, `map_insert_failed` |
 | `trace_collector_latency_stats_read_errors_total` | scrapes that could not read `LATENCY_STATS` (the family is left out of that scrape) |
 | `latency_reader_errors_total{operation="sweep"}` | sweeps that did not finish; the next one starts over |
+| `trace_collector_flow_map_entries` | entries in flow_tracker's `FLOWS` map at the last complete read (same batched pass, every second; an LRU of 65,536) |
+| `trace_collector_map_unbatched_sweeps_total{map}` | passes over `latency` or `flows` that fell back to one entry at a time (two `bpf()` calls per entry); anything but 0 means the collector's CPU grows with that map |
 
 Reading `map_insert_failed`: with the LRU it should stay 0, because a full map evicts instead of refusing. A rising value means the kernel refused inserts for another reason (memory pressure on the map's allocator) and new threads are losing samples. `events_dropped` rises steadily today: the probe also writes every sample to the `LATENCY_EVENTS` ring buffer, which no program reads, so it is full (parked in ADR-144's 2026-11-12 update).
 

@@ -224,7 +224,7 @@ func BenchmarkSweepLatency65536(b *testing.B) {
 	ctx := context.Background()
 
 	b.Run("stale", func(b *testing.B) {
-		m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+		m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 		s := newLatencySweeper(m, func([]byte) {})
 		if err := s.sweep(ctx); err != nil { // the first sweep sees every entry as new
 			b.Fatal(err)
@@ -239,7 +239,7 @@ func BenchmarkSweepLatency65536(b *testing.B) {
 	})
 
 	b.Run("fresh", func(b *testing.B) {
-		m := &fakeLatencyMap{keys: keys, values: values, batchSize: latencySweepBatch}
+		m := &fakeBatchedMap{keys: keys, values: values, batchSize: latencySweepBatch}
 		published := 0
 		s := newLatencySweeper(m, func([]byte) { published++ })
 		b.ReportAllocs()
