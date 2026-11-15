@@ -124,3 +124,69 @@ func TestApplyNotSpawned(t *testing.T) {
 		t.Errorf("a live file changed: %+v", b)
 	}
 }
+
+// TestScanRust_CryptoDeps: a Cargo.toml naming a symmetric, KDF, hash or
+// key-agreement crate from the fixed table gives one row per crate (D-34).
+func TestScanRust_CryptoDeps(t *testing.T) {
+	assets := scanRustFixtures(t)
+	tests := []struct {
+		name         string
+		line         int
+		prim, param  string
+		status, link string
+		detail       string
+	}{
+		{"x25519-dalek", 6, primKeyAgree, "X25519", pqClassical, linkEnabled, "optional"},
+		{"aes-gcm", 7, primAE, "AES-GCM", pqNA, linkEnabled, "optional"},
+		{"chacha20poly1305", 8, primAE, "ChaCha20-Poly1305", pqNA, linkEnabled, ""},
+		{"hkdf", 9, primKDF, "HKDF", pqNA, linkEnabled, ""},
+		{"sha2", 10, primHash, "SHA-2", pqNA, linkEnabled, ""},
+		{"sha3", 11, primHash, "SHA-3", pqNA, linkEnabled, ""},
+		{"blake3", 12, primHash, "BLAKE3", pqNA, linkEnabled, ""},
+	}
+	const manifest = "crates/cryptoy/Cargo.toml"
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			a := one(t, assets, manifest, tt.line, kindRustCryptoDep)
+			if a.AssetType != assetAlgorithm || a.Primitive != tt.prim || a.ParamSet != tt.param {
+				t.Errorf("%s: type=%q primitive=%q param=%q, want %q %q %q", a.Ref(), a.AssetType, a.Primitive, a.ParamSet, assetAlgorithm, tt.prim, tt.param)
+			}
+			if a.PQStatus != tt.status || a.LinkState != tt.link || a.Scanner != "rust" {
+				t.Errorf("%s: pq-status=%q link=%q scanner=%q", a.Ref(), a.PQStatus, a.LinkState, a.Scanner)
+			}
+			if !strings.Contains(a.Name, tt.name) {
+				t.Errorf("%s: name %q does not name the crate", a.Ref(), a.Name)
+			}
+			if tt.detail != "" && !strings.Contains(a.Detail, tt.detail) {
+				t.Errorf("%s: detail %q lacks %q", a.Ref(), a.Detail, tt.detail)
+			}
+			if len(rulesFor(a)) != 0 {
+				t.Errorf("%s: lint rules %v on a crypto crate row", a.Ref(), rulesFor(a))
+			}
+		})
+	}
+	if got := at(assets, manifest, 0, kindRustCryptoDep); len(got) != len(tests) {
+		t.Errorf("%d crypto rows in %s, want %d (serde and the dev-dependency argon2 give none)", len(got), manifest, len(tests))
+	}
+}
+
+// TestScanRust_CryptoDepIsNotMarkedNotSpawned: zhend's "QUIC server never
+// spawns" note is about its TLS rows; a crypto crate line in the same
+// manifest must not inherit it.
+func TestScanRust_CryptoDepIsNotMarkedNotSpawned(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "crates/zhend/Cargo.toml", "[package]\nname = \"zhend\"\nversion = \"0.1.0\"\n\n[dependencies]\nblake3 = \"1\"\n")
+	writeFile(t, root, "crates/zhend/src/main.rs", "fn main() {}\n")
+	tr, err := dirTree(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assets, err := scanRust(tr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := one(t, assets, "crates/zhend/Cargo.toml", 6, kindRustCryptoDep)
+	if a.LinkState != linkEnabled || strings.Contains(a.Detail, "QUIC") {
+		t.Errorf("blake3 in zhend: link=%q detail=%q", a.LinkState, a.Detail)
+	}
+}
