@@ -132,3 +132,22 @@ No load was run. What was read to ground it, on both hosts, changing nothing:
 
 **Status:** unchanged, Proposed (parked).
 
+## Update 2026-11-15 (how the stress run is to be worked)
+
+Stevie, verbatim:
+
+> as a large well thought out detail oriented multi /unheaded-skill(a few) effort
+
+So items 12 to 20 are not settled in one pass by one reader. Each has an owner among the skills. The owners answer their items in writing, in this ADR, with numbers from the hosts; the plan is forged only after that, and only when Stevie lifts the freeze for it.
+
+| Skill | Owns | What its answer contains |
+|---|---|---|
+| Scientist | 13, 14, 16 | The experiment: what is held fixed and what is varied, how the load is stepped up to 80 to 90%, how long a run must be to tell a change from noise, the pass marks and how each is read |
+| Architect | 15, 17 (hosts), 18, 20 | The rails and stop marks; the storage layout (what moves off the spinning disk, to where); kernel, cgroup and network settings in the order they are tried; what "cluster" must prove; which lab |
+| Erda | 17 (data) | Postgres, ClickHouse and VictoriaMetrics under load: their settings, their growth, where their files live, what a restart under load costs |
+| Developer | 12, 19, 17 (Go runtime) | The clients that drive each real application and what a recorded day of each looks like; the generators; GOMAXPROCS, GOGC and memory limits per service, measured |
+| Micromanager | 8, and the order of work | One reliability row per service before the run; the list of what must be true to start, to continue and to call it done |
+| Warmonger | the battle plan | Written last, from the answers above: every command, gate, stop mark and rollback |
+
+**Status:** unchanged, Proposed (parked).
+
