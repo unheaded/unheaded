@@ -228,7 +228,7 @@ func searchFixture(t *testing.T) (http.Handler, *fakeVor) {
 		topics: []vorclient.Topic{
 			bash, // first: the nearest match for a name vor does not have
 			wotan, ghost, adr, hostile,
-			canonical("networking", "tcp", "TCP", "# TCP\n"),
+			canonical("networking", "tcp", "TCP", "# TCP\n\nSee [arp](arp.md), [bash loops](../shell/bash.md#loops), [saml](auth/saml) and [udp](udp.md).\n"),
 			canonical("networking", "arp", "ARP", "# ARP\n"),
 			canonical("shell", evilAttr, "Attr", "# Attr\n"),
 			canonical(evilCat, "odd", "Odd", "# Odd\n"),
@@ -661,9 +661,9 @@ func TestSheet(t *testing.T) {
 		`<h1 id="bash">Bash</h1>`,
 		`for f in *; do echo &quot;$f&quot;; done`,
 		`<p class="page-note">vor sheet shell/bash</p>`,
-		// A sheet's own text is left alone: no wiki link, no GitHub link.
-		`<a href="../shell/zsh.md">zsh</a>`,
-		`[[ -f x ]]`,
+		// zsh is not a sheet vor has: the text stays without a link. A
+		// sheet's [[ ]] is shell, never a wiki link.
+		`<p>See zsh and [[ -f x ]].</p>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sheet page lacks %s:\n%s", want, mainOf(t, body))

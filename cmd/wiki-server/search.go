@@ -19,6 +19,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/yuin/goldmark/text"
+
 	"unheaded/pkg/vorclient"
 )
 
@@ -155,7 +157,13 @@ var sheetsTmpl = template.Must(template.New("sheets").Parse(
 type sheetsPage struct {
 	Count      int
 	Categories []sheetCategory
+	// known holds every sheet listed, for the links between sheets
+	// (sheetlinks.go).
+	known map[sheetKey]bool
 }
+
+// sheetKey names one sheet: a name is unique only within its category.
+type sheetKey struct{ category, name string }
 
 type sheetCategory struct {
 	Name   string
@@ -399,9 +407,13 @@ func (ws *WikiServer) handleSheet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A sheet's links are its own, not the wiki's: neither [[Page]] nor the
-	// repository links are rewritten.
+	// repository links are rewritten. Its links to other sheets are
+	// (sheetlinks.go).
+	data := []byte(t.Content)
+	doc := ws.md.Parser().Parse(text.NewReader(data))
+	rewriteSheetLinks(doc, t.Category, ws.knownSheets(r.Context()))
 	var body bytes.Buffer
-	if err := ws.md.Convert([]byte(t.Content), &body); err != nil {
+	if err := ws.md.Renderer().Render(&body, data, doc); err != nil {
 		logf("ERROR", "render sheet", "err", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -473,7 +485,7 @@ func (ws *WikiServer) listSheets(ctx context.Context) (sheetsPage, error) {
 	if err != nil {
 		return sheetsPage{}, err
 	}
-	var page sheetsPage
+	page := sheetsPage{known: map[sheetKey]bool{}}
 	byCategory := map[string][]sheetEntry{}
 	for _, s := range topics {
 		if s.SourceTrust != vorclient.TrustCanonical {
@@ -488,6 +500,7 @@ func (ws *WikiServer) listSheets(ctx context.Context) (sheetsPage, error) {
 			Name:  s.Name,
 			Title: s.Title,
 		})
+		page.known[sheetKey{s.Category, s.Name}] = true
 		page.Count++
 	}
 
