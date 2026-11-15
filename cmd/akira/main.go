@@ -208,6 +208,7 @@ func main() {
 	remediate := flag.Bool("remediate", false, "restart a service in this node's own targets (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for the signed topics (consensus, remediate); default: the --wotan host on port 18001")
+	discoverFlag := flag.String("discover-subnets", "", "read system.discovery and check admitted announcements from these comma-separated `PREFIXES` (default: the config's discover.subnets; none: off)")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "akira",
@@ -309,6 +310,13 @@ func main() {
 		log.Fatal().Err(err).Msg("TLS: refusing to start")
 	}
 	akira.SetHTTPClient(checkClient)
+	subnets, err := discoverSubnets(*configPath, *discoverFlag)
+	if err != nil {
+		log.Fatal().Err(err).Msg("service discovery: refusing to start")
+	}
+	if wotan != nil {
+		startDiscovery(context.Background(), wotan, subnets, akira)
+	}
 
 	// Every other reporter's reports are votes too (ADR-029: every node a
 	// watchdog). This node's own are recorded locally by CheckAll.

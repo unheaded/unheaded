@@ -44,9 +44,26 @@ The same client carries the service's health reports and its logs;
 `pkg/wotan-client/policy_test.go` fails a binary that builds a second client
 or a library that builds one.
 
-Announcements are not authenticated: any member auto-approved on the topic
-can announce any name. Nothing reads them yet; the registry (`New`,
-`Resolve`, the reaper) stays in the package for the reader.
+## The reader
+
+Akira is the one reader (ADR-147 Phase 9, D3 = A): `discovery.Watch` on its
+Wotan client, one stream. An announcement is admitted only when
+
+1. its name is the sender Wotan verified on the publisher's token
+   (`verified_sender`), so a service can announce only itself;
+2. its address (an IP, or a hostname resolved then) lies inside
+   `discover.subnets` in Akira's config (or `--discover-subnets`); the
+   checked IP is kept, never the name;
+3. the registry holds fewer than 256 names.
+
+Each refusal is counted in `unheaded_discovery_refused_total{reason}`
+(`sender`, `address`, `full`, `decode`); an entry not announced for 30 s is
+reaped. Every sweep checks each admitted service the config does not list,
+at `https://<ip>:<port>/health` with the announced name as the TLS server
+name, under its ballot name (`dashboard-backend` is `dashboard`); its
+verdict in `GET /api/v1/status` carries `"source":"discovered"`. No subnets
+(the default) is off: discovery stays announce-only. The compose config
+admits the `data` network, `172.28.1.0/24`.
 
 ## Static Fallback
 

@@ -137,7 +137,7 @@ topics:
     mode: enforce
     services:
       akira:
-        subscribe: ["alerts.critical"]
+        subscribe: ["alerts.critical", "system.discovery"]  # system.discovery: the reader (discovery.Watch, ADR-147 Phase 9)
         publish: ["system.health.reports", "system.health.consensus", "system.health.remediate"]
       alert-mailer:
         publish: ["alerts.critical"]

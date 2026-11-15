@@ -18,3 +18,9 @@ targets:
     interval: 1h
     timeout: 30s
     env: {UNHEADED_TLS_DIR: /etc/unheaded/tls-watch}
+
+# ADR-147 Phase 9 (D3 = A): Akira reads system.discovery and checks each
+# admitted announcement it has no line for (sender = verified identity,
+# address inside these subnets, at most 256).
+discover:
+  subnets: ["172.28.1.0/24"]  # the compose data network (pinned in docker-compose.yml): a service that announces from it is checked without a line here
