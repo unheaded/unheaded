@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// fdprobe.c: S-STAGE-2B fd rung (ADR-135 D10-D13). Kernel fds are 16 and up.
+// fdprobe.c: S-STAGE-2B fd rung (ADR-135 D10-D13). Kernel fds are 16 and up,
+// until rungs 5+6 (D21) make every fd the kernel's lowest free one.
 // Whether a last reference dropped shows through ialloc: it hands out the lowest
 // free inum, so a file created after the drop gets the freed one back.
 #include "kernel/types.h"
@@ -10,6 +11,37 @@
 
 #define SAY(t, c) do { if(c) printf(t "=yes\n"); else printf(t "=no\n"); } while(0)
 #define WC (O_CREATE | O_WRONLY)
+
+// ADR-135 D21. Before rungs 5+6 a kernel fd is 16 or above and BPF's are
+// below; after, every fd is the kernel's and is the lowest free one. A pipe's
+// fds were always the kernel's, so its first one says which build this is.
+static int kbase;
+
+static void
+learn(void)
+{
+  int p[2];
+  if(pipe(p) == 0){
+    kbase = p[0] >= 16 ? 16 : 0;
+    close(p[0]);
+    close(p[1]);
+  }
+}
+
+// The lowest free fd of the one table (used only after the rung).
+static int
+low(void)
+{
+  int d = dup(1);
+  if(d >= 0)
+    close(d);
+  return d;
+}
+
+// A fd the kernel answered: 16 or above before the rung, the lowest free after.
+#define KFD(fd, want) (kbase == 16 ? (fd) >= 16 : ((fd) >= 0 && (fd) == (want)))
+// A fd BPF answered before the rung; after it, the kernel's lowest free too.
+#define BFD(fd, want) (kbase == 16 ? ((fd) >= 0 && (fd) < 16) : ((fd) >= 0 && (fd) == (want)))
 
 // SYS_upc_forknote from user code: the kernel must refuse (ADR-135 D12).
 static inline int
@@ -63,22 +95,23 @@ basics(void)
   for(int i = 0; i < 300; i++)
     buf[i] = 'a' + i % 26;
 
+  int w = low();
   int fd = open("fa", WC);
-  SAY("FD: created", fd >= 16);
+  SAY("FD: created", KFD(fd, w));
   SAY("FD: wrote", write(fd, buf, 300) == 300);
   SAY("FD: closed", close(fd) == 0);
   fd = open("fa", O_RDONLY);
-  SAY("FD: bpf-fd", fd >= 0 && fd < 16);
+  SAY("FD: bpf-fd", BFD(fd, w));
   close(fd);
   SAY("FD: read-back", slurp("fa", got, 320) == 300 && memcmp(buf, got, 300) == 0);
 
   fd = open("fa", O_WRONLY | O_TRUNC);
-  SAY("FD: trunc-fd", fd >= 16);
+  SAY("FD: trunc-fd", KFD(fd, w));
   SAY("FD: trunc-empty", fsize(fd) == 0 && slurp("fa", got, 320) == 0);
   close(fd);
 
   fd = open("fb", O_CREATE | O_RDWR);
-  SAY("FD: rw-kernel", fd >= 16);
+  SAY("FD: rw-kernel", KFD(fd, w));
   SAY("FD: rw-wrote", write(fd, "0123456789", 10) == 10);
   close(fd);
   fd = open("fb", O_CREATE | O_RDWR); // create on an existing file reopens it
@@ -92,7 +125,7 @@ basics(void)
   SAY("FD: fstat-ptr-refused", fstat(fd, (struct stat *)0x00800000) == -1);
 
   int d = dup(fd);
-  SAY("FD: dup", d >= 16 && d != fd);
+  SAY("FD: dup", KFD(d, w + 1) && d != fd); // fd holds the lowest; the dup is next
   SAY("FD: dup-shares", write(d, "x", 1) == 1 && fsize(fd) == 11);
   SAY("FD: close-dup", close(d) == 0);
   SAY("FD: close-twice", close(d) == -1);
@@ -145,8 +178,9 @@ inherit(void)
   int c2 = fork();
   if(c2 == 0){
     SAY("FD: reuse-inherit", write(fd, "r", 1) == 1);
+    int lw = low();
     int r = open("rel", WC); // relative: reaches the row's cwd
-    SAY("FD: reuse-cwd", r >= 16);
+    SAY("FD: reuse-cwd", KFD(r, lw));
     close(r);
     exit(0);
   }
@@ -216,14 +250,39 @@ forge(void)
   close(fd);
 }
 
+// T-F3 (ADR-135 D19, S-STAGE-2C Phase 7; closed by D21). Plain O_RDWR on a regular
+// file carries no masked flag, so before rungs 5+6 the open is BPF's and the fd
+// is below 16. A write on it used to print its bytes on the TTY and answer n,
+// with the file untouched; the interim answers -1. After the rung the fd is a
+// kernel file: the write lands, and the probe puts the bytes back.
+static void
+rdwr(void)
+{
+  char before[8], after[8];
+  int nb = slurp("README", before, 8);
+  int fd = open("README", O_RDWR);
+  if(kbase == 16){
+    SAY("FD: rdwr-file-write", fd >= 0 && fd < 16 && write(fd, "zz", 2) == -1);
+  } else {
+    int ok = fd >= 0 && write(fd, "zz", 2) == 2;
+    close(fd);
+    fd = open("README", O_RDWR);
+    SAY("FD: rdwr-file-write", ok && write(fd, before, 2) == 2);
+  }
+  close(fd);
+  SAY("FD: readme-intact", nb == 8 && slurp("README", after, 8) == 8 && memcmp(before, after, 8) == 0);
+}
+
 int
 main(void)
 {
   if(fork() == 0){
+    learn();
     basics();
     inherit();
     lastref();
     forge();
+    rdwr();
     exit(0);
   }
   wait(0);

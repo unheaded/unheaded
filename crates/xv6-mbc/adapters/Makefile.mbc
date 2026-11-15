@@ -144,6 +144,12 @@ OBJS = \
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+# No dependency files are generated, so a header change rebuilds nothing by
+# itself. upc_slots.h carries UPC_RUNG56 (ADR-135 D21), which changes what these
+# objects compile to: name it, so flipping the define rebuilds them.
+$A/upc_slots.o $A/upipe.o $A/uconsole.o $A/uproc.o $A/uvm.o $A/ufile.o $A/utrap.o \
+$A/usysfile.o $A/usysproc.o $A/usyscall.o: $A/upc_slots.h
+
 %.o: %.S
 	# Use $(CC) so the C preprocessor expands #include + macros (xv6's
 	# trampoline.S includes memlayout.h which expands MAXVA / TRAPFRAME).

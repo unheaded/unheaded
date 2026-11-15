@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 22] = [
+const NAMES: [&str; 25] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -52,15 +52,18 @@ const NAMES: [&str; 22] = [
     "UPC_ST_REPLY_OFF",
     "UPC_ST_REPLY_ARG_OFF",
     "UPC_ST_CWD_MASK_OFF",
+    "UPC_ST_KBD_IN_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",
     "UPC_TAG_REPLY",
+    "UPC_TAG_KBD",
     "UPC_TAG_MASK",
     "UPC_REPLY_SET_BRK",
     "UPC_REPLY_YIELD",
     "UPC_REPLY_KILL",
     "UPC_REPLY_EXIT",
+    "UPC_REPLY_KBD",
     "UPC_HEAP_BASE",
     "UPC_HEAP_TOP",
 ];
@@ -89,6 +92,80 @@ fn kernel_user_pointer_ceiling_is_bpfs() {
     assert_eq!(c_define(&h, "UPC_USER_VA_CEILING"), bpf);
     let rs = read("ebpf/monad-cpu-ebpf/src/phase12.rs");
     assert!(bpf <= rust_const(&rs, "SLICE_STRIDE"));
+}
+
+/// Security pass review, finding 1 (2026-11-15): the loader refuses a
+/// `--userland` `.data` record outside the window the kernel accepts for slot
+/// 0's image, and a resident program's record outside the slice a child maps.
+/// The loader's two ceilings are cited copies, so they are pinned here.
+#[test]
+fn loader_sidecar_windows_are_the_kernels() {
+    let opscan = read("cmd/upc-bootctl/src/opscan.rs");
+    let loader = |name: &str| {
+        let l = opscan
+            .lines()
+            .find(|l| l.starts_with(&format!("pub const {name}: u32 = ")))
+            .unwrap_or_else(|| panic!("{name} not in opscan.rs"));
+        l.split('=')
+            .nth(1)
+            .unwrap()
+            .trim()
+            .trim_end_matches(';')
+            .to_string()
+    };
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(
+        parse(&loader("USERLAND_SIDECAR_CEILING")),
+        c_define(&h, "UPC_INIT_IMAGE_HI")
+    );
+    // The CSR region and the kernel image sit above the userland window.
+    assert!(c_define(&h, "UPC_INIT_IMAGE_HI") <= 0xF000);
+    // The resident ceiling is spelled as the geometry constant, which
+    // parity_slice_constants pins to the interpreter's.
+    assert_eq!(
+        loader("RESIDENT_SIDECAR_CEILING"),
+        "geometry::XV6_SLICE_LEN"
+    );
+    let geo = read("cmd/upc-bootctl/src/geometry.rs");
+    let slice_len = geo
+        .lines()
+        .find(|l| l.starts_with("pub const XV6_SLICE_LEN: u32 = "))
+        .expect("XV6_SLICE_LEN not in geometry.rs");
+    assert_eq!(
+        parse(slice_len.split('=').nth(1).unwrap()),
+        c_define(&h, "UPC_USER_VA_CEILING")
+    );
+}
+
+/// ADR-135 D21 (rungs 5+6): the kernel's `#define UPC_RUNG56` must say what BPF's
+/// `const UPC_RUNG56` says. With them apart the two sides number fds differently
+/// (the kernel from 0 or from 16) and one of them keeps a table the other ignores;
+/// that is to fail here, not in a boot.
+#[test]
+fn kernel_rung56_is_bpfs() {
+    let main_rs = read("ebpf/monad-cpu-ebpf/src/main.rs");
+    let l = main_rs
+        .lines()
+        .find(|l| l.starts_with("const UPC_RUNG56: bool = "))
+        .expect("UPC_RUNG56 not in main.rs");
+    let bpf = match l.split('=').nth(1).unwrap().trim().trim_end_matches(';') {
+        "true" => 1,
+        "false" => 0,
+        v => panic!("UPC_RUNG56 is {v}"),
+    };
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(
+        c_define(&h, "UPC_RUNG56"),
+        bpf,
+        "upc_slots.h and main.rs disagree"
+    );
+    // The fd base follows the define: 0 under the rung, BPF's NOFILE (16) without.
+    let base: Vec<u32> = h
+        .lines()
+        .filter(|l| l.split_whitespace().take(2).eq(["#define", "UPC_KFD_BASE"]))
+        .map(|l| parse(l.split_whitespace().nth(2).unwrap()))
+        .collect();
+    assert_eq!(base, [0, 16], "UPC_KFD_BASE: 0 under UPC_RUNG56, else 16");
 }
 
 /// xv6's trapframe under ilp32e: 36 fields of 4 bytes (`uint64` is 4 bytes).
@@ -124,17 +201,20 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_ST_BRK_IN_OFF"), slots * stride + 16);
     assert_eq!(rust_const(&rs, "UPC_ST_REPLY_OFF"), slots * stride + 20);
     assert_eq!(rust_const(&rs, "UPC_ST_REPLY_ARG_OFF"), slots * stride + 24);
-    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 32);
+    assert_eq!(rust_const(&rs, "UPC_ST_KBD_IN_OFF"), slots * stride + 32);
+    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 36);
     let mask = rust_const(&rs, "UPC_TAG_MASK");
     assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_REPLY") & !mask, 0);
+    assert_eq!(rust_const(&rs, "UPC_TAG_KBD") & !mask, 0);
     // The reply flags live below the tag.
     for f in [
         "UPC_REPLY_SET_BRK",
         "UPC_REPLY_YIELD",
         "UPC_REPLY_KILL",
         "UPC_REPLY_EXIT",
+        "UPC_REPLY_KBD",
     ] {
         assert_eq!(rust_const(&rs, f) & mask, 0, "{f}");
         assert!(rust_const(&rs, f).is_power_of_two(), "{f}");

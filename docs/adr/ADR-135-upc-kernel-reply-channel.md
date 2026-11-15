@@ -172,6 +172,8 @@ Limits:
 - `open(path, O_RDWR)` on a regular file stays in BPF (D11), which ignores the flags and hands back a fd below 16.
   BPF `write` never looks at the fd, so a write there prints to the TTY, returns n and leaves the file alone. Pre-existing,
   and it is the one way left to lose a file write silently: a caller that wants one passes `O_WRONLY` or `O_CREATE`.
+  **Interim 2026-11-15 (S-STAGE-2C Phase 7, D19):** with `UPC_RUNG3` on, BPF refuses a write to a file fd (-1); the
+  write lands in the kernel at rung 6 (Phase 12).
 
 ### D11. Routing
 
@@ -309,6 +311,367 @@ With ADR-109 D6 off a child can write this word as it can the rest of the table.
 kernel, which answers correctly from the row's `cwd`. Clearing one sends an off-root open to BPF, which walks from the
 root: read-only, and the slot could have opened that path anyway. One more use of the same hole, and no new reach.
 
+### D16. Bounded user paths and slot 0's window (2026-11-15, S-STAGE-2C Phase 3)
+
+Three places took a user pointer further than its owner's memory. Each now refuses.
+
+- **BPF `open` and `exec` are reached only when `user_phys(pid, path_va, 128)` answers** (128 is `MAXPATH`,
+  `param.h`); otherwise a0 is -1 and no byte of the path is read. Before, both added `path_va` to the slice base with
+  no bound, so a chosen a0 read any physical byte (R-F5). The test is one arm ahead of both syscalls, run on every
+  re-entry. Written inside the arms it cost +48,914 verified instructions (the refused state was walked through the
+  path hash and the dirent scan as well); ahead of them it costs +2,261. A path that starts within 128 bytes of the 8 MiB ceiling is refused as well; no corpus path sits there (the
+  argv frame is at 0x600000, the stack top at 0x500000).
+- **`upc_user_pa()` answers slot 0 only inside init's own windows.** Slot 0's base is 0, so its VAs are physical
+  addresses and the 8 MiB ceiling alone let a kernel-routed pointer from init name kernel `.rodata`, `.data`, `.bss`
+  (the slot tables), the CSR window and the TTY registers. The windows are the image pages [0x1000, 0xC000) and the
+  stack [0x400000, 0x500000); everything else is 0, refused. The first page stays refused as before (D6). The image
+  window stops at the TTY registers; the largest image booted as init ends at 0x3010 (`fdprobe`).
+- **`pipewrite` returns -1 when its first `copyin` fails**, and the short count when a later one does, as Linux does.
+  It returned its byte count, so a write from a bad buffer answered 0.
+
+Init's trust model is otherwise unchanged: its own loads and stores still reach all of low memory through the identity
+directory. This narrows what the kernel will do on init's behalf, not what init can do by itself.
+
+### D17. User images carry no privileged or untranslated opcode; atomics translate (2026-11-15, S-STAGE-2C Phase 4)
+
+`XCHG`, `CAS`, `LR_W` and `SC_W` take their address with no translation, so at U-mode they reach physical memory
+(R-S4). The translator emits none of them and the kernel uses libcalls, so no compiled image has one. Booted on
+2026-11-15 with a patched image (one `LD` rewritten to `XCHG` by `scripts/upc-mbc-patch-opcode.py`): a child's `XCHG` at
+VA 0x800400 read the ramdisk's superblock word and stored over it. The `.rv2mbc` hash gate does not see this: it covers
+the address map, not the image's words.
+
+Two parts were decided (Stevie's answer A-61: fix it, plus an opcode scan):
+
+1. **The load-time scan (landed).** bootctl reads the `--userland` image and every resident program word by word and
+   refuses the boot on any of `XCHG` 0x3D, `CAS` 0x3E, `MRET` 0x47, `SRET` 0x48, `LR_W` 0x49, `SC_W` 0x4A
+   (`UserImageOpcode`, naming the image, the word and the opcode). The kernel image is not scanned: it needs `MRET` and
+   `SRET`. One probe holds privileged returns on purpose (`hostile_reply`: an `mret` and two `sret`s, which is how it
+   shows they do nothing at U-mode), so `UPC_ALLOW_USER_PRIVRET=1` admits `MRET` and `SRET`, says so in the boot
+   output, and never admits an atomic; the harness sets it for that probe alone. This closes the one way such an opcode reaches a child: an image that did not come from the translator.
+2. **Translation in BPF (not landed: verifier budget).** The design is `translate_address(cpu, addr)` for each atomic
+   under `cfg!(feature = "ascend-linux")`, the reservation keeping the virtual address. Measured against 895,768 with
+   4,232 of headroom: four inlined translations +20,993; one ascend-only arm for all four with a single translation
+   +16,855. Both pass 900,000. A bounded form, the slice's linear map through `user_phys` with a miss resolving where a
+   D6 miss does, measured +3,263 and was not landed either: it is not the decided design, and it leaves 969 for the
+   fork and file-fd fixes that follow. The choice waits on Stevie, or on rung 3 freeing instructions.
+
+Until part 2 lands, a U-mode atomic is unreachable only because no loadable image can hold one.
+
+### D18. Fork's first entry is BPF's to decide; no timer switch under ascend (2026-11-15, S-STAGE-2C Phase 6)
+
+Fork copies the parent's working set over several ticks, re-entering the same `ecall` with its cursor in a2. It took
+"the child's pde 0 is not present" to mean "this is the first entry: build the directory, zero the cursor". While
+ADR-109 D6 was off a process could write that word, so a planted present bit skipped the first entry and the caller's
+a2 became the cursor (R-F3). Booted with D6 off for the experiment: the child in the planted slot had an incomplete
+copy.
+
+- **First entry is read from the child slot's PROC_TABLE row.** While a fork copies into a slot, the row's state word
+  (word 17) carries `PROC_FORK_RESERVED | parent << 8`; the first entry writes it, builds the directory and zeroes the
+  cursor; finalize writes the whole row and the mark goes with it. PROC_TABLE is BPF's own map, not guest memory, so
+  no store and no register decides it. With D6 off and the plant landed, the copy is now complete.
+- **Not a tag in a3.** The first design here keyed the entry on a3 carrying `FORK_TAG | child_slot`, as exec and open
+  key theirs. a3 is the caller's register: a process that sets the tag itself before the `ecall` is back where the
+  planted bit put it. Exec and open can afford that, because a forged tag there hurts only the forger's own image; a
+  fork that skips its copy hands the child the slot's last occupant. So the mark lives where the caller cannot write.
+- **A slot is marked from the first copy tick (R-F6), and that is all the reservation there is.** The slot scan does
+  not skip a row another parent has marked, and nothing clears a mark when a parent dies mid-fork: measured, the skip
+  alone is +11,789 verified instructions against 4,064 of headroom. Neither case can happen while nothing else runs
+  between a fork's first tick and its finalize, which is the next point.
+- **I9 is a compile-time fact.** `TIMER_SWITCH` is `!cfg!(feature = "ascend-linux")`, the timer block tests it, and a
+  `const` assertion fails any ascend build in which it is true. Preemption under ascend has to bring the scan skip and
+  the death clear with it.
+
+Cost: +169 verified instructions. `hostile_fork` holds the plant, and a hand-made fork with a2 past the end of the
+copy (a3 clear, then all ones).
+
+**Off since the same day.** The mark is behind `UPC_FORK_MARK`, and that const is false: the block-syscall guard
+(RV-1, below) needed the instructions. Off, fork reads pde 0 as before, which is sound while D6 is on, and the object
+is the earlier one exactly (895,767 without the guard). The tripwire and `hostile_fork` stay; the probe passes either
+way with D6 on.
+
+**On again 2026-11-15, after rung 3 (D19).** Rung 3 took the console byte loop out of the object (-14,552), so the
+mark fits: `UPC_FORK_MARK` is true, 885,529 verified, gate `mark-after` green with `hostile_fork`.
+
+### D19. Rung 3: console write is the kernel's (2026-11-15, S-STAGE-2C Phase 9)
+
+Under `UPC_RUNG3`, `write` on a fd below 16 goes to the owned kernel unless BPF's table says the fd is a file.
+
+- **Routing.** `kernel_routed_alias`: `16 if ascend && UPC_RUNG3 && a0 < 16 && fd_kind(pid, a0) != FD_INODE => 11`.
+  The test is "not a file", not "is the console": the gate programs run as init and print on fd 1 without ever
+  opening `console`, so their fd 1 is `FD_FREE` in BPF's table, and BPF's loop printed for them all the same. Fds at
+  or above 16, and negative ones, already go to the kernel (D11).
+- **Kernel.** `sys_write` on a slot row with a fd in 0-15 calls `consolewrite(1, addr, n)`: `either_copyin` through
+  the slot's page table, 32 bytes at a time, each byte stored by `uartputc_byte`, a one-byte store to 0xC001. Kernel
+  `printf` keeps `uartputc_sync`'s word store, so the boot lines keep their char-plus-NUL bytes (they are in the
+  goldens). A copy that fails before the first byte answers -1; one that fails later answers the bytes written, as
+  stock xv6 does. A count of 0 answers 0. Only BPF routes such a fd there, so the kernel does not ask what kind it is.
+- **BPF.** The console byte loop (the `n == 1` store and the 0xD0C0-tagged re-entrant cursor) is the `!UPC_RUNG3`
+  branch, so the on object does not hold it. What is left of the arm answers -1.
+- **T-F3 interim, by the same change.** With the rung on, the only `write` that still reaches BPF's arm is one on a
+  file fd below 16 (plain `O_RDWR` on a regular file, D10), and it answers -1 instead of printing the bytes and
+  returning n. That is Phase 7's refusal, with no kind test in the arm: the alias has already made it. The file write
+  itself lands in the kernel at rung 6. With `UPC_RUNG3` off the old behaviour is back; the off object has no room
+  for the refusal (Phase 7 measured +622 against 94 of headroom).
+- **Cost shape.** Every `write` is now one trap, so the cost is per call, not per byte. xv6's user `printf` writes one
+  byte per call.
+- **Slot 0.** Init's first page reads as physical 0 to `copyin`, which refuses it (D6), so a string literal in init's
+  `.rodata` cannot be the buffer of a kernel-routed `write`. Init and `uinit` print through `printf`, whose byte is on
+  the stack; every other corpus program runs in a child slot. `conprobe` keeps its buffers in `.bss`.
+
+### D20. Rung 4: console read is the kernel's (2026-11-15, S-STAGE-2C Phase 10)
+
+Under `UPC_RUNG4`, `read` on a fd below 16 goes to the owned kernel when BPF's table says the fd is the console.
+
+- **Routing.** `kernel_routed_alias`: `5 if ascend && UPC_RUNG4 && fd_kind(pid, a0) == FD_CONSOLE => 11`. Unlike D19
+  the test is "is the console": a read on a free fd below 16 answered -1 in BPF before the rung and still does.
+- **How the byte gets there.** The keyboard ring is BPF's (`KBD_MAP`, `KBD_HEAD`, `KBD_TAIL`); the kernel's
+  `uartgetc` reads the Doom-era keyboard word, not the ring, and a ring pop inside the load path would cost every
+  load. So the hand-over rides the trap. At the injection of a console read (`a7 == 5`, fd below 16), `inject_strap`
+  writes the next ring byte, tagged `UPC_TAG_KBD`, into a new slot-table word `kbd_in` (0 when the ring is empty) and
+  does **not** advance the ring. The kernel takes the byte only when it needs one (`upc_kbd_take`); taking sets
+  `UPC_REPLY_KBD` in the reply at the return, and BPF advances `KBD_TAIL` when it reads that flag, nowhere else. A
+  byte that is not taken is offered again at the next console read. The table grows by one word (0x820, size 0x824);
+  the parity test covers the offset, the tag and the flag.
+- **Kernel.** `sys_read` on a slot row with a fd in 0-15 calls `upc_consoleread(addr, n)`. The pointer is judged
+  first (`upc_user_pa`), so a bad one answers -1 with or without input. With no complete line in the console buffer,
+  the trap's byte goes through `consoleintr` (the stock line discipline: `^H`, `^U`, `^D`, a full buffer) with echo
+  off; if there is still no line the handler takes the retry hand-off (D7) and never sleeps. With a line buffered it
+  copies out as `consoleread` does: up to n bytes, stopping after a newline, 0 at `^D`. One byte per trap, so a line
+  of k bytes costs k traps before its first byte is returned.
+- **Polling, not an interrupt.** The skeleton had the KBD ring as an interrupt source. There is no UART interrupt on
+  the UPC; the read path polls on each (re)run of the ecall. Recorded as a departure.
+- **No echo.** BPF never echoed typed input and the goldens hold what is printed, so the polled path sets a flag
+  that keeps `consoleintr` from printing the character or a backspace. The interrupt path (`uartintr`), dead on the
+  UPC, keeps stock echo.
+- **`tty_r`.** `STAT_TTY_READS` is bumped where the ring advances, once per byte the kernel took. Before the rung it
+  was bumped once per byte BPF delivered. A reader that consumes its input reads the same number either way; a read
+  blocked on an empty ring bumps nothing, as before. (The plan put the bump at routing; a read left blocked at the
+  prompt at the end of every boot would then count one more than the goldens.)
+- **What changes for a reader.** A read returns a line (or n bytes of one), not one byte: stock xv6 behaviour.
+  `sh`'s `gets` asks for one byte at a time and sees no difference. Control characters are now the line
+  discipline's: `^H` and `^U` edit the pending line, `^D` is end-of-file, `^P` runs `procdump`. BPF passed them
+  through as bytes. No corpus input holds one.
+- **BPF.** The console branch of the read arm is the `!UPC_RUNG4` branch, so the on object does not hold it.
+
+### D21. Rungs 5+6: the kernel's fd table is the only one (2026-11-15, S-STAGE-2C Phase 11; reviewed the same day, dispositions below)
+
+One const, `UPC_RUNG56`, one gate (the skeleton's first kickoff option). Written against the tree at `d980e84b`:
+rungs 3 and 4 are on, the block calls 200/201 refuse a U-mode caller (RV-1), and `kbd_in` exists. Where the plan's
+eight points no longer match that tree, the point is restated here and the difference is listed under "Departures
+from the plan's wording". The text was written before anything was built; the independent review (Step 210) read
+it at `ae44692b`, and where it was right the points below are amended in place, each amendment marked "(review
+F*n*)". The review table follows the design.
+
+`UPC_RUNG56` needs `UPC_RUNG_FD`, `UPC_RUNG_CHDIR`, `UPC_RUNG_PIPE`, `UPC_RUNG3` and `UPC_RUNG4`. With rung 3 or 4
+off, a console write or read would fall into a BPF arm that asks `FD_TABLE` what the fd is, and the table is gone. A
+`const` assertion in `main.rs` refuses the combination at build time.
+
+1. **Routing.** With the const on, `open` 15, `read` 5, `fstat` 8, `dup` 10, `close` 21 and `write` 16 alias to 11
+   for every fd and every flag. The rows that ask `fd_kind()` (rung 3's "not a file", rung 4's "is the console"),
+   the `>= 16` row and both `open` rows (masked flag, off the root) fold into one unconditional row each, so
+   `kernel_routed_alias` reads no map. Guarded `!UPC_RUNG56 &&`, so the on object carries none of them:
+   - the `open` arm (console name, superblock check, re-entrant dirent scan, `fd_alloc`, `fd_set_inode`) and its
+     helpers `name_match_phys` and `name_is`, which then have no caller (review F3: the names);
+   - the whole `read` arm, not only its inode branch: its first statement is `fd_kind(pid, fd)`, outside that
+     branch, and a guard on the branch alone would have left one `FD_TABLE` read in the on object (review F3);
+   - the `fstat`, `dup` and `close` arms;
+   - what is left of the `write` arm (rung 3's -1 for a file fd, Phase 7's T-F3 interim);
+   - fork's copy of the parent's `FD_TABLE` row (16 map reads and 16 map writes per fork);
+   - the accessors `fd_kind`, `fd_set_kind`, `fd_alloc`, `fd_inode`, `fd_set_inode`, `fd_set_offset`,
+     `fd_clear_inode`, which then have no caller, and with them the maps `FD_TABLE` and `FD_INODE_MAP`.
+
+   Not guarded, because they read no fd state: the D16 path bound ahead of `open` and `exec`, `mknod` 17 (a success-returning no-op, see point 3), `exec` 7
+   (point 7). **D16's 128-byte rule becomes exec-only under the const (review F2).** `open` is aliased to 11 before
+   the bound's arm, so the bound never sees it; the kernel's `argstr` reads the path to its NUL through the
+   slot's own page check and refuses a path that runs off the slice. A short, terminated path in the slice's last
+   bytes, which D16 refused because 128 bytes from its start cross the ceiling, opens. That is safe (the next
+   page is refused, `upc_user_pa`), and it is a change a probe asserts the old way: `hostile_path`'s
+   `open-ceiling-refused` is replaced in Step 216 by `open-unterminated-refused` (a path with no NUL before the
+   ceiling answers -1 with the const off or on). `exit` 2 has had no BPF fd work since D13. `cwd_off_root()` loses its only caller (the `open` row) and
+   goes with it; `chdir` 9 still routes under `UPC_RUNG_CHDIR` and the kernel keeps `cwd_mask` for the fork note.
+2. **Kernel fd numbers.** A kernel fd is the `ofile` index: `fduser()` is the identity and `argfd()` drops its
+   `fd < 16` refusal and its subtraction. D10's +16 ends under the const. The switch is one kernel `#define`
+   (`UPC_KFD_BASE` 0 or 16) and mirrored to BPF's const by `parity_slot_tables`, so a kernel and
+   an object from different settings fail the parity test, not a boot. How it follows the flip (review F5):
+   `upc_slots.h` carries `#define UPC_RUNG56 0` or `1`, `UPC_KFD_BASE` is derived from it, and everything the
+   kernel does only under the rung (the console name match, the kernel-given console of point 4, the device
+   branches of `fileread` and `filewrite`) is `#if UPC_RUNG56`. A header, not a compiler flag; `Makefile.mbc`
+   names it as a prerequisite of the ten objects that include it (found in Phase 12: the kernel build generates
+   no dependency files, so without that line a flip of the define rebuilt nothing, and an object with the rung
+   on booted against a kernel with it off). Turning the rung on or off is two lines, the const in `main.rs` and the define in the
+   header, then the kernel, the userland and the object rebuilt; `parity_slot_tables` reads both lines and fails
+   when they differ. `NOFILE` is 16 on both sides, so a process
+   has 16 fds where it had up to 32 (16 of BPF's and 16 of the kernel's). Probe lines that say "at or above 16"
+   change in Step 216 to "lowest free fd".
+3. **[DECIDE] the console, taken by the plan's RECOMMENDATION.** The kernel matches the console by name and makes
+   no disk inode for it; `fs.img` and the `ls` golden stay as they are (the golden's one "console" is the kernel's
+   `after consoleinit` boot line, not a directory entry). `sys_open` answers a console file (`FD_DEVICE`, major
+   `CONSOLE`, `ip` set to 0 explicitly, readable and writable by `omode` as stock derives them) when the path is
+   the console's name. The match runs straight after `argstr` and before `begin_op`, so a console open takes no
+   log transaction, never reaches `namei`, and never looks at `O_CREATE` (review F5). The name rule copies what BPF's arm does today: strip one leading `./` or `/`, then the
+   whole remainder is `console`. A relative `console` or `./console` matches only when the row's cwd is the root, tested
+   as `myproc()->cwd->inum == ROOTINO` (the kernel's own inode, the test `sys_chdir` already makes for D15's
+   mask; the mask itself is BPF's copy and is not read back) (review F5); `sub/console` is a disk lookup, as now.
+   **Shadowing, stated (review Q2).** The device wins, one way, from the root: a disk entry named `console`
+   (made by `mkdir`, by `link`, or by `open("//console", O_CREATE)`) is not reachable as `console`, `./console`
+   or `/console`. It stays reachable as `//console` or `sub/../console`, and `chdir`, `unlink`, `link` and `ls`
+   see the disk entry, because only `open` matches the name. `../console` and a relative `console` from off the
+   root are disk lookups. No case gives a program access it lacked: the device is the console every process
+   already holds. Three places need a guard for `ip == 0`, because stock code assumes a
+   device file has an inode: `fileclose` (no `iput`), `filestat` (answers -1, which is what BPF's `fstat` answers
+   for a console fd today), and `sys_open`'s own `T_DEVICE` major check (not reached for the name match). The
+   guard is on `ip == 0`, not on the major, and both places that make a console file store 0 there themselves
+   (review F4): `filealloc` zeroes nothing and `fileclose` clears only `ref` and `type`, so a recycled
+   `struct file` carries the last file's `ip`, and a console file that inherited one would `iput` an inode
+   another slot may hold. The major is not the test because an on-disk console node (the parked ADR) would have
+   the same major and a real inode to release. A read on that file made inside a tagged trap
+   (`upc_slot_active()`, which is true for slot 0 too) goes to `upc_consoleread` (the polled, never-sleeping
+   read of D20), not to `devsw[CONSOLE].read`: `consoleread` sleeps, and slot 0 is the one row the kernel's
+   `sleep()` does not refuse (`upc_is_slot_row()` leaves it out), so a first image's `read(0, ...)` would have
+   slept with nothing runnable (review F1). The test lives in `fileread`'s device branch; `sys_read`'s own
+   shortcut (D20) is dead under the const and goes with the +16. A write goes to `consolewrite` from
+   `filewrite`'s device branch, which keeps D19's rule there (a copy failing before the first byte answers -1,
+   where stock passes `consolewrite`'s 0 through); `sys_write`'s shortcut is dead the same way (review F5). `mknod` stays BPF's no-op: an on-disk device node, `mknod` and
+   `T_DEVICE` inodes are a later ADR, parked in the progress file.
+4. **Slot 0 and the first image's console (restated; see Departures).** The plan has init open the console through
+   the kernel like any process. Two facts of the tree stand in the way:
+   - `user.ld` puts `.rodata` straight after `.text` from 0, so the literal `"console"` in `init.c` and `uinit.c`
+     sits in init's first page, and the kernel's copy-in refuses slot 0's first page (D6, D16). A kernel `open`
+     from init with that literal answers -1. `init.c` shrugs and dups a closed fd; `uinit.c` exits 1. This is the
+     "slot 0 literal limit" already filed for Stevie, and this rung must not depend on its answer.
+   - Thirty-three of the thirty-six gate programs boot as the first image (`--userland gate2.mbc`,
+     `getpidfork.mbc`, nearly every probe) and print on fd 1 without opening anything; only `uinit`, `devprobe` and
+     `crprobe` open the console. BPF's write never looked at the fd, and rung 3 kept that by testing "not a file".
+     With the kernel's table the only one, fd 1 of such an image is an empty slot.
+   - A read-only `open` with a literal path made by the first image itself was BPF's (BPF reads the bytes with
+     no copy-in) and becomes the kernel's, so it meets the same first-page refusal. Nine gate programs call
+     `open` with a literal (`uinit`, `devprobe`, `mkprobe`, `rmprobe`, `lnprobe`, `hostile_ptr`, `fdprobe`,
+     `chdirprobe`, `bigprobe`, counted by `grep`). D6 records that the rung probes make their kernel-routed calls
+     from a forked child; `devprobe`'s `open("console")` is made from slot 0. Step 216 audits each: a call made from slot 0 takes its path from
+     `.data`, as `crprobe` already does.
+
+   Design: **the kernel gives the first image its console.** `upc_slots_init()` (after `userinit()`, before the
+   scheduler first runs init; `fileinit` and `consoleinit` have run) allocates one console file (opened read and write, `ip` 0) and puts it in
+   `proc[0].ofile[0..2]` with three references, under `#if UPC_RUNG56` only. This is what Linux does for pid 1
+   (`console_on_rootfs`). Then: every first image has stdio; `init.c` is not edited (its `open` answers -1 for the
+   literal, `mknod` answers 0, the second `open` -1, and its two `dup(0)` answer 3 and 4); `uinit.c`, which is
+   ours and exits when both opens fail, keeps the console's name in `.data` (one line, as the probes' tokens
+   were moved), so its `open` answers 3 and its dups 4 and 5. Children inherit by the fork note as now. The cost
+   is two or three spare console fds in every process of a boot, out of 16 (the corpus is expected to hold at most
+   a directory and one entry open at a time, in `ls`; the gate shows it). The alternative, kept on record: no kernel-given console, the name in `.data` in `init.c` and
+   `uinit.c`, and a three-line open in each of the thirty gate programs. It is the purer xv6 shape and it is thirty
+   probe edits plus an edit to `init.c`; it also leaves every future first image one forgotten
+   preamble away from printing nothing.
+5. **Fork, exit, kill.** Nothing moves. The fork note (24) already `filedup`s the parent's `ofile` into the child's
+   row and closes what a forged reply left there; exit closes the row (D13); kill closes it (D8). The BPF copy of
+   `FD_TABLE` at fork goes (point 1).
+6. **`open(O_RDWR)` on a regular file is a kernel file.** T-F3 closes: read and write go through `fileread` and
+   `filewrite` on one `struct file`, and a child shares the offset with its parent (D10's stale-offset limit
+   ends). Phase 7's BPF refusal goes with the compiled-out arm. R-P1 (BPF's read writes a full 16-byte chunk on a
+   short read) ends the same way: `readi` copies what it returns. A read is no longer capped at 16 bytes a call:
+   `cat`'s 512-byte reads come back whole, so it makes fewer calls; `ls` asks for 16 and gets 16.
+7. **Exec stays a BPF resident-program lookup** (departure, GROUND TRUTH). It reads no fd and no table; its path is
+   still bounded by D16's arm. The exec'd image keeps the row's `ofile`, as it kept BPF's row.
+8. **After this rung `dup` can land on 0-2**, which is what ush pipelines and redirection wait on. The shell
+   grammar is not this plan's (Step 241).
+
+**Rung 4's offer, restated for this rung.** BPF offers the next keyboard byte in `kbd_in` at the injection of a
+read "on a fd below 16", which meant "the console" because only console reads below 16 were routed. With every
+read routed and every fd below 16, the test becomes `a7 == 5` alone: a byte is offered on every routed read and
+taken only inside `upc_consoleread`. The ring still moves only on `UPC_REPLY_KBD`, so a file read with input
+pending takes nothing and loses nothing. Rung 3 needs no such change (it carries no state across the trap).
+
+**What the user sees change.** fd numbers for files and pipes start at the lowest free fd, not at 16. A read
+returns up to n bytes. `fstat` on a file is the kernel's `stati` (16 bytes under ilp32e, size at offset 12: Gate
+D's lesson, to be checked on the first `ls`). A write on a closed fd 0-2 answers -1; BPF printed it before rung 3
+and the kernel printed it after ("not a file"). A relative `console` opened off the root is a disk lookup (today:
+the same, by D15); `/console` from off the root is the device (today -1, because D15 sends it to `namei`).
+
+**Departures from the plan's wording.**
+
+| Plan point | Tree | D21 |
+|---|---|---|
+| 1: "the write inode refusal" is guarded | It is what is left of the write arm since rung 3 | Same guard, named as the arm's remainder |
+| 1: exit's close in BPF | None since D13 | Nothing to guard |
+| 1: only the arms are listed | `kernel_routed_alias` itself reads `FD_TABLE` twice (rungs 3 and 4) | Those rows fold into the unconditional ones |
+| 3: the name match | BPF matches after stripping one `./` or `/`, at the root only by way of D15 | The same rule, written out, with `/console` off the root as the one change |
+| 4: "its row is the real `userinit` process, so `ofile` is its own" | True, and empty; init's literal is unreadable to the kernel; thirty first images never open a console | The kernel gives the first image its console |
+| Rung 4 | `kbd_in` is offered for `fd < 16` | Offered on every routed read |
+| not in the plan | `upc_consoleread` is the slot row's console read; `consoleread` sleeps | `fileread` on the console from a slot row calls the polled read |
+
+**Budget and run cost, expected, to be measured at Step 223.** The open walk and the file read are the two
+largest ascend-only arms (the comments in `main.rs` call them that; D16 measured +48,914 when a refused state was
+walked through the open and exec arms, against +2,261 ahead of them), so the delta is expected well below zero, tens of
+thousands of verified instructions, not a few thousand as rungs 3 and 4 gave (-14,552 and -2,007). Against that,
+every `open`, `read`, `fstat` and `close` becomes a kernel trap. Rung 3 measured about 3,000 MBC instructions for a
+`write` call; a kernel `open` walks the path through `namei`, `ilock` and the buffer cache, and `ls` makes an
+`open`, an `fstat` and a `close` per entry. The twelve corpus boots must still finish inside 4,000,000 triggers
+(Step 179's kind of question); this is the measurement most likely to need a decision.
+
+**Questions the review (Step 210) is asked to press.** Does any BPF path still read `FD_TABLE` with the const on
+(the routing rows, the TTY drain, exec, `cwd_off_root`)? Can a disk entry named `console` shadow or confuse the
+name match (`mkdir console`, `link` to that name, `O_CREATE`)? What does slot 0 hold in `ofile` before its first
+open, and is `upc_slots_init()` late enough for `filealloc`? Is the kernel-given console sound when slot 0 exits
+or is killed, and when a slot is reused? Does D7's retry keep a0 for a read or write on a file (it must not
+re-run a write that landed)? Does a `struct file` with `ip == 0` reach any `ilock` or `iput` besides the three
+guarded places (`filedup`, the fork note, `upc_close_row`, `kexit`)? Which goldens can move, and why?
+
+**Review (Step 210, 2026-11-15) and dispositions.** An independent read-only review read this design at
+`ae44692b` against the code; nothing was built or booted by the reviewer. Each finding was re-read in the tree
+by the lane before its disposition (file and line are the reviewer's, checked). Its ids carry `F` (findings) and
+`Q` (the question it answers with no problem found).
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| F1 | High if built as worded | Point 3 sent a read "from a slot row" to `upc_consoleread`. `upc_is_slot_row()` leaves slot 0 out (`upc_slots.c`), and `sleep()` and `sched()` panic only for that predicate (`uproc.c`). A device branch gated on it would send a first image's `read(0, ...)` to `consoleread`, which sleeps with nothing runnable. No gate would have caught it: `crprobe` reads in a forked child | **Accepted; design amended.** The test is `upc_slot_active()`, as `sys_read` uses today. A slot 0 read is added to the probes (`crprobe`: the first image reads a line itself before it forks) |
+| F2 | Medium (a probe flips, safely) | `hostile_path` puts `README` at 0x007FFFF8 and expects -1: D16's 128-byte rule, enforced in BPF ahead of the `open` arm. With `open` routed, `copyinstr` finds the NUL inside the slice and `namei` opens README | **Accepted; design amended.** D16's rule is exec-only under the const; the probe line is replaced by one that proves a refusal either way (a path with no NUL before the ceiling) |
+| F3 | Medium | The `read` arm keeps an `FD_TABLE` read: `fd_kind(pid, fd)` heads the arm, outside the inode branch that point 1 guarded, so the map would stay in the object. The helper is `name_match_phys`, not `component_match`; `name_is` loses its only caller too | **Accepted; design amended.** The whole arm is guarded. Step 240 checks the on object holds neither map |
+| F4 | Medium (plausible) | A recycled `struct file` carries a stale `ip`: `fileclose` clears only `ref` and `type`, `filealloc` zeroes nothing. Close any file, then open the console: if the console path does not set `ip`, the `ip == 0` guards miss and close `iput`s an inode another slot may hold | **Accepted; design amended.** Both places that make a console file store `ip = 0`; the guards stay on `ip == 0`, not the major (an on-disk console node would share the major and have an inode) |
+| F5 | Low (left to guess) | Console open mode; what gates the kernel-given console and how the kernel's define follows the const; where D19's -1 lives once `sys_write`'s shortcut is dead; whether the name match precedes `begin_op`; how "cwd is root" is tested | **Settled above.** Mode by `omode`, as stock. `#define UPC_RUNG56` in `upc_slots.h`, checked against the const by `parity_slot_tables`. D19's -1 moves to `filewrite`'s device branch. The match runs after `argstr`, before `begin_op`. `cwd->inum == ROOTINO` |
+| Q2 | No problem | A disk entry named `console` | The device wins, one way, from the root; stated in point 3. No case gives access the program lacked |
+| Q3 | No problem | Slot 0's `ofile`; exit, kill, slot reuse | Empty before (`userinit` opens nothing), one file with three references after; `consoleinit` and `fileinit` run first. Exit closes the row; kill of pid 1 is refused; slot 0 is never reused (fork scans from 1), and a reused row is closed, then filled |
+| Q4 | No problem | D7's retry and a write that landed | Only pipes, the console read and pause retry. A file read or write finishes in one trap, so the offset moves once; `pipewrite` retries only before its first byte; the keyboard ring moves once; a0 is not stored on a retry |
+| Q6 | No problem | Reference counts across fork, exec, kill | Balanced: fork's -1 precedes any note, exec is BPF-only and keeps the row, kill closes the target's row |
+| Q7 | Noted | Which goldens can move | `fs.img` holds init, sh, ls, cat, echo and wc; the probes are outside it, so the claim that `fs.img` and the `ls` golden stay holds. What could move: `ls` and `cat BIGFILE` by trigger exhaustion; `ls` rows by `stati`'s layout; `uinit`'s `echo hello` if its `.data` edit is missed; all twelve without stdio. A moved golden is a stop, not a recapture |
+| Q8 | No problem beyond F2 | Isolation with fds no longer offset and `dup` onto 0-2 | `argfd` is bounded to the caller's own row; copies are page-checked per slot |
+
+**Built and measured (Phase 12, 2026-11-15): the rung works, and the goldens' PC trace stops it.** The wiring
+is in the tree with the const off (`cf11267b`): the off object is 883,522, equal to before, and the eight corpus
+boots are SAME. Turned on (the const and the define, nothing else; not committed):
+
+- **Verifier:** 529,305 verified instructions, **-354,217** against 883,522 (headroom 370,695). The object file
+  goes from 897,784 to 729,216 bytes. No instruction of the on object refers to `FD_TABLE` or `FD_INODE_MAP`
+  (the only relocations against them are debug info and BTF); the two map definitions stay declared, because a
+  `#[map]` static is always emitted, so the loader still creates two maps nothing reads.
+- **Probes, all pass:** `rwprobe` 5 (a plain `O_RDWR` file is written, read back and restored; `dup` lands on
+  0; `fstat` on the console answers -1 and the kernel goes on), `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20,
+  `bigprobe` 3.
+- **Run cost:** all twelve corpus boots finish inside the existing 4,000,000 triggers. A boot's instruction count
+  is where rung 4 left it (`ls` 63.57 M against 63.26 M): the prompt's wait is what it counts, not the opens.
+- **Goldens:** eleven of the twelve boots are byte for byte their golden **outside the 100-PC trace**, and their
+  `forks`, `waitpid` and `tty_r` are the golden's. Inside the trace every one differs from the 21st PC on.
+  `uinit_echo` differs outside it too: `uinit.c` exits when both its console opens fail.
+
+Why the trace moves, which neither this design nor its review saw: the Phase 1.4 tracer (`TRACE_HEAD`) is armed
+for 100 instructions at the first return to U-mode and prints every PC it executes, the kernel's included, and
+those bytes are part of every golden's TTY. Until this rung no trap inside that window went to the kernel: init's
+`open` and its two `dup`s were BPF's, and its first `write` traps after the window has closed. Under the rung init's
+`open("console")` is the 21st instruction and traps into the kernel, so kernel PCs fill the rest of the window;
+and the open answers -1 (the literal sits in the first page), so init takes its `mknod` path and its user-mode
+PCs differ as well. Point 4's sentence that this rung does not wait on the slot 0 literal decision does not hold
+for the goldens.
+
+A moved golden is a stop, not a recapture. The const and the define went back to off (A7); the off object reads
+883,522 again; Stop F stands, with the wiring left in the tree. Two ways on, both measured, for Stevie:
+
+| Way | What it takes | Measured |
+|---|---|---|
+| No recapture | (a) The kernel's `copyinstr` may read slot 0's first page (reads only): the slot 0 literal question already filed, answered yes. (b) Under the rung the tracer prints U-mode PCs only | Booted, not committed: **12 of 12 SAME**, `uinit_echo` included, with `init.c` and `uinit.c` untouched. 532,152 verified instructions (the tracer test is +2,847) |
+| One named recapture | The twelve goldens' trace segment recaptured once, by name and with its reason, as the plan allows for Phase 15's `ls`; `uinit.c` takes its console name from `.data` (which moves its own trace) | Eleven boots identical outside the trace; nothing else needed |
+
+A third, larger change is to retire the tracer from the ascend build (it is a Phase 1.4 bisect aid): also a
+recapture.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,
@@ -395,6 +758,21 @@ One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`
   slot the note would close that row's fds and hand it the forger's: read from the code, not booted. The harness pins both
   forgeries, so a change to either shows up. All of this needs D6 off, and none of it is closed here.
 
+- **2026-11-15, S-STAGE-2C Phase 2: `MRET` and `SRET` at priv 3 are NOPs** (ADR-109, dated section of that day).
+  R-F1 is closed: a U-mode `mret` or `sret` does nothing, by an inline instruction or by a tagged `ret` to a ROM word.
+  R-F2's `sret` route and R-S1 close with it. `hostile_reply` runs both opcodes in a child of their own before the PDE
+  route and wants `mret-refused=yes` and `sret-refused=yes` in every build; with D6 off, `sret-forged` now says no and
+  the forged KILL, which rode the same `sret`, is not tried. The fork-note forgery still needs D6 on to close.
+
+- **Closed 2026-11-15 (S-STAGE-2C Phase 2): ADR-109 D6 is on, and `MRET`/`SRET` at priv 3 are NOPs.**
+  `hostile_reply` closes on every route: the PDE store is dropped (`table-reached=no`, `route=closed`), and a U-mode
+  `mret` or `sret` does nothing. R-F1, R-F2's `sret` route and R-S1 are closed; F1's live-to-live heap route is closed.
+  R-F5 (unbounded `open` and `exec` paths) remains until S-STAGE-2C Phase 3.
+
+- **Closed 2026-11-15 (S-STAGE-2C Phase 3, D16):** R-F5, and R-S2's byte oracle with it: BPF `open` and `exec` read no
+  path outside the caller's slice. A kernel-routed pointer from slot 0 is answered only inside init's image and stack
+  windows. A pipe write from a bad buffer is -1. `hostile_path` holds all six and each fix has a mutant that fails it.
+
 ## Review
 
 Plan Step 119 asks for a separate read-only review. The agent that wrote this ADR reviewed it first, which was not
@@ -402,26 +780,28 @@ independent; those eleven findings, F1-F11, are in `references/s-stage-2b-log.md
 `4cc7577e`, nothing built or booted, and closes Step 119. Its ids carry `R-` here because its numbers overlap the
 self-review's.
 
+F7 and F8 of that first review are parked as ADR-145 and ADR-146 (2026-11-12, Stevie; written 2026-11-15, S-STAGE-2C).
+
 Verdict: no blocker against D1; sbrk, kill and pause land as designed. Each finding was re-read in the tree before its
 disposition. Text fixes are in this ADR. A code fix named below is outside the rungs, so it is a For Stevie line in
 `docs/battle-plans/progress/S-STAGE-2B-progress.md`, not landed work.
 
 | Id | Severity | Finding | Disposition |
 |---|---|---|---|
-| R-F1 | High, pre-existing | `MRET` and `SRET` have no privilege check, so D6 does not confine a child | Accepted. Claim restated in Security notes. Fix (reject at priv 3) open, For Stevie: it must pair with any D6 flip |
+| R-F1 | High, pre-existing | `MRET` and `SRET` have no privilege check, so D6 does not confine a child | Accepted. Claim restated in Security notes. Fix (reject at priv 3) open, For Stevie: it must pair with any D6 flip. **Closed 2026-11-15, S-STAGE-2C Phase 2** |
 | R-F2 | Medium | The wipe has three bypasses, and a forger gets more than the channel's three flags | Fixed in D1 and Security notes. "Exactly one flag" is now "at most one", stated as unenforced. No code: the `sret` route closes with R-F1 |
-| R-F3 | Low | "Fork overwrites the whole low band" is false with D6 off | Fixed in Security notes. Tagged-cursor fix open, For Stevie |
+| R-F3 | Low | "Fork overwrites the whole low band" is false with D6 off | Fixed in Security notes. Tagged-cursor fix open, For Stevie. **Closed 2026-11-15, S-STAGE-2C Phase 6 (D18): the first entry is read from a BPF-owned mark, not from pde 0 and not from a register** |
 | R-F4 | Low, pre-existing | Exec does not scrub | Fixed in Security notes as a fourth bullet |
-| R-F5 | Low to Medium, pre-existing | `open` and `exec` read user paths with no bound, D6 on or off | Fixed in Security notes. Routing through `user_phys` open, For Stevie: verifier cost unmeasured |
-| R-F6 | Low, forward | I9's failure description is incomplete, and nothing enforces it | Fixed in I9, Step 156's stale note included. Tripwire open, For Stevie |
+| R-F5 | Low to Medium, pre-existing | `open` and `exec` read user paths with no bound, D6 on or off | Fixed in Security notes. Routing through `user_phys` open, For Stevie: verifier cost unmeasured. **Closed 2026-11-15, S-STAGE-2C Phase 3 (D16)** |
+| R-F6 | Low, forward | I9's failure description is incomplete, and nothing enforces it | Fixed in I9, Step 156's stale note included. Tripwire open, For Stevie. **Closed 2026-11-15, S-STAGE-2C Phase 6 (D18): a compile-time assertion; the slot is marked from the first copy tick, the scan skip and death clear wait on preemption (over budget)** |
 | R-F7 | Low | D3's `vmfault` and D6's first-page statements do not match `uvm.c` | Fixed in D3 and D6 |
 | R-F8 | Low to Medium, plan conflict | D14's bare tag can lose a reply | Fixed as a D1 rule that Step 220 must follow. Plan text unchanged, For Stevie |
 | R-F9 | Low | The hostile probes never reach the real table | Recorded in Security notes for Phase 21. Correction: the plan does have such a step, 258, and it has this gap |
-| R-S1 | Suspected | `main`'s prologue after `mret` gives a chosen-address write | Open, not booted. Rides with R-F1 |
-| R-S2 | Suspected | R-F5 as a byte oracle | Open, leak rate unmeasured. Rides with R-F5 |
+| R-S1 | Suspected | `main`'s prologue after `mret` gives a chosen-address write | Open, not booted. Rides with R-F1. **Closed with R-F1, 2026-11-15** |
+| R-S2 | Suspected | R-F5 as a byte oracle | Open, leak rate unmeasured. Rides with R-F5. **Closed with R-F5, 2026-11-15** |
 | R-S3 | Suspected | First-page refusal only matters for a kernel-routed pointer from slot 0 | Checked: real but unreached today. Stated in D6 |
-| R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie |
-| R-NC | Not checked by the review | Whether exec zeroes `.bss` | Checked: it does not. D5 narrowed, stated in Security notes, For Stevie |
+| R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie. **2026-11-15, S-STAGE-2C Phase 4 (D17): the load-time scan landed and closes the reachable route; translation in BPF did not (verifier budget) and stays open** |
+| R-NC | Not checked by the review | Whether exec zeroes `.bss` | Checked: it does not. D5 narrowed, stated in Security notes, For Stevie. **Closed 2026-11-15, S-STAGE-2C Phase 5: the `.data` sidecar carries `.bss` as zeros (ADR-077, note of that day)** |
 
 Plan Step 221 reviewed D10-D14 independently at `1dda0be8` plus the uncommitted text, nothing built or booted, and found
 no blocker on its three questions: 24 cannot forge a child's row through the syscall, a parent cannot be killed between
@@ -432,7 +812,7 @@ their numbers overlap both sets above. Each was re-read in the tree before its d
 |---|---|---|---|
 | T-F1 | Medium | D12 sets the note's a0 where finalize then overwrites it, so the note reads slot + 1 and refuses | Fixed in D12: finalize records that a note is due and chooses at the a0 write |
 | T-F2 | Medium, forward | `fdalloc` returning `16 + i` makes `sys_pipe` index past `ofile` | Fixed in D10: `fdalloc` keeps the index, `fduser()` translates, `sys_pipe` included, so Phase 20 inherits it right |
-| T-F3 | Low to Medium, pre-existing | Plain `O_RDWR` on a regular file loses writes silently; `write` does not refuse a negative fd today | Stated in D10 and D11. No code: BPF `open` cannot tell a file from the console before the walk. For Stevie |
+| T-F3 | Low to Medium, pre-existing | Plain `O_RDWR` on a regular file loses writes silently; `write` does not refuse a negative fd today | Stated in D10 and D11. No code: BPF `open` cannot tell a file from the console before the walk. For Stevie. **Interim 2026-11-15, S-STAGE-2C Phase 7 (D19): BPF refuses a write to a file fd below 16 while `UPC_RUNG3` is on (`fdprobe` `rdwr-file-write-refused`, `readme-intact`); the write lands in the kernel at rung 6 (Phase 12)** |
 | T-F4 | Low to Medium | D12's claims have no test | `fdprobe` gains the tokens, and the `fresh_mask` check gets a mutant. The cwd drop can be booted, not observed, until chdir: the row's reference is always root |
 | T-F5 | Low, D6 off only | D12 and D13 assume `ofile` is empty, which a forged reply breaks | Fixed: the note closes what it finds; D12 and D13 restated |
 | T-F6 | Low | ADR-109's `fresh_mask` line goes stale, and `upc-rung0-assert.awk` would fail with the rung on | ADR-109 amended (I3, D5 note, Security notes) and the asserter updated together |
@@ -441,6 +821,60 @@ their numbers overlap both sets above. Each was re-read in the tree before its d
 | T-S1 | Suspected | Corpus forks and exits now take injected traps from exec'd images | Answered: 12/12 SAME with them, so the path works |
 | T-S2 | Suspected | Extra trap ticks could cut off a golden with a tight trigger count | Answered: no golden was cut off. The counters did move, for another reason: see D14 |
 | T-S3 | Suspected | D11-D14 may not fit 8,192 of headroom | Answered: the on object fell to 889,100 |
+
+## Independent review of S-STAGE-2C Phase 2 (2026-11-15)
+
+S-STAGE-2C Step 29 asks for a separate read-only review of the priv-3 test and of D6 on. The lane read its own change
+first; the independent read followed at `10078582`, nothing built or booted by the reviewer. Its ids carry `RV-`.
+
+Verdict: the three diffs it was given are sound. No legitimate path runs `MRET` or `SRET` at priv 3; the NOP is safe
+(PC already advanced, privilege stays 3, the reply read is set only inside the `SRET` arm); D6 breaks no legitimate
+access; nothing relied on `SRET`'s 16-bit mask as a bound. It found a confinement hole outside the diffs, which D6
+does not close. Each finding was re-read in the tree, and RV-1 was booted, before its disposition.
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| RV-1 | High, pre-existing | The block device's syscalls, 200 and 201, had no privilege test and take a physical buffer address and the caller's cursor. A child's `ecall` copied a ramdisk block over any physical memory, and with 201 then 200 read any physical memory back | Booted: `hostile_block`'s child overwrote init's buffer and read init's secret, D6 on. **Fixed 2026-11-15:** a U-mode caller's 200 or 201 becomes a number with no arm and answers -ENOSYS; the kernel's calls (S-mode) are unchanged. +4,139 verified instructions |
+| RV-2 | Medium, pre-existing | The load-time scan (D17) listed six opcodes and missed `PUSH`, `POP`, `INT` and `IRET`, which reach memory through r15 with no translation | **Fixed 2026-11-15:** all four are refused in a user image, with or without the probe hatch. No built image holds one. As with the atomics, the interpreter itself does not refuse them at U-mode: the scan is the control |
+| RV-3 | Low | The host engine (`crates/monad-mbc/src/execute.rs`) has neither the priv-3 refusal nor D6, so differential runs diverge; refusals and D6 misses increment no counter, so hostile behaviour leaves no trace | Open, For Stevie. A counter costs verified instructions the object does not have today |
+
+**What RV-1 cost.** The guard does not fit beside everything else: with it the object read 900,081 against the 900,000
+line. It outranks D18's mark (+169, a second lock on a route D6 already closes), so the mark went behind
+`UPC_FORK_MARK`, off, and returns when a rung frees instructions. With the guard on and the mark off the object is
+899,906.
+
+## Probes booted 2026-11-15 (S-STAGE-2C Phase 8, A-62)
+
+Each of these was read from the code and not booted when this ADR's review was written. They are booted now and in the harness (`scripts/upc-regression.sh`); the numbers are in `references/s-stage-2c-log.md`, Phase 8.
+
+- **Unlink of a file with data** (`rmprobe`, RM 11): the blocks are freed and the next file to take them reads back its own bytes.
+- **Link's count read back** (`lnprobe`, LN 12): `fstat` gives nlink 2 after `link`, 1 after the first name is unlinked, and the bytes are still there under the second name.
+- **Pause's tick count** (`sleepprobe`): `pause(50)` returns no earlier than 50 ticks later; how late it woke is printed as a note.
+- **A file past one block** (`bigprobe`, BG 3): 14,000 bytes, past the direct blocks into the single-indirect block; written by the kernel, read back by BPF.
+- **Bad pointers for unlink, link and chdir** (`hostile_ptr`, HU 9): a path at the user ceiling answers -1 and creates nothing.
+- **The rung 0 asserter against a probe kernel**: ADR-109 I1-I8 hold on every tagged trap of `getpidfork` and `forkloop` (141 traps), and a changed pid fails. With rung 3 on, kernel `printf` and user bytes interleave on the TTY character by character; `scripts/upc-tty-split.py` separates them (kernel `printf` stores a word per character, a user write one byte).
+
+**Found by `rmprobe` (R-P1, Low, open).** BPF's file read copies a fixed 16-byte chunk into the user buffer whatever count it returns, so the last short read of a file writes up to 15 bytes past the end of what it reports, with bytes from the data block past the file's size. The write stays inside the caller's slice (`user_phys(pid, buf_va, READ_CHUNK)`), so no other slot is touched; a program that reads into an exact-size buffer has the bytes after it overwritten. Not fixed in BPF (the guarded copy is what the code comment says doubled the verifier's states). It closes when file reads move to the kernel (rungs 5+6): `rmprobe` prints the count as a note and it must read 0 then.
+
+## Security pass review of S-STAGE-2C (2026-11-15, plan Steps 293-294)
+
+The plan's close runs from Stop F plus `cd` in ush (Stop I): rungs 3 and 4 and the fork mark on, rungs 5+6 wired and off, rung 7 not built. The attack-surface table for what is on is in `references/s-stage-2c-log.md`, "Phase 16, security pass"; every row names a harness line, and two rows that had none got one (the opcode scan's PUSH, POP, INT and IRET; the `.data` sidecar refusal).
+
+An independent reviewer read the sprint's diff (`git diff develop...HEAD -- crates/xv6-mbc ebpf/monad-cpu-ebpf cmd/upc-bootctl scripts/upc-regression.sh` at `99ae2fa9`, so before `cd` in ush and the two harness lines of Step 292), read-only, nothing built or booted. Each finding was checked against the code before it was acted on. Fixed means a test or probe that failed first, then the fix, then a mutant that fails the probe.
+
+| # | Finding | Severity | Disposition |
+|---|---|---|---|
+| SP-1 | `.data` sidecar addresses are never bounded. `check_user_sidecars` looked at a sidecar's shape only; the loader writes the `--userland` image's records at their raw addresses (physical, for slot 0) and exec copies a resident program's span to slice base + address with no ceiling. A record at 0x100000 or 0xF000 overwrites kernel `.data` or the CSRs at load; a resident record at 0x800000 lands in the next slot; an address near 2^32 wraps; a span over 256 KiB overwrites the next program's staged data and outruns exec's 16-bit cursor. | Medium | **Fixed** (`b0526886`). `opscan::check_user_regions`: a `--userland` record must lie in [0x400, 0xC000) (above what the loader writes low; below `UPC_INIT_IMAGE_HI`, the top of the window the kernel accepts for slot 0's image, pinned by `parity_slot_tables`), a resident program's in [0x400, 0x800000) with a span of at most `RESIDENT_DATA_STAGE_STRIDE`; an end that wraps is refused. Checked by path before the object opens (a dry run shows it) and again on the bytes the loader is about to write (`load_user_data_image`, `stage_program_data`). Six cargo tests, red first; one harness dry-run line. All 43 shipped user images pass. **Left open, for Stevie:** a resident program exec'd by slot 0 itself lands at raw physical addresses up to 0x800000. Slot 0 is init, identity-mapped and trusted by design (`hostile_path` has it read kernel memory), so this adds nothing a hostile init image does not already have; closing it means the tighter 0xC000 window for resident programs too, or a slot test in exec (BPF instructions). |
+| SP-2 | The opcode scan skips the kernel image and the bootstub, and U-mode can execute any ROM word (a RET with bit 31 set in `ra`). The atomic, PUSH, POP, INT and IRET arms have no privilege test. Nothing reachable today (the kernel holds one MRET and two SRET), and nothing enforced that. The scan and the loader also read each file separately. | Low, latent | **Fixed** (`b0526886`). `scan_privileged_image` refuses a kernel or bootstub holding any of the eight non-return opcodes; MRET and SRET stay theirs; no hatch. Run by path before the object opens and again on the words about to be written; the user images are rescanned at their load sites the same way. Today's kernel (13,238 words) and a freshly built bootstub (196 words) hold none. Two cargo tests, red first; one harness dry-run line (a kernel copy with one PUSH word). The interpreter's arms still have no privilege test of their own: that costs verifier instructions and is filed with the atomics. |
+| SP-3 | The sidecar check cannot tell whether `.bss` is in a sidecar: a `.data` written before `--with-bss` passes, and the userland Makefile did not regenerate one in an existing tree, so such a program would exec with the caller's bytes in `.bss`. | Low | **Half fixed.** The translator is now a prerequisite of every user `.mbc`, so a tree whose sidecars predate `--with-bss` regenerates all of them once the translator is rebuilt (shown: a newer translator rebuilt all 43, `fs.img`, `sh.mbc` and `init.mbc` byte-identical). **Left open, for Stevie:** a format marker bootctl would require (a flag in the TLV's count word, set by `--with-bss`). It changes the sidecar format for the translator, three parsers and every test fixture, which is more than a closing shift should carry. |
+| SP-4a | `hostile_path` `open-unterminated-refused` was vacuous: no file is named `RRRRRRRR...`, so it answered -1 with D16's bound removed. | Harness | **Fixed.** The child writes `READ` in the last four bytes below its ceiling and the next slot's first bytes hold `ME`: read with no bound the path is `README`. Mutant (open's bound cut to four bytes): `open-unterminated-refused=no`, every other line `yes`. |
+| SP-4b | `hostile_ptr` `unlink-bad`, `link-old-bad`, `link-new-bad` (and `chdir-bad`, `ceiling-refused`, the same way): the pointer was the unused next slot's VA 0, a NUL, and the empty path fails by itself. | Harness | **Fixed.** A grandchild in the next slot leaves `README`, `zz`, `sub` and `qq` at its VA 0, 16, 32 and 48; README is linked before it is unlinked. Mutant (`upc_user_pa` without the ceiling test): `ceiling-refused`, `link-old-bad`, `link-new-bad`, `unlink-bad`, `chdir-bad` and `unterminated-refused` all `no`. |
+| SP-4c | `hostile_fork` `a2-ignored`: the hand-made forks reuse a slot whose last occupant held the same canary, so a skipped copy passed. | Harness | **Fixed.** The worker writes a second canary before the two forks; only a real copy carries it. Mutant (fork keeps a2 as its cursor when it is the probe's value): `a2-ignored=no`, twice. |
+| SP-4d | The `hostile_fork` gate is keyed on `UPC_D6_MISS_FAULT`, so no boot makes `UPC_FORK_MARK` the deciding control. | Harness | **Recorded**, as D18 already says: with D6 on the planted PDE is dropped before the mark is consulted, and with D6 off the mark is what keeps the copy whole (shown once by hand in Phase 6, Step 120: `copy-complete=yes`, `pde-plant-dropped=no`). A harness boot with D6 off needs a second eBPF object per run; filed for Stevie. |
+| SP-5a | `consolewrite` has no count clamp where BPF's console arm had 4096: `write(1, 0, 0x7fffffff)` prints the caller's whole slice inside one trap. | Low | **Fixed.** `consolewrite` takes at most 4096 bytes a call and answers that count (a short write). `conprobe` gained `CW: clamp` (a 4200-byte write returns 4096): `no` on the kernel before the clamp, `yes` after. No corpus program writes more than 512 bytes a call; the eight-boot sweep is SAME. |
+| SP-5b | The JMPR and CALLR diagnostics store user-chosen words at physical 0xE0000 and 0xE1000 from U-mode. | Low | **Recorded, for Stevie.** That memory is unused today; a privilege test on the two stores costs verifier instructions. |
+
+No problem found, each with what the reviewer checked: the kernel's `copyin`, `copyout` and `copyinstr` are page-checked through `upc_user_pa`, `upc_consoleread` judges its pointer first and handles a negative count, `argfd`, `readi`/`writei`, `pipewrite` and `vmfault` in a slot row are sound; the const guards fold, the MRET/SRET, block-syscall and D16 tests precede their actions, `fd_kind` bounds the fd and the TLB is flushed on every switch; with D6 on open, exec, argv, read, fstat and wait are bounded or translated and 200/201 are refused by privilege; the scan covers `--userland` and every resident program beside it (ramdisk programs are never executed: exec is a PROGRAM_TABLE lookup and ROM is frozen), checks every word with the opcode byte the interpreter decodes, and its hatch admits only MRET and SRET, which do nothing at priv 3; the reply word is wiped at trap entry and zeroed after it is read, the keyboard ring moves only on the kernel's flag, and a child cannot reach the table with D6 on; D21's dispositions F1, F3 and F4 are in the wired code.
 
 ## Alternatives considered
 

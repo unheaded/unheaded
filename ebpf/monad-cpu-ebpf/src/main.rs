@@ -262,6 +262,35 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
     Some(phase12::pid_phys_offset(pid).wrapping_add(va))
 }
 
+/// ADR-135 D18: fork's first entry is read from a mark in the child slot's
+/// PROC_TABLE row (true) or from the child's pde 0 (false, the form before
+/// S-STAGE-2C Phase 6). The mark costs +169 verified instructions and closes a
+/// route that ADR-109 D6 already closes; it went off on 2026-11-15 to make room
+/// for the block-syscall guard (ADR-135 RV-1), and goes back on when a rung
+/// frees the instructions. Off, the object is the pde-keyed one exactly.
+const UPC_FORK_MARK: bool = true;
+
+/// Whether the BPF timer fires and switches processes: the Doom object only.
+/// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
+/// its cursor in a2 and one reservation mark per slot, and relies on nothing
+/// else running until it finalizes. A timer switch under `ascend-linux` breaks
+/// that, so such a build does not compile.
+const TIMER_SWITCH: bool = !cfg!(feature = "ascend-linux");
+const _: () = assert!(
+    !(cfg!(feature = "ascend-linux") && TIMER_SWITCH),
+    "ADR-135 I9: ascend fork assumes no timer switch; add slot reservation and the tagged cursor review first"
+);
+
+/// A syscall number no arm answers: what `kernel_routed_alias` turns a refused
+/// number into (ADR-135 RV-1).
+const NO_SUCH_SYSCALL: u32 = 0xFFFF_FFFF;
+
+/// xv6 `MAXPATH` (`param.h`): the span a user path may cover. ADR-135 D16: BPF's
+/// `open` and `exec` are reached only when `user_phys(pid, a0, MAXPATH_BYTES)`
+/// answers, so a path that starts outside the caller's slice, or within this many
+/// bytes of its ceiling, is refused before any byte of it is read.
+const MAXPATH_BYTES: u32 = 128;
+
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
@@ -433,7 +462,7 @@ const GETPID_INJECT: bool = true;
 const UPC_RUNG0: bool = true;
 // ADR-109 D6: a U-mode page-walk miss resolves outside RAM_MAP (loads 0, stores
 // dropped) instead of falling through to the physical address.
-const UPC_D6_MISS_FAULT: bool = false;
+const UPC_D6_MISS_FAULT: bool = true;
 // Probe builds only (EVOLUTION-1 Stage 2 plan Step 100): also inject xv6
 // syscall 22, which no handler has, to show a7 reaching the kernel per slot.
 const UPC_PROBE_INJECT22: bool = false;
@@ -487,6 +516,34 @@ const UPC_RUNG_CHDIR: bool = true;
 // read, write and close on its fds already route there; an end that cannot go on
 // retries, and EOF comes from exit's close. Needs UPC_RUNG_FD. Rollback = this const off.
 const UPC_RUNG_PIPE: bool = true;
+// EVOLUTION-1 Stage 2 rung 3, ADR-135 D19: write on a fd below 16 that is not a file
+// is the owned kernel's (sys_write, consolewrite, a one-byte store). The console
+// byte loop below is the off branch, so the on object does not hold it; what is left
+// of the arm answers -1, which is T-F3's interim for a file fd. Needs UPC_RUNG_FD.
+// Rollback = this const off.
+const UPC_RUNG3: bool = true;
+// EVOLUTION-1 Stage 2 rung 4, ADR-135 D20: read on a console fd is the owned
+// kernel's (sys_read, upc_consoleread, consoleintr's line buffer). At the trap's
+// injection BPF offers the next keyboard-ring byte in the slot table, without
+// advancing the ring; the kernel's reply says whether it took it, and the ring
+// advances then. The console branch of the read arm below is the off branch, so
+// the on object does not hold it. Needs UPC_RUNG_FD. Rollback = this const off.
+const UPC_RUNG4: bool = true;
+// EVOLUTION-1 Stage 2 rungs 5+6, ADR-135 D21: the owned kernel's fd table is the
+// only one. open, read, fstat, dup, close and write go to the kernel for every fd
+// and every flag; a kernel fd is its ofile index (D10's +16 ends); the console is
+// a kernel file matched by name, and the kernel gives the first image fds 0-2.
+// The open, read, fstat, dup and close arms and fork's FD_TABLE copy below are the
+// off branch, so the on object reads neither FD_TABLE nor FD_INODE_MAP and holds no
+// fs_walk. The kernel follows by `#define UPC_RUNG56` in upc_slots.h, which must
+// equal this const (cmd/upc-bootctl/tests/parity_slot_tables.rs). Needs the fd,
+// chdir and pipe rungs and rungs 3 and 4. Rollback = this const and that define off.
+const UPC_RUNG56: bool = false;
+// With rung 3 or 4 off a console write or read would fall into a BPF arm that asks
+// FD_TABLE what the fd is, and under UPC_RUNG56 nothing fills that table.
+const _: () = assert!(
+    !UPC_RUNG56 || (UPC_RUNG_FD && UPC_RUNG_CHDIR && UPC_RUNG_PIPE && UPC_RUNG3 && UPC_RUNG4)
+);
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -774,7 +831,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // not programmed our flat IVT. Firing a BPF-level timer here causes
     // mem_read_word(ivt_addr) = 0 → PC reset to 0 → silent reboot. Gate the
     // timer behind feature so xv6 builds skip it. Doom path keeps firing.
-    if cfg!(not(feature = "ascend-linux"))
+    if TIMER_SWITCH
         && cpu.tick_counter >= intr::TIMER_TICK_DIVISOR
         && cpu.interrupts_enabled != 0
         && cpu.interrupt_pending == 0
@@ -1408,7 +1465,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if cfg!(feature = "ascend-linux") && opc == op::FENCE {
             // Full memory barrier. No-op on single-CPU MBC.
             // ADR-067 Decision 5.
-        } else if cfg!(feature = "ascend-linux") && opc == op::MRET {
+        } else if cfg!(feature = "ascend-linux") && opc == op::MRET && cpu.priv_level != 3 {
+            // ADR-109 D6 (2026-11-15), ADR-135 R-F1: refused at U-mode. At priv 3
+            // the arm does not match and the opcode falls to the unknown-opcode
+            // NOP below, so a child cannot take MPP's privilege or jump to MEPC.
+            //
             // Machine-mode return. Pop MEPC + restore priv from MSTATUS.MPP.
             // MEPC holds an RV32 byte address (xv6 stores `&main` directly);
             // translate through RV2MBC_MAP to land on the correct MBC PC.
@@ -1443,7 +1504,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             };
             cpu.reservation_address = 0xFFFF_FFFF;
-        } else if cfg!(feature = "ascend-linux") && opc == op::SRET {
+        } else if cfg!(feature = "ascend-linux") && opc == op::SRET && cpu.priv_level != 3 {
+            // ADR-109 D6 (2026-11-15), ADR-135 R-F1: refused at U-mode, as MRET is.
+            // A U-mode sret would jump to SEPC and run the reply read with no
+            // trap entry (no wipe).
+            //
             // Supervisor-mode return. SEPC + SSTATUS.SPP. Same RV2MBC translation
             // as MRET — SEPC holds an RV byte address.
             //
@@ -1467,7 +1532,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             }
                         }
                     }
-                    *mbc_idx & 0xFFFF
+                    // No 16-bit mask: a resident program's ROM base can be at
+                    // or above 0x10000 (PROGRAM_TABLE slots 4 and up: wc at
+                    // 0x12000), and a return there must keep the high bits, as
+                    // RET, JMPR and CALLR do. With the mask, the first trap the
+                    // kernel answered for such a program resumed it in another
+                    // image (found by bssprobe, S-STAGE-2C Phase 5).
+                    *mbc_idx
                 }
                 _ => {
                     mem_write_word(0xE0060 >> 2, 0xDEAD0048); // SRET unmapped sentinel
@@ -2235,7 +2306,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // the calling process's page table (walkaddr equivalent) before
                 // the physical read. Identity for pid 0; offset slice for children.
                 let buf_addr = cpu.regs[9];
-                if cfg!(feature = "ascend-linux") {
+                if cfg!(feature = "ascend-linux") && UPC_RUNG3 {
+                    // ADR-135 D19: the kernel has every write on a fd that is not
+                    // a file (kernel_routed_alias). What still gets here is a write
+                    // on a file fd below 16, which printed its bytes to the TTY and
+                    // answered n (T-F3). It is refused until rung 6 gives it a file.
+                    cpu.regs[8] = u32::MAX;
+                } else if cfg!(feature = "ascend-linux") {
                     // xv6 multi-byte re-entrant write (echo/cat write full buffers
                     // and xv6's cat treats a short write as fatal). ONE byte per
                     // tick: a whole-buffer copy loop blows the kernel-6.17 verifier
@@ -2344,13 +2421,39 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let child_pgd = phase12::pgd_base_for_pid(child_pid as u8);
                     let child_off = phase12::pid_phys_offset(child_pid as u8);
                     // ── Gate 2: give the child its own address space (ADR-074) ──
-                    // First entry for this pid (child pgd pde[0] not yet present):
-                    // build a per-pid page directory mapping VA[0,8MiB) onto the
-                    // child's disjoint physical slice via two 4 MiB superpage
-                    // leaves, and reset the copy cursor (a2/regs[10] — caller-saved,
-                    // fork has no args so it's free scratch across the re-entries).
-                    let pde0 = mem_read_word(child_pgd >> 2);
-                    if (pde0 & mmu::PTE_PRESENT) == 0 {
+                    // First entry for this fork: build a per-pid page directory
+                    // mapping VA[0,8MiB) onto the child's disjoint physical slice
+                    // via two 4 MiB superpage leaves, and reset the copy cursor
+                    // (a2/regs[10] — caller-saved, fork has no args so it's free
+                    // scratch across the re-entries).
+                    //
+                    // ADR-135 D18 (R-F3, R-F6): "first entry" is read from the
+                    // child slot's own PROC_TABLE row, which carries
+                    // PROC_FORK_RESERVED | parent while a fork copies into it.
+                    // It used to be read from the child's pde 0, which a process
+                    // could write while ADR-109 D6 was off: a planted present
+                    // bit skipped this block and made the caller's a2 the cursor.
+                    // No register and no guest memory decides it now.
+                    //
+                    // Behind UPC_FORK_MARK. Off, the first entry is read from
+                    // pde 0 as before, which is sound while D6 is on.
+                    let want = phase12::PROC_FORK_RESERVED | ((cpu.current_pid as u32) << 8);
+                    let under_way = if UPC_FORK_MARK {
+                        match PROC_TABLE.get(child_pid) {
+                            Some(row) => row[phase12::PROC_TABLE_STATE_SLOT] == want,
+                            None => false,
+                        }
+                    } else {
+                        (mem_read_word(child_pgd >> 2) & mmu::PTE_PRESENT) != 0
+                    };
+                    if !under_way {
+                        if UPC_FORK_MARK {
+                            if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
+                                unsafe {
+                                    (*p)[phase12::PROC_TABLE_STATE_SLOT] = want;
+                                }
+                            }
+                        }
                         let flags =
                             mmu::PTE_PRESENT | mmu::PTE_LEAF | mmu::PTE_WRITE | mmu::PTE_USER;
                         mem_write_word(child_pgd >> 2, (child_off & mmu::SUPERPAGE_MASK) | flags);
@@ -2436,11 +2539,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // survive into the forked child — and thence into any exec'd
                     // sh, which writes its prompt to fd 2 and reads from fd 0.
                     // Bounded by NOFILE for the verifier.
-                    let mut ifd = 0u32;
-                    while ifd < fdtable::NOFILE {
-                        let k = fd_kind(cpu.current_pid, ifd);
-                        fd_set_kind(child_pid as u8, ifd, k);
-                        ifd += 1;
+                    // ADR-135 D21: under UPC_RUNG56 the kernel's fork note dups the
+                    // parent's files into the child's row and BPF keeps no table.
+                    if !UPC_RUNG56 {
+                        let mut ifd = 0u32;
+                        while ifd < fdtable::NOFILE {
+                            let k = fd_kind(cpu.current_pid, ifd);
+                            fd_set_kind(child_pid as u8, ifd, k);
+                            ifd += 1;
+                        }
                     }
                     // Revive the (possibly reused) slot: clear its halted/reaped
                     // bits so the scheduler runs it and a later wait() can reap it
@@ -2762,7 +2869,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         break;
                     }
                 }
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 15 {
+            } else if cfg!(feature = "ascend-linux")
+                && (syscall_nr == 15 || syscall_nr == 7)
+                && user_phys(cpu.current_pid, cpu.regs[8], MAXPATH_BYTES).is_none()
+            {
+                // ADR-135 D16 (R-F5): open(15) and exec(7) read their path at
+                // slice base + a0 with no walk. A path outside the caller's
+                // slice is refused here, ahead of both arms, so neither reads a
+                // byte of it. Checked on every re-entry: a0 is the live cursor.
+                cpu.regs[8] = (-1i32) as u32;
+            } else if cfg!(feature = "ascend-linux") && !UPC_RUNG56 && syscall_nr == 15 {
+                // (!UPC_RUNG56: ADR-135 D21, open is the owned kernel's for every fd.)
                 // ── xv6 SYS_open (15) — Gate D inode resolve + Epic 1.3.1
                 // multi-component path walk ──
                 // ascend-only: the FS-walk here (superblock + dirent scan +
@@ -2985,7 +3102,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                     }
                 }
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 8 {
+            } else if cfg!(feature = "ascend-linux") && !UPC_RUNG56 && syscall_nr == 8 {
+                // (!UPC_RUNG56: ADR-135 D21, fstat is the owned kernel's for every fd.)
                 // ── xv6 SYS_fstat (8) — Gate D dinode stat (Phase 4) ─────────
                 // fstat(fd=a0, st=a1): fill `struct stat` for an FD_INODE fd
                 // from its dinode so `ls` can classify + size each entry.
@@ -3041,7 +3159,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // satisfy init's `if(open("console")<0){ mknod("console",…); … }`
                 // fallback. Real device nodes await the FS reader.
                 cpu.regs[8] = 0;
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 10 {
+            } else if cfg!(feature = "ascend-linux") && !UPC_RUNG56 && syscall_nr == 10 {
+                // (!UPC_RUNG56: ADR-135 D21, dup is the owned kernel's for every fd.)
                 // ── xv6 SYS_dup (10) — RV32I ecall path (Phase 1.7 Gate A) ──
                 // ascend-only (xv6 fd dup; Doom never issues it).
                 // dup(oldfd=a0): copy oldfd's kind onto the lowest-free fd. init
@@ -3062,7 +3181,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         cpu.regs[8] = newfd;
                     }
                 }
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 21 {
+            } else if cfg!(feature = "ascend-linux") && !UPC_RUNG56 && syscall_nr == 21 {
+                // (!UPC_RUNG56: ADR-135 D21, close is the owned kernel's for every fd.)
                 // ── xv6 SYS_close (21) — RV32I ecall path (Phase 1.7 Gate A) ──
                 // ascend-only (xv6 fd close; Doom never issues it).
                 // close(fd=a0): free the descriptor; -1 if it wasn't open. No
@@ -3079,7 +3199,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     fd_clear_inode(pid, fd);
                     cpu.regs[8] = 0;
                 }
-            } else if cfg!(feature = "ascend-linux") && syscall_nr == 5 {
+            } else if cfg!(feature = "ascend-linux") && !UPC_RUNG56 && syscall_nr == 5 {
+                // (!UPC_RUNG56: ADR-135 D21, read is the owned kernel's for every fd.)
                 // ── xv6 SYS_read (5) — RV32I ecall path (Gate C console input) ──
                 // ascend-only: FD_INODE file read (block resolve + copy) + the
                 // console KBD-ring drain. The second-biggest xv6-only chunk;
@@ -3182,7 +3303,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                     }
                     cpu.regs[8] = ret;
-                } else if kind == fdtable::FD_CONSOLE {
+                } else if !UPC_RUNG4 && kind == fdtable::FD_CONSOLE {
                     let tail = match KBD_TAIL.get(0) {
                         Some(v) => *v,
                         None => 0,
@@ -3492,6 +3613,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 mem_write_word(w, 0);
                 if r & phase12::UPC_REPLY_SET_BRK != 0 {
                     cpu.program_break = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2);
+                }
+                // ADR-135 D20: the kernel took the offered console byte. The ring
+                // moves here and nowhere else, and this is the byte tty_r counts.
+                if UPC_RUNG4 && r & phase12::UPC_REPLY_KBD != 0 {
+                    if let Some(p) = KBD_TAIL.get_ptr_mut(0) {
+                        unsafe {
+                            *p = (*p).wrapping_add(1);
+                        }
+                    }
+                    increment_stat(STAT_TTY_READS);
                 }
                 // ADR-135 D7: the handler left epc on the ecall; yield, and the slot
                 // runs it again when next scheduled. Alone, it runs it again at once.
@@ -3891,17 +4022,39 @@ const OPEN_KERNEL_FLAGS: u32 = 0x001 | 0x200 | 0x400;
 /// link 19 under UPC_RUNG_LINK and mkdir 20 under UPC_RUNG_MKDIR (DP-502), and
 /// 22 in probe builds only. Under UPC_RUNG_FD (ADR-135 D11-D13): exit 2 and the
 /// fork note 24 always; read 5, fstat 8, dup 10, write 16 and close 21 for a fd at
-/// 16 or above, the compare unsigned so a negative fd goes too; open 15 with a
+/// 16 or above, the compare unsigned so a negative fd goes too; write 16 on a fd
+/// below 16 that is not a file, under UPC_RUNG3 (ADR-135 D19); read 5 on a
+/// console fd, under UPC_RUNG4 (ADR-135 D20); open 15 with a
 /// masked flag. Under UPC_RUNG_CHDIR (ADR-135 D15): chdir 9 always, and open 15 from a
-/// process off the root. Pipe 4 under UPC_RUNG_PIPE.
+/// process off the root. Pipe 4 under UPC_RUNG_PIPE. Under UPC_RUNG56 (ADR-135 D21):
+/// read 5, fstat 8, dup 10, open 15, write 16 and close 21 always, whatever the fd or
+/// the flag; the rows that ask FD_TABLE or the cwd mask are then compiled out.
 #[inline(always)]
 fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
     match n {
         2 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
         4 if cfg!(feature = "ascend-linux") && UPC_RUNG_PIPE => 11,
         9 if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR => 11,
+        5 | 8 | 10 | 15 | 16 | 21 if cfg!(feature = "ascend-linux") && UPC_RUNG56 => 11,
         5 | 8 | 10 | 16 | 21
-            if cfg!(feature = "ascend-linux") && UPC_RUNG_FD && cpu.regs[8] >= 16 =>
+            if cfg!(feature = "ascend-linux")
+                && !UPC_RUNG56
+                && UPC_RUNG_FD
+                && cpu.regs[8] >= 16 =>
+        {
+            11
+        }
+        16 if cfg!(feature = "ascend-linux")
+            && !UPC_RUNG56
+            && UPC_RUNG3
+            && fd_kind(cpu.current_pid, cpu.regs[8]) != fdtable::FD_INODE =>
+        {
+            11
+        }
+        5 if cfg!(feature = "ascend-linux")
+            && !UPC_RUNG56
+            && UPC_RUNG4
+            && fd_kind(cpu.current_pid, cpu.regs[8]) == fdtable::FD_CONSOLE =>
         {
             11
         }
@@ -3910,17 +4063,37 @@ fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
         13 if cfg!(feature = "ascend-linux") && UPC_RUNG_SLEEP => 11,
         14 if UPC_RUNG2 => 11,
         15 if cfg!(feature = "ascend-linux")
+            && !UPC_RUNG56
             && UPC_RUNG_FD
             && cpu.regs[9] & OPEN_KERNEL_FLAGS != 0 =>
         {
             11
         }
-        15 if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR && cwd_off_root(cpu) => 11,
+        15 if cfg!(feature = "ascend-linux")
+            && !UPC_RUNG56
+            && UPC_RUNG_CHDIR
+            && cwd_off_root(cpu) =>
+        {
+            11
+        }
         18 if cfg!(feature = "ascend-linux") && UPC_RUNG_UNLINK => 11,
         19 if cfg!(feature = "ascend-linux") && UPC_RUNG_LINK => 11,
         20 if cfg!(feature = "ascend-linux") && UPC_RUNG_MKDIR => 11,
         22 if UPC_PROBE_INJECT22 => 11,
         24 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
+        // ADR-135 RV-1 (Step 29 review, 2026-11-15): 200 and 201 are the block
+        // device's calls. They copy a 512-byte block between the ramdisk and a
+        // buffer named by its PHYSICAL address, with the caller's a2 as the
+        // cursor; the owned kernel's buffer cache makes them from S-mode. From
+        // U-mode they were a read and a write of any physical memory, ADR-109
+        // D6 or not: a child overwrote init's memory with one and read init's
+        // with the two. A U-mode caller's number becomes one that has no arm,
+        // so it answers -ENOSYS (DP-503) and the arms below never see it.
+        lsys::SYS_READ_BLOCK | lsys::SYS_WRITE_BLOCK
+            if cfg!(feature = "ascend-linux") && cpu.priv_level == 3 =>
+        {
+            NO_SUCH_SYSCALL
+        }
         _ => n,
     }
 }
@@ -3974,6 +4147,36 @@ fn inject_strap(cpu: &MbcCpuState) {
     if UPC_REPLY {
         mem_write_word((base + phase12::UPC_ST_BRK_IN_OFF) >> 2, cpu.program_break);
         // ADR-135 D3
+    }
+    // ADR-135 D20: a read on a fd below 16 gets here only for the console
+    // (kernel_routed_alias). Offer the next ring byte; the ring does not move.
+    // D21: under UPC_RUNG56 every read is routed and every fd is below 16, so the
+    // offer is made on every read; only upc_consoleread takes it, and the ring
+    // moves only on the kernel's reply, so a file read loses nothing.
+    if cfg!(feature = "ascend-linux")
+        && UPC_RUNG4
+        && cpu.regs[1] == 5
+        && (UPC_RUNG56 || cpu.regs[8] < 16)
+    {
+        let tail = match KBD_TAIL.get(0) {
+            Some(v) => *v,
+            None => 0,
+        };
+        let head = match KBD_HEAD.get(0) {
+            Some(v) => *v,
+            None => 0,
+        };
+        let offer = if tail < head {
+            // (scancode << 1) | pressed, as the host wrote it: the byte is bits 1-8.
+            let raw = match KBD_MAP.get(tail & 63) {
+                Some(v) => *v,
+                None => 0,
+            };
+            phase12::UPC_TAG_KBD | ((raw >> 1) & 0xFF)
+        } else {
+            0
+        };
+        mem_write_word((base + phase12::UPC_ST_KBD_IN_OFF) >> 2, offer);
     }
 }
 

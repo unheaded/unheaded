@@ -18,6 +18,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
 #include "upc_slots.h"
 
 extern struct proc proc[NPROC];
@@ -28,6 +31,7 @@ static struct upc_slot_tables upc_st __attribute__((aligned(UPC_TF_STRIDE)));
 #define UPC_PER_SLOT_PGD(s) (0x00F00000u + (uint32)(s) * 4096u)
 
 static int upc_active; // inside a tagged trap: upc_slot_enter to upc_slot_leave
+static int upc_kbd_taken; // this trap took the console byte BPF offered (ADR-135 D20)
 
 int
 upc_slot_active(void)
@@ -42,6 +46,10 @@ upc_slot_leave(void)
 {
   if(upc_active && upc_st.reply == 0)
     upc_st.reply = UPC_TAG_REPLY;
+  // ADR-135 D20: whatever else the handler replied, say the offered byte was taken.
+  if(upc_active && upc_kbd_taken)
+    upc_st.reply |= UPC_REPLY_KBD;
+  upc_kbd_taken = 0;
   upc_active = 0;
 }
 
@@ -149,14 +157,34 @@ upc_pause(int n)
   return n;   // a0 stays n for the re-run
 }
 
+// ADR-135 D20 (rung 4). The byte BPF offered at this trap's injection, or -1.
+// BPF only looks at its keyboard ring (it does not advance it) and leaves the
+// next byte here, tagged; taking it sets the reply's KBD flag at the return,
+// and BPF advances the ring then. A byte not taken is offered again.
+int
+upc_kbd_take(void)
+{
+  uint32 w = upc_st.kbd_in;
+  upc_st.kbd_in = 0;
+  if((w & UPC_TAG_MASK) != UPC_TAG_KBD)
+    return -1;
+  upc_kbd_taken = 1;
+  return (int)(w & 0xFF);
+}
+
 // ADR-135 D6. A slot row's user VA to its physical address, 0 when refused.
 // Only inside a tagged trap. VA 0 is mapped, so for slots 1-7 0 only ever means
 // refused; slot 0's base is 0, which refuses its first page, the safe way round.
+// D16: slot 0 is answered only inside init's image and stack windows, so a pointer
+// from init cannot name kernel .rodata, .data, .bss, the CSR window or the TTY.
 uint64
 upc_user_pa(uint64 va)
 {
   uint32 s = myproc() - proc;
   if(s >= UPC_SLOTS || va >= UPC_USER_VA_CEILING)
+    return 0;
+  if(s == 0 && !(va >= UPC_INIT_IMAGE_LO && va < UPC_INIT_IMAGE_HI)
+            && !(va >= UPC_INIT_STACK_LO && va < UPC_INIT_STACK_HI))
     return 0;
   return UPC_SLICE_BASE(s) + va;
 }
@@ -204,6 +232,27 @@ upc_slots_init(void)
       nz++;
     }
   printf("PG:f01000-nonzero=%d;first=%d;val=%d;\n", nz, first, (int)firstval);
+#endif
+
+#if UPC_RUNG56
+  // ADR-135 D21: the kernel gives the first image its console, fds 0 to 2, one
+  // file with three references, as Linux does for pid 1. Init's own
+  // open("console") cannot be answered (its literal sits in the first page,
+  // which copy-in refuses for slot 0), and most first images open nothing and
+  // print on fd 1. fileinit and consoleinit have run; userinit left ofile
+  // empty. ip is stored as 0: see sys_open.
+  struct file *con = filealloc();
+  if(con == 0)
+    panic("upc: console");
+  con->type = FD_DEVICE;
+  con->major = CONSOLE;
+  con->ip = 0;
+  con->off = 0;
+  con->readable = 1;
+  con->writable = 1;
+  proc[0].ofile[0] = con;
+  proc[0].ofile[1] = filedup(con);
+  proc[0].ofile[2] = filedup(con);
 #endif
 
   __sync_synchronize();
@@ -291,6 +340,7 @@ upc_slot_enter(void)
   upc_st.trap_a7 = 0;
   upc_st.reply = 0;     // ADR-135 D1: no word written in U-mode survives entry
   upc_st.reply_arg = 0;
+  upc_kbd_taken = 0;
   if((cs & UPC_TAG_MASK) != UPC_TAG_SLOT)
     return;
 

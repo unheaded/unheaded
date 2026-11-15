@@ -15,6 +15,15 @@
 // shows up. KILL of init must still be refused on the sret route, and init prints
 // the last line. With D6 on the PDE store is dropped, and the route ends at closed.
 //
+// S-STAGE-2C Phase 2 (ADR-109 D6 2026-11-15, ADR-135 R-F1): before the PDE route,
+// two children each run one privileged return at U-mode with no alias at all, an
+// mret and an sret. Refused means the opcode did nothing: the child is still at
+// U-mode on the next instruction. An mret that is taken leaves for MEPC at MPP's
+// privilege and never comes back; an sret that is taken lands on SEPC, the word
+// after the child's last ecall, and comes through here a second time. With both
+// refused, the sret route below cannot forge either: "sret-forged" then says no
+// and the KILL forgery, which rides the same sret, is not tried.
+//
 // Observables (fixed classes; the MBC userland varargs ABI is unreliable):
 //   "HR: own-slice-intact=yes|no"  store in the child's own slice changed nothing
 //   "HR: table-reached=yes|no"     the alias holds the word; the own-slice copy doesn't
@@ -24,8 +33,11 @@
 //                                  forged SET_BRK takes effect and this says no
 //   "HR: note-refused=yes|no"      24 with the fresh bit clear answers -1
 //   "HR: note-forged=yes|no"       24 with a forged fresh bit answers the slot's pid
+//   "HR: mret-refused=yes|no"      a U-mode mret did nothing: own pid, own slice, same break
+//   "HR: sret-refused=yes|no"      a U-mode sret did nothing, likewise
 //   "HR: sret-forged=yes|no"       sret route: the forged break took effect
 //   "HR: kill-init-refused=yes|no" sret route: forged KILL of slot 0 answered -1
+//                                  (printed only when the sret route forged)
 //   "HR: done"                     init, after the child is reaped
 #include "kernel/types.h"
 #include "kernel/stat.h"
@@ -75,6 +87,51 @@ sret_here(void)
   __asm__ volatile("la t0, 1f\n\tsw t0, 0(%1)\n\tsret\n1:"
                    : "+r"(a0) : "r"(phys(CSR_SEPC)) : "t0", "memory");
   return a0;
+}
+
+// One privileged return at U-mode, in a child of its own. The last trap before it
+// is getpid, so an sret that is taken resumes after that ecall, returns here and
+// counts a second pass. Still at U-mode means: the next ecall answers this child's
+// pid, a word stored at the table's address stays where the child put it (in S-mode
+// the address is the real reply word, which trap entry wipes), and the break holds.
+static void
+ret_child(uint t, int is_mret)
+{
+  volatile int passes = 0;
+  volatile uint *own = (volatile uint *)(t + ST_REPLY_OFF);
+  uint brk = (uint)sbrk(0);
+  int me = getpid();
+  passes++;
+  if(passes > 1){
+    if(is_mret)
+      printf("HR: mret-refused=no\n");
+    else
+      printf("HR: sret-refused=no\n");
+    return;
+  }
+  if(is_mret)
+    __asm__ volatile("mret");
+  else
+    __asm__ volatile("sret");
+  own[1] = FORGED_BRK;
+  own[0] = TAG_REPLY | REPLY_SET_BRK;
+  int ok = getpid() == me && own[0] == (TAG_REPLY | REPLY_SET_BRK);
+  own[0] = 0;
+  ok = ok && (uint)sbrk(0) == brk;
+  if(is_mret)
+    SAY("HR: mret-refused", ok);
+  else
+    SAY("HR: sret-refused", ok);
+}
+
+static void
+ret_route(uint t, int is_mret)
+{
+  if(fork() == 0){
+    ret_child(t, is_mret);
+    exit(0);
+  }
+  wait(0);
 }
 
 static int
@@ -128,7 +185,10 @@ child(uint t)
   *arg = FORGED_BRK;
   *reply = TAG_REPLY | REPLY_SET_BRK;
   sret_here();
-  SAY("HR: sret-forged", (uint)sbrk(0) == FORGED_BRK);
+  int forged = (uint)sbrk(0) == FORGED_BRK;
+  SAY("HR: sret-forged", forged);
+  if(!forged)
+    return;  // sret refused at U-mode: the KILL forgery has no route either
 
   *arg = 0;
   *reply = TAG_REPLY | REPLY_KILL;
@@ -139,6 +199,10 @@ int
 main(void)
 {
   uint t = *BP_SLOT_TABLES;
+  if(t){
+    ret_route(t, 1);
+    ret_route(t, 0);
+  }
   if(fork() == 0){
     if(t)
       child(t);

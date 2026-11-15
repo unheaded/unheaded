@@ -124,6 +124,22 @@ grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
 grep -aq 'omega' <<<"$MC" && pass "sh multi-command: prompt loop survives to second" \
   || fail "sh multi-command: prompt loop survives to second (missing 'omega')"
 
+# S-STAGE-2C Phase 15: ush has a cd builtin over chdir(9), run by the shell
+# itself. One boot: after `cd sub`, `ls` lists sub's NOTE before any README is
+# printed; after `cd ..`, `ls` lists the root's README; `cd nosuch` says so and
+# the prompt loop goes on. Without the builtin the first `ls` lists the root.
+CDO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
+  --input $'cd sub\nls\ncd ..\nls\ncd nosuch\necho after\n' 2>&1)"
+CDT="$(grep -a 'ascii:' <<<"$CDO" | sed -E 's/.*init: starting sh//')"
+CD1="${CDT%%README*}"
+grep -aq 'NOTE           2' <<<"$CD1" && pass "ush cd: cd sub, then ls lists NOTE" \
+  || fail "ush cd: cd sub, then ls lists NOTE"
+[[ "$CDT" == *'NOTE           2'*'README         2'*'sub            1'* ]] && pass "ush cd: cd .., then ls lists README" \
+  || fail "ush cd: cd .., then ls lists README"
+[[ "$CDT" == *'README         2'*'cannot cd nosuch'*'$ after'* ]] && pass "ush cd: cd nosuch says so, the loop goes on" \
+  || fail "ush cd: cd nosuch says so, the loop goes on"
+
 G2="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
@@ -195,8 +211,8 @@ fi
 
 # S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
 rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
-probe_lines() { # $1 program, $2 triggers, $3 token prefix
-  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
+probe_lines() { # $1 program, $2 triggers, $3 token prefix, then VAR=value pairs for the boot's environment
+  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "${@:4}" "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
     --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
     | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
 rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
@@ -207,19 +223,89 @@ rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes l
 rung_gate UPC_RUNG_SBRK sbrkprobe 4000000 SB 13
 rung_gate UPC_RUNG_KILL killprobe 3000000 KL 12
 rung_gate UPC_RUNG_MKDIR mkprobe 4000000 MK 7
-rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 8
-rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 9
-rung_gate UPC_RUNG_FD fdprobe 5000000 FD 49
+rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 11
+rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 12
+rung_gate UPC_RUNG_FD fdprobe 5000000 FD 51
 rung_gate UPC_RUNG_CHDIR chdirprobe 5000000 CD 24
 rung_gate UPC_RUNG_PIPE pipeprobe 8000000 PI 20
-rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5
+rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 9
+rung_gate UPC_D6_MISS_FAULT hostile_path 4000000 HQ 6
+rung_gate UPC_RUNG_SBRK bssprobe 6000000 BS 2
+rung_gate UPC_D6_MISS_FAULT hostile_fork 4000000 HF 3
+rung_gate UPC_D6_MISS_FAULT hostile_block 4000000 HB 3
+rung_gate UPC_RUNG3 conprobe 4000000 CW 5
+rung_gate UPC_RUNG_FD bigprobe 8000000 BG 3
+# S-STAGE-2C Phase 12, ADR-135 D21 (rungs 5+6): the kernel's fd table is the
+# only one. A plain O_RDWR file can be written and read back (T-F3 closed), dup
+# lands on 0, and fstat on the console answers without stopping the kernel.
+rung_gate UPC_RUNG56 rwprobe 6000000 RW 5
 if rung_on UPC_RUNG_SLEEP; then
   SLL="$(probe_lines sleepprobe 3000000 SL)"
-  if [ "$(grep -c '=yes$' <<<"$SLL")" = 4 ] && ! grep -q '=no$' <<<"$SLL" \
+  if [ "$(grep -c '=yes$' <<<"$SLL")" = 5 ] && ! grep -q '=no$' <<<"$SLL" && grep -q '^SL: pause-ticks=yes$' <<<"$SLL" \
     && [ "$(grep -n 'parent-ran' <<<"$SLL" | cut -d: -f1)" -lt "$(grep -n 'child-woke' <<<"$SLL" | cut -d: -f1)" ]; then
     pass "sleepprobe: pause(n) waits, a sibling runs meanwhile (UPC_RUNG_SLEEP)"; else fail "sleepprobe (UPC_RUNG_SLEEP)"; fi
 else
   note "sleepprobe gate skipped: UPC_RUNG_SLEEP is off"
+fi
+
+# S-STAGE-2C Phase 10, ADR-135 D20 (rung 4): read on the console is the owned
+# kernel's. crprobe needs typed input, so it is not a rung_gate line: three
+# lines go in the keyboard ring, each must come back whole from one read (the
+# first is read by init itself, slot 0: ADR-135 D21, review F1), a bad pointer
+# must answer -1 with nothing left to wait for, and tty_r must count the
+# seventeen bytes the kernel took, as it counted BPF's deliveries.
+if rung_on UPC_RUNG4; then
+  CRO="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/crprobe.mbc" --triggers 4000000 --instance 111 --input $'init\nhello\nagain\n' 2>&1) )"
+  CRL="$(grep -a 'ascii:' <<<"$CRO" | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'CR: [a-z0-9-]+(=[a-z0-9]+)?')"
+  if [ "$(grep -c '=yes$' <<<"$CRL")" = 4 ] && ! grep -q '=no$' <<<"$CRL" && grep -qx 'CR: done' <<<"$CRL" \
+     && grep -aq 'tty_r=17\b' <<<"$CRO"; then
+    pass "crprobe: 4 checks, a line read by init and two by a child, tty_r=17 (UPC_RUNG4)"
+  else
+    fail "crprobe (UPC_RUNG4)"; note "$(tr '\n' ' ' <<<"$CRL") $(grep -aoE 'tty_r=[0-9]+' <<<"$CRO" | tail -1)"
+  fi
+else
+  note "crprobe gate skipped: UPC_RUNG4 is off"
+fi
+
+# S-STAGE-2C Phase 8 (A-62): the rung 0 asserter (ADR-109 I1-I8) against a
+# probe kernel. The kernel is built with -DUPC_STAGE2_PROBE from a copy in a
+# temp dir (the make rules write objects beside the sources, so the copy keeps
+# the tree's own kernel and $K/xv6-mbc.mbc untouched). getpidfork and forkloop
+# boot on it; scripts/upc-tty-split.py gives the kernel's UT: lines and the
+# programs' fork lines back as two streams; the awk judges them. The mutant is
+# the same input with one pid changed: it must fail.
+if rung_on UPC_RUNG0; then
+  PKD="$(mktemp -d)"
+  if mkdir -p "$PKD/xv6-mbc/upstream" \
+     && cp -a "$ROOT/crates/xv6-mbc/adapters" "$PKD/xv6-mbc/" \
+     && cp -a "$ROOT/crates/xv6-mbc/upstream/kernel" "$PKD/xv6-mbc/upstream/" \
+     && ln -s "$ROOT/crates/monad-mbc" "$PKD/monad-mbc" \
+     && find "$PKD/xv6-mbc" \( -name '*.o' -o -name '*.d' -o -name 'kernel.elf' -o -name 'kernel.asm' \) -delete \
+     && sed -i 's/^CFLAGS = /CFLAGS = -DUPC_STAGE2_PROBE /' "$PKD/xv6-mbc/adapters/Makefile.mbc" \
+     && ( cd "$PKD/xv6-mbc/upstream" && make -f ../adapters/Makefile.mbc kernel >/dev/null 2>&1 ) \
+     && [ -s "$PKD/xv6-mbc/upstream/target/xv6-mbc.mbc" ]; then
+    PKK="$PKD/xv6-mbc/upstream/target/xv6-mbc.mbc"
+    : > "$PKD/tokens.txt"
+    for prog in getpidfork forkloop; do
+      (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$PKK" \
+        --ramdisk "$K/fs.img" --userland "$K/$prog.mbc" --triggers 1500000 --instance 111 2>&1) \
+        | python3 "$ROOT/scripts/upc-tty-split.py" >> "$PKD/tokens.txt"
+    done
+    RA="$(awk -f "$ROOT/scripts/upc-rung0-assert.awk" "$PKD/tokens.txt")"
+    RM="$(sed -E '0,/pid=2;/s/pid=2;/pid=5;/' "$PKD/tokens.txt" | awk -f "$ROOT/scripts/upc-rung0-assert.awk")"
+    if grep -qE '^RUNG0-ASSERT pass [1-9][0-9]*$' <<<"$RA" && grep -q '^RUNG0-ASSERT fail pid 5 for slot 1$' <<<"$RM" \
+       && [ "$(grep -c '^G[LMXF]: fork-ret=\|^FL: child$' "$PKD/tokens.txt")" = 4 ]; then
+      pass "rung 0 asserter: ${RA#RUNG0-ASSERT } tagged traps on a probe kernel, 4 forks; a changed pid fails"
+    else
+      fail "rung 0 asserter"; note "$RA / $RM"
+    fi
+  else
+    fail "rung 0 asserter (the probe kernel did not build)"
+  fi
+  rm -rf "$PKD"
+else
+  note "rung 0 asserter skipped: UPC_RUNG0 is off"
 fi
 
 # ADR-109 D6 (M-247): a child stores to slot 0's pgd (15 MiB up, a page-walk
@@ -252,26 +338,142 @@ want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: g
 # S-STAGE-2B Step 258, ADR-135 R-F9: a child forges the reply word through a PDE it
 # adds. In every build a word stored ahead of a trap must not take effect. With
 # UPC_D6_MISS_FAULT on the PDE store is dropped and the route ends at closed. Off,
-# the sret route and a forged fork note land (the open hole, as hostile_pgd); if they
-# stop landing, the probe no longer reaches the hole and proves nothing about a fix.
+# a forged fork note lands (the open hole, as hostile_pgd); if it stops landing, the
+# probe no longer reaches the hole and proves nothing about a fix.
+# S-STAGE-2C Phase 2 (ADR-135 R-F1): MRET and SRET are refused at priv 3 in every
+# build, so both branches want a U-mode mret and a U-mode sret to do nothing, and
+# with D6 off the sret route through the alias must no longer forge.
+# hostile_reply holds an mret and two srets on purpose, which upc-bootctl's opcode
+# scan refuses in a user image (ADR-135 D17); UPC_ALLOW_USER_PRIVRET=1 is the
+# probe hatch for exactly that (returns only, never an atomic).
 if rung_on UPC_REPLY; then
-  HRL="$(probe_lines hostile_reply 3000000 HR)"
+  HRL="$(probe_lines hostile_reply 3000000 HR UPC_ALLOW_USER_PRIVRET=1)"
   if rung_on UPC_D6_MISS_FAULT; then
-    want_counts "$HRL" "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
+    want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
+      "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
       "HR: heap-intact=yes" 1 "HR: done" 1 \
       && pass "hostile_reply: D6 closes the route to the reply word" || fail "hostile_reply (D6 on)"
-  elif ! want_counts "$HRL" "HR: own-slice-intact=yes" 1 "HR: table-reached=yes" 1 "HR: heap-intact=yes" 1 \
-    "HR: note-refused=yes" 1 "HR: kill-init-refused=yes" 1 "HR: done" 1; then
-    fail "hostile_reply (ecall route, or init reached)"; note "$(tr '\n' ' ' <<<"$HRL")"
-  elif want_counts "$HRL" "HR: note-forged=yes" 1 "HR: sret-forged=yes" 1; then
-    pass "hostile_reply: a word stored ahead of a trap is wiped, init stays out of reach"
-    note "hostile_reply: D6 is off, a child forged the reply by sret and a fork note (ADR-135 open)"
+  elif ! want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
+    "HR: own-slice-intact=yes" 1 "HR: table-reached=yes" 1 "HR: heap-intact=yes" 1 \
+    "HR: note-refused=yes" 1 "HR: sret-forged=no" 1 "HR: done" 1; then
+    fail "hostile_reply (a privileged return at U-mode, the ecall route, or the sret route)"; note "$(tr '\n' ' ' <<<"$HRL")"
+  elif want_counts "$HRL" "HR: note-forged=yes" 1; then
+    pass "hostile_reply: U-mode mret and sret do nothing, a word stored ahead of a trap is wiped"
+    note "hostile_reply: D6 is off, a child forged a fork note through its own PDE (ADR-135 open)"
   else
     fail "hostile_reply (D6 off: the probe no longer reaches the hole)"
   fi
 else
   note "hostile_reply gate skipped: UPC_REPLY is off"
 fi
+
+# S-STAGE-2C Phase 4, ADR-135 D17 (R-S4): upc-bootctl refuses a user image that
+# holds an atomic. The translator emits none, so the image is made here: one LD
+# of hostile_atomic rewritten to XCHG in a copy. Never booted: a dry run reaches
+# the scan and stops there. Without the hatch hostile_reply is refused too, and
+# the hatch does not admit the atomic.
+OPD="$(mktemp -d)"
+if python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --word-of-marker 0x1D000400 \
+     --marker-mask 0xFF00FFFF --from 0x30 --to 0x3D --out "$OPD/hostile_atomic_x.mbc" >/dev/null 2>&1 \
+   && cp "$K/hostile_atomic.rv2mbc" "$OPD/hostile_atomic_x.rv2mbc" \
+   && cp "$K/hostile_atomic.rv2mbc.sha256" "$OPD/hostile_atomic_x.rv2mbc.sha256"; then
+  scan_of() { (cd "$EBPF" && env "${@:2}" "$BC" boot --kernel "$K/xv6-mbc.mbc" --userland "$1" --dry-run 2>&1); }
+  SX="$(scan_of "$OPD/hostile_atomic_x.mbc")"
+  SH="$(scan_of "$OPD/hostile_atomic_x.mbc" UPC_ALLOW_USER_PRIVRET=1)"
+  SR="$(scan_of "$K/hostile_reply.mbc")"
+  SC="$(scan_of "$K/hostile_atomic.mbc")"
+  if grep -q 'UserImageOpcode: hostile_atomic_x: word [0-9]* (0x3D[0-9A-F]*) is XCHG' <<<"$SX" \
+     && grep -q 'UserImageOpcode: .* is XCHG' <<<"$SH" \
+     && grep -q 'UserImageOpcode: hostile_reply: .* is [MS]RET' <<<"$SR" \
+     && ! grep -q 'UserImageOpcode' <<<"$SC"; then
+    pass "opcode scan refuses a user image with XCHG (hatch or not) and one with MRET/SRET"
+  else
+    fail "opcode scan (a user image with XCHG or MRET/SRET was not refused, or a clean one was)"
+    note "$(grep -h UserImageOpcode <<<"$SX$SH$SR$SC" | head -3 | tr '\n' ' ')"
+  fi
+  # Step 29 review, RV-2: PUSH, POP, INT and IRET go through r15 with no
+  # translation, so the scan refuses them too, hatch or not. Same image, the
+  # same word rewritten to each in turn; a dry run, never booted.
+  RV2=0
+  for pair in 1A:PUSH 1B:POP 17:INT 18:IRET; do
+    o="${pair%%:*}" m="${pair#*:}"
+    python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --word-of-marker 0x1D000400 \
+        --marker-mask 0xFF00FFFF --from 0x30 --to "0x$o" --out "$OPD/hostile_op_$m.mbc" >/dev/null 2>&1 \
+      && cp "$K/hostile_atomic.rv2mbc" "$OPD/hostile_op_$m.rv2mbc" \
+      && cp "$K/hostile_atomic.rv2mbc.sha256" "$OPD/hostile_op_$m.rv2mbc.sha256" || continue
+    SO="$(scan_of "$OPD/hostile_op_$m.mbc" UPC_ALLOW_USER_PRIVRET=1)"
+    grep -q "UserImageOpcode: hostile_op_${m}: word [0-9]* (0x${o}[0-9A-F]*) is ${m}\b" <<<"$SO" && RV2=$((RV2+1))
+  done
+  [ "$RV2" = 4 ] && pass "opcode scan refuses a user image with PUSH, POP, INT or IRET (review RV-2)" \
+    || fail "opcode scan (PUSH, POP, INT, IRET: $RV2 of 4 refused)"
+  # S-STAGE-2C Phase 5 (A-61): the .data sidecar of the --userland image must
+  # be there and must parse, or the boot is refused before the eBPF object is
+  # opened. Three dry runs of a clean image: no sidecar, a sidecar cut to seven
+  # bytes, and its own sidecar.
+  mkdir "$OPD/sc" && cp "$K/hostile_atomic.mbc" "$K/hostile_atomic.rv2mbc" "$K/hostile_atomic.rv2mbc.sha256" "$OPD/sc/"
+  SM="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  head -c 7 "$K/hostile_atomic.data" > "$OPD/sc/hostile_atomic.data"
+  SB="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  cp "$K/hostile_atomic.data" "$OPD/sc/hostile_atomic.data"
+  SG="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  if grep -q 'UserSidecarMissing' <<<"$SM" && grep -q 'UserSidecarBad' <<<"$SB" \
+     && ! grep -q 'UserSidecar' <<<"$SG" && grep -q '\.data sidecars: 1 user image' <<<"$SG"; then
+    pass "sidecar check refuses a missing and a truncated .data sidecar, and passes the image's own"
+  else
+    fail "sidecar check (a missing or truncated .data sidecar was not refused, or a good one was)"
+    note "$(grep -ho 'UserSidecar[A-Za-z]*' <<<"$SM$SB$SG" | tr '\n' ' ')"
+  fi
+  # Security pass review, finding 1 (2026-11-15): a sidecar's records must point
+  # into the image's own memory. The loader writes the --userland image's records
+  # at their raw addresses (physical, for slot 0) and exec copies a resident
+  # program's span to slice base + address. Three dry runs: a record in the
+  # kernel's .data, a record whose end wraps, and a resident program ("sh", a
+  # copy of the same clean image) whose two records are over 256 KiB apart.
+  tlv() { python3 -c 'import struct,sys
+a=[int(x,0) for x in sys.argv[2:]]
+b=struct.pack("<I",len(a)//2)
+for i in range(0,len(a),2):
+    b+=struct.pack("<II",a[i],a[i+1])+bytes([0xAA])*a[i+1]
+    b+=bytes(-len(b)%4)
+open(sys.argv[1],"wb").write(b)' "$@"; }
+  tlv "$OPD/sc/hostile_atomic.data" 0x00100000 4
+  SK="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  tlv "$OPD/sc/hostile_atomic.data" 0xFFFFFFF0 0x20
+  SW="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  cp "$K/hostile_atomic.data" "$OPD/sc/hostile_atomic.data"
+  for e in mbc rv2mbc rv2mbc.sha256; do cp "$K/hostile_atomic.$e" "$OPD/sc/sh.$e"; done
+  tlv "$OPD/sc/sh.data" 0x1000 4 0x50000 4
+  SS="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  cp "$K/hostile_atomic.data" "$OPD/sc/sh.data"
+  SI="$(scan_of "$OPD/sc/hostile_atomic.mbc")"
+  if grep -q 'UserSidecarBad: .*hostile_atomic.data: record 0 .* is outside the image.s window' <<<"$SK" \
+     && grep -q 'UserSidecarBad: .*hostile_atomic.data: record 0 .* wraps the address space' <<<"$SW" \
+     && grep -q 'UserSidecarBad: .*sh.data: the records span 0x4F004 bytes' <<<"$SS" \
+     && ! grep -q 'UserSidecar' <<<"$SI" && grep -q '\.data sidecars: 2 user image' <<<"$SI"; then
+    pass "sidecar check refuses a record in kernel memory, one that wraps and a resident span over the staging stride (review finding 1)"
+  else
+    fail "sidecar bounds (a record outside its image's window, a wrap or an oversized span was not refused, or good ones were)"
+    note "$(grep -ho 'UserSidecarBad: [^;]*' <<<"$SK$SW$SS$SI" | cut -c1-120 | head -3 | tr '\n' ' ')"
+  fi
+  # Security pass review, finding 2 (2026-11-15): U-mode can jump to any ROM
+  # word, so the kernel image holds none of the eight opcodes that address
+  # physical memory (it keeps MRET and SRET). A copy of the kernel with one PUSH
+  # word appended, a dry run; then the kernel itself.
+  mkdir "$OPD/kx" && for e in mbc rv2mbc rv2mbc.sha256 data; do cp "$K/xv6-mbc.$e" "$OPD/kx/" 2>/dev/null; done
+  printf '\x00\x00\x00\x1a' >> "$OPD/kx/xv6-mbc.mbc"
+  KX="$(cd "$EBPF" && "$BC" boot --kernel "$OPD/kx/xv6-mbc.mbc" --userland "$K/hostile_atomic.mbc" --dry-run 2>&1)"
+  KC="$(scan_of "$K/hostile_atomic.mbc")"
+  if grep -q 'KernelImageOpcode: xv6-mbc: word [0-9]* (0x1A000000) is PUSH' <<<"$KX" \
+     && ! grep -q 'KernelImageOpcode' <<<"$KC" && grep -q 'opcode scan: 1 privileged image' <<<"$KC"; then
+    pass "opcode scan refuses a kernel image with PUSH and passes the kernel (review finding 2)"
+  else
+    fail "opcode scan (a kernel image with PUSH was not refused, or the kernel was)"
+    note "$(grep -ho 'KernelImageOpcode: [^;]*' <<<"$KX$KC" | cut -c1-120 | head -2 | tr '\n' ' ')"
+  fi
+else
+  fail "opcode scan (could not make the patched image from $K/hostile_atomic.mbc)"
+fi
+rm -rf "$OPD"
 
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.

@@ -92,10 +92,12 @@ pub const UPC_ST_BRK_IN_OFF: u32 = 0x0000_0810; // cpu.program_break, written at
 pub const UPC_ST_REPLY_OFF: u32 = 0x0000_0814; // UPC_TAG_REPLY | flags, kernel; read at SRET (ADR-135 D1)
 pub const UPC_ST_REPLY_ARG_OFF: u32 = 0x0000_0818; // the reply flag's one argument, kernel
 pub const UPC_ST_CWD_MASK_OFF: u32 = 0x0000_081C; // bit s: row s is off the root inode, kernel (ADR-135 D15)
-pub const UPC_ST_SIZE: u32 = 0x0000_0820;
+pub const UPC_ST_KBD_IN_OFF: u32 = 0x0000_0820; // UPC_TAG_KBD | byte, or 0, written at a console read's injection (ADR-135 D20)
+pub const UPC_ST_SIZE: u32 = 0x0000_0824;
 pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
 pub const UPC_TAG_A7: u32 = 0xA700_0000;
 pub const UPC_TAG_REPLY: u32 = 0x5250_0000;
+pub const UPC_TAG_KBD: u32 = 0x4B42_0000; // ADR-135 D20
 pub const UPC_TAG_MASK: u32 = 0xFFFF_0000;
 pub const UPC_REPLY_SET_BRK: u32 = 1;
 #[allow(dead_code)] // the sleep rung (ADR-135 D7)
@@ -104,6 +106,9 @@ pub const UPC_REPLY_YIELD: u32 = 2;
 pub const UPC_REPLY_KILL: u32 = 4;
 // ADR-135 D13: the kernel closed ofile; end the caller, status in a0.
 pub const UPC_REPLY_EXIT: u32 = 8;
+// ADR-135 D20: the kernel took the console byte offered at injection; advance the ring.
+#[allow(dead_code)] // rung 4
+pub const UPC_REPLY_KBD: u32 = 16;
 // ADR-135 D2: the kernel owns these bounds; here for the parity test.
 #[allow(dead_code)]
 pub const UPC_HEAP_BASE: u32 = 0x0001_0000;
@@ -111,7 +116,7 @@ pub const UPC_HEAP_BASE: u32 = 0x0001_0000;
 pub const UPC_HEAP_TOP: u32 = 0x0004_0000;
 // The table is the 8 trapframes followed by eight words (upc_slots.h asserts
 // the same in C).
-const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 32);
+const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 36);
 const _: () = assert!(UPC_ST_CUR_SLOT_OFF == UPC_SLOTS * UPC_TF_STRIDE);
 
 // ── Gate 4 isolation invariants (compile-time) ─────────────────────────────
@@ -169,6 +174,13 @@ pub const PROC_TABLE_PGD_SLOT: usize = 20;
 /// disjoint RV2MBC_MAP region. Grows the row from `[u32;21]` to `[u32;22]`.
 #[allow(dead_code)]
 pub const PROC_TABLE_RV2MBC_SLOT: usize = 21;
+/// PROC_TABLE row word 17, the state word: the saved flags in its low byte.
+/// ADR-135 D18: while a fork is copying into a slot, that slot's row carries
+/// `PROC_FORK_RESERVED | parent << 8` here. The row is BPF's own (PROC_TABLE is
+/// not guest memory), so no process can set or clear it; fork's finalize writes
+/// the whole row and the mark goes with it.
+pub const PROC_TABLE_STATE_SLOT: usize = 17;
+pub const PROC_FORK_RESERVED: u32 = 0x8000_0000;
 
 // ───────────────────────────────────────────────────────────────────────
 // Option A — per-task pgd (CHOSEN)

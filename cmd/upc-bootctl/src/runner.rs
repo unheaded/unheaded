@@ -428,11 +428,27 @@ impl BootRunner {
         self.populate_ram(&region_refs)
     }
 
+    /// Load the `--userland` image's `.data` sidecar at its linked addresses,
+    /// which for slot 0 are physical. Unlike [`Self::load_data_image`] (the
+    /// kernel's and the bootstub's), every record must be inside the window a
+    /// user image may write (security pass review, finding 1): the bytes read
+    /// here are the ones checked and the ones written.
+    pub fn load_user_data_image(&mut self, path: &Path) -> Result<()> {
+        let blob =
+            fs::read(path).with_context(|| format!("read data image: {}", path.display()))?;
+        let what = path.display().to_string();
+        let regions = Self::parse_data_regions(&blob, &what)?;
+        crate::opscan::check_userland_regions(&regions, &what)?;
+        let region_refs: Vec<(u32, &[u8])> =
+            regions.iter().map(|(a, b)| (*a, b.as_slice())).collect();
+        self.populate_ram(&region_refs)
+    }
+
     /// Parse a `.data` TLV blob into `(byte_addr, bytes)` regions — the same
     /// format `load_data_image` consumes, but returned to the caller instead
     /// of written at the linked VAs. Used by `stage_program_data` to build a
     /// flat exec-staging image for a non-pid-0 program (ADR-077 Gate B).
-    fn parse_data_regions(blob: &[u8], what: &str) -> Result<Vec<(u32, Vec<u8>)>> {
+    pub(crate) fn parse_data_regions(blob: &[u8], what: &str) -> Result<Vec<(u32, Vec<u8>)>> {
         if blob.len() < 4 {
             bail!("{what}: data image too short ({} bytes)", blob.len());
         }
@@ -478,7 +494,12 @@ impl BootRunner {
     ) -> Result<(u32, u32)> {
         let blob = fs::read(data_path)
             .with_context(|| format!("read program data: {}", data_path.display()))?;
-        let regions = Self::parse_data_regions(&blob, &data_path.display().to_string())?;
+        let what = data_path.display().to_string();
+        let regions = Self::parse_data_regions(&blob, &what)?;
+        // The bytes just read are the ones staged, so they are the ones checked
+        // (check_user_sidecars read the file earlier, by path).
+        crate::opscan::check_resident_regions(&regions, &what)
+            .map_err(|e| anyhow::anyhow!("UserSidecarBad: {e}"))?;
         if regions.is_empty() {
             return Ok((0, 0));
         }

@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-11-15 (141 entries)
+**Last synced from canonical:** 2026-11-15 (143 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 66 |
-| Proposed | 38 |
+| Proposed | 40 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 2 |
@@ -21,7 +21,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **141** |
+| **Total** | **143** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -156,7 +156,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [132](../docs/adr/ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
 | [133](../docs/adr/ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](../docs/adr/ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
-| [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF | **Proposed** | 2026-11-05 |
+| [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF (amended 2026-11-15: D16 to D21, S-STAGE-2C) | **Proposed** | 2026-11-05 |
 | [136](../docs/adr/ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down CA for lab names (YubiKey root, rotated working certificates) | **Proposed** (parked) | 2026-11-06 |
 | [137](../docs/adr/ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` | **Proposed** (parked) | 2026-11-06 |
 | [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Accepted** (Stevie's answer #32, 2026-11-09; built 2026-11-10, installed nowhere) | 2026-11-09 |
@@ -166,6 +166,8 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [142](../docs/adr/ADR-142-wotan-as-a-redis-class-store.md) | Wotan made fast and lean enough to stand beside Redis | **Proposed** (parked) | 2026-11-12 |
 | [143](../docs/adr/ADR-143-terraform-multi-cloud-template.md) | A Terraform template that stands the kingdom up on AWS, Azure, GCP, LXD or Docker from a verified tag | **Proposed** (parked) | 2026-11-12 |
 | [144](../docs/adr/ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west, a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east) | 2026-11-12 |
+| [145](../docs/adr/ADR-145-upc-user-image-ceiling-check.md) | UPC user images are checked against the heap window's floor | **Proposed** (parked) | 2026-11-15 |
+| [146](../docs/adr/ADR-146-upc-scrub-slice-at-reap.md) | A UPC slot's slice is scrubbed when its process is reaped | **Proposed** (parked) | 2026-11-15 |
 
 ---
 

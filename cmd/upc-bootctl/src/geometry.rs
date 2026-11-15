@@ -40,7 +40,9 @@ pub const XV6_RAMDISK_BASE: u32 = monad_common::mbc_block::RAMDISK_BASE_WORD * 4
 /// Ramdisk size: `mbc_block::RAMDISK_SIZE` (4 MiB).
 pub const XV6_RAMDISK_LEN: u32 = monad_common::mbc_block::RAMDISK_SIZE;
 /// Resident programs exec(7) can resolve, in PROGRAM_TABLE slot order.
-pub const RESIDENT_PROGRAMS: &[&str] = &["sh", "echo", "ls", "cat", "wc"];
+/// `bssprobe` is a probe (S-STAGE-2C Phase 5): it is not in fs.img and is loaded
+/// only when its `.mbc` sits beside `--userland`, as every entry here is.
+pub const RESIDENT_PROGRAMS: &[&str] = &["sh", "echo", "ls", "cat", "wc", "bssprobe"];
 /// Pristine RAM where each resident program's `.data` is staged for exec(7).
 pub const RESIDENT_DATA_STAGE_BASE: u32 = 0x00C0_0000;
 /// Distance between consecutive staged `.data` regions.

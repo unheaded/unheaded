@@ -44,10 +44,13 @@ impl Fixture {
     fn rv2mbc(&self, name: &str) -> PathBuf {
         self.dir.join(format!("{name}.rv2mbc"))
     }
-    /// `<name>.mbc` + `<name>.rv2mbc`, no sidecar.
+    /// `<name>.mbc` + `<name>.rv2mbc`, no SHA sidecar. The `.data` sidecar is an
+    /// empty TLV: since S-STAGE-2C Phase 5 a user image without one is refused,
+    /// after the SHA gate these tests are about.
     fn program(&self, name: &str) {
         std::fs::write(self.dir.join(format!("{name}.mbc")), [0u8; 64]).unwrap();
         std::fs::write(self.rv2mbc(name), RV).unwrap();
+        std::fs::write(self.dir.join(format!("{name}.data")), [0u8; 4]).unwrap();
     }
     fn sidecar(&self, name: &str, text: &str) {
         let mut p = self.rv2mbc(name).into_os_string();

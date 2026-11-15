@@ -15,6 +15,12 @@ main(void)
   SAY("SL: neg", pause(-5) == 0);
   SAY("SL: returned", pause(300) == 0);
   SAY("SL: waited", uptime() - a >= 300);
+  // S-STAGE-2C Phase 8 (A-62): the tick count across one pause, and how late it woke.
+  int t0 = uptime();
+  pause(50);
+  int t1 = uptime();
+  SAY("SL: pause-ticks", t1 - t0 >= 50);
+  printf("SL: late-by=%d\n", t1 - t0 - 50);
   int c = fork();
   if(c == 0){
     pause(2000);

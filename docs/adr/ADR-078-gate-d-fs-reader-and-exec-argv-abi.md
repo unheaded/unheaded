@@ -71,7 +71,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 2 | exit | kernel closes, BPF ends the slot | ADR-135 D13 |
 | 3 | wait | BPF | status written as 0 until rung 7 |
 | 4 | pipe | kernel | ADR-135 D7, D10-D13; fds at 16 and up, read and write retry |
-| 5 | read | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 5 | read | BPF for a file fd below 16; kernel at fd 16 and up, and under `UPC_RUNG4` (2026-11-15) on a console fd | ADR-135 D10-D11, D20 |
 | 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |
 | 8 | fstat | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
@@ -82,7 +82,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 13 | pause | kernel | n UPC ticks (ADR-110), retry hand-off |
 | 14 | uptime | kernel | ADR-110 |
 | 15 | open | BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC, or from a process off the root | ADR-135 D11, D15; O_RDWR alone at the root stays in BPF |
-| 16 | write | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 16 | write | kernel: at fd 16 and up, and under `UPC_RUNG3` (2026-11-15) at any fd below 16 that is not a file; BPF answers -1 for a file fd below 16 | ADR-135 D10-D11, D19 |
 | 17 | mknod | BPF | stub |
 | 18 | unlink | kernel | DP-502 |
 | 19 | link | kernel | DP-502 |

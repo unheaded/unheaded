@@ -26,6 +26,12 @@
 #include "file.h"
 #include "stat.h"
 #include "proc.h"
+#include "upc_slots.h"
+
+// uconsole.c: the console's write and its polled read for a slot row
+// (ADR-135 D19, D20); under UPC_RUNG56 a console file reaches them from here.
+int consolewrite(int user_src, uint64 src, int n);
+int upc_consoleread(uint64 dst, int n);
 
 struct devsw devsw[NDEV];
 struct {
@@ -90,9 +96,12 @@ fileclose(struct file *f)
   if(ff.type == FD_PIPE){
     pipeclose(ff.pipe, ff.writable);
   } else if(ff.type == FD_INODE || ff.type == FD_DEVICE){
-    begin_op();
-    iput(ff.ip);
-    end_op();
+    // ADR-135 D21: the console file has no inode (ip == 0); nothing to put.
+    if(ff.ip){
+      begin_op();
+      iput(ff.ip);
+      end_op();
+    }
   }
 }
 
@@ -105,6 +114,10 @@ filestat(struct file *f, uint64 addr)
   struct stat st;
 
   if(f->type == FD_INODE || f->type == FD_DEVICE){
+    // ADR-135 D21: no inode, no stat. -1 is what BPF's fstat answered for a
+    // console fd.
+    if(f->ip == 0)
+      return -1;
     ilock(f->ip);
     stati(f->ip, &st);
     iunlock(f->ip);
@@ -130,6 +143,14 @@ fileread(struct file *f, uint64 addr, int n)
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].read)
       return -1;
+#if UPC_RUNG56
+    // ADR-135 D20, D21: inside a tagged trap the console is read by the polled
+    // read, which never sleeps and may answer UPC_RETRY_RC. upc_slot_active(),
+    // not upc_is_slot_row(): slot 0 is the one row sleep() does not refuse,
+    // and consoleread would sleep it with nothing runnable (review F1).
+    if(f->major == CONSOLE && upc_slot_active())
+      return upc_consoleread(addr, n);
+#endif
     r = devsw[f->major].read(1, addr, n);
   } else if(f->type == FD_INODE){
     ilock(f->ip);
@@ -158,6 +179,14 @@ filewrite(struct file *f, uint64 addr, int n)
   } else if(f->type == FD_DEVICE){
     if(f->major < 0 || f->major >= NDEV || !devsw[f->major].write)
       return -1;
+#if UPC_RUNG56
+    // ADR-135 D19, D21: a copy that fails before the first byte is a bad
+    // pointer and answers -1; stock passes consolewrite's 0 through.
+    if(f->major == CONSOLE && upc_slot_active()){
+      ret = consolewrite(1, addr, n);
+      return (ret == 0 && n > 0) ? -1 : ret;
+    }
+#endif
     ret = devsw[f->major].write(1, addr, n);
   } else if(f->type == FD_INODE){
     // write a few blocks at a time to avoid exceeding

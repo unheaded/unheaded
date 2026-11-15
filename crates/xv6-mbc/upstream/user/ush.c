@@ -16,15 +16,17 @@
 //   * PIPE and REDIR need a descriptor on fds 0-2. pipe(4), open(15) with
 //     O_CREATE and dup(10) all work (ADR-135), but a kernel fd stays at 16
 //     or above until the full hand-off (rung 6);
-//   * cd would be a builtin over chdir(9), which works; ush does not have
-//     one yet.
+//   * cd is a builtin over chdir(9), run by the shell itself (a child's
+//     chdir would die with the child), as stock sh does it: the line must
+//     start "cd ", the rest up to the newline is the directory.
 // ush is malloc-free, though sbrk(12) now works in a child: one static line
 // buffer, argv tokenized in place.
 //
 // Documented divergences (all invisible to the corpus):
 //   * metachars `<|>&;()` -> "syntax" from the child (stock: a pipeline or
 //     redirect);
-//   * `cd x` is just a command -> "exec cd failed" (stock: a builtin);
+//   * `cd` with no argument is just a command -> "exec cd failed" (stock:
+//     the same, its test is "cd " too);
 //   * arg cap 8 = the exec(7) argv-harvest ABI (ARGV_MAX), not stock's
 //     10 — the harvester drops args past 8 anyway, ush says so.
 //
@@ -155,6 +157,13 @@ main(void)
     // and the 64-byte KBD ring keeps them far under buf[100].
     if(*cmd == '\n' || *cmd == 0)
       continue;
+    // cd: chdir must be called by the shell, not a child (stock sh).
+    if(cmd[0] == 'c' && cmd[1] == 'd' && cmd[2] == ' '){
+      cmd[strlen(cmd)-1] = 0; // chop \n
+      if(chdir(cmd+3) < 0)
+        fprintf(2, "cannot cd %s\n", cmd+3);
+      continue;
+    }
     if(fork1() == 0)
       runcmd(cmd);
     wait(0);

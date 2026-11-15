@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-109: The owned kernel gets a process row per BPF slot
 
-**Status**: Accepted except D6 (2026-10-28). Revised after the four-lens review the same day; rung 0 gate `d4b75b73`, rung 1 `9c9face1`. D6 is implemented behind `UPC_D6_MISS_FAULT` (off) and waits on a decision (OUTSTANDING M-247).
+**Status**: Accepted except D6 (2026-10-28). Revised after the four-lens review the same day; rung 0 gate `d4b75b73`, rung 1 `9c9face1`. D6 is implemented behind `UPC_D6_MISS_FAULT` (off) and waits on a decision (OUTSTANDING M-247). **2026-11-15: D6 is on** (Stevie's answer A-60 of 2026-11-12; S-STAGE-2C Phase 2), see the section of that date; the acceptance of D6 as a decision stays Stevie's.
 **Context sprint**: EVOLUTION-1 Stage 2, rung 0 (`docs/battle-plans/EVOLUTION-1-STAGE-2-battle-plan.md`)
 **Relates to**: ADR-067 (MBC ISA v2, UPC ABI v1), ADR-074 (per-pid page directories), ADR-075 (process model),
 ADR-080 (programmatic API), EVOLUTION-1 (`docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md`)
@@ -250,6 +250,42 @@ probe".
 - The I7 guard must be ascend-only; without that, Doom (never priv 3) would stop context-switching.
 - bootctl drained the 4 KiB TTY ring only at the end of a boot, which hid output past 4,096 bytes. One golden
   (`cat BIGFILE`) had been a post-wrap tail; it was re-captured once the drain was fixed.
+
+## Privileged returns refused at U-mode, then D6 on (2026-11-15)
+
+Stevie's answer A-60 (2026-11-12): enable D6 and reject `MRET`/`SRET` at priv 3, as the first phase of S-STAGE-2C.
+
+**What D6 on means.** With `UPC_D6_MISS_FAULT` true, a U-mode page-walk miss resolves to `D6_MISS_ADDR`
+(`0xFFFF_FFFC`, outside `RAM_MAP`): a load reads 0 and a store is dropped. A child's VAs reach its own slice and
+nothing else. S-mode and the Doom object are unchanged.
+
+**D6 alone was not a boundary** (ADR-135 R-F1). `MRET` and `SRET` had no privilege test. A U-mode `mret` took `MPP`
+(S, written once at boot) and jumped to `MEPC`; a U-mode `sret` jumped to `SEPC` and ran the reply read with no trap
+entry. Booted on the tree before the fix, a child that executes one `mret` leaves the machine in S-mode with six processes
+(`priv=1`, `forks=5`; the probe forks three times at most. `references/s-stage-2c-log.md`, Phase 2).
+
+**Decision: at priv 3 both opcodes are a NOP.** The arm conditions gain `cpu.priv_level != 3`, so a U-mode `mret` or
+`sret` falls to the interpreter's unknown-opcode path: `pc` advances, `priv_level` stays 3. RISC-V raises an
+illegal-instruction exception there. A trap here would need a kill path from a slot row, and `kexit` panics on a slot
+row (I4); exit through the kernel arrives with EVOLUTION-1 Stage 2 rung 7, which revisits this (S-STAGE-2C Step 250).
+A NOP gives no escalation and no new path.
+
+**What the test covers.** It is on the opcode, wherever it is reached: an inline instruction in a user image, or a
+tagged `ret` to a ROM word that holds `MRET` or `SRET`. R-S1 (kernel `main`'s prologue after a U-mode `mret`) closes
+with it. No legitimate path runs either opcode at priv 3: `start_mbc.c`'s `mret` runs at priv 0, and the two `sret`
+sites (`trampoline_mbc.S`, `kernelvec_mbc.S`) run at priv 1, entered through the trap injection that sets it.
+
+**Cost and proof of the opcode test** (D6 still off): +338 verified instructions (889,941 to 890,279). `hostile_reply`
+runs one `mret` and one `sret` at U-mode, each in its own child: both print `refused=yes`, and the old `sret` route
+through a forged PDE no longer forges (`sret-forged=no`). With the test removed from the `SRET` arm alone, the probe
+prints `sret-refused=no` and the forgery lands again.
+
+**D6 on since 2026-11-15** (`UPC_D6_MISS_FAULT = true`, S-STAGE-2C Phase 2). Cost: +3,228 verified instructions
+on top of the opcode test (890,279 to 893,507); the two together are +3,566 against 889,941, leaving 6,493 under
+the 900,000 line. With D6 on: `hostile_pgd` stores to slot 0's pgd and to the tables and neither changes;
+`hostile_reply` ends at `table-reached=no`, `route=closed`; the 12 goldens are SAME and the harness is green with Doom
+at 758,199 (gate `d6-after`). With `d6_user_miss` forced false, `hostile_pgd` reads `pgd=changed` again. M-247 is closed
+by this; the trust model for init (slot 0, identity directory) is unchanged.
 
 ## Alternatives considered
 

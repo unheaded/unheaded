@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-11-15
-**Total:** 141 entries (ADR-001 to ADR-144, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-064 superseded by ADR-035; ADR-065 superseded by Phase A finding; ADR-69420 accepted with Phase 1 deferred). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 143 entries (ADR-001 to ADR-146, plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-064 superseded by ADR-035; ADR-065 superseded by Phase A finding; ADR-69420 accepted with Phase 1 deferred). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -16,12 +16,12 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked). 2026-11-15: ADR-108 and ADR-110 Proposed → Accepted, ADR-103 Proposed → Implemented (rows had not followed the files; S-RESIDUE). 2026-11-15: ADR-053 Pipe Dream → Active (its file since 2026-10-23) and ADR-69420 Deferred → Accepted with Phase 1 deferred (its file's status line); Active had no row here and has one now).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked). 2026-11-15: ADR-108 and ADR-110 Proposed → Accepted, ADR-103 Proposed → Implemented (rows had not followed the files; S-RESIDUE). 2026-11-15: ADR-053 Pipe Dream → Active (its file since 2026-10-23) and ADR-69420 Deferred → Accepted with Phase 1 deferred (its file's status line); Active had no row here and has one now. 2026-11-15: ADR-145 and ADR-146 added, Proposed (parked; ADR-135's F7 and F8, S-STAGE-2C)).
 
 | Status | Count |
 |--------|-------|
 | Accepted | 66 |
-| Proposed | 38 |
+| Proposed | 40 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 2 |
@@ -35,7 +35,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **141** |
+| **Total** | **143** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -195,7 +195,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [132](ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
 | [133](ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
-| [135](ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF: tagged reply word read at SRET (SET_BRK, YIELD, KILL), heap window VA [0x10000, 0x40000), user pointers by slice offset, retry hand-off for blocking calls, kill in BPF, root cwd for rows (S-STAGE-2B; DP-213, DP-501, DP-502) | **Proposed** | 2026-11-04 |
+| [135](ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF: tagged reply word read at SRET (SET_BRK, YIELD, KILL), heap window VA [0x10000, 0x40000), user pointers by slice offset, retry hand-off for blocking calls, kill in BPF, root cwd for rows (S-STAGE-2B; DP-213, DP-501, DP-502). Amended 2026-11-15 (S-STAGE-2C): D16 bounded user paths and slot 0's window, D17 load-time opcode scan, D18 fork's own mark, D19 and D20 console write and read in the kernel (rungs 3 and 4, on), D21 the kernel's fd table (rungs 5+6, built and off); three review tables | **Proposed** | 2026-11-04 |
 | [136](ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down certificate authority for lab names: root key on a YubiKey, rotated working certificates; BIND is third party and needs Stevie's confirmation; chaos-controller's certificate waits on it | **Proposed** (parked) | 2026-11-06 |
 | [137](ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` once it boots with a websocket TTY; the check stays as it is until then | **Proposed** (parked) | 2026-11-06 |
 | [138](ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI: a first-party Go front on `pkg/tls` Strict, proxying to the app over a Unix socket | **Accepted** (Stevie's answer #32, 2026-11-09; built 2026-11-10, installed nowhere) | 2026-11-09 |
@@ -205,3 +205,5 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [142](ADR-142-wotan-as-a-redis-class-store.md) | Wotan made fast and lean enough to stand beside Redis: measure first, bounded memory, a short list of data shapes with a first-party caller each, no Redis protocol, edge cryptography never traded for speed | **Proposed** (parked) | 2026-11-12 |
 | [143](ADR-143-terraform-multi-cloud-template.md) | A Terraform template that stands the whole kingdom up on AWS, Azure, GCP, LXD or Docker from a released, verified tag; an empty skeleton repository only, opens when 1.0.0 is tagged | **Proposed** (parked) | 2026-11-12 |
 | [144](ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west (trace collector 70% of all CPU: one reader walks an ever-growing BPF latency map key by key, first read as two; east's has averaged 1.5 cores for 20 days), then a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east) | 2026-11-12 |
+| [145](ADR-145-upc-user-image-ceiling-check.md) | UPC user images are checked against the heap window's floor: a link whose `_end` reaches 0x10000 fails, and bootctl refuses a `.data` sidecar address at or above it (ADR-135 first review, F7); not built | **Proposed** (parked) | 2026-11-15 |
+| [146](ADR-146-upc-scrub-slice-at-reap.md) | A UPC slot's slice is scrubbed when its process is reaped: stack window, argv frame and the band exec leaves, chunked across ticks, measured first (ADR-135 first review, F8); not built | **Proposed** (parked) | 2026-11-15 |
