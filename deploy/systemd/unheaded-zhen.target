@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Zhen module's one switch (ADR-149, ADR-147 decision 15). The platform
+# runs whole while it is off. Every Zhen unit is WantedBy= and PartOf= this
+# target, so the target's state is the module's state.
+#   on:  sudo systemctl enable --now unheaded-zhen.target
+#   off: sudo systemctl disable --now unheaded-zhen.target
+# Check either state: sudo scripts/test-zhen-switch.sh --expect on|off
+[Unit]
+Description=Unheaded Zhen module (optional AI, ADR-149)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Zhen-AI.md
+Wants=unheaded-zhen-module.service
+After=network-online.target docker.service
+
+[Install]
+WantedBy=multi-user.target

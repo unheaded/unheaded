@@ -20,6 +20,9 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl start unheaded-zhen-app.service
 #
+# Enabled, it is WantedBy= unheaded-zhen.target, so the Zhen module's
+# switch starts and stops it (ADR-149).
+#
 # Shipped disabled and not started; enabling it at boot is the operator's call.
 
 [Unit]
@@ -30,6 +33,8 @@ Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-138
 # the model in when the app is started, and does not stop the app if it fails.
 After=network-online.target unheaded-llama.service zhen-agentd.service unheaded-vor.service
 Wants=network-online.target unheaded-llama.service
+# The Zhen module's switch (ADR-149): stopping the target stops this unit.
+PartOf=unheaded-zhen.target
 
 [Service]
 Type=simple
@@ -117,4 +122,4 @@ SystemCallFilter=~@privileged @reboot @module @swap
 SystemCallErrorNumber=EPERM
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=unheaded-zhen.target

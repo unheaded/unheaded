@@ -54,3 +54,12 @@ def test_name_and_switch():
     assert m["switch"] == "unheaded-zhen.target"
     limit = m["database"]["connection_limit"]
     assert isinstance(limit, int) and 1 <= limit <= 20
+
+
+def test_units_belong_to_the_switch():
+    names = [u["unit"] for u in manifest()["units"]] + ["unheaded-zhen-module.service"]
+    for name in names:
+        text = (UNITS / name).read_text(encoding="utf-8")
+        assert "PartOf=unheaded-zhen.target" in text.splitlines(), name
+        assert "WantedBy=unheaded-zhen.target" in text.splitlines(), name
+        assert "WantedBy=multi-user.target" not in text, name

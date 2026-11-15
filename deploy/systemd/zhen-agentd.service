@@ -10,7 +10,7 @@
 #   sudo install -d -o root -g zhen-agentd -m 0750 /etc/unheaded/zhen
 #   sudo install -m 0640 -o root -g zhen-agentd configs/zhen-schedules.yaml /etc/unheaded/zhen/schedules.yaml
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now zhen-agentd
+#   sudo systemctl enable zhen-agentd (the switch starts it: unheaded-zhen.target, ADR-149)
 #   sudo journalctl -u zhen-agentd -f       # follow logs
 #
 # Hardening: NoNewPrivileges, ProtectSystem=strict, ProtectHome, etc.
@@ -32,6 +32,8 @@ After=docker.service wg-quick@wg0.service
 # fast while the Well is still coming up would leave the unit failed until a
 # person restarts it. 0 turns the limit off: retry every RestartSec, forever.
 StartLimitIntervalSec=0
+# The Zhen module's switch (ADR-149): stopping the target stops this unit.
+PartOf=unheaded-zhen.target
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
@@ -144,4 +146,4 @@ SystemCallErrorNumber=EPERM
 LimitNOFILE=4096
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=unheaded-zhen.target
