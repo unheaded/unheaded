@@ -879,7 +879,9 @@ controls:
     title: File integrity is checked on a schedule
     statement: >-
       On both hosts AIDE is installed with an initialised database, and a
-      systemd timer runs its check.
+      systemd timer runs its check: ours alone, weekly, at idle priority,
+      with the package's own timer and cron script off. A change it finds
+      is reviewed by a person before the database is updated.
     rationale: >-
       Software, firmware and information integrity (SI-7). CIS Ubuntu 24.04
       6.3.1 and 6.3.2 (ComplianceAsCode's aide rules for Debian/Ubuntu).
@@ -891,6 +893,10 @@ controls:
       - {kind: host-probe, ref: "west:aide-timer", maps: {cis-ubuntu2404: ["6.3.2"]}}
       - {kind: host-probe, ref: "east:aide-installed", maps: {cis-ubuntu2404: ["6.3.1"]}}
       - {kind: host-probe, ref: "east:aide-timer", maps: {cis-ubuntu2404: ["6.3.2"]}}
+      - {kind: host-probe, ref: "west:aide-quiet"}
+      - {kind: host-probe, ref: "west:aide-unreviewed"}
+      - {kind: host-probe, ref: "east:aide-quiet"}
+      - {kind: host-probe, ref: "east:aide-unreviewed"}
     mappings:
       nist-800-53r5: [SI-7]
 

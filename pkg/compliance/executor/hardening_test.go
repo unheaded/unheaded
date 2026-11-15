@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/remediation"
 )
 
@@ -90,6 +91,94 @@ func TestModeOnALogFile(t *testing.T) {
 	}
 	if e.snapshot() != before {
 		t.Error("undo did not restore the mode")
+	}
+}
+
+// var-log-modes (S-EVIDENCE-RUNS DE5c): every regular file under /var/log
+// is brought down to the ceiling the var-log-perms probe judges by, and
+// nothing else is touched: a file within its ceiling keeps its mode, an
+// owner is never changed, a symlink is not followed.
+func TestModeCeilingOnVarLog(t *testing.T) {
+	e := newEnv(t)
+	for _, d := range []string{"/var/log/apt", "/var/log/sssd", "/var/log/deep/er"} {
+		if err := os.MkdirAll(e.root+d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	files := map[string][2]os.FileMode{ // path: before, after
+		"/var/log/syslog":          {0o644, 0o640},
+		"/var/log/auth.log":        {0o640, 0o640},
+		"/var/log/private.log":     {0o600, 0o600}, // tighter than the ceiling stays
+		"/var/log/apt/history.log": {0o666, 0o640},
+		"/var/log/deep/er/x.log":   {0o755, 0o640},
+		"/var/log/wtmp":            {0o664, 0o664},
+		"/var/log/btmp.1":          {0o666, 0o664},
+		"/var/log/cloud-init.log":  {0o644, 0o644},
+		"/var/log/sssd/sssd.log":   {0o666, 0o660},
+		"/var/log/odd.log":         {0o604, 0o600}, // only the bits above the ceiling go
+		// newEnv's own log, world-readable as the ROCm library leaves it.
+		"/var/log/rocm_smi_lib/ROCm-SMI-lib.log": {0o644, 0o640},
+	}
+	for p, m := range files {
+		e.write(p, "x\n", m[0])
+	}
+	if err := os.Symlink(e.root+"/etc/crontab", e.root+"/var/log/link.log"); err != nil {
+		t.Fatal(err)
+	}
+	f := inline(t, "var-log-modes", remediation.Action{Mode: &remediation.ModeAction{Ceiling: "var-log"}})
+	x := e.executor("west")
+
+	devs, err := x.Check(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loose := 0
+	for _, m := range files {
+		if m[0] != m[1] {
+			loose++
+		}
+	}
+	if len(devs) != loose {
+		t.Fatalf("check names %d files, want the %d over their ceiling: %v", len(devs), loose, devs)
+	}
+
+	before := e.snapshot()
+	dir, err := x.Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for p, m := range files {
+		fi, err := os.Lstat(e.root + p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if fi.Mode().Perm() != m[1] {
+			t.Errorf("%s: %04o, want %04o", p, fi.Mode().Perm(), m[1])
+		}
+		// What the fix leaves is what the probe accepts.
+		if uint32(fi.Mode().Perm())&^crosswalk.VarLogMaxMode(p) != 0 {
+			t.Errorf("%s: %04o is still over the probe's ceiling", p, fi.Mode().Perm())
+		}
+	}
+	if fi, _ := os.Stat(e.root + "/etc/crontab"); fi.Mode().Perm() != 0o644 {
+		t.Errorf("the symlink was followed: /etc/crontab is %04o", fi.Mode().Perm())
+	}
+	if devs, err = x.Check(context.Background(), f); err != nil || len(devs) != 0 {
+		t.Fatalf("after apply: %v %v", devs, err)
+	}
+	// A second apply changes nothing and records nothing to undo.
+	after := e.snapshot()
+	if _, err := x.Apply(context.Background(), f); err != nil {
+		t.Fatal(err)
+	}
+	if e.snapshot() != after {
+		t.Error("a second apply changed files")
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if e.snapshot() != before {
+		t.Error("undo did not restore every mode")
 	}
 }
 

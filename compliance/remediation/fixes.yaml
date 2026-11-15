@@ -436,10 +436,28 @@ fixes:
     actions:
       - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log, /var/log/amd_smi_lib/AMD-SMI-lib.log], mode: "0640", owner: root, group: root}
 
+  - id: var-log-modes
+    title: No file under /var/log looser than CIS allows for its name (CIS 6.1.4.1)
+    controls: [UH-LOG-02]
+    closes: ["host-probe:*:var-log-perms"]
+    risk: none
+    class: fileperm
+    note: >-
+      DE5c (Stevie, 2026-11-13): fix var-log-perms. Every regular file under /var/log gives up the mode bits above its
+      ceiling, the one the var-log-perms probe judges by (pkg/compliance/crosswalk VarLogMaxMode): 0664 for wtmp, btmp,
+      lastlog and README, 0644 for cloud-init, localmessages and waagent logs, 0660 in the sssd and gdm directories,
+      0640 for everything else. A file within its ceiling keeps its mode, no owner or group is changed and a symlink
+      is not followed. This is not a one-time fix: logrotate and some programs recreate their file at 0644 (rotation
+      `create` lines, a library's own umask), so the probe keeps watching and an enforcing host fixes them again on
+      its next run. The lasting cure is the creator's own mode (rsyslog-filecreatemode, a logrotate `create 0640`),
+      which is a separate change per program.
+    actions:
+      - mode: {ceiling: var-log}
+
   - id: aide-install
     title: AIDE installed, quiet by design (CIS 6.3.1, 6.3.2); weekly idle check, package paths off
     controls: [UH-FIM-01]
-    closes: ["host-probe:*:aide-timer"]
+    closes: ["host-probe:*:aide-timer", "host-probe:*:aide-quiet"]
     risk: low
     class: package
     note: >-

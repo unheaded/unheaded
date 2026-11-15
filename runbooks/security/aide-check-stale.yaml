@@ -1,0 +1,91 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: aide-check-stale
+  description: No AIDE check has completed on a host for over eight days (AIDECheckStale); find out whether the timer did not run it or the check keeps failing
+  owner: zhenai
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  S-EVIDENCE-RUNS DE1. unheaded-aide-check.timer starts
+  unheaded-aide-check.service once a week, with up to six hours of random
+  delay, and catches up after a host that was off (Persistent=true). The
+  service runs `unheaded-aide check` at idle I/O and CPU priority; on a busy
+  host a run can take much longer than on a quiet one, up to its three hour
+  limit.
+
+  unheaded_aide_last_run_timestamp_seconds is the end of the last check
+  that completed. A run that fails (aide exits 14 or above, the report
+  cannot be read, aide does not start) leaves it where it was and sets
+  unheaded_aide_exit_code, so the alert means one of: the timer is not
+  enabled, the unit's condition skips it (no database), or every run since
+  has failed.
+
+  This runbook only reads. Starting a check by hand is a manual step: it is
+  a full read of the watched trees, and the point of the weekly idle timer
+  is that nothing else starts one.
+
+steps:
+  - name: which-host
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=time() - unheaded_aide_last_run_timestamp_seconds' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host", "-"), "last completed check %.1f days ago" % (float(r["value"][1]) / 86400)) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Age of the last completed check per host"
+
+  - name: exit-code
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=unheaded_aide_exit_code' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host", "-"), "exit code of the last run:", r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "0 clean, 1-7 a change was found (a completed check), 14 and above AIDE's own error, 99 the report could not be read, 127 aide did not start"
+
+  - name: timer
+    action: shell
+    command: |
+      set -euo pipefail
+      systemctl list-timers unheaded-aide-check.timer --all --no-pager | head -4
+      systemctl status unheaded-aide-check.timer --no-pager | head -4 || echo "the timer is not active on this host"
+    description: "On the host: when the timer last fired and when it fires next, and whether it is loaded and enabled. Not enabled: unheaded-remediate's aide-install fix enables it"
+
+  - name: unit-log
+    action: shell
+    command: |
+      set -euo pipefail
+      journalctl -u unheaded-aide-check.service -n 20 --no-pager -o short-iso | tail -20
+    description: "On the host: the last runs. 'aide: error exit=N' names the failure; 'Condition check resulted in ... being skipped' means /var/lib/aide/aide.db is missing; a timeout means the run did not finish in three hours"
+
+  - name: database
+    action: manual
+    command: |
+      sudo ls -l /var/lib/aide/
+    description: "MANUAL, on the host (the directory is root's): aide.db must exist (an aide.db.new beside it is an init or update nobody promoted). No aide.db: the database was never built on this host, or was removed; building one is unheaded-aide init then promote, by hand, after reading init's summary"
+
+  - name: run-once
+    action: manual
+    command: |
+      sudo systemctl start unheaded-aide-check.service
+    description: "MANUAL, and only after the cause is fixed. Starts one check at idle priority; it returns when the check is done, which can take a while. The timer keeps its weekly schedule"
+
+verification:
+  - name: checked-within-eight-days
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=max(time() - unheaded_aide_last_run_timestamp_seconds)' |
+        python3 -c 'import json,sys; r=json.load(sys.stdin)["data"]["result"]; v=float(r[0]["value"][1]) if r else 0; print("oldest last check: %.1f days" % (v / 86400)); sys.exit(v > 8 * 86400)'
+
+rollback:
+  - name: none
+    action: manual
+    command: |
+      echo "Nothing to roll back: this runbook reads, and one manual step starts a check."
+    description: "MANUAL. No state is changed"

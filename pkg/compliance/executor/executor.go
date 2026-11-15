@@ -339,6 +339,17 @@ func (e *Executor) Plan(ctx context.Context, fix remediation.Fix) error {
 			}
 		case a.Setting != nil:
 			e.printf("  %s: would set %s=%s (if the file exists)\n", a.Setting.Path, a.Setting.Key, a.Setting.Value)
+		case a.Mode != nil && a.Mode.Ceiling != "":
+			over, err := e.overCeiling(a.Mode.Ceiling)
+			if err != nil {
+				return err
+			}
+			for _, o := range over {
+				e.printf("  %s: would go from %04o to %04o\n", o.path, o.mode, o.mode&o.max)
+			}
+			if len(over) == 0 {
+				e.printf("  %s: every file is within its ceiling\n", remediation.Ceilings[a.Mode.Ceiling].Root)
+			}
 		case a.Mode != nil:
 			for _, p := range e.modePaths(a.Mode) {
 				e.printf("  %s: would set %s %s:%s\n", p, a.Mode.Mode, a.Mode.Owner, a.Mode.Group)
@@ -365,6 +376,65 @@ func (e *Executor) Plan(ctx context.Context, fix remediation.Fix) error {
 		}
 	}
 	return ctx.Err()
+}
+
+// overMode is a regular file whose mode has bits above its ceiling.
+type overMode struct {
+	path      string // as the host names it, without the executor's root
+	mode, max uint32 // all twelve mode bits, and the ceiling
+}
+
+// overCeiling walks a ceiling's tree and returns the regular files over
+// their ceiling, in path order. Symlinks are not followed and not judged;
+// a tree that is not there has none.
+func (e *Executor) overCeiling(name string) ([]overMode, error) {
+	c, ok := remediation.Ceilings[name]
+	if !ok {
+		return nil, fmt.Errorf("%w: mode ceiling %q is unknown", ErrRefused, name)
+	}
+	root := e.path(c.Root)
+	var out []overMode
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				return nil // gone since the directory was read: logs rotate
+			}
+			return err
+		}
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		fi, err := d.Info()
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		host := c.Root + strings.TrimPrefix(p, root)
+		mode, limit := unixMode(fi), c.Max(host)
+		if mode&^limit != 0 {
+			out = append(out, overMode{path: host, mode: mode, max: limit})
+		}
+		return nil
+	})
+	return out, err
+}
+
+// unixMode is a file's twelve mode bits as find's %m prints them: the
+// permissions and setuid, setgid and sticky.
+func unixMode(fi fs.FileInfo) uint32 {
+	m := uint32(fi.Mode().Perm())
+	if fi.Mode()&fs.ModeSetuid != 0 {
+		m |= 0o4000
+	}
+	if fi.Mode()&fs.ModeSetgid != 0 {
+		m |= 0o2000
+	}
+	if fi.Mode()&fs.ModeSticky != 0 {
+		m |= 0o1000
+	}
+	return m
 }
 
 func (e *Executor) modePaths(ma *remediation.ModeAction) []string {
@@ -643,7 +713,46 @@ func (r *applyRun) applySetting(s *remediation.SettingAction) error {
 	return nil
 }
 
+// applyCeiling clears the bits above each file's ceiling. Owners stay as
+// they are; undo puts every mode back.
+func (r *applyRun) applyCeiling(name string) error {
+	e := r.e
+	over, err := e.overCeiling(name)
+	if err != nil {
+		return err
+	}
+	for _, o := range over {
+		full := e.path(o.path)
+		fi, err := os.Lstat(full)
+		if errors.Is(err, fs.ErrNotExist) {
+			continue // rotated away since the walk
+		}
+		if err != nil {
+			return err
+		}
+		if !fi.Mode().IsRegular() {
+			continue // replaced by something else since the walk: not ours to touch
+		}
+		// The special bits are restored too: os.Chmod takes them as flags.
+		if err := r.record(undoStep{Op: "chmod", Path: full, Mode: uint32(fi.Mode() & (fs.ModePerm | fs.ModeSetuid | fs.ModeSetgid | fs.ModeSticky)), UID: -1, GID: -1}); err != nil {
+			return err
+		}
+		// 0777 of the ceiling at most, so setuid, setgid and sticky go too.
+		if err := os.Chmod(full, os.FileMode(unixMode(fi)&o.max&0o777)); err != nil {
+			return err
+		}
+		e.printf("  %s: %04o to %04o\n", o.path, o.mode, o.mode&o.max)
+	}
+	if len(over) == 0 {
+		e.printf("  %s: every file is within its ceiling\n", remediation.Ceilings[name].Root)
+	}
+	return nil
+}
+
 func (r *applyRun) applyMode(ma *remediation.ModeAction) error {
+	if ma.Ceiling != "" {
+		return r.applyCeiling(ma.Ceiling)
+	}
 	e := r.e
 	perm, err := strconv.ParseUint(ma.Mode, 8, 32)
 	if err != nil {

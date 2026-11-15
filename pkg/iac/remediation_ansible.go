@@ -12,6 +12,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/remediation"
 )
 
@@ -164,6 +165,10 @@ func fixTasks(f remediation.Fix) ([]any, error) {
 					"ansible.builtin.replace": task{"path": a.Setting.Path, "regexp": "^" + regexpQuote(a.Setting.Key) + "=.*$",
 						"replace": a.Setting.Key + "=" + a.Setting.Value, "backup": true},
 					"when": reg + "_stat.stat.exists", "register": reg})
+		case a.Mode != nil && a.Mode.Ceiling != "":
+			for _, tk := range ceilingTasks(a.Mode.Ceiling, reg) {
+				body = append(body, tk)
+			}
 		case a.Mode != nil:
 			if a.Mode.Glob != "" {
 				dir := strings.TrimSuffix(a.Mode.Glob, "/*")
@@ -393,4 +398,30 @@ func apparmorTasks(aa *remediation.AppArmorAction, reg string) []any {
 func regexpQuote(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `.`, `\.`, `*`, `\*`, `+`, `\+`, `?`, `\?`, `(`, `\(`, `)`, `\)`, `[`, `\[`, `]`, `\]`, `{`, `\{`, `}`, `\}`, `^`, `\^`, `$`, `\$`, `|`, `\|`)
 	return r.Replace(s)
+}
+
+// ceilingTasks renders a mode ceiling: find every regular file in the tree,
+// then take away the bits above its ceiling. The mode is symbolic and only
+// removes, so a file within its ceiling is not changed. The names are the
+// probe's own (crosswalk.VarLogMaxMode), tested in the same order.
+func ceilingTasks(name, reg string) []task {
+	c := remediation.Ceilings[name]
+	alt := func(names []string) string {
+		q := make([]string, len(names))
+		for i, n := range names {
+			q[i] = regexpQuote(n)
+		}
+		return strings.Join(q, "|")
+	}
+	base, dir := "(item.path | basename)", "((item.path | dirname) ~ '/')"
+	mode := "{{ 'u-xs,g-xs,o-wxt' if " + base + " is match('^(" + alt(crosswalk.VarLogLoginRecords) + ")([.-].*)?$') or " + base + " == 'README'" +
+		" else 'u-xs,g-wxs,o-wxt' if " + base + " is match('^(" + alt(crosswalk.VarLogWorldReadable) + ")')" +
+		" else 'u-xs,g-xs,o-rwxt' if " + dir + " is search('/(" + alt(crosswalk.VarLogGroupWritableDirs) + ")/')" +
+		" else 'u-xs,g-wxs,o-rwxt' }}"
+	return []task{
+		{"name": "Regular files under " + c.Root, "ansible.builtin.find": task{"paths": c.Root, "file_type": "file", "recurse": true}, "register": reg + "_find"},
+		{"name": "No mode bit above each file's ceiling under " + c.Root + " (0640; login records 0664, agent logs 0644, sssd and gdm 0660)",
+			"ansible.builtin.file": task{"path": "{{ item.path }}", "mode": mode},
+			"loop":                 "{{ " + reg + "_find.files }}", "loop_control": task{"label": "{{ item.path }}"}},
+	}
 }

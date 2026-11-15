@@ -74,6 +74,14 @@ func (e *Executor) Check(ctx context.Context, fix remediation.Fix) ([]string, er
 					add("%s: %s, want %s%s", a.Setting.Path, l, prefix, a.Setting.Value)
 				}
 			}
+		case a.Mode != nil && a.Mode.Ceiling != "":
+			over, err := e.overCeiling(a.Mode.Ceiling)
+			if err != nil {
+				return nil, err
+			}
+			for _, o := range over {
+				add("%s: mode %04o, at most %04o", o.path, o.mode, o.max)
+			}
 		case a.Mode != nil:
 			for _, p := range e.modePaths(a.Mode) {
 				fi, err := os.Lstat(e.path(p))

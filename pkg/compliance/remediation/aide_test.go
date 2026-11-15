@@ -194,6 +194,16 @@ func TestAideInstallIsQuietByDesign(t *testing.T) {
 		if strings.HasSuffix(c, ":aide-installed") {
 			t.Error("the fix claims to close aide-installed, which needs the database only an attended init builds")
 		}
+		// A diff waits for a person: no fix closes that.
+		if strings.HasSuffix(c, ":aide-unreviewed") {
+			t.Error("the fix claims to close aide-unreviewed, which only a review closes")
+		}
+	}
+	// What it does establish: our timer, and nothing else that starts AIDE.
+	for _, want := range []string{"host-probe:*:aide-timer", "host-probe:*:aide-quiet"} {
+		if !sliceHas(f.Closes, want) {
+			t.Errorf("the fix does not close %s", want)
+		}
 	}
 }
 

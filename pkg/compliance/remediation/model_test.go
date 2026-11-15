@@ -45,8 +45,8 @@ func TestRepoModelValidAgainstCatalog(t *testing.T) {
 	if err := m.CheckCatalog(repoCatalog(t)); err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Fixes) != 18 {
-		t.Errorf("%d fixes, want 18 (the 13 remediate.sh carried, plus rocm-log-perms, aide-install, apparmor-enforce, journald-caps-west, kmod-usb-storage)", len(m.Fixes))
+	if len(m.Fixes) != 19 {
+		t.Errorf("%d fixes, want 19 (the 13 remediate.sh carried, plus rocm-log-perms, aide-install, apparmor-enforce, journald-caps-west, kmod-usb-storage, var-log-modes)", len(m.Fixes))
 	}
 }
 
@@ -89,6 +89,68 @@ func TestRepoProfilesAndHosts(t *testing.T) {
 				t.Errorf("%s: %s applied but not in profile %s", h, a.Fix, b.Profile)
 			}
 		}
+	}
+}
+
+// DE4 and DE5c (Stevie, 2026-11-13). lab-audited is west's next profile:
+// lab plus the audit rules, AIDE, the ROCm log modes and the /var/log
+// ceiling, and nothing of lab-hardened's sshd or AppArmor changes.
+func TestLabAuditedProfileAndVarLogModes(t *testing.T) {
+	m := repoModel(t)
+	raw, err := os.ReadFile(filepath.Join(repoRoot(t), "compliance/profiles/profiles.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps, err := ParseProfiles(raw, m)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ps.Has("lab-audited") {
+		t.Fatal("profile lab-audited missing")
+	}
+	in := func(profile string) map[string]bool {
+		on := map[string]bool{}
+		for _, id := range ps.Resolve(profile) {
+			on[id] = true
+		}
+		return on
+	}
+	lab, audited, hardened := in("lab"), in("lab-audited"), in("lab-hardened")
+	for id := range lab {
+		if !audited[id] {
+			t.Errorf("lab-audited lacks lab's %s", id)
+		}
+	}
+	extra := []string{"auditd-rules", "aide-install", "rocm-log-perms", "var-log-modes"}
+	for _, id := range extra {
+		if !audited[id] {
+			t.Errorf("lab-audited lacks %s", id)
+		}
+	}
+	if len(audited) != len(lab)+len(extra) {
+		t.Errorf("lab-audited has %d fixes, want lab's %d plus %v", len(audited), len(lab), extra)
+	}
+	for _, id := range []string{"sshd-safe", "apparmor-enforce"} {
+		if audited[id] {
+			t.Errorf("lab-audited holds %s, which DE4 leaves to lab-hardened", id)
+		}
+	}
+	if !hardened["var-log-modes"] {
+		t.Error("lab-hardened lacks var-log-modes")
+	}
+
+	f := fixByID(t, m, "var-log-modes")
+	if f.Class != "fileperm" || f.Risk != "none" {
+		t.Errorf("var-log-modes is class %s risk %s, want fileperm and none", f.Class, f.Risk)
+	}
+	if len(f.Closes) != 1 || f.Closes[0] != "host-probe:*:var-log-perms" {
+		t.Errorf("var-log-modes closes %v, want the var-log-perms probe on every host", f.Closes)
+	}
+	if len(f.Actions) != 1 || f.Actions[0].Mode == nil || f.Actions[0].Mode.Ceiling != "var-log" {
+		t.Errorf("var-log-modes is not one mode action with the var-log ceiling: %+v", f.Actions)
+	}
+	if !strings.Contains(f.Note, "rotat") {
+		t.Error("the note does not say that rotation recreates some files looser")
 	}
 }
 
@@ -307,6 +369,7 @@ func TestParseAcceptsHardeningActions(t *testing.T) {
 		"divert a cron script":       "      - divert: /etc/cron.daily/dailyaidecheck\n",
 		"daemon-reload":              "      - run: \"systemctl daemon-reload\"\n",
 		"enable a timer":             "      - service: {name: dailyaidecheck.timer, enabled: true, active: true}\n",
+		"ceiling on /var/log":        "      - mode: {ceiling: var-log}\n",
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Parse([]byte(minimal + a)); err != nil {
@@ -322,6 +385,10 @@ func TestParseRejectsHardeningActionAbuse(t *testing.T) {
 		"mode dotdot out of /var/log":    "      - mode: {paths: [/var/log/../lib/x], mode: \"0640\", owner: root, group: root}\n",
 		"mode on /var/log itself":        "      - mode: {paths: [/var/log], mode: \"0640\", owner: root, group: root}\n",
 		"glob under /var/log":            "      - mode: {glob: \"/var/log/*\", mode: \"0640\", owner: root, group: root}\n",
+		"unknown ceiling":                "      - mode: {ceiling: etc}\n",
+		"ceiling with a mode":            "      - mode: {ceiling: var-log, mode: \"0600\"}\n",
+		"ceiling with an owner":          "      - mode: {ceiling: var-log, owner: root, group: root}\n",
+		"ceiling with paths":             "      - mode: {ceiling: var-log, paths: [/var/log/syslog], mode: \"0640\", owner: root, group: root}\n",
 		"file under /var/log":            "      - file: {path: /var/log/x, mode: \"0644\", parts: [{text: a}]}\n",
 		"absent under /var/log":          "      - absent: /var/log/x\n",
 		"apparmor nothing to enforce":    "      - apparmor: {enforce: []}\n",

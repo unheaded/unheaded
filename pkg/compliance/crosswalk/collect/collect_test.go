@@ -1259,6 +1259,85 @@ func TestAIDEProbes(t *testing.T) {
 	}
 }
 
+// The two probes of S-EVIDENCE-RUNS DE1. aide-unreviewed reads what
+// unheaded-aide left in state.json: one row per host while a diff waits,
+// whatever the number of runs. aide-quiet reads that nothing but our idle
+// unit can start AIDE.
+func TestAIDEQuietProbes(t *testing.T) {
+	const now = 1794700000 // the probe prints the host's clock
+	day := int64(86400)
+	state := func(lastRun int64, pending string) string {
+		s := fmt.Sprintf("  \"last_run\": %d,\n", lastRun)
+		if pending == "" {
+			s += "  \"pending\": null\n"
+		} else {
+			s += "  \"pending\": {\n    \"hash\": \"" + pending + "\",\n    \"first_seen\": " + fmt.Sprint(now-3*day) + ",\n"
+		}
+		return s + fmt.Sprintf("now=%d\n@ok\n", now)
+	}
+	hash := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	for _, tc := range []struct {
+		name, probe, out string
+		pass             bool
+		detail           string
+	}{
+		{"clean and recent", "aide-unreviewed", state(now-2*day, ""), true, "no unreviewed diff"},
+		{"a diff waits", "aide-unreviewed", state(now-2*day, hash), false, "unreviewed diff 0123456789ab since "},
+		{"a diff waits, many runs later", "aide-unreviewed", state(now-60, hash), false, "unreviewed diff 0123456789ab since "},
+		{"clean but stale", "aide-unreviewed", state(now-9*day, ""), false, "over 8 days"},
+		{"just inside 8 days", "aide-unreviewed", state(now-8*day+60, ""), true, "no unreviewed diff"},
+		{"never ran", "aide-unreviewed", fmt.Sprintf("state=absent\nnow=%d\n@ok\n", now), false, "no AIDE check has completed"},
+		{"state unreadable", "aide-unreviewed", fmt.Sprintf("@unreadable /var/lib/unheaded/aide/state.json\nnow=%d\n@ok\n", now), false, "could not be read"},
+		{"state is not ours", "aide-unreviewed", fmt.Sprintf("now=%d\n@ok\n", now), false, "state.json"},
+		{"no clock", "aide-unreviewed", "  \"last_run\": 5,\n  \"pending\": null\n@ok\n", false, "clock"},
+		{"did not finish", "aide-unreviewed", state(now-2*day, "")[:20], false, "did not complete"},
+
+		{"quiet: no package timer", "aide-quiet", "pkgtimer=not-found\nload=loaded\nnice=19\niosched=3\n@ok\n", true, "idle"},
+		{"quiet: package timer masked", "aide-quiet", "pkgtimer=masked\nload=loaded\nnice=19\niosched=3\n@ok\n", true, "idle"},
+		{"quiet: old systemd prints nothing for a missing unit", "aide-quiet", "pkgtimer=\nload=loaded\nnice=19\niosched=idle\n@ok\n", true, "idle"},
+		{"package timer enabled", "aide-quiet", "pkgtimer=enabled\nload=loaded\nnice=19\niosched=3\n@ok\n", false, "dailyaidecheck.timer is enabled"},
+		{"package timer only disabled", "aide-quiet", "pkgtimer=disabled\nload=loaded\nnice=19\niosched=3\n@ok\n", false, "dailyaidecheck.timer is disabled"},
+		{"cron script back", "aide-quiet", "pkgtimer=masked\ncron=/etc/cron.daily/dailyaidecheck\nload=loaded\nnice=19\niosched=3\n@ok\n", false, "/etc/cron.daily/dailyaidecheck"},
+		{"our unit not installed", "aide-quiet", "pkgtimer=not-found\nload=not-found\nnice=0\niosched=2\n@ok\n", false, "unheaded-aide-check.service is not installed"},
+		{"our unit not nice", "aide-quiet", "pkgtimer=masked\nload=loaded\nnice=0\niosched=3\n@ok\n", false, "Nice=0"},
+		{"our unit not idle io", "aide-quiet", "pkgtimer=masked\nload=loaded\nnice=19\niosched=2\n@ok\n", false, "IOSchedulingClass=2"},
+		{"did not finish", "aide-quiet", "pkgtimer=masked\nload=loaded\n", false, "did not complete"},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok {
+			t.Errorf("%s: probe %s missing", tc.name, tc.probe)
+			continue
+		}
+		pass, detail := p.Judge(tc.out)
+		if pass != tc.pass || !strings.Contains(detail, tc.detail) {
+			t.Errorf("%s: %s = %v (%q), want %v with %q", tc.name, tc.probe, pass, detail, tc.pass, tc.detail)
+		}
+	}
+	// The same diff is one detail string however often it is seen: one
+	// findings row per host, never one per run.
+	_, a := Probes["aide-unreviewed"].Judge(state(now-2*day, hash))
+	_, b := Probes["aide-unreviewed"].Judge(state(now-60, hash))
+	if a != b {
+		t.Errorf("the same pending diff reads %q then %q: a row per run", a, b)
+	}
+	// aide-quiet is host configuration, read by the host agent too; the
+	// state of the last run is not (it changes with the clock).
+	if !Probes["aide-quiet"].Baseline || Probes["aide-unreviewed"].Baseline {
+		t.Error("aide-quiet must be a baseline probe and aide-unreviewed a central one")
+	}
+	// The existing probe finds the database where our config writes it.
+	if !strings.Contains(Probes["aide-installed"].Command, "/var/lib/aide/aide.db") {
+		t.Error("aide-installed no longer reads /var/lib/aide/aide.db, the path aide-unheaded.conf names")
+	}
+	// Our timer satisfies aide-timer; the masked package timer alone does not.
+	if pass, d := Probes["aide-timer"].Judge("dailyaidecheck.timer masked\nunheaded-aide-check.timer enabled\n@ok\n"); !pass {
+		t.Errorf("aide-timer does not accept our timer: %s", d)
+	}
+	if pass, _ := Probes["aide-timer"].Judge("dailyaidecheck.timer masked\n@ok\n"); pass {
+		t.Error("aide-timer passes on a masked package timer alone")
+	}
+}
+
 func TestLoggingProbes(t *testing.T) {
 	for _, tc := range []struct {
 		probe, out string

@@ -146,13 +146,29 @@ type SettingAction struct {
 	Value string `yaml:"value" json:"value"`
 }
 
-// ModeAction sets mode, owner and group on existing paths or a glob.
+// ModeAction sets mode, owner and group on existing paths or a glob. With a
+// ceiling it instead clears, on every regular file of a tree, the mode bits
+// above that file's ceiling: no mode, owner or group is named, a file within
+// its ceiling is left alone, and no owner is changed.
 type ModeAction struct {
-	Paths []string `yaml:"paths,omitempty" json:"paths,omitempty"`
-	Glob  string   `yaml:"glob,omitempty" json:"glob,omitempty"`
-	Mode  string   `yaml:"mode" json:"mode"`
-	Owner string   `yaml:"owner" json:"owner"`
-	Group string   `yaml:"group" json:"group"`
+	Paths   []string `yaml:"paths,omitempty" json:"paths,omitempty"`
+	Glob    string   `yaml:"glob,omitempty" json:"glob,omitempty"`
+	Ceiling string   `yaml:"ceiling,omitempty" json:"ceiling,omitempty"`
+	Mode    string   `yaml:"mode,omitempty" json:"mode,omitempty"`
+	Owner   string   `yaml:"owner,omitempty" json:"owner,omitempty"`
+	Group   string   `yaml:"group,omitempty" json:"group,omitempty"`
+}
+
+// Ceiling is a tree and the highest mode each file in it may have.
+type Ceiling struct {
+	Root string
+	Max  func(path string) uint32
+}
+
+// Ceilings are the ceilings a mode action may name. var-log is the one the
+// var-log-perms probe judges by (CIS 6.1.4.1).
+var Ceilings = map[string]Ceiling{
+	"var-log": {Root: "/var/log", Max: crosswalk.VarLogMaxMode},
 }
 
 // ServiceAction sets a unit's state; nil fields are left alone.
@@ -409,6 +425,15 @@ func (fa *FileAction) validate() error {
 }
 
 func (ma *ModeAction) validate() error {
+	if ma.Ceiling != "" {
+		if _, ok := Ceilings[ma.Ceiling]; !ok {
+			return invalid("mode ceiling %q is unknown", ma.Ceiling)
+		}
+		if len(ma.Paths) != 0 || ma.Glob != "" || ma.Mode != "" || ma.Owner != "" || ma.Group != "" {
+			return invalid("a mode ceiling takes no paths, glob, mode, owner or group")
+		}
+		return nil
+	}
 	if (len(ma.Paths) == 0) == (ma.Glob == "") {
 		return invalid("mode needs paths or a glob, not both")
 	}

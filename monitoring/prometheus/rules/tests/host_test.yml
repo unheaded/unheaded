@@ -134,3 +134,72 @@ tests:
               summary: "huginn can no longer read /var/log/unheaded on west"
               description: "Log directory sizes are unknown; the directory was removed or its permissions changed"
               runbook_url: "runbooks/observe/log-rotation.yaml"
+
+  # AIDE (S-EVIDENCE-RUNS DE1). The check runs once a week and leaves its
+  # numbers in a textfile, so each series is flat between runs. A new diff
+  # is reported for the day after the run that first saw it, then the alert
+  # is quiet: the diff is still one findings row (aide-unreviewed), not a
+  # line in every digest.
+  - interval: 1m
+    input_series:
+      # West: the run at t=0 saw a diff nobody had seen.
+      - series: 'unheaded_aide_new_diff{host="west"}'
+        values: '1x2000'
+      - series: 'unheaded_aide_last_run_timestamp_seconds{host="west"}'
+        values: '0x2000'
+      # East: an old diff is still pending; this run saw nothing new.
+      - series: 'unheaded_aide_new_diff{host="east"}'
+        values: '0x2000'
+      - series: 'unheaded_aide_changed_entries{host="east"}'
+        values: '7x2000'
+      - series: 'unheaded_aide_last_run_timestamp_seconds{host="east"}'
+        values: '0x2000'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: AIDEChangeDetected
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "AIDE found a change on west it had not seen before"
+              description: "The weekly check found files that differ from the database. It is reported once; the diff stays pending until a person reads it: sudo unheaded-aide review"
+              runbook_url: "runbooks/security/aide-change-review.yaml"
+      - eval_time: 23h
+        alertname: AIDEChangeDetected
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "AIDE found a change on west it had not seen before"
+              description: "The weekly check found files that differ from the database. It is reported once; the diff stays pending until a person reads it: sudo unheaded-aide review"
+              runbook_url: "runbooks/security/aide-change-review.yaml"
+      # A day after the run: reported once, not every day until the next run.
+      - eval_time: 25h
+        alertname: AIDEChangeDetected
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: AIDECheckStale
+        exp_alerts: []
+
+  # No check for over eight days (the timer is weekly, with up to six hours
+  # of delay). A host with no AIDE series at all stays quiet: it has no
+  # database yet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_aide_last_run_timestamp_seconds{host="west"}'
+        values: '0x11700'
+      - series: 'unheaded_aide_new_diff{host="west"}'
+        values: '0x11700'
+    alert_rule_test:
+      - eval_time: 191h
+        alertname: AIDECheckStale
+        exp_alerts: []
+      - eval_time: 194h
+        alertname: AIDECheckStale
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "No AIDE check on west for over 8 days"
+              description: "The last completed check is 8d 2h 0m 0s old; unheaded-aide-check.timer did not run it, or every run since has failed"
+              runbook_url: "runbooks/security/aide-check-stale.yaml"
+      - eval_time: 194h
+        alertname: AIDEChangeDetected
+        exp_alerts: []

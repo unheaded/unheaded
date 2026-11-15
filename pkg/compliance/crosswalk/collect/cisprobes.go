@@ -11,6 +11,9 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
+
+	"unheaded/pkg/compliance/crosswalk"
 )
 
 // Host-configuration probes for CIS Ubuntu Linux 24.04 LTS (ADR-097/098).
@@ -1172,6 +1175,116 @@ func init() {
 		})
 }
 
+// AIDE, quiet by design (S-EVIDENCE-RUNS DE1): a change is one findings row
+// per host until someone reviews it, and nothing but our idle unit starts a
+// check.
+func init() {
+	// state.json is unheaded-aide's own file (MarshalIndent, two spaces): the
+	// two top-level lines and the two of a pending diff are all this reads,
+	// so a diff of a thousand entries costs four lines. The clock is the
+	// host's.
+	Probes["aide-unreviewed"] = Probe{
+		Command: `$UH_PRIV sh -c 'f=/var/lib/unheaded/aide/state.json; if [ ! -e "$f" ]; then echo state=absent; ` +
+			`else grep -E "^  \"(last_run|pending)\":|^    \"(hash|first_seen)\":" "$f" || echo "@unreadable $f"; fi'; ` +
+			`echo "now=$(date +%s)"; echo @ok`,
+		Judge: judgeAideUnreviewed,
+	}
+	Probes["aide-quiet"] = markerLinesProbe(`echo "pkgtimer=$(systemctl is-enabled dailyaidecheck.timer 2>/dev/null || true)"; `+
+		`for f in /etc/cron.daily/aide /etc/cron.daily/dailyaidecheck; do if [ -e "$f" ]; then echo "cron=$f"; fi; done; `+
+		`echo "load=$(systemctl show -p LoadState --value unheaded-aide-check.service 2>/dev/null)"; `+
+		`echo "nice=$(systemctl show -p Nice --value unheaded-aide-check.service 2>/dev/null)"; `+
+		`echo "iosched=$(systemctl show -p IOSchedulingClass --value unheaded-aide-check.service 2>/dev/null)"; echo @ok`,
+		func(lines []string) (bool, string) {
+			f := parseKV(strings.Join(lines, "\n"))
+			// Masked, or not there at all (systemd says not-found, older
+			// ones say nothing). Disabled is one enable away from a daily run.
+			if t := f["pkgtimer"]; t != "masked" && t != "not-found" && t != "" {
+				return false, "the package's dailyaidecheck.timer is " + t + " (want masked or absent)"
+			}
+			var cron []string
+			for _, l := range lines {
+				if c, ok := strings.CutPrefix(strings.TrimSpace(l), "cron="); ok {
+					cron = append(cron, c)
+				}
+			}
+			if len(cron) > 0 {
+				return false, "the package's cron script is in place, not diverted: " + strings.Join(cron, ", ")
+			}
+			if f["load"] != "loaded" {
+				return false, "unheaded-aide-check.service is not installed"
+			}
+			if f["nice"] != "19" {
+				return false, "unheaded-aide-check.service runs with Nice=" + f["nice"] + " (want 19)"
+			}
+			// systemd prints the class as its number: 3 is idle.
+			if f["iosched"] != "3" && f["iosched"] != "idle" {
+				return false, "unheaded-aide-check.service runs with IOSchedulingClass=" + f["iosched"] + " (want idle)"
+			}
+			return true, "only unheaded-aide-check.service runs AIDE, at Nice=19 and idle I/O; the package's timer and cron script are off"
+		})
+}
+
+// aideMaxAge is how old the last completed check may be: the timer is
+// weekly with up to six hours of delay.
+const aideMaxAge = 8 * 24 * time.Hour
+
+func judgeAideUnreviewed(out string) (bool, string) {
+	var lines []string
+	done := false
+	for _, l := range strings.Split(out, "\n") {
+		if strings.TrimSpace(l) == "@ok" {
+			done = true
+			continue
+		}
+		if strings.TrimSpace(l) != "" {
+			lines = append(lines, l)
+		}
+	}
+	if !done {
+		return false, "check did not complete"
+	}
+	if p, ok := unreadable(lines); ok {
+		return false, p + " could not be read: not checked"
+	}
+	field := func(indent, name string) (string, bool) {
+		for _, l := range lines {
+			if v, ok := strings.CutPrefix(l, indent+`"`+name+`": `); ok {
+				return strings.Trim(strings.TrimSuffix(strings.TrimSpace(v), ","), `"`), true
+			}
+		}
+		return "", false
+	}
+	kv := parseKV(strings.Join(lines, "\n"))
+	now, err := strconv.ParseInt(kv["now"], 10, 64)
+	if err != nil {
+		return false, "the host's clock was not read: not checked"
+	}
+	if kv["state"] == "absent" {
+		return false, "no AIDE check has completed on this host (no state.json): the database is built by hand, unheaded-aide init then promote"
+	}
+	lastRun, okRun := field("  ", "last_run")
+	pending, okPending := field("  ", "pending")
+	last, err := strconv.ParseInt(lastRun, 10, 64)
+	if !okRun || !okPending || err != nil {
+		return false, "state.json is not the file unheaded-aide writes: not checked"
+	}
+	day := func(unix int64) string { return time.Unix(unix, 0).UTC().Format("2006-01-02") }
+	if pending != "null" {
+		hash, _ := field("    ", "hash")
+		seen, _ := field("    ", "first_seen")
+		first, err := strconv.ParseInt(seen, 10, 64)
+		if len(hash) < 12 || err != nil {
+			return false, "state.json holds a pending diff this probe cannot read: not checked"
+		}
+		// No run count and no time of day: the same diff is the same row.
+		return false, "unreviewed diff " + hash[:12] + " since " + day(first) + " (unheaded-aide review, then accept)"
+	}
+	if time.Duration(now-last)*time.Second > aideMaxAge {
+		return false, "the last AIDE check completed " + day(last) + ", over 8 days ago"
+	}
+	return true, "no unreviewed diff; the last check completed within 8 days"
+}
+
 // Logging (CIS 6.1.1.4, 6.1.3.1-6.1.3.4, 6.1.3.7) for hosts on the rsyslog
 // path (journald forwarding to rsyslog). The journald-remote path
 // (6.1.2.x) is the alternative and is not claimed.
@@ -1310,27 +1423,10 @@ func init() {
 	Probes["var-log-perms"] = markerLinesProbe(`$UH_PRIV sh -c "find /var/log -type f -printf '%m %p\\n' 2>/dev/null && echo @ok"`, judgeVarLogPerms)
 }
 
-// varLogMaxMode is CIS 6.1.4.1's per-name ceiling: login records may be
-// group-writable and world-readable, a few agents' logs world-readable,
-// sssd and gdm logs group-writable, everything else 0640.
-func varLogMaxMode(path string) uint32 {
-	base := path[strings.LastIndex(path, "/")+1:]
-	dir := path[:strings.LastIndex(path, "/")+1]
-	for _, p := range []string{"lastlog", "wtmp", "btmp"} {
-		if base == p || strings.HasPrefix(base, p+".") || strings.HasPrefix(base, p+"-") {
-			return 0o664
-		}
-	}
-	switch {
-	case base == "README":
-		return 0o664
-	case strings.HasPrefix(base, "cloud-init.log"), strings.HasPrefix(base, "localmessages"), strings.HasPrefix(base, "waagent.log"):
-		return 0o644
-	case strings.Contains(dir, "/sssd/"), strings.Contains(dir, "/SSSD/"), strings.Contains(dir, "/gdm/"), strings.Contains(dir, "/gdm3/"):
-		return 0o660
-	}
-	return 0o640
-}
+// varLogMaxMode is CIS 6.1.4.1's per-name ceiling. It is the function the
+// var-log-modes fix tightens to (pkg/compliance/executor), so the check and
+// the fix agree on every name.
+func varLogMaxMode(path string) uint32 { return crosswalk.VarLogMaxMode(path) }
 
 func judgeVarLogPerms(lines []string) (bool, string) {
 	var loose []string

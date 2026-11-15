@@ -89,6 +89,17 @@ promote:
       Under unlisted: deny a missing topic is silent: Sophia was refused 314
       times in 2.5 h on 2026-11-12 and nothing showed it but Wotan's log. No
       SLO sees a service that is up and starved.
+  - alert: AIDEChangeDetected
+    urgency: ticket
+    reason: >-
+      DE1 (Stevie, 2026-11-13): no spam. The weekly AIDE check reports a
+      diff once, on the run that first saw it; this is that one digest line.
+      No SLO sees a changed binary.
+  - alert: AIDECheckStale
+    urgency: ticket
+    reason: >-
+      A file integrity check that has stopped running looks the same as a
+      host with no changes. No SLO sees a timer that does not fire.
   - alert: AlertMailVolumeHigh
     urgency: ticket
     reason: >-
