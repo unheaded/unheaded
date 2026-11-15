@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -40,8 +41,6 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
 	"unheaded/cmd/dashboard-backend/internal/logs"
-	internalMetrics "unheaded/cmd/dashboard-backend/internal/metrics"
-	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/auth"
 	"unheaded/pkg/bff"
@@ -54,6 +53,7 @@ import (
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	utls "unheaded/pkg/tls"
+	"unheaded/pkg/vmquery"
 )
 
 var (
@@ -79,7 +79,6 @@ type Config struct {
 
 	// Components
 	WebSocketConfig *websocket.Config
-	ScraperConfig   *scraper.Config
 	HealthConfig    *health.Config
 	EventsConfig    *events.Config
 	// Service endpoint overrides (name → "host:port")
@@ -96,9 +95,9 @@ type Config struct {
 	// When set, files are served under /viz/. Defaults to "" (disabled).
 	VizDir string
 
-	// VMUrl is the VictoriaMetrics import URL for direct push (Approach C).
-	// When non-empty, host metrics are POSTed directly to VictoriaMetrics.
-	// Example: "http://localhost:8428"
+	// VMUrl is the VictoriaMetrics base URL every metric is read from
+	// (ADR-147 decision 9; e.g. "http://victoria:8428"). Empty: the metric
+	// endpoints answer 503.
 	VMUrl string
 
 	// ComplianceRoot holds compliance/catalog/ (ADR-097); empty disables the
@@ -149,9 +148,6 @@ func (c *Config) Validate() error {
 	// Use defaults for sub-configs if not provided
 	if c.WebSocketConfig == nil {
 		c.WebSocketConfig = websocket.DefaultConfig()
-	}
-	if c.ScraperConfig == nil {
-		c.ScraperConfig = scraper.DefaultConfig()
 	}
 	if c.HealthConfig == nil {
 		c.HealthConfig = health.DefaultConfig()
@@ -228,14 +224,13 @@ type Server struct {
 
 	// Components
 	wsServer      *websocket.Server
-	scraper       *scraper.Scraper
 	healthMonitor *health.Monitor
 	eventStreamer *events.Streamer
-	// Enhanced aggregation
-	metricsAggregator *internalMetrics.Aggregator
-	traceCollector    TraceCollector    // Optional: set via SetTraceCollector
-	healthAggregator  HealthAggregator  // Optional: set via SetHealthAggregator
-	ebpfIngestor      *ebpfPkg.Ingestor // Optional: set via config when trace-collector active
+	// vm reads every metric from VictoriaMetrics (nil: no --vm-url).
+	vm               *vmquery.Client
+	traceCollector   TraceCollector    // Optional: set via SetTraceCollector
+	healthAggregator HealthAggregator  // Optional: set via SetHealthAggregator
+	ebpfIngestor     *ebpfPkg.Ingestor // Optional: set via config when trace-collector active
 	// viewerPacketsDropped counts packet and flow events left out of the live view
 	// because they are this dashboard's own WebSocket traffic (isViewerFlow).
 	viewerPacketsDropped atomic.Int64
@@ -270,31 +265,12 @@ type Server struct {
 	// bff is the browser login (nil unless auth is on with AUTH_ISSUER_URL).
 	bff *bff.BFF
 
-	// Host system metrics (Approach A: exposed on /metrics for Prometheus scrape)
-	hostCPU            *metrics.GaugeVec
-	hostMemUsed        *metrics.GaugeVec
-	hostMemTotal       *metrics.GaugeVec
-	hostSwapUsed       *metrics.GaugeVec
-	hostLoad1          *metrics.GaugeVec
-	hostLoad5          *metrics.GaugeVec
-	hostLoad15         *metrics.GaugeVec
-	hostGoroutines     *metrics.GaugeVec
-	hostUptime         *metrics.GaugeVec
-	hostDiskUsed       *metrics.GaugeVec
-	hostDiskTotal      *metrics.GaugeVec
-	hostNetEstablished *metrics.GaugeVec
-	hostProcesses      *metrics.GaugeVec
-
 	// Service config management
 	configLoader *discovery.ServiceConfigLoader
 
 	// Kingdom host registry for /api/v1/hosts
 	hosts     []KingdomHost
 	startedAt time.Time
-
-	// Service latency samples (populated by serviceFlowGenerator when BPF unavailable)
-	serviceLatencies   map[string]*latencySamples // operation → samples
-	serviceLatenciesMu sync.RWMutex
 
 	// Static file system for embedded dashboard UI
 	staticFS http.FileSystem
@@ -304,53 +280,6 @@ type Server struct {
 	shutdown     chan struct{}
 	shutdownOnce sync.Once
 	wg           sync.WaitGroup
-}
-
-// latencySamples stores recent latency measurements for a single operation.
-type latencySamples struct {
-	samples []float64 // nanoseconds
-	maxSize int
-}
-
-func newLatencySamples(maxSize int) *latencySamples {
-	return &latencySamples{samples: make([]float64, 0, maxSize), maxSize: maxSize}
-}
-
-func (ls *latencySamples) Add(ns float64) {
-	ls.samples = append(ls.samples, ns)
-	if len(ls.samples) > ls.maxSize {
-		ls.samples = ls.samples[1:]
-	}
-}
-
-func (ls *latencySamples) Percentiles() map[string]float64 {
-	n := len(ls.samples)
-	if n == 0 {
-		return map[string]float64{"p50_ns": 0, "p90_ns": 0, "p99_ns": 0, "min_ns": 0, "max_ns": 0, "mean_ns": 0, "sample_count": 0}
-	}
-	sorted := make([]float64, n)
-	copy(sorted, ls.samples)
-	sort.Float64s(sorted)
-	var sum float64
-	for _, v := range sorted {
-		sum += v
-	}
-	pct := func(p float64) float64 {
-		idx := int(float64(n-1) * p)
-		if idx >= n {
-			idx = n - 1
-		}
-		return sorted[idx]
-	}
-	return map[string]float64{
-		"p50_ns":       pct(0.50),
-		"p90_ns":       pct(0.90),
-		"p99_ns":       pct(0.99),
-		"min_ns":       sorted[0],
-		"max_ns":       sorted[n-1],
-		"mean_ns":      sum / float64(n),
-		"sample_count": float64(n),
-	}
 }
 
 // StreamMessage represents a message sent through the /api/v1/stream WebSocket
@@ -470,10 +399,10 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		return nil, fmt.Errorf("create websocket server: %w", err)
 	}
 
-	// Create metrics scraper
-	metricsScraper, err := scraper.NewScraper(config.ScraperConfig, log)
+	// Every metric is read from VictoriaMetrics (ADR-147 decision 9).
+	vm, err := newVMClient(config.VMUrl)
 	if err != nil {
-		return nil, fmt.Errorf("create metrics scraper: %w", err)
+		return nil, fmt.Errorf("victoriametrics: %w", err)
 	}
 
 	// Create health monitor
@@ -488,17 +417,6 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		return nil, fmt.Errorf("create event streamer: %w", err)
 	}
 
-	// Create internal metrics aggregator
-	metricsAggConfig := &internalMetrics.Config{
-		RetentionPeriod: 1 * time.Hour,
-		MaxSeries:       10000,
-		FlushInterval:   1 * time.Minute,
-	}
-	metricsAggregator, err := internalMetrics.NewAggregator(metricsAggConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create metrics aggregator: %w", err)
-	}
-
 	// Create log aggregation components
 	logBuf := logagg.NewRingBuffer(logagg.DefaultCapacity)
 	logHandler := logs.NewLogHandler(logBuf)
@@ -508,27 +426,25 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	cfgLoader := discovery.NewServiceConfigLoader()
 
 	s := &Server{
-		config:            config,
-		log:               log,
-		wsServer:          wsServer,
-		scraper:           metricsScraper,
-		healthMonitor:     healthMonitor,
-		eventStreamer:     eventStreamer,
-		metricsAggregator: metricsAggregator,
-		ebpfIngestor:      config.EBPFIngestor,
-		traceBuffer:       NewTraceBuffer(1000),
-		logBuffer:         logBuf,
-		logHandler:        logHandler,
-		logStream:         logStreamHandler,
-		streamSubs:        make(map[chan *StreamMessage]StreamFilter),
-		configLoader:      cfgLoader,
+		config:        config,
+		log:           log,
+		wsServer:      wsServer,
+		vm:            vm,
+		healthMonitor: healthMonitor,
+		eventStreamer: eventStreamer,
+		ebpfIngestor:  config.EBPFIngestor,
+		traceBuffer:   NewTraceBuffer(1000),
+		logBuffer:     logBuf,
+		logHandler:    logHandler,
+		logStream:     logStreamHandler,
+		streamSubs:    make(map[chan *StreamMessage]StreamFilter),
+		configLoader:  cfgLoader,
 		hosts: []KingdomHost{
 			{ID: "west", Addr: "192.168.13.2", Type: "bare-metal", MetricsURL: "http://192.168.13.2:9110/host-summary"},
 			{ID: "east", Addr: "192.168.13.1", Type: "bare-metal", MetricsURL: "http://192.168.13.1:9110/host-summary"},
 		},
-		startedAt:        time.Now(),
-		shutdown:         make(chan struct{}),
-		serviceLatencies: make(map[string]*latencySamples),
+		startedAt: time.Now(),
+		shutdown:  make(chan struct{}),
 	}
 
 	// Optional: connect to PostgreSQL (The Well) for health persistence.
@@ -635,33 +551,6 @@ func (s *Server) initMetrics() {
 	)
 	s.metricsRegistry.MustRegister(s.streamClients)
 
-	// Host system metrics (Approach A)
-	s.hostCPU = metrics.NewGaugeVec("host_cpu_percent", "CPU usage percent", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostCPU)
-	s.hostMemUsed = metrics.NewGaugeVec("host_memory_used_bytes", "Memory used bytes", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostMemUsed)
-	s.hostMemTotal = metrics.NewGaugeVec("host_memory_total_bytes", "Memory total bytes", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostMemTotal)
-	s.hostSwapUsed = metrics.NewGaugeVec("host_swap_used_bytes", "Swap used bytes", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostSwapUsed)
-	s.hostLoad1 = metrics.NewGaugeVec("host_load_1m", "1-minute load average", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostLoad1)
-	s.hostLoad5 = metrics.NewGaugeVec("host_load_5m", "5-minute load average", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostLoad5)
-	s.hostLoad15 = metrics.NewGaugeVec("host_load_15m", "15-minute load average", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostLoad15)
-	s.hostGoroutines = metrics.NewGaugeVec("host_goroutines", "Go runtime goroutines", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostGoroutines)
-	s.hostUptime = metrics.NewGaugeVec("host_uptime_seconds", "System uptime", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostUptime)
-	s.hostDiskUsed = metrics.NewGaugeVec("host_disk_used_bytes", "Disk used bytes", nil, []string{"host", "mount"})
-	s.metricsRegistry.MustRegister(s.hostDiskUsed)
-	s.hostDiskTotal = metrics.NewGaugeVec("host_disk_total_bytes", "Disk total bytes", nil, []string{"host", "mount"})
-	s.metricsRegistry.MustRegister(s.hostDiskTotal)
-	s.hostNetEstablished = metrics.NewGaugeVec("host_net_established", "Established TCP connections", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostNetEstablished)
-	s.hostProcesses = metrics.NewGaugeVec("host_processes_total", "Total processes", nil, []string{"host"})
-	s.metricsRegistry.MustRegister(s.hostProcesses)
 }
 
 // setupRoutes configures HTTP routes
@@ -843,18 +732,13 @@ func (s *Server) Start(ctx context.Context) error {
 		Str("wotan", s.config.WotanAddr).
 		Msg("starting dashboard backend")
 
-	// Register Kingdom services for scraping and monitoring
-	s.scraper.RegisterKingdomServices(s.config.ServiceEndpoints)
+	// Register Kingdom services with the health monitor: its 15 s round is
+	// the one poller (ADR-147 Phase 13; metrics come from VictoriaMetrics).
 	s.healthMonitor.RegisterKingdomServices(s.config.ServiceEndpoints)
 
 	// Start WebSocket server
 	if err := s.wsServer.Start(ctx); err != nil {
 		return fmt.Errorf("start websocket server: %w", err)
-	}
-
-	// Start metrics scraper
-	if err := s.scraper.Start(ctx); err != nil {
-		return fmt.Errorf("start metrics scraper: %w", err)
 	}
 
 	// Start health monitor
@@ -895,17 +779,9 @@ func (s *Server) Start(ctx context.Context) error {
 		go s.broadcastEBPFEvents(ctx)
 	}
 
-	// Start service flow generator (real flow data from health polls)
-	s.wg.Add(1)
-	go s.serviceFlowGenerator(ctx)
-
 	// Start metrics updater
 	s.wg.Add(1)
 	go s.updateMetrics(ctx)
-
-	// Start host metrics collector (Approaches A+B+C)
-	s.wg.Add(1)
-	go s.collectHostMetrics(ctx)
 
 	// Findings register metrics (ADR-098), when the catalog is configured
 	if s.complianceMetrics != nil {
@@ -1026,48 +902,49 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"status":         "ready",
 		"ws_connections": s.wsServer.ConnectionCount(),
-		"scraper_series": s.scraper.SeriesCount(),
 		"events_count":   s.eventStreamer.EventCount(),
 	})
 }
 
-// handleAPIMetrics handles GET /api/v1/metrics - aggregated metrics
+// handleAPIMetrics handles GET /api/v1/metrics: per service, its request
+// rate, 5xx rate, p50 and p99 (ms), memory and CPU, from VictoriaMetrics.
 func (s *Server) handleAPIMetrics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	metrics := s.scraper.GetAggregatedMetrics()
-
-	httputil.WriteJSON(w, http.StatusOK, metrics)
+	rows, err := s.vmServiceRows(r.Context())
+	if err != nil {
+		writeVictoriaDown(w)
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"timestamp": time.Now(),
+		"services":  rows,
+	})
 }
 
-// metricsSummaryResponse is the summary panel's feed: rates and quantiles
-// derived from scrape pairs (scraper.PanelSummary), plus this dashboard's own
-// live clients, the only "connections" count any service here publishes.
-type metricsSummaryResponse struct {
-	*scraper.PanelSummary
-	DashboardClients int `json:"dashboard_clients"`
-}
-
-// handleMetricsSummary handles GET /api/v1/metrics/summary.
+// handleMetricsSummary handles GET /api/v1/metrics/summary: the summary
+// cards' rates and quantiles from VictoriaMetrics, plus this dashboard's
+// own live clients.
 func (s *Server) handleMetricsSummary(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
+	sum, err := s.vmSummary(r.Context())
+	if err != nil {
+		writeVictoriaDown(w)
+		return
+	}
 	s.streamSubsMu.RLock()
 	streams := len(s.streamSubs)
 	s.streamSubsMu.RUnlock()
+	sum.DashboardClients = s.wsServer.ConnectionCount() + streams
 
 	// Encode before writing the status: a failed encode must be a 500, not
-	// the 200-with-empty-body /api/v1/metrics used to send.
-	body, err := json.Marshal(metricsSummaryResponse{
-		PanelSummary:     s.scraper.Summary(),
-		DashboardClients: s.wsServer.ConnectionCount() + streams,
-	})
+	// a 200 with an empty body.
+	body, err := json.Marshal(sum)
 	if err != nil {
 		http.Error(w, "encode summary", http.StatusInternalServerError)
 		return
@@ -1076,7 +953,50 @@ func (s *Server) handleMetricsSummary(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(body) // #nosec G104 -- status committed; a failed write means the client left
 }
 
-// handleMetricsQuery handles POST /api/v1/metrics/query - query specific metrics
+// metricNameRe and labelNameRe are PromQL's identifier rules; a query names
+// a series by them and nothing else reaches the PromQL text.
+var (
+	metricNameRe = regexp.MustCompile(`^[a-zA-Z_:][a-zA-Z0-9_:]{0,199}$`)
+	labelNameRe  = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]{0,99}$`)
+)
+
+// maxQueryLabels bounds a /api/v1/metrics/query selector.
+const maxQueryLabels = 16
+
+// selector builds name{k="v",...} with each value escaped as a PromQL
+// string; an invalid name or label is an error.
+func selector(name string, labels map[string]string) (string, error) {
+	if !metricNameRe.MatchString(name) {
+		return "", fmt.Errorf("invalid metric name %q", name)
+	}
+	if len(labels) > maxQueryLabels {
+		return "", fmt.Errorf("more than %d labels", maxQueryLabels)
+	}
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		if !labelNameRe.MatchString(k) {
+			return "", fmt.Errorf("invalid label name %q", k)
+		}
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString(name)
+	b.WriteByte('{')
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(strconv.Quote(labels[k]))
+	}
+	b.WriteByte('}')
+	return b.String(), nil
+}
+
+// handleMetricsQuery handles POST /api/v1/metrics/query: one series by
+// name and labels, since a time, read from VictoriaMetrics.
 func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1096,14 +1016,15 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	now := time.Now()
 	var since time.Time
 	if query.SinceDuration != "" {
 		dur, err := time.ParseDuration(query.SinceDuration)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid duration: %v", err), http.StatusBadRequest)
+		if err != nil || dur <= 0 {
+			http.Error(w, "invalid duration", http.StatusBadRequest)
 			return
 		}
-		since = time.Now().Add(-dur)
+		since = now.Add(-dur)
 	} else if query.Since != "" {
 		var err error
 		since, err = time.Parse(time.RFC3339, query.Since)
@@ -1112,11 +1033,48 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		since = time.Now().Add(-1 * time.Hour)
+		since = now.Add(-1 * time.Hour)
 	}
-
-	results := s.scraper.QueryMetrics(query.Name, query.Labels, since)
-
+	if since.After(now) || now.Sub(since) > 7*24*time.Hour {
+		http.Error(w, "since must be within the last 7 days", http.StatusBadRequest)
+		return
+	}
+	sel, err := selector(query.Name, query.Labels)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if s.vm == nil {
+		writeVictoriaDown(w)
+		return
+	}
+	// About 240 points whatever the span, never under the 15 s scrape.
+	step := max(now.Sub(since)/240, 15*time.Second)
+	series, err := s.vm.Range(r.Context(), sel, since, now, step)
+	if err != nil {
+		s.log.Debug().Err(err).Str("query", sel).Msg("victoriametrics range query failed")
+		writeVictoriaDown(w)
+		return
+	}
+	type point struct {
+		Timestamp time.Time `json:"timestamp"`
+		Value     float64   `json:"value"`
+	}
+	type result struct {
+		Name    string            `json:"name"`
+		Labels  map[string]string `json:"labels"`
+		Samples []point           `json:"samples"`
+	}
+	results := make([]result, 0, len(series))
+	for _, sr := range series {
+		res := result{Name: query.Name, Labels: sr.Metric, Samples: make([]point, 0, len(sr.Points))}
+		for _, p := range sr.Points {
+			if finite(p.Value) != nil {
+				res.Samples = append(res.Samples, point{p.Time, p.Value})
+			}
+		}
+		results = append(results, res)
+	}
 	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"results": results,
 		"count":   len(results),
@@ -1142,9 +1100,6 @@ func (s *Server) handleServicesGet(w http.ResponseWriter, r *http.Request) {
 
 	services := make([]map[string]interface{}, 0, len(systemHealth.Services))
 	for name, svc := range systemHealth.Services {
-		// Get metrics for service
-		svcMetrics, _ := s.scraper.GetServiceMetrics(name)
-
 		service := map[string]interface{}{
 			"name":                  name,
 			"status":                svc.Status,
@@ -1153,11 +1108,6 @@ func (s *Server) handleServicesGet(w http.ResponseWriter, r *http.Request) {
 			"consecutive_successes": svc.ConsecutiveSuccesses,
 			"consecutive_failures":  svc.ConsecutiveFailures,
 			"average_latency_ms":    svc.AverageLatency.Milliseconds(),
-		}
-
-		if svcMetrics != nil {
-			service["metrics_status"] = svcMetrics.Status
-			service["metrics_count"] = len(svcMetrics.Metrics)
 		}
 
 		// Merge config data if available
@@ -1248,7 +1198,7 @@ func (s *Server) handleServiceByName(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (s *Server) handleServiceByNameGet(w http.ResponseWriter, _ *http.Request, name string) {
+func (s *Server) handleServiceByNameGet(w http.ResponseWriter, r *http.Request, name string) {
 	result := map[string]interface{}{
 		"name": name,
 	}
@@ -1259,10 +1209,10 @@ func (s *Server) handleServiceByNameGet(w http.ResponseWriter, _ *http.Request, 
 		result["health"] = svcHealth
 	}
 
-	// Get metrics
-	svcMetrics, _ := s.scraper.GetServiceMetrics(name)
-	if svcMetrics != nil {
-		result["metrics"] = svcMetrics
+	// Its metrics row, from VictoriaMetrics when it answers (the service
+	// view is still served from the health monitor when it does not).
+	if rows, err := s.vmServiceRows(r.Context()); err == nil && rows[name] != nil {
+		result["metrics"] = rows[name]
 	}
 
 	// Get config
@@ -1505,11 +1455,6 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 			"stream_clients": streamClients,
 			"listen_addr":    s.config.ListenAddr,
 		},
-		"scraper": map[string]interface{}{
-			"running":       s.scraper.IsRunning(),
-			"series_count":  s.scraper.SeriesCount(),
-			"targets_count": len(s.scraper.GetTargets()),
-		},
 		"health": map[string]interface{}{
 			"running":        s.healthMonitor.IsRunning(),
 			"total_services": systemHealth.TotalServices,
@@ -1519,9 +1464,6 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 			"overall_status": systemHealth.Status,
 		},
 		"events": eventStats,
-		"aggregators": map[string]interface{}{
-			"metrics_series": s.metricsAggregator.SeriesCount(),
-		},
 	}
 
 	httputil.WriteJSON(w, http.StatusOK, stats)
@@ -1740,7 +1682,11 @@ func (s *Server) handleAggregated(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Gather aggregated data from all sources
-	scraperMetrics := s.scraper.GetAggregatedMetrics()
+	rows, err := s.vmServiceRows(r.Context())
+	if err != nil {
+		writeVictoriaDown(w)
+		return
+	}
 	systemHealth := s.healthMonitor.GetSystemHealth()
 	eventSummary := s.eventStreamer.GetSummary()
 
@@ -1753,10 +1699,8 @@ func (s *Server) handleAggregated(w http.ResponseWriter, r *http.Request) {
 	aggregated := map[string]interface{}{
 		"timestamp": time.Now(),
 		"metrics": map[string]interface{}{
-			"scraper":       scraperMetrics,
-			"series_count":  s.metricsAggregator.SeriesCount(),
-			"total_metrics": scraperMetrics.TotalMetrics,
-			"total_series":  scraperMetrics.TotalSeries,
+			"source":   "victoriametrics",
+			"services": rows,
 		},
 		"health": map[string]interface{}{
 			"internal":   systemHealth,
@@ -1783,35 +1727,17 @@ func (s *Server) handleAggregatedMetrics(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Parse query parameters
-	var since time.Time
-	if sinceStr := r.URL.Query().Get("since"); sinceStr != "" {
-		if d, err := time.ParseDuration(sinceStr); err == nil {
-			since = time.Now().Add(-d)
-		} else if t, err := time.Parse(time.RFC3339, sinceStr); err == nil {
-			since = t
-		}
-	} else {
-		since = time.Now().Add(-1 * time.Hour)
+	rows, err := s.vmServiceRows(r.Context())
+	if err != nil {
+		writeVictoriaDown(w)
+		return
 	}
-
-	// Get metrics from scraper
-	scraperMetrics := s.scraper.GetAggregatedMetrics()
-
-	// Get internal aggregator stats
-	aggregatorStats := map[string]interface{}{
-		"series_count": s.metricsAggregator.SeriesCount(),
-	}
-
 	result := map[string]interface{}{
-		"timestamp":  time.Now(),
-		"since":      since,
-		"scraper":    scraperMetrics,
-		"aggregator": aggregatorStats,
+		"timestamp": time.Now(),
+		"source":    "victoriametrics",
+		"services":  rows,
 		"summary": map[string]interface{}{
-			"total_services": len(scraperMetrics.Services),
-			"total_metrics":  scraperMetrics.TotalMetrics,
-			"total_series":   scraperMetrics.TotalSeries,
+			"total_services": len(rows),
 		},
 	}
 
@@ -2235,113 +2161,6 @@ func protocolName(p int) string {
 	}
 }
 
-// serviceFlowGenerator polls the Kingdom services' /health every 2 s and
-// records each successful check (recordHealthCheck): a latency sample
-// per service, which /api/v1/latency serves when BPF is unavailable
-// (e.g., macOS dev), and an event for the Events page.
-func (s *Server) serviceFlowGenerator(ctx context.Context) {
-	defer s.wg.Done()
-
-	// Service endpoints to poll — matches the Kingdom services
-	type svcTarget struct {
-		name string
-		url  string
-	}
-
-	// All first-party: https when UNHEADED_TLS_ENABLED=true (S-IRON-GATE
-	// Phase 8), unless an override names its scheme.
-	targets := []svcTarget{
-		{"wotan", "localhost:18000"},
-		{"timeguru", "localhost:19000"},
-	}
-
-	// Apply overrides from config
-	for i := range targets {
-		if ep, ok := s.config.ServiceEndpoints[targets[i].name]; ok {
-			targets[i].url = ep
-		}
-		targets[i].url = utls.EndpointURL(targets[i].url, true) + "/health"
-	}
-
-	client, err := utls.ClientFromEnv(2 * time.Second)
-	if err != nil {
-		s.log.Error().Err(err).Msg("service flow generator: TLS client; not polling")
-		return
-	}
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-
-	s.log.Info().Int("service_count", len(targets)).Msg("service flow generator started")
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.shutdown:
-			return
-		case <-ticker.C:
-			for _, tgt := range targets {
-				start := time.Now()
-				resp, err := client.Get(tgt.url)
-				latency := time.Since(start)
-				if err != nil {
-					continue // skip unreachable services
-				}
-				resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
-
-				if resp.StatusCode != http.StatusOK {
-					continue
-				}
-
-				s.recordHealthCheck(tgt.name, start, latency)
-			}
-		}
-	}
-}
-
-// recordHealthCheck records one successful health check: its latency as the
-// "http_health_<service>" operation (served by /api/v1/latency when no eBPF
-// ingestor is active) and an event for the Events page.
-//
-// It used to also invent tcp_connect/tcp_send/tcp_recv/tcp_accept samples
-// as fixed fractions (25/10/50/15 %) of the check's time, which the Latency
-// page then showed as TCP operation latencies, and a gateway → wotan →
-// service packet_flow with the time split 1/4, 1/2, 1/4, a path a health
-// check does not take. Only what was measured is kept.
-func (s *Server) recordHealthCheck(service string, start time.Time, latency time.Duration) {
-	s.serviceLatenciesMu.Lock()
-	opName := "http_health_" + service
-	if s.serviceLatencies[opName] == nil {
-		s.serviceLatencies[opName] = newLatencySamples(500)
-	}
-	s.serviceLatencies[opName].Add(float64(latency.Nanoseconds()))
-	s.serviceLatenciesMu.Unlock()
-
-	hostName, _ := os.Hostname()
-	eventMsg := map[string]interface{}{
-		"type": "event",
-		"data": map[string]interface{}{
-			"type":      "flow",
-			"topic":     "health." + service,
-			"source":    "service-flow-generator",
-			"timestamp": start.Format(time.RFC3339Nano),
-			"message":   fmt.Sprintf("GET /health %s → %dms", service, latency.Milliseconds()),
-			"service":   service,
-			"host":      hostName,
-			"data": map[string]interface{}{
-				"service":    service,
-				"host":       hostName,
-				"method":     "GET",
-				"path":       "/health",
-				"status":     http.StatusOK,
-				"latency_ms": float64(latency.Microseconds()) / 1000.0,
-			},
-		},
-	}
-	eventData, _ := json.Marshal(eventMsg)
-	s.wsServer.Broadcast(eventData)
-}
-
 // IngestTraceEvent allows external code (e.g. tests) to inject a trace event
 // directly into the pipeline without going through Wotan.
 func (s *Server) IngestTraceEvent(te TraceEvent) {
@@ -2380,24 +2199,24 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.ebpfIngestor == nil {
-		// No BPF — serve latency data from service health checks
-		s.serviceLatenciesMu.RLock()
-		percentiles := make(map[string][]map[string]float64)
-		for opName, samples := range s.serviceLatencies {
-			percentiles[opName] = []map[string]float64{samples.Percentiles()}
+		// No BPF: each service's HTTP request latency from VictoriaMetrics
+		// (the middleware's histogram), one window per service.
+		percentiles, err := s.vmLatencyPercentiles(r.Context())
+		if err != nil {
+			writeVictoriaDown(w)
+			return
 		}
-		s.serviceLatenciesMu.RUnlock()
-
 		if len(percentiles) == 0 {
 			httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
-				"message": "Collecting latency data from service health checks...",
+				"message": "No HTTP requests in VictoriaMetrics over the last 5 minutes",
 				"data":    nil,
+				"source":  "victoriametrics",
 			})
 			return
 		}
 		httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 			"percentiles": percentiles,
-			"source":      "service_health_checks",
+			"source":      "victoriametrics",
 		})
 		return
 	}
@@ -2514,16 +2333,6 @@ func (s *Server) SetTraceCollector(collector TraceCollector) {
 	s.traceCollector = collector
 }
 
-// RecordMetric records a metric to the internal aggregator
-func (s *Server) RecordMetric(name string, value float64, labels map[string]string) error {
-	return s.metricsAggregator.RecordMetric(&internalMetrics.Metric{
-		Name:      name,
-		Value:     value,
-		Labels:    labels,
-		Timestamp: time.Now(),
-	})
-}
-
 // SetHealthAggregator sets the health aggregator for the server
 func (s *Server) SetHealthAggregator(aggregator HealthAggregator) {
 	s.healthAggregator = aggregator
@@ -2570,11 +2379,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			}
 		}
 
-		// Stop scraper
-		if err := s.scraper.Stop(); err != nil {
-			s.log.Error().Err(err).Msg("scraper stop error")
-		}
-
 		// Stop health monitor
 		if err := s.healthMonitor.Stop(); err != nil {
 			s.log.Error().Err(err).Msg("health monitor stop error")
@@ -2583,13 +2387,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// Stop event streamer
 		if err := s.eventStreamer.Stop(); err != nil {
 			s.log.Error().Err(err).Msg("event streamer stop error")
-		}
-
-		// Shutdown internal metrics aggregator
-		if s.metricsAggregator != nil {
-			if err := s.metricsAggregator.Shutdown(ctx); err != nil {
-				s.log.Error().Err(err).Msg("metrics aggregator shutdown error")
-			}
 		}
 
 		// Close health aggregator if set
@@ -2634,11 +2431,6 @@ func (s *Server) GetWebSocketServer() *websocket.Server {
 	return s.wsServer
 }
 
-// GetScraper returns the metrics scraper
-func (s *Server) GetScraper() *scraper.Scraper {
-	return s.scraper
-}
-
 // GetHealthMonitor returns the health monitor
 func (s *Server) GetHealthMonitor() *health.Monitor {
 	return s.healthMonitor
@@ -2647,11 +2439,6 @@ func (s *Server) GetHealthMonitor() *health.Monitor {
 // GetEventStreamer returns the event streamer
 func (s *Server) GetEventStreamer() *events.Streamer {
 	return s.eventStreamer
-}
-
-// GetMetricsAggregator returns the internal metrics aggregator
-func (s *Server) GetMetricsAggregator() *internalMetrics.Aggregator {
-	return s.metricsAggregator
 }
 
 // GetTraceCollector returns the trace collector
@@ -2807,292 +2594,6 @@ type NetConnections struct {
 	Established int `json:"established"`
 	TimeWait    int `json:"time_wait"`
 	CloseWait   int `json:"close_wait"`
-}
-
-// collectHostMetrics runs every 15s, reading system metrics from /proc (local)
-// and remote /metrics endpoints (remote hosts). It feeds three storage paths:
-//   - Approach A: updates Prometheus GaugeVec (scraped via /metrics)
-//   - Approach B: injects samples into scraper series store
-//   - Approach C: pushes directly to VictoriaMetrics (when --vm-url is set)
-func (s *Server) collectHostMetrics(ctx context.Context) {
-	defer s.wg.Done()
-
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-
-	// Collect immediately on start, then every 15s
-	s.doCollectHostMetrics(ctx)
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-s.shutdown:
-			return
-		case <-ticker.C:
-			s.doCollectHostMetrics(ctx)
-		}
-	}
-}
-
-// hostSummary is huginn's /host-summary JSON, the one shape both the
-// collector and /api/v1/hosts read for a remote host.
-type hostSummary struct {
-	CPUPercent    float64        `json:"cpu_percent"`
-	CPUCount      int            `json:"cpu_count"`
-	MemoryTotal   uint64         `json:"memory_total"`
-	MemoryUsed    uint64         `json:"memory_used"`
-	MemoryPercent float64        `json:"memory_percent"`
-	SwapTotal     uint64         `json:"swap_total"`
-	SwapUsed      uint64         `json:"swap_used"`
-	SwapPercent   float64        `json:"swap_percent"`
-	Load1m        float64        `json:"load_1m"`
-	Load5m        float64        `json:"load_5m"`
-	Load15m       float64        `json:"load_15m"`
-	UptimeSeconds float64        `json:"uptime_seconds"`
-	Disks         []DiskInfo     `json:"disks"`
-	NetConns      NetConnections `json:"net_connections"`
-	ProcessTotal  int            `json:"process_total"`
-	ProcessZombie int            `json:"process_zombie"`
-	Hostname      string         `json:"hostname"`
-	Kernel        string         `json:"kernel"`
-}
-
-// fetchHostSummary GETs and decodes a huginn /host-summary.
-func fetchHostSummary(ctx context.Context, url string) (hostSummary, error) {
-	var sum hostSummary
-	body, err := fetchURL(ctx, url)
-	if err != nil {
-		return sum, err
-	}
-	if err := json.Unmarshal([]byte(body), &sum); err != nil {
-		return sum, fmt.Errorf("decode host summary: %w", err)
-	}
-	return sum, nil
-}
-
-// hostSample is one host metric value with any labels beyond "host".
-type hostSample struct {
-	name  string
-	value float64
-	extra map[string]string
-}
-
-// hostSamples lists the metrics a host summary yields, local or remote.
-func hostSamples(sum hostSummary) []hostSample {
-	out := []hostSample{
-		{"host_cpu_percent", sum.CPUPercent, nil},
-		{"host_memory_used_bytes", float64(sum.MemoryUsed), nil},
-		{"host_memory_total_bytes", float64(sum.MemoryTotal), nil},
-		{"host_swap_used_bytes", float64(sum.SwapUsed), nil},
-		{"host_load_1m", sum.Load1m, nil},
-		{"host_load_5m", sum.Load5m, nil},
-		{"host_load_15m", sum.Load15m, nil},
-		{"host_uptime_seconds", sum.UptimeSeconds, nil},
-		{"host_net_established", float64(sum.NetConns.Established), nil},
-		{"host_processes_total", float64(sum.ProcessTotal), nil},
-	}
-	for _, d := range sum.Disks {
-		mount := map[string]string{"mount": d.Mount}
-		out = append(out,
-			hostSample{"host_disk_used_bytes", float64(d.UsedBytes), mount},
-			hostSample{"host_disk_total_bytes", float64(d.SizeBytes), mount},
-		)
-	}
-	return out
-}
-
-// hostGauge maps a host sample name to the exported gauge, nil for names
-// that only go to the series store.
-func (s *Server) hostGauge(name string) *metrics.GaugeVec {
-	switch name {
-	case "host_cpu_percent":
-		return s.hostCPU
-	case "host_memory_used_bytes":
-		return s.hostMemUsed
-	case "host_memory_total_bytes":
-		return s.hostMemTotal
-	case "host_swap_used_bytes":
-		return s.hostSwapUsed
-	case "host_load_1m":
-		return s.hostLoad1
-	case "host_load_5m":
-		return s.hostLoad5
-	case "host_load_15m":
-		return s.hostLoad15
-	case "host_goroutines":
-		return s.hostGoroutines
-	case "host_uptime_seconds":
-		return s.hostUptime
-	case "host_net_established":
-		return s.hostNetEstablished
-	case "host_processes_total":
-		return s.hostProcesses
-	case "host_disk_used_bytes":
-		return s.hostDiskUsed
-	case "host_disk_total_bytes":
-		return s.hostDiskTotal
-	}
-	return nil
-}
-
-// dropHostSeries stops exporting every gauge series for a host, so an
-// unreachable host disappears instead of holding its last reading.
-func (s *Server) dropHostSeries(hostID string) {
-	match := metrics.Labels{"host": hostID}
-	for _, gv := range []*metrics.GaugeVec{
-		s.hostCPU, s.hostMemUsed, s.hostMemTotal, s.hostSwapUsed,
-		s.hostLoad1, s.hostLoad5, s.hostLoad15, s.hostGoroutines,
-		s.hostUptime, s.hostNetEstablished, s.hostProcesses,
-		s.hostDiskUsed, s.hostDiskTotal,
-	} {
-		gv.DeletePartialMatch(match)
-	}
-}
-
-// doCollectHostMetrics performs a single collection cycle for all hosts.
-func (s *Server) doCollectHostMetrics(ctx context.Context) {
-	now := time.Now()
-	var vmLines []string // Prometheus text lines for VM push
-
-	for _, h := range s.hosts {
-		var samples []hostSample
-
-		if h.MetricsURL == "" {
-			// Local host — read from /proc
-			memInfo := readLocalMemInfo()
-			load1, load5, load15 := readLocalLoadAvg()
-			procTotal, procZombie := readLocalProcessCounts()
-			samples = hostSamples(hostSummary{
-				CPUPercent:    readLocalCPUPercent(),
-				MemoryTotal:   memInfo.memTotal,
-				MemoryUsed:    memInfo.memUsed,
-				SwapUsed:      memInfo.swapUsed,
-				Load1m:        load1,
-				Load5m:        load5,
-				Load15m:       load15,
-				UptimeSeconds: readSystemUptime(),
-				Disks:         readLocalDisks(),
-				NetConns:      readLocalNetConnections(),
-				ProcessTotal:  procTotal,
-				ProcessZombie: procZombie,
-			})
-			// This process runs on the local host, so its goroutines are
-			// reported with it; a remote host has no such number.
-			samples = append(samples,
-				hostSample{"host_goroutines", float64(runtime.NumGoroutine()), nil},
-				hostSample{"host_memory_free_bytes", float64(memInfo.memFree), nil},
-				hostSample{"host_memory_buffers_bytes", float64(memInfo.memBuffers), nil},
-				hostSample{"host_memory_cached_bytes", float64(memInfo.memCached), nil},
-			)
-		} else {
-			// Remote host — huginn's /host-summary JSON, the same numbers
-			// /api/v1/hosts serves. (This used to parse that JSON as
-			// Prometheus text for go_* keys that were never there, and
-			// exported 0 for every host metric.)
-			fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			sum, err := fetchHostSummary(fetchCtx, h.MetricsURL)
-			cancel()
-			if err != nil {
-				s.dropHostSeries(h.ID)
-				s.log.Debug().Err(err).Str("host", h.ID).Msg("failed to fetch remote host metrics")
-				continue
-			}
-			samples = hostSamples(sum)
-		}
-
-		for _, hs := range samples {
-			labels := map[string]string{"host": h.ID}
-			for k, v := range hs.extra {
-				labels[k] = v
-			}
-
-			// Approach A: update Prometheus gauges
-			if gv := s.hostGauge(hs.name); gv != nil {
-				gv.WithLabels(metrics.Labels(labels)).Set(hs.value)
-			}
-
-			// Approach B: inject into scraper series store
-			s.scraper.IngestSample(scraper.MetricSample{
-				Name:      hs.name,
-				Value:     hs.value,
-				Labels:    labels,
-				Timestamp: now,
-				Service:   "system",
-			})
-
-			// Approach C: build VM push lines
-			if s.config.VMUrl != "" && s.hostGauge(hs.name) != nil {
-				vmLines = append(vmLines, fmt.Sprintf("%s%s %g", hs.name, formatHostLabels(labels), hs.value))
-			}
-		}
-	}
-
-	// Approach C: push to VictoriaMetrics
-	if s.config.VMUrl != "" && len(vmLines) > 0 {
-		s.pushToVictoriaMetrics(ctx, vmLines)
-	}
-}
-
-// promLabelEscaper applies the exposition format's label-value escapes.
-var promLabelEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
-
-// formatHostLabels renders labels as {k="v",...} with keys sorted and values
-// escaped, for the VictoriaMetrics push.
-func formatHostLabels(labels map[string]string) string {
-	keys := make([]string, 0, len(labels))
-	for k := range labels {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	var b strings.Builder
-	b.WriteByte('{')
-	for i, k := range keys {
-		if i > 0 {
-			b.WriteByte(',')
-		}
-		fmt.Fprintf(&b, `%s="%s"`, k, promLabelEscaper.Replace(labels[k]))
-	}
-	b.WriteByte('}')
-	return b.String()
-}
-
-// maxVMErrorBody bounds what a failed push reads and logs of the answer.
-const maxVMErrorBody = 4 << 10
-
-// vmPushClient answers for the configured address: a push never goes
-// elsewhere.
-var vmPushClient = &http.Client{
-	Timeout:       10 * time.Second,
-	CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-}
-
-// pushToVictoriaMetrics sends metrics directly to VictoriaMetrics via the
-// /api/v1/import/prometheus endpoint (Approach C).
-func (s *Server) pushToVictoriaMetrics(ctx context.Context, lines []string) {
-	url := strings.TrimRight(s.config.VMUrl, "/") + "/api/v1/import/prometheus"
-	body := strings.Join(lines, "\n") + "\n"
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, strings.NewReader(body))
-	if err != nil {
-		s.log.Warn().Err(err).Msg("failed to create VM push request")
-		return
-	}
-	req.Header.Set("Content-Type", "text/plain")
-
-	resp, err := vmPushClient.Do(req)
-	if err != nil {
-		s.log.Debug().Err(err).Msg("VM push failed")
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 300 {
-		respBody, _ := io.ReadAll(io.LimitReader(resp.Body, maxVMErrorBody))
-		s.log.Warn().
-			Int("status", resp.StatusCode).
-			Str("body", string(respBody)).
-			Msg("VM push returned non-2xx")
-	}
 }
 
 // handleHosts returns system metrics for known Kingdom hosts.

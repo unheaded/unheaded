@@ -55,7 +55,6 @@ import (
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
-	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/cmdline"
@@ -90,10 +89,6 @@ var (
 	debug         = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs      = flag.Bool("json", false, "Output logs in JSON format")
 
-	// Scraper settings
-	scrapeInterval = flag.Duration("scrape-interval", 15*time.Second, "Metrics scrape interval")
-	scrapeTimeout  = flag.Duration("scrape-timeout", 10*time.Second, "Metrics scrape timeout")
-
 	// Health settings
 	healthInterval = flag.Duration("health-interval", 15*time.Second, "Health check interval")
 	healthTimeout  = flag.Duration("health-timeout", 5*time.Second, "Health check timeout")
@@ -109,8 +104,9 @@ var (
 	servicesFile = flag.String("services-file", "", "Path to services endpoint file (name=host:port per line)")
 	vizDir       = flag.String("viz-dir", "", "Path to advanced visualizations directory (dashboard/), served under /viz/")
 
-	// VictoriaMetrics direct push (Approach C)
-	vmURL = flag.String("vm-url", "", "VictoriaMetrics base URL for direct metric push (e.g. http://localhost:8428)")
+	// Every metric the page shows is read from VictoriaMetrics (ADR-147
+	// decision 9); the dashboard keeps no series of its own.
+	vmURL = flag.String("vm-url", "", "VictoriaMetrics base URL every metric is read from (e.g. http://victoria:8428)")
 
 	// Compliance crosswalk (ADR-097)
 	complianceRoot     = flag.String("compliance-root", "", "Directory holding compliance/catalog/ (empty: /api/v1/compliance/* answer 503)")
@@ -236,13 +232,6 @@ func main() {
 			AllowedOrigins: parseAllowedOrigins(*wsAllowedOrigins),
 		},
 
-		ScraperConfig: &scraper.Config{
-			ScrapeInterval:  *scrapeInterval,
-			ScrapeTimeout:   *scrapeTimeout,
-			RetentionPeriod: 1 * time.Hour,
-			MaxSamples:      1000,
-		},
-
 		HealthConfig: &health.Config{
 			PollInterval:      *healthInterval,
 			PollTimeout:       *healthTimeout,
@@ -330,7 +319,7 @@ func main() {
 		Str("addr", *listenAddr).
 		Str("wotan", wotanHTTP).
 		Int("max_connections", *maxConnections).
-		Dur("scrape_interval", *scrapeInterval).
+		Str("vm_url", *vmURL).
 		Dur("health_interval", *healthInterval).
 		Msg("dashboard backend running")
 
