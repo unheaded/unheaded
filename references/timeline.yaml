@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-10-28T21:31:46.444736Z
+last_updated: 2026-11-15T01:26:59.853122Z
 status: alpha
 phases:
   - id: phase-0
@@ -81,6 +81,8 @@ phases:
       - phase-3-item-b1cec782
       - phase-3-item-022c2187
       - phase-3-item-18a106dd
+      - phase-3-item-02292a62
+      - phase-3-item-633999f3
       - phase-3-item-020526f9
       - phase-3-item-ef2bf6a0
       - phase-3-item-5d165ac5
@@ -412,6 +414,16 @@ milestones:
     status: completed
     progress: 100
     description: '**EVOLUTION-1 Stage 2 rungs 0-1: a kernel row per BPF slot, getpid served by the owned kernel (2026-10-28, `sprint/evolution1-stage2`).** ADR-109 (Accepted except D6): the owned xv6 kernel keeps `proc[s]` for BPF slot s, BPF hands it the trapping slot and its a7 at trap injection, and per-slot trapframes replace the one that every child shared. `GETPID_INJECT` and `UPC_RUNG0` are on: getpid is answered by the kernel for init and every BPF-forked child (child pid = fork''s return), freeing 7,628 verified insns (921,036 → 913,408). Gate: probe asserts per trap plus a four-variant mutation check, 12/12 goldens, harness green. Found on the way: bootctl drained the 4 KiB TTY ring only at the end (one golden was a post-wrap tail), and verify-gpl-boundary scanned nothing in a checkout under `.claude/`. Not done: D6 (U-mode page-walk miss) stays off pending Stevie; Stage 2 rungs 2-8.'
+  - id: phase-3-item-02292a62
+    name: S-STAGE-2B
+    status: completed
+    progress: 100
+    description: '**S-STAGE-2B (2026-11-04, `sprint/s-stage-2b`).** Rungs on: UPC_RUNG0 UPC_RUNG2 UPC_RUNG_SBRK UPC_RUNG_KILL UPC_RUNG_MKDIR UPC_RUNG_UNLINK UPC_RUNG_LINK UPC_RUNG_SLEEP UPC_RUNG_FD UPC_RUNG_CHDIR UPC_RUNG_PIPE. Ascend 889941 verified instructions, Doom 758,199; D6 still off. Plan `docs/battle-plans/S-STAGE-2B-battle-plan.md`, ledger `references/s-stage-2b-log.md`.'
+  - id: phase-3-item-633999f3
+    name: Audits answered, S-ANSWERED, CI replayed
+    status: completed
+    progress: 100
+    description: '**Audits answered, S-ANSWERED, CI replayed (2026-11-05 → 11-07, `develop`).** A security and a compliance audit, both graded harshly; Stevie answered every question from them (51, plus the batch lists). S-ANSWERED ran six lanes on those answers: CI reds from the first public push (meta-gate shard, a nanosleep overflow the nightly fuzz found), the Zhen web UI on the existing issuer login and a sealed runbook manifest, Go retrieval in place of ChromaDB, a shared JSON helper that answers 500 when a value will not marshal, a rollback that really restores, root-owned eBPF objects checked by the Rust loaders, and the evidence register rewritten. Then every push workflow replayed locally on clean clones, which found reds nothing had run yet: gosec, staticcheck, bandit, and two raft test files no job ran. The five `services/` binaries now answer `--version`. Not yet on GitHub; S-E1-LIVE grew new deploy-order steps.'
   - id: phase-3-item-020526f9
     name: Resolved since this list was written:* Captain Track call
     status: completed

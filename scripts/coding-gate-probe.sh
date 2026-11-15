@@ -38,7 +38,7 @@ mkdir -p "$(dirname "$PROBE_OUT")"
 
 GGUF_PATH="/var/zhen/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf"
 GGUF_HASH="$(sha256sum "$GGUF_PATH" 2>/dev/null | cut -d' ' -f1 || echo unknown)"
-SOURCES_FP="$(ls -la ~/.config/cs/sources/ 2>/dev/null | tail -n +2 | sha256sum | cut -d' ' -f1)"
+SOURCES_FP="$(ls -la ~/.config/vor/sources/ 2>/dev/null | tail -n +2 | sha256sum | cut -d' ' -f1)"
 RUN_UID="$(date -u +%Y%m%dT%H%M%SZ)-${PROBE_NAME}-seed${PROBE_SEED}"
 
 cat > "$PROBE_OUT" <<EOF

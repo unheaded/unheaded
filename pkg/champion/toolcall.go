@@ -188,7 +188,7 @@ var TrustedSourceLabels = map[string]bool{"canonical": true, "local": true, "dir
 // is untrusted from the gate's perspective. Returns true if either:
 //
 //   - Any reference has a source_trust outside TrustedSourceLabels:
-//     "external" (user-symlinked source under ~/.config/cs/sources/ —
+//     "external" (user-symlinked source under ~/.config/vor/sources/ —
 //     possibly poisoned) or any other unlisted string, OR
 //
 //   - The chain is EMPTY and the tool is mutating. Empty justification

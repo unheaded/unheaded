@@ -74,7 +74,7 @@ if ! curl -sf --max-time 3 http://127.0.0.1:20110/api/health > /dev/null; then
     echo "    out (a search then takes 20 s instead of 0.1 s):"
     echo "      systemd-run --user --scope --collect -p MemorySwapMax=0 --unit=unheaded-vor vor serve 20110 &"
     echo "    Verify the unheaded source symlink:"
-    echo "    ls -la ~/.config/cs/sources/unheaded → /home/govan/tmp/unheaded"
+    echo "    ls -la ~/.config/vor/sources/unheaded → /home/govan/tmp/unheaded"
     exit 1
 fi
 echo "  ✓ vor :20110"

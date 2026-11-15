@@ -65,6 +65,7 @@ Automation scripts for Unheaded development and deployment.
   - timeline.json (placeholder)
   - timeline.yaml (placeholder)
   - (timeline.md already exists)
+  - Since 2026-11-15 the mirrors (`timeline.json`, `timeline.yaml`, `timeline.toml`) are not placeholders: `scripts/timeline-mirrors.py --write` generates them after every edit to `references/timeline.md`, and `tests/scripts/test_timeline_mirrors.py` fails when they drift.
 
 - ✅ **.gitignore** - Ignore patterns
 

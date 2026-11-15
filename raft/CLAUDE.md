@@ -66,7 +66,7 @@ poisoned — see [`eval/coding-gate/probe-2026-05-02/A1-source-poison.md`](../ev
 | `/view/source` | GET | the source viewer: constant page `pages/source-view.html` with its own Content-Security-Policy; script and styles in `static/source-view.*` |
 | `/api/v1/stats` | GET | backend + memory-embedder stats |
 | `/api/v1/corpus/stats` | GET | **deprecated** post-WAVE15 (returns deprecation message; was the 6+ min Werkzeug deadlock cause) |
-| `/api/v1/teach` | POST | **deprecated** (returns 410); to add content drop a markdown file under `~/.config/cs/sources/<source>/` |
+| `/api/v1/teach` | POST | **deprecated** (returns 410); to add content drop a markdown file under `~/.config/vor/sources/<source>/` |
 
 ## Security posture
 

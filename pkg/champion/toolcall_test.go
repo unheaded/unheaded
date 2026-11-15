@@ -43,14 +43,14 @@ func externalRef(topic, label string) Reference {
 	}
 }
 
-// localRef returns a synthetic [local] reference (~/.config/cs/sheets/).
+// localRef returns a synthetic [local] reference (~/.config/vor/sheets/).
 func localRef(topic string) Reference {
 	return Reference{
 		Topic:       topic,
 		Category:    "shell",
 		SourceKind:  "user-custom",
 		SourceTrust: "local",
-		SourcePath:  "/home/user/.config/cs/sheets",
+		SourcePath:  "/home/user/.config/vor/sheets",
 	}
 }
 

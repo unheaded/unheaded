@@ -158,6 +158,8 @@ Browser action
 
 **Closure (commit `f9311d29`):** `/api/v1/source` now hits **vor's `/api/topics/<name>` endpoint** for ID-based lookups, and uses vor's `/api/search` for path-based lookups (filtering by `source_path`). vor only serves files under `~/.config/cs/sources/`, which is a directory the user explicitly opted into — there is no arbitrary-path read surface.
 
+Since vor's rename the directory is `~/.config/vor/sources/` (2026-11-12).
+
 **Evidence:** `raft/zhen_app.py:view_source` (post-rewire) is HTTP-bounded by vor's API. No filesystem walk inside Python.
 
 ---
