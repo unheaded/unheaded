@@ -83,6 +83,12 @@ promote:
       indicator and when it cannot see. One failed day is a card in Review;
       three days with no success means nobody read the card or the audit is
       blind, and no SLO shows either.
+  - alert: WotanTopicPermissionRefused
+    urgency: ticket
+    reason: >-
+      Under unlisted: deny a missing topic is silent: Sophia was refused 314
+      times in 2.5 h on 2026-11-12 and nothing showed it but Wotan's log. No
+      SLO sees a service that is up and starved.
   - alert: AlertMailVolumeHigh
     urgency: ticket
     reason: >-

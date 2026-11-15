@@ -489,6 +489,7 @@ install-hooks: ## Install git pre-commit hook (gofmt + go vet on staged changes)
 test-hooks: ## Self-test the pre-commit hook (drift/clean/empty cases)
 	@bash scripts/git-hooks/test-pre-commit.sh
 	@bash scripts/git-hooks/test-post-commit.sh
+	@bash scripts/test-vor-export-source.sh
 
 fmt: ## Format all code
 	@echo "Formatting Go code..."

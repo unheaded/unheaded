@@ -29,7 +29,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -53,6 +52,7 @@ import (
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/retrieval"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 )
 
@@ -1222,10 +1222,22 @@ func pingHTTP(ctx context.Context, c *http.Client, endpoint string) bool {
 // shaping and topic ordering they share live in pkg/vorquery.
 
 type vorRetriever struct {
-	client   *http.Client
-	baseURL  string
+	vor      *vorclient.Client // nil when the vor address was refused; see err
+	err      error             // why there is no client; Retrieve returns it
 	maxChars int
 	index    *vorquery.Index // topic names, for vorquery's name matching
+}
+
+// newVorRetriever reads vor at vorURL through pkg/vorclient: every call
+// carries a deadline and reads a bounded body. An address vorclient refuses
+// gives a retriever whose every Retrieve fails with the reason, the same as
+// a vor that is down.
+func newVorRetriever(client *http.Client, vorURL string, maxChars int) *vorRetriever {
+	vor, err := vorclient.New(vorURL, client)
+	if err != nil {
+		return &vorRetriever{err: err, maxChars: maxChars}
+	}
+	return &vorRetriever{vor: vor, maxChars: maxChars, index: vorquery.NewIndex(vor)}
 }
 
 // checkCorpusIndex refuses an index the file tools could reach: the default deny
@@ -1241,7 +1253,7 @@ func checkCorpusIndex(dir string) error {
 // newRetriever federates vor with the source shard when codeIndex is set and
 // the Grimoire corpus when corpusIndex is.
 func newRetriever(client *http.Client, vorURL, codeIndex, corpusIndex string, deadline time.Duration) *retrieval.Federated {
-	backends := []retrieval.Backend{&vorRetriever{client: client, baseURL: vorURL, maxChars: defaultMaxChars, index: vorquery.NewIndex(client, vorURL)}}
+	backends := []retrieval.Backend{newVorRetriever(client, vorURL, defaultMaxChars)}
 	if codeIndex != "" {
 		backends = append(backends, retrieval.NewCodeBackend(codeindex.NewStore(codeIndex)))
 	}
@@ -1257,14 +1269,18 @@ func newRetriever(client *http.Client, vorURL, codeIndex, corpusIndex string, de
 func (r *vorRetriever) Name() string { return "vor" }
 
 func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]champion.Reference, []agent.TopicContent, error) {
+	if r.vor == nil {
+		return nil, nil, r.err
+	}
 	terms := vorquery.SearchTerms(query)
 
 	// Select (pkg/vorquery) decides which topics answer the question. It
 	// searches and fetches through these two closures, so every hit of every
 	// search it makes and every topic it reads is seen here.
-	var hits []vorSearchHit
+	var hits []vorclient.Hit
+	hitCategory := make(map[string]string) // topic name to the category of its first hit
 	search := func(ctx context.Context, q string) ([]vorquery.Topic, error) {
-		h, err := r.search(ctx, q)
+		h, err := r.vor.Search(ctx, q, vorclient.SearchOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -1272,13 +1288,18 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		out := make([]vorquery.Topic, len(h))
 		for i := range h {
 			out[i] = vorquery.Topic{Name: h[i].Topic, Category: h[i].Category}
+			if _, seen := hitCategory[h[i].Topic]; !seen {
+				hitCategory[h[i].Topic] = h[i].Category
+			}
 		}
 		return out, nil
 	}
-	read := make(map[string]*vorTopic)
+	read := make(map[string]*vorclient.Topic)
 	var readOrder []string
 	fetch := func(ctx context.Context, name string) (string, bool) {
-		t, err := r.topic(ctx, name)
+		// The hit says which category its topic is in, so a hit is never
+		// answered with the text of another topic of the same name.
+		t, err := r.vor.TopicFor(ctx, hitCategory[name], name)
 		if err != nil {
 			return "", false
 		}
@@ -1348,72 +1369,6 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		})
 	}
 	return refs, contents, nil
-}
-
-func (r *vorRetriever) search(ctx context.Context, q string) ([]vorSearchHit, error) {
-	endpoint := fmt.Sprintf("%s/api/search?q=%s",
-		strings.TrimRight(r.baseURL, "/"), url.QueryEscape(q))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var hits []vorSearchHit
-	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return hits, nil
-}
-
-func (r *vorRetriever) topic(ctx context.Context, name string) (*vorTopic, error) {
-	endpoint := fmt.Sprintf("%s/api/topics/%s",
-		strings.TrimRight(r.baseURL, "/"), url.PathEscape(name))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var t vorTopic
-	if err := json.NewDecoder(resp.Body).Decode(&t); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return &t, nil
-}
-
-type vorSearchHit struct {
-	Topic       string `json:"topic"`
-	Category    string `json:"category"`
-	SourceKind  string `json:"source_kind"`
-	SourceTrust string `json:"source_trust"`
-	SourcePath  string `json:"source_path,omitempty"`
-	SourceLabel string `json:"source_label,omitempty"`
-}
-
-type vorTopic struct {
-	Name        string `json:"name"`
-	Category    string `json:"category"`
-	Title       string `json:"title"`
-	Content     string `json:"content"`
-	SourceKind  string `json:"source_kind"`
-	SourceTrust string `json:"source_trust"`
-	SourcePath  string `json:"source_path,omitempty"`
-	SourceLabel string `json:"source_label,omitempty"`
 }
 
 type llamaLLM struct {

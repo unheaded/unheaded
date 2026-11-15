@@ -165,6 +165,8 @@ print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 
 - **Alert digest: `mailer.mode: dry-run`** in `observability/alerting/policy.yaml` until Steps 81-83 and 102-109 run with him. FND-001 carries the note. The outbox still records what would have gone (`curl -s localhost:19130/v1/outbox`).
 - **Evening 14: the six drafts already on datatracker are prepared as -01** (mbc-isa, pqc-authentication, protocol-foundation, shim, sophia-dictionary, wotan-memory). anamnesis and protocol-overview wait. The upload is his.
 
+- **2026-11-15, not log store components:** trace-collector restarted 01:37:39Z (S-WATCH-TRUE, new binary and probe); `unheaded-victoria` and `unheaded-prometheus` restarted 01:39:26Z (S-WATCH-TRUE Step 154, scrape jobs removed). ClickHouse and the Well were not touched. **Vector restarted twice, 02:01:09Z and 02:11:17Z** (S-WATCH-TRUE Step 205, the host-events transform and its fix); it resumes from `vector-data`. Wotan recreated 02:00:35Z (Step 138). Reading of 01:50Z: pass.
+
 ## Evening 14: the drafts (2026-11-10)
 
 - Step 259 (desk pass): report at `docs/protocol/RFC-DESK-PASS-2026-11-10.md`. Changes to the frozen v0x01 format: none. Thirteen open items, each a ruling on public text: WH items 1-4 (DP-715's four), WH items 6-9, and four the pass found (stream against code points, a reference to a draft that was never uploaded, private revision labels, FIPS 206/207 citations).

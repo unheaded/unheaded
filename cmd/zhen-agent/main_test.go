@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"unheaded/pkg/champion"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 )
 
@@ -43,12 +44,19 @@ func TestVorRetriever_HidesNoUntrustedHit(t *testing.T) {
 	s := httptest.NewServer(mux)
 	defer s.Close()
 
-	r := &vorRetriever{client: s.Client(), baseURL: s.URL, maxChars: 100, index: vorquery.NewIndex(s.Client(), s.URL)}
+	vor, err := vorclient.New(s.URL, s.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := &vorRetriever{vor: vor, maxChars: 100, index: vorquery.NewIndex(vor)}
 	refs, contents, err := r.Retrieve(context.Background(), "poison", 3)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(contents) != 3 {
+	// good and samekey are read. masked is not: the hit is in "sub" and the
+	// read asks for that category, so the trusted sheet of the same name in
+	// "other" is not taken for it (it was, before 2026-11-12).
+	if len(contents) != 2 || contents[0].Ref.Topic != "good" || contents[1].Ref.Topic != "samekey" {
 		t.Fatalf("contents %+v", contents)
 	}
 	var got []string

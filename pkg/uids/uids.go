@@ -132,8 +132,17 @@ const (
 	LogstoreWriter = 16756
 	// WikiServer is cmd/wiki-server, a host unit (deploy/systemd/
 	// unheaded-wiki-server.service, account unheaded-wiki-server): the
-	// wiki over TLS with the dashboard's login. Next free: 16758.
+	// wiki over TLS with the dashboard's login.
 	WikiServer = 16757
+	// VorRefresh is the vor refresh oneshot (S-WIKI-VOR): host unit
+	// unheaded-vor-refresh.service only (account unheaded-vor-refresh). It
+	// reads nothing and writes nothing; its only power is a polkit rule for
+	// `try-restart` of unheaded-vor.service
+	// (deploy/polkit/61-unheaded-vor-refresh.rules). With it this tier is
+	// full: 16720-16759 are all assigned. Next free, in uids.go, sysusers
+	// and the hosts' passwd on 2026-11-15: 16764 (Gnostic tier), and
+	// 16714-16719 in the telemetry tier.
+	VorRefresh = 16758
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -259,6 +268,7 @@ var Registry = map[string]int{
 	"zhen-ui-front":     ZhenUIFront,
 	"logstore-writer":   LogstoreWriter,
 	"wiki-server":       WikiServer,
+	"vor-refresh":       VorRefresh,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

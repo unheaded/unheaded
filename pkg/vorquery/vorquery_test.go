@@ -15,7 +15,19 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+
+	"unheaded/pkg/vorclient"
 )
+
+// vorAt is the vor client an Index reads its listing through.
+func vorAt(t *testing.T, hc *http.Client, base string) *vorclient.Client {
+	t.Helper()
+	c, err := vorclient.New(base, hc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
 
 func TestSearchTerms(t *testing.T) {
 	t.Parallel()
@@ -102,7 +114,7 @@ func TestIndexCachesAndFailsSoft(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	x := NewIndex(srv.Client(), srv.URL+"/")
+	x := NewIndex(vorAt(t, srv.Client(), srv.URL+"/"))
 	for i := 0; i < 3; i++ {
 		got, err := x.Named(context.Background(), []string{"wotan"})
 		if err != nil || !reflect.DeepEqual(got, []string{"Service-Wotan"}) {
@@ -113,7 +125,7 @@ func TestIndexCachesAndFailsSoft(t *testing.T) {
 		t.Errorf("listing fetched %d times, want 1 (cached)", n)
 	}
 
-	down := NewIndex(srv.Client(), "http://127.0.0.1:1")
+	down := NewIndex(vorAt(t, srv.Client(), "http://127.0.0.1:1"))
 	if got, err := down.Named(context.Background(), []string{"wotan"}); err == nil || got != nil {
 		t.Errorf("Named on dead vor = %q, %v; want nil, error", got, err)
 	}
@@ -301,12 +313,12 @@ func TestOrderDropsWorktreeHits(t *testing.T) {
 		{Name: "Wotan-Topic-Signing", Category: ".claude/worktrees/agent-x/wiki"},
 		{Name: "wotan-cloud-battle-plan", Category: "docs/battle-plans/tools"},
 	}
-	got, err := NewIndex(srv.Client(), srv.URL).Order(context.Background(), []string{"wotan"}, hits)
+	got, err := NewIndex(vorAt(t, srv.Client(), srv.URL)).Order(context.Background(), []string{"wotan"}, hits)
 	if want := []string{"Service-Wotan", "wotan-cloud-battle-plan"}; err != nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Order = %q, %v; want %q", got, err, want)
 	}
 
-	got, err = NewIndex(srv.Client(), "http://127.0.0.1:1").Order(context.Background(), []string{"wotan"}, hits)
+	got, err = NewIndex(vorAt(t, srv.Client(), "http://127.0.0.1:1")).Order(context.Background(), []string{"wotan"}, hits)
 	if want := []string{"wotan-cloud-battle-plan"}; err == nil || !reflect.DeepEqual(got, want) {
 		t.Errorf("Order with dead listing = %q, %v; want %q and an error", got, err, want)
 	}
@@ -406,7 +418,7 @@ func (f *fakeVor) index(t *testing.T) *Index {
 		_ = json.NewEncoder(w).Encode(out)
 	}))
 	t.Cleanup(srv.Close)
-	return NewIndex(srv.Client(), srv.URL)
+	return NewIndex(vorAt(t, srv.Client(), srv.URL))
 }
 
 func (f *fakeVor) search(_ context.Context, q string) ([]Topic, error) {
@@ -545,7 +557,7 @@ func TestSelect_Failures(t *testing.T) {
 	// No topic listing: nothing can be named, so the second pass keeps
 	// nothing and says why.
 	f = &fakeVor{corpus: sheets()}
-	dead := NewIndex(http.DefaultClient, "http://127.0.0.1:1")
+	dead := NewIndex(vorAt(t, http.DefaultClient, "http://127.0.0.1:1"))
 	names, warn, err = dead.Select(context.Background(), terms, 5, f.search, f.fetch)
 	if err != nil || warn == nil || len(names) != 0 {
 		t.Errorf("dead listing: Select = %q, warn=%v err=%v; want no names and a warning", names, warn, err)

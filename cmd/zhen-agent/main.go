@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,6 +34,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/localllm"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 )
 
@@ -105,6 +105,10 @@ func main() {
 	}
 
 	client := &http.Client{Timeout: httpTimeout}
+	vor, err := vorclient.New(vorURL, client)
+	if err != nil {
+		fatal("%v", err)
+	}
 	a := agent.New(
 		agent.Config{
 			MaxTurns:      *maxTurns,
@@ -115,7 +119,7 @@ func main() {
 			Seed:          *seed,
 		},
 		champ,
-		&vorRetriever{client: client, baseURL: vorURL, maxChars: *maxChars, index: vorquery.NewIndex(client, vorURL)},
+		&vorRetriever{vor: vor, maxChars: *maxChars, index: vorquery.NewIndex(vor)},
 		&llamaLLM{client: client, baseURL: llamaURL, model: modelName},
 	)
 
@@ -157,11 +161,11 @@ func main() {
 	fmt.Println(res.Answer)
 }
 
-// --- vorRetriever: agent.Retriever wrapping cs/vor /api ---
+// --- vorRetriever: agent.Retriever over vor, read through pkg/vorclient
+// (a deadline on every call, a bound on every body) ---
 
 type vorRetriever struct {
-	client   *http.Client
-	baseURL  string
+	vor      *vorclient.Client
 	maxChars int
 	index    *vorquery.Index // topic names, for vorquery's name matching
 }
@@ -172,9 +176,10 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 	// Select (pkg/vorquery) decides which topics answer the question. It
 	// searches and fetches through these two closures, so every hit of every
 	// search it makes and every topic it reads is seen here.
-	var hits []vorSearchHit
+	var hits []vorclient.Hit
+	hitCategory := make(map[string]string) // topic name to the category of its first hit
 	search := func(ctx context.Context, q string) ([]vorquery.Topic, error) {
-		h, err := r.search(ctx, q)
+		h, err := r.vor.Search(ctx, q, vorclient.SearchOptions{})
 		if err != nil {
 			return nil, err
 		}
@@ -182,13 +187,18 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		out := make([]vorquery.Topic, len(h))
 		for i := range h {
 			out[i] = vorquery.Topic{Name: h[i].Topic, Category: h[i].Category}
+			if _, seen := hitCategory[h[i].Topic]; !seen {
+				hitCategory[h[i].Topic] = h[i].Category
+			}
 		}
 		return out, nil
 	}
-	read := make(map[string]*vorTopic)
+	read := make(map[string]*vorclient.Topic)
 	var readOrder []string
 	fetch := func(ctx context.Context, name string) (string, bool) {
-		t, err := r.topic(ctx, name)
+		// The hit says which category its topic is in, so a hit is never
+		// answered with the text of another topic of the same name.
+		t, err := r.vor.TopicFor(ctx, hitCategory[name], name)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "zhen-agent: skip topic %q: %v\n", name, err)
 			return "", false
@@ -257,77 +267,6 @@ func (r *vorRetriever) Retrieve(ctx context.Context, query string, k int) ([]cha
 		})
 	}
 	return refs, contents, nil
-}
-
-type vorSearchHit struct {
-	Topic       string `json:"topic"`
-	Category    string `json:"category"`
-	Section     string `json:"section"`
-	Line        string `json:"line"`
-	SourceKind  string `json:"source_kind"`
-	SourceTrust string `json:"source_trust"`
-	SourcePath  string `json:"source_path,omitempty"`
-	SourceLabel string `json:"source_label,omitempty"`
-}
-
-type vorTopic struct {
-	Name        string   `json:"name"`
-	Category    string   `json:"category"`
-	Title       string   `json:"title"`
-	Description string   `json:"description"`
-	Content     string   `json:"content"`
-	SeeAlso     []string `json:"see_also"`
-	HasDetail   bool     `json:"has_detail"`
-	SourceKind  string   `json:"source_kind"`
-	SourceTrust string   `json:"source_trust"`
-	SourcePath  string   `json:"source_path,omitempty"`
-	SourceLabel string   `json:"source_label,omitempty"`
-}
-
-func (r *vorRetriever) search(ctx context.Context, q string) ([]vorSearchHit, error) {
-	endpoint := fmt.Sprintf("%s/api/search?q=%s",
-		strings.TrimRight(r.baseURL, "/"), url.QueryEscape(q))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var hits []vorSearchHit
-	if err := json.NewDecoder(resp.Body).Decode(&hits); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return hits, nil
-}
-
-func (r *vorRetriever) topic(ctx context.Context, name string) (*vorTopic, error) {
-	endpoint := fmt.Sprintf("%s/api/topics/%s",
-		strings.TrimRight(r.baseURL, "/"), url.PathEscape(name))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
-	if err != nil {
-		return nil, err
-	}
-	resp, err := r.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("status %d: %s", resp.StatusCode, body)
-	}
-	var t vorTopic
-	if err := json.NewDecoder(resp.Body).Decode(&t); err != nil {
-		return nil, fmt.Errorf("decode: %w", err)
-	}
-	return &t, nil
 }
 
 // --- llamaLLM: agent.LLM wrapping llama-server's OpenAI-compatible /v1/chat/completions ---

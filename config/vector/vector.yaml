@@ -218,6 +218,184 @@ transforms:
         name: ssh_accepted_total
         tags: {host: "{{host}}", user: "{{user}}", src: "{{src}}", method: "{{method}}"}
 
+  # Host events for the indicator-of-compromise audit (S-WATCH-TRUE Phase 9,
+  # D-18; read by runbooks/security/ioc-audit.yaml). Counted by kind:
+  #   account       useradd, usermod, userdel, groupadd, groupmod, groupdel,
+  #                 gpasswd, passwd, chpasswd, chage, systemd-sysusers
+  #                 (op = the tool, user = the account or group it named)
+  #   sudo_command  a command sudo ran (user = who, runas = as whom)
+  #   cron_edit     a crontab replaced or deleted (user = who, runas = whose)
+  #   kernel        class oom_kill, segfault or module_untrusted (op = the
+  #                 module's name for module_untrusted)
+  # One counter, unheaded_host_events_total{host, kind, op, class, user,
+  # runas}; a label a kind does not use is empty. The line itself never
+  # leaves the transform: no directory, no command line, no victim process.
+  # A name that does not look like an account name is counted as "invalid",
+  # so a crafted line cannot mint label values.
+  #
+  # Read from the raw journal, on fields journald sets itself wherever it
+  # has them. Kernel lines: _TRANSPORT kernel and facility kern (a process
+  # that writes into /dev/kmsg has another facility). The account tools:
+  # _UID 0, which the kernel hands journald with the line, and the program's
+  # name. sudo, crontab, passwd, gpasswd and chage are set-id programs that
+  # log under the uid of whoever ran them, so _UID 0 cannot be asked of
+  # them; they are taken on the program's name and, when journald has it,
+  # on _EXE, the path of the program.
+  #
+  # The program's name is _COMM. journald reads _COMM and _EXE from
+  # /proc/<pid> when the line arrives, and a program that logs and exits at
+  # once is often gone by then: on west (2026-11-15) a `crontab -` replace
+  # arrived with _COMM and no _EXE, another line with neither, and one sudo
+  # command in two lacked both. So:
+  #   _EXE present   it must be the installed program's path; anything else
+  #                  is dropped (the forgery this field can catch);
+  #   _EXE absent    the line is taken on _COMM;
+  #   both absent    the line is taken on SYSLOG_IDENTIFIER.
+  # A _COMM that is present and names another program is dropped whatever
+  # the identifier says.
+  #
+  # The trade, chosen on purpose: a real edit is not missed, and a local
+  # account can forge a set-id line. A process that names itself crontab
+  # (or passes logger -t crontab) and exits before journald looks is
+  # counted, so such an account can raise a false cron_edit, sudo_command
+  # or passwd count. It cannot hide a real one, and it cannot make a
+  # root-only event (useradd, usermod, a kernel line): those need _UID 0.
+  # The audit treats a count here as a reason to read the journal on that
+  # host, where _UID and _PID tell the two apart; it is not proof by itself.
+  # The stronger source for crontab is an audit watch on the cron spool
+  # (auditd names the file and the uid, and a process cannot forge it). It
+  # belongs with S-EVIDENCE-RUNS's lab-audited profile and is parked there,
+  # not built here.
+  #
+  # One change, one count where the tool logs several lines: groupadd's two
+  # file lines, usermod's shadow-group line, useradd's own group line and
+  # the kernel's other lines about one out-of-memory kill are dropped.
+  # Tests: tests/host_events.yaml.
+  journal_host:
+    type: filter
+    inputs:
+      - journal
+    condition: |
+      exe = string(."_EXE") ?? ""
+      # The program: _COMM, or the syslog identifier when the process was
+      # gone before journald read its name.
+      prog = string(."_COMM") ?? ""
+      if prog == "" { prog = string(.SYSLOG_IDENTIFIER) ?? "" }
+      kernel = (string(."_TRANSPORT") ?? "") == "kernel" && (string(.SYSLOG_FACILITY) ?? "") == "0"
+      root = (string(."_UID") ?? "") == "0" && includes(["useradd", "usermod", "userdel", "groupadd", "groupmod", "groupdel", "gpasswd", "passwd", "chpasswd", "chage", "systemd-sysuser", "systemd-sysusers", "sudo", "crontab"], prog)
+      # Set-id programs, any sender: the installed path when journald saw
+      # one, the name alone when the process was already gone.
+      setid = (prog == "sudo" && includes(["", "/usr/bin/sudo", "/usr/lib/cargo/bin/sudo"], exe)) || (prog == "crontab" && includes(["", "/usr/bin/crontab"], exe)) || (prog == "passwd" && includes(["", "/usr/bin/passwd"], exe)) || (prog == "gpasswd" && includes(["", "/usr/bin/gpasswd"], exe)) || (prog == "chage" && includes(["", "/usr/bin/chage"], exe))
+      kernel || root || setid
+
+  journal_host_events:
+    type: remap
+    inputs:
+      - journal_host
+    drop_on_abort: true
+    source: |
+      msg = string(.message) ?? ""
+      # As in journal_host: the syslog identifier stands in for a _COMM
+      # journald could not read. The journal keeps 15 characters of a
+      # process name; the identifier has all of it.
+      comm = string(."_COMM") ?? ""
+      if comm == "" { comm = string(.SYSLOG_IDENTIFIER) ?? "" }
+      if comm == "systemd-sysusers" { comm = "systemd-sysuser" }
+      kind = ""
+      op = ""
+      class = ""
+      user = ""
+      runas = ""
+      if (string(."_TRANSPORT") ?? "") == "kernel" {
+        kind = "kernel"
+        if match(msg, r'^(Out of memory|Memory cgroup out of memory): Killed process [0-9]+ ') {
+          class = "oom_kill"
+        } else if match(msg, r'^.{1,16}\[[0-9]+\]: segfault at [0-9a-f]+ ip ') {
+          class = "segfault"
+        } else {
+          p = parse_regex(msg, r'^(?P<n>[A-Za-z0-9_]+): (loading out-of-tree module taints kernel\.|module verification failed: signature and/or required key missing - tainting kernel)$') ?? {}
+          if !exists(p.n) { abort }
+          class = "module_untrusted"
+          op = string(p.n) ?? ""
+          if !match(op, r'^[a-z0-9_]{1,32}$') { op = "invalid" }
+        }
+      } else if comm == "sudo" {
+        # "<user> : [TTY=x ; ]PWD=<dir> ; USER=<runas> ; COMMAND=<line>".
+        # A refusal puts its reason before TTY= and is not matched.
+        p = parse_regex(msg, r'^\s*(?P<n>\S+) :\s+(TTY=\S+ ; )?PWD=') ?? {}
+        if !exists(p.n) || !contains(msg, " ; COMMAND=") { abort }
+        kind = "sudo_command"
+        user = string(p.n) ?? ""
+        # The directory and the command are the caller's text and may carry
+        # " ; USER=" themselves: only a line with exactly one is believed.
+        parts = split(msg, " ; USER=")
+        runas = "invalid"
+        if length(parts) == 2 {
+          r = parse_regex(string(parts[1]) ?? "", r'^(?P<n>[^ ;]+) ;') ?? {}
+          runas = string(r.n) ?? "invalid"
+        }
+        if !match(runas, r'^[a-z_][a-z0-9_-]{0,31}$') { runas = "invalid" }
+      } else if comm == "crontab" {
+        # "(who) REPLACE (whose)". BEGIN EDIT, END EDIT and LIST change nothing.
+        p = parse_regex(msg, r'^\((?P<n>[^)]*)\) (REPLACE|DELETE) \((?P<o>[^)]*)\)$') ?? {}
+        if !exists(p.n) { abort }
+        kind = "cron_edit"
+        user = string(p.n) ?? ""
+        runas = string(p.o) ?? ""
+        if !match(runas, r'^[a-z_][a-z0-9_-]{0,31}$') { runas = "invalid" }
+      } else {
+        kind = "account"
+        op = comm
+        p = {}
+        if comm == "useradd" {
+          p = parse_regex(msg, r'^new user: name=(?P<n>[^,]*),') ?? {}
+        } else if comm == "userdel" {
+          p = parse_regex(msg, r'^delete user \x27(?P<n>[^\x27]*)\x27') ?? {}
+        } else if comm == "usermod" {
+          if starts_with(msg, "pam_") || contains(msg, "shadow group") { abort }
+          p = parse_regex(msg, r'\x27(?P<n>[^\x27]*)\x27') ?? {"n": ""}
+        } else if comm == "groupadd" {
+          p = parse_regex(msg, r'^new group: name=(?P<n>[^,]*),') ?? {}
+        } else if comm == "groupdel" {
+          p = parse_regex(msg, r'^group \x27(?P<n>[^\x27]*)\x27 removed$') ?? {}
+        } else if comm == "groupmod" {
+          p = parse_regex(msg, r'^group changed in /etc/group \(group (?P<n>[^/]*)/') ?? {}
+        } else if comm == "gpasswd" {
+          p = parse_regex(msg, r'^user (?P<n>\S+) (added|removed) by \S+ (to|from) group \S+$') ?? parse_regex(msg, r'^members of group (?P<n>\S+) set by ') ?? {}
+        } else if comm == "passwd" {
+          p = parse_regex(msg, r'^pam_unix\(passwd:chauthtok\): password changed for (?P<n>\S+)$') ?? parse_regex(msg, r'^password for \x27(?P<n>[^\x27]*)\x27 changed by ') ?? {}
+        } else if comm == "chpasswd" {
+          p = parse_regex(msg, r'^pam_unix\(chpasswd:chauthtok\): password changed for (?P<n>\S+)$') ?? {}
+        } else if comm == "chage" {
+          p = parse_regex(msg, r'^changed password expiry for (?P<n>\S+)$') ?? {}
+        } else if comm == "systemd-sysuser" {
+          op = "systemd-sysusers"
+          p = parse_regex(msg, r'^Creating (user|group) \x27(?P<n>[^\x27]*)\x27') ?? {}
+        }
+        if !exists(p.n) { abort }
+        user = string(p.n) ?? ""
+      }
+      if kind != "kernel" && !match(user, r'^[a-z_][a-z0-9_-]{0,31}$') { user = "invalid" }
+      . = {
+        "host": string(.host) ?? "unknown",
+        "kind": kind,
+        "op": op,
+        "class": class,
+        "user": user,
+        "runas": runas
+      }
+
+  journal_host_metrics:
+    type: log_to_metric
+    inputs:
+      - journal_host_events
+    metrics:
+      - type: counter
+        field: kind
+        namespace: unheaded
+        name: host_events_total
+        tags: {host: "{{host}}", kind: "{{kind}}", op: "{{op}}", class: "{{class}}", user: "{{user}}", runas: "{{runas}}"}
+
   # Secrets that a process printed to the journal (an uhk_ API key, a
   # bearer token, a PGPASSWORD) are masked before the row leaves the host
   # (S-LOW-FRUIT Phase 7). Tests: tests/redact.yaml. A doubled dollar sign is
@@ -328,6 +506,7 @@ sinks:
       - journal_volume_metrics
       - journal_auth_metrics
       - journal_ssh_metrics
+      - journal_host_metrics
     address: "0.0.0.0:9598"
     # A series not updated within this many seconds is dropped. The default
     # (60) drops a unit that logs less than once a minute, which would read

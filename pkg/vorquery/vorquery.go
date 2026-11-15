@@ -37,10 +37,8 @@ package vorquery
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"regexp"
 	"sort"
 	"strings"
@@ -48,6 +46,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"unheaded/pkg/vorclient"
 )
 
 // stopWords are dropped from a question before it goes to vor. Words that
@@ -289,21 +289,26 @@ func Interleave(named, searched []string) []string {
 	return out
 }
 
+// TopicLister is the one call Index makes to vor. *vorclient.Client is the
+// implementation: it carries the deadline and bounds the listing's size.
+type TopicLister interface {
+	Topics(ctx context.Context) ([]vorclient.TopicSummary, error)
+}
+
 // Index caches vor's topic listing for NamedBy. The zero value is not
 // usable; use NewIndex. Safe for concurrent use.
 type Index struct {
-	client  *http.Client
-	baseURL string
-	ttl     time.Duration
+	vor TopicLister
+	ttl time.Duration
 
 	mu     sync.Mutex
 	topics []Topic
 	at     time.Time
 }
 
-// NewIndex returns an Index reading baseURL's /api/topics through client.
-func NewIndex(client *http.Client, baseURL string) *Index {
-	return &Index{client: client, baseURL: strings.TrimRight(baseURL, "/"), ttl: DefaultTopicTTL}
+// NewIndex returns an Index reading vor's topic listing through vor.
+func NewIndex(vor TopicLister) *Index {
+	return &Index{vor: vor, ttl: DefaultTopicTTL}
 }
 
 // Named returns the topic names that carry every term (see NamedBy). On a
@@ -323,22 +328,17 @@ func (x *Index) listing(ctx context.Context) ([]Topic, error) {
 	if x.topics != nil && time.Since(x.at) <= x.ttl {
 		return x.topics, nil
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, x.baseURL+"/api/topics", nil)
+	if x.vor == nil {
+		return nil, errors.New("vor topics: no vor client")
+	}
+	listed, err := x.vor.Topics(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("vor topics: %w", err)
 	}
-	resp, err := x.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-		return nil, fmt.Errorf("vor topics: status %d: %s", resp.StatusCode, body)
-	}
-	var topics []Topic
-	if err := json.NewDecoder(resp.Body).Decode(&topics); err != nil {
-		return nil, fmt.Errorf("vor topics: decode: %w", err)
+	// Never nil, so an empty listing is cached like any other.
+	topics := make([]Topic, len(listed))
+	for i, l := range listed {
+		topics[i] = Topic{Name: l.Name, Category: l.Category}
 	}
 	x.topics, x.at = topics, time.Now()
 	return topics, nil

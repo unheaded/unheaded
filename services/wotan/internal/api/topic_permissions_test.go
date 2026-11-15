@@ -302,3 +302,115 @@ func subscriberIDFrom(t *testing.T, rec *httptest.ResponseRecorder) string {
 	rest := body[i+len(`"subscriber_id":"`):]
 	return rest[:strings.Index(rest, `"`)]
 }
+
+// TestRefusalCounterNamesCaller: a refusal is counted under the refused
+// service's name when topics.permissions lists it, and under "other" for
+// everything else. The label's alphabet is the config's identities plus
+// "other": nothing the caller sends (its subject, the pattern) becomes a
+// label value.
+func TestRefusalCounterNamesCaller(t *testing.T) {
+	cfg := loadYAML(t, permissionsYAML)
+	count := func(action, outcome, caller string) float64 {
+		return topicPermissionRefusals.WithLabelValues(action, outcome, caller).Value()
+	}
+	refuse := func(cfg *TopicConfig, id *auth.Identity, action, pattern string) {
+		t.Helper()
+		if ok, _ := cfg.Permit(id, action, pattern); ok {
+			t.Fatalf("%s %s %q was permitted; the test needs a refusal", id.Subject, action, pattern)
+		}
+	}
+
+	// A listed service, refused: its own name, as the config spells it.
+	before := count(PermitSubscribe, "denied", "timeguru")
+	refuse(cfg, serviceIdentity("timeguru"), PermitSubscribe, "secrets.leak-7f3a")
+	refuse(cfg, serviceIdentity("  TimeGuru "), PermitSubscribe, "secrets.leak-7f3a")
+	if got := count(PermitSubscribe, "denied", "timeguru") - before; got != 2 {
+		t.Errorf("listed service: caller=timeguru rose by %v, want 2", got)
+	}
+	before = count(PermitPublish, "denied", "timeguru")
+	refuse(cfg, serviceIdentity("timeguru"), PermitPublish, "alerts.critical")
+	if got := count(PermitPublish, "denied", "timeguru") - before; got != 1 {
+		t.Errorf("listed service, publish: caller=timeguru rose by %v, want 1", got)
+	}
+
+	// Everything the config does not name is "other": a service the
+	// section does not list, a user token that borrows a listed name, an API key,
+	// and a subject built to break a label.
+	userToken := &auth.Identity{Subject: "timeguru", Roles: []string{"admin"}, Extra: map[string]string{"auth_method": "jwks"}}
+	apiKey := &auth.Identity{Subject: "captain", Extra: map[string]string{"auth_method": "apikey"}}
+	hostile := serviceIdentity("evil\"} 1\nunheaded_fake{caller=\"x")
+	before = count(PermitSubscribe, "denied", "other")
+	beforeListed := count(PermitSubscribe, "denied", "timeguru")
+	for _, id := range []*auth.Identity{serviceIdentity("unlisted-9c1e"), userToken, apiKey, hostile} {
+		refuse(cfg, id, PermitSubscribe, "secrets.leak-7f3a")
+	}
+	if got := count(PermitSubscribe, "denied", "other") - before; got != 4 {
+		t.Errorf("unlisted callers: caller=other rose by %v, want 4", got)
+	}
+	if got := count(PermitSubscribe, "denied", "timeguru") - beforeListed; got != 0 {
+		t.Errorf("a user token named timeguru counted as the service (%v)", got)
+	}
+
+	// Audit mode counts the same caller under outcome=audited.
+	audit := loadYAML(t, "topics:\n  permissions:\n    mode: audit\n    services:\n      timeguru: {subscribe: [x]}\n")
+	before = count(PermitSubscribe, "audited", "timeguru")
+	if ok, _ := audit.Permit(serviceIdentity("timeguru"), PermitSubscribe, "secrets.leak-7f3a"); !ok {
+		t.Fatal("audit mode refused")
+	}
+	if got := count(PermitSubscribe, "audited", "timeguru") - before; got != 1 {
+		t.Errorf("audit: caller=timeguru rose by %v, want 1", got)
+	}
+
+	// What /metrics serves: the label is there, and neither the pattern nor
+	// an unlisted subject is.
+	var out strings.Builder
+	if err := topicPermissionRefusals.Write(&out); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	if !strings.Contains(text, `caller="timeguru"`) || !strings.Contains(text, `caller="other"`) {
+		t.Errorf("exposition lacks the caller label:\n%s", text)
+	}
+	for _, leak := range []string{"leak-7f3a", "unlisted-9c1e", "evil", "unheaded_fake", "TimeGuru"} {
+		if strings.Contains(text, leak) {
+			t.Errorf("exposition carries request text %q:\n%s", leak, text)
+		}
+	}
+}
+
+// TestRefusalCounterStartsAtZero: every caller the config names, and
+// "other", has its series from the moment the config loads. A series that
+// first appears at 1 gives increase() nothing to subtract from, so the first
+// refusal of a caller would raise no alert (WotanTopicPermissionRefused).
+func TestRefusalCounterStartsAtZero(t *testing.T) {
+	loadYAML(t, "topics:\n  permissions:\n    services:\n      zero-enforced: {subscribe: [x]}\n")
+	loadYAML(t, "topics:\n  permissions:\n    mode: audit\n    services:\n      zero-audited: {subscribe: [x]}\n")
+	var out strings.Builder
+	if err := topicPermissionRefusals.Write(&out); err != nil {
+		t.Fatal(err)
+	}
+	text := out.String()
+	for _, want := range []struct{ outcome, caller string }{
+		{"denied", "zero-enforced"}, {"denied", callerOther},
+		{"audited", "zero-audited"}, {"audited", callerOther},
+	} {
+		for _, action := range []string{PermitSubscribe, PermitPublish} {
+			found := false
+			for _, line := range strings.Split(text, "\n") {
+				if strings.Contains(line, `action="`+action+`"`) && strings.Contains(line, `outcome="`+want.outcome+`"`) && strings.Contains(line, `caller="`+want.caller+`"`) {
+					found = true
+				}
+			}
+			if !found {
+				t.Errorf("no series for action=%s outcome=%s caller=%s after the config loaded", action, want.outcome, want.caller)
+			}
+		}
+	}
+	// The mode's outcome only: an enforcing config exports no "audited" series for its callers.
+	if strings.Contains(text, `caller="zero-enforced",outcome="audited"`) || strings.Contains(text, `outcome="audited",caller="zero-enforced"`) {
+		t.Errorf("an enforcing config created an audited series:\n%s", text)
+	}
+	if got := topicPermissionRefusals.WithLabelValues(PermitSubscribe, "denied", "zero-enforced").Value(); got != 0 {
+		t.Errorf("loading the config counted a refusal (%v)", got)
+	}
+}

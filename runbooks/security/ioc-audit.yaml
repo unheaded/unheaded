@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: ioc-audit
-  description: Daily read of SSH logins, authentication failures and journal shipping for indicators of compromise; an indicator fails the run so its card lands in Review
+  description: Daily read of SSH logins, authentication failures, account changes, sudo, crontab edits, kernel events and journal shipping for indicators of compromise; an indicator fails the run so its card lands in Review
   owner: sentinel
   estimated_duration: 1m
   risk: low
@@ -31,35 +31,68 @@ notes: |
   What it reads: VictoriaMetrics on loopback, nothing else. Vector already
   turns the journal's sshd, sudo and PAM lines into counters
   (config/vector/vector.yaml): unheaded_ssh_accepted_total{host,user,src,
-  method} and unheaded_auth_failures_total{host,kind}. So the daemon needs no
-  journal access, no log-store login and no secret, and no log text reaches
-  the card: only hosts, account names, addresses, methods and counts. Label
-  values come from log lines, so every one is reduced to a safe character
-  set before it is printed.
+  method}, unheaded_auth_failures_total{host,kind} and, since S-WATCH-TRUE
+  (2026-11), unheaded_host_events_total{host,kind,op,class,user,runas} for
+  account changes, sudo commands, crontab edits and three kinds of kernel
+  line. So the daemon needs no journal access, no log-store login and no
+  secret, and no log text reaches the card: only hosts, account names,
+  addresses, methods, tool names, module names and counts. Label values
+  come from log lines, so every one is reduced to a safe character set
+  before it is printed.
 
   An INDICATOR fails the run (exit 1), and the scheduler moves the card to
   Review:
     - a login from an address outside IOC_OPERATOR_NETS;
     - a login as root;
     - more SSH failures on one host than IOC_SSH_FAIL_MAX in the window;
-    - more sudo failures on one host than IOC_SUDO_FAIL_MAX in the window.
+    - more sudo failures on one host than IOC_SUDO_FAIL_MAX in the window;
+    - an account change (useradd, usermod, userdel, the group tools, passwd,
+      chpasswd, chage, systemd-sysusers), unless
+      IOC_ACCOUNT_CHANGE_IS_INDICATOR is 0;
+    - a crontab replaced or deleted, unless IOC_CRON_EDIT_IS_INDICATOR is 0;
+    - an out-of-tree or unsigned kernel module loaded, unless
+      IOC_MODULE_UNTRUSTED_IS_INDICATOR is 0 or the module is named in
+      IOC_KNOWN_MODULES.
   A NOTE is printed and does not fail the run: a source inside the operator
   networks that was not seen in the baseline before the window (a new DHCP
   lease looks like this), logins that were not by key, detection alerts that
-  fired in the window (they have their own tickets), and hosts that are
-  scraped but ship no journal.
+  fired in the window (they have their own tickets), hosts that are scraped
+  but ship no journal, sudo commands counted per host, user and target
+  account, kernel out-of-memory kills and segfaults, a known module, and a
+  host that ships its journal but counted no host event in the window
+  (nothing happened there, or its Vector predates the counter).
+
+  The switches are Stevie's defaults of 2026-11-12 (W5). An install that
+  creates an account, your own crontab edit and a reboot that loads an
+  out-of-tree module (west loads spl for ZFS at every boot, and the kernel
+  names only the first such module of a boot) all fail the run for the
+  length of the window: that is the audit seeing what it should. Name
+  modules the host is meant to load in IOC_KNOWN_MODULES.
+
+  What a host-event count is worth: the account tools and the kernel are
+  counted on fields only root or the kernel can produce. sudo, crontab,
+  passwd, gpasswd and chage log under the uid of whoever ran them and are
+  counted on the program's name, plus its path when journald has one. A
+  program that exits at once is often gone before journald reads its path,
+  and its line is counted all the same, so a real edit is not missed; the
+  price is that a local account can forge such a line with a short-lived
+  process (config/vector/vector.yaml says how). So a crontab, sudo or
+  passwd count is a reason to read the journal on that host, where _UID
+  and _PID tell the two apart. An audit watch on the cron spool would be
+  the stronger source; it is parked with the lab-audited profile.
 
   Blind is not clean: when VictoriaMetrics does not answer, or the journal
   was shipped in no hour of the window, the run fails with exit 2 ("cannot
   audit").
 
-  Not covered, by design of the source: the text of log lines. Account
-  changes (useradd, usermod, group changes), sudo command lines, cron edits
-  and kernel messages are in the journal and in ClickHouse but have no
-  counter. Hosts whose journal is not shipped (east, 2026-11-12) are named
-  in a NOTE and are not audited. An indicator is followed up with
-  runbooks/security/ssh-login-new-source.yaml and
-  runbooks/security/incident-response.yaml.
+  Not covered, by design of the source: the text of log lines. Which
+  command sudo ran, what a crontab now holds and which process the kernel
+  killed are in the journal and in ClickHouse; here they are a count. A
+  file under /etc/cron.d written without crontab(1), and kernel lines other
+  than the three classes, have no counter. Hosts whose journal is not
+  shipped (east, 2026-11-12) are named in a NOTE and are not audited. An
+  indicator is followed up with runbooks/security/ssh-login-new-source.yaml
+  and runbooks/security/incident-response.yaml.
 
   The default operator networks are every private and local range, so the
   default indicator is "a login from a public address". A host that knows
@@ -84,6 +117,18 @@ parameters:
   - name: IOC_SUDO_FAIL_MAX
     default: "5"
     description: sudo authentication failures per host in the window above which the run fails
+  - name: IOC_ACCOUNT_CHANGE_IS_INDICATOR
+    default: "1"
+    description: 1 fails the run on an account change (user, group or password); 0 makes it a note
+  - name: IOC_CRON_EDIT_IS_INDICATOR
+    default: "1"
+    description: 1 fails the run on a crontab replaced or deleted; 0 makes it a note
+  - name: IOC_MODULE_UNTRUSTED_IS_INDICATOR
+    default: "1"
+    description: 1 fails the run on an out-of-tree or unsigned kernel module load; 0 makes it a note
+  - name: IOC_KNOWN_MODULES
+    default: ""
+    description: Kernel modules this host is meant to load out of tree, space-separated names (a load of one is a note)
 
 steps:
   - name: audit
@@ -117,6 +162,15 @@ steps:
           fail_blind("bad parameter: " + str(e)[:80])
       if not NETS:
           fail_blind("IOC_OPERATOR_NETS is empty")
+      SWITCH = {}
+      for name in ("IOC_ACCOUNT_CHANGE_IS_INDICATOR", "IOC_CRON_EDIT_IS_INDICATOR", "IOC_MODULE_UNTRUSTED_IS_INDICATOR"):
+          v = os.environ.get(name, "1")
+          if v not in ("0", "1"):
+              fail_blind(name + " is 0 or 1")
+          SWITCH[name] = v == "1"
+      KNOWN_MODULES = set(os.environ.get("IOC_KNOWN_MODULES", "").split())
+      if any(not re.match(r"^[a-z0-9_]{1,32}$", m) for m in KNOWN_MODULES):
+          fail_blind("IOC_KNOWN_MODULES is a list of module names")
 
       def safe(s):
           # Label values were log text once: keep a harmless alphabet, bounded.
@@ -165,6 +219,9 @@ steps:
                      'alertname=~"SSHLoginNewSource|SSHAuthFailureBurst|OutboundVolumeDeviation"}[%s]))' % WINDOW)
       shipping = {m.get("host", "") for m, v in query('count by (host) (unheaded_log_lines_total)')}
       scraped = {m.get("host", "") for m, v in query('count by (host) (up{host!=""})')}
+      events = query('sum by (host, kind, op, class, user, runas) (increase(unheaded_host_events_total[%s])) > 0' % WINDOW)
+      counting = {m.get("host", "") for m, v in query(
+          'count by (host) (count_over_time(unheaded_host_events_total[%s]))' % WINDOW)}
 
       print("IOC AUDIT, window %s, baseline %s before it" % (WINDOW, BASELINE))
       print("journal shipping seen in %d hourly samples of the window" % shipped)
@@ -197,10 +254,47 @@ steps:
           if kind == "sudo" and v > SUDO_MAX:
               indicators.append("%d sudo authentication failures on %s (limit %d)" % (round(v), safe(host), SUDO_MAX))
 
+      # Host events: counted by Vector from the journal, by kind, no text.
+      # What fails the run is Stevie's ruling W5 (2026-11-12), each kind
+      # with its switch.
+      def judge(indicator, text):
+          (indicators if indicator else notes).append(text)
+
+      print("")
+      print("Host events (host kind detail user runas count):")
+      if not events:
+          print("  none")
+      for m, v in sorted(events, key=lambda r: tuple(r[0].get(k, "") for k in ("host", "kind", "class", "op", "user", "runas"))):
+          host, kind, op, cls, user, runas = (m.get(k, "") for k in ("host", "kind", "op", "class", "user", "runas"))
+          n = round(v)
+          detail = "/".join(safe(x) for x in (cls, op) if x) or "-"
+          print("  %s %s %s %s %s %d" % (safe(host), safe(kind), detail, safe(user), safe(runas), n))
+          if kind == "account":
+              judge(SWITCH["IOC_ACCOUNT_CHANGE_IS_INDICATOR"],
+                    "account change on %s: %s %s (%d)" % (safe(host), safe(op), safe(user), n))
+          elif kind == "cron_edit":
+              judge(SWITCH["IOC_CRON_EDIT_IS_INDICATOR"],
+                    "crontab edit on %s: %s changed the crontab of %s (%d)" % (safe(host), safe(user), safe(runas), n))
+          elif kind == "kernel" and cls == "module_untrusted":
+              if op in KNOWN_MODULES:
+                  notes.append("known out-of-tree kernel module loaded on %s: %s (%d)" % (safe(host), safe(op), n))
+              else:
+                  judge(SWITCH["IOC_MODULE_UNTRUSTED_IS_INDICATOR"],
+                        "untrusted kernel module loaded on %s: %s (%d)" % (safe(host), safe(op), n))
+          elif kind == "kernel" and cls in ("oom_kill", "segfault"):
+              notes.append("kernel %s on %s (%d)" % (cls, safe(host), n))
+          elif kind == "sudo_command":
+              notes.append("sudo on %s: %s ran %d command(s) as %s" % (safe(host), safe(user), n, safe(runas)))
+          else:
+              notes.append("host event of a kind this audit does not judge on %s: %s (%d)" % (
+                  safe(host), "/".join(safe(x) for x in (kind, cls) if x) or "-", n))
+
       for m, v in sorted(alerts, key=lambda r: r[0].get("alertname", "")):
           notes.append("detection alert fired in the window: %s" % safe(m.get("alertname", "")))
       for host in sorted(scraped - shipping - {""}):
           notes.append("host %s is scraped but ships no journal: not audited" % safe(host))
+      for host in sorted(shipping - counting - {""}):
+          notes.append("no host event counted on %s in the window: nothing happened there, or its Vector predates the counter" % safe(host))
 
       print("")
       print("NOTES (%d):" % len(notes))

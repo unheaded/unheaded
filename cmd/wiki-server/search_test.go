@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -22,14 +23,16 @@ import (
 )
 
 // fakeVor answers the three calls the wiki server makes, the way vor does:
-// a topic is found by name alone, the first of that name wins, and an
-// unknown name gets the nearest match, which here is the first topic.
+// a topic is found by its exact name in any case, the first of that name
+// wins unless ?category= names the category, and an unknown name is 404.
 //
 // A search is answered from hits[q], or from hits["q|category"] when the
 // call names a category and that key exists (vor's ranking within one
 // category, which can hold what the plain answer crowded out); otherwise
 // hits[q] filtered to the category. limit and per_topic apply as in vor.
-// old answers like a vor from before 2026-11-11: it ignores all three.
+// old answers like a vor from before 2026-11-11: it ignores all three, it
+// ignores ?category= on a topic, and an unknown name gets the nearest match,
+// which here is the first topic.
 type fakeVor struct {
 	hits   map[string][]vorclient.Hit
 	fail   map[string]bool // "q|category" answered with a 500
@@ -86,13 +89,18 @@ func (f *fakeVor) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(list)
 	case strings.HasPrefix(r.URL.Path, "/api/topics/"):
 		name := strings.TrimPrefix(r.URL.Path, "/api/topics/")
+		category := v.Get("category")
 		for _, t := range f.topics {
-			if strings.EqualFold(t.Name, name) {
+			if strings.EqualFold(t.Name, name) && (f.old || category == "" || t.Category == category) {
 				_ = json.NewEncoder(w).Encode(t)
 				return
 			}
 		}
-		_ = json.NewEncoder(w).Encode(f.topics[0])
+		if f.old {
+			_ = json.NewEncoder(w).Encode(f.topics[0])
+			return
+		}
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
 	default:
 		http.NotFound(w, r)
 	}
@@ -220,16 +228,21 @@ func searchFixture(t *testing.T) (http.Handler, *fakeVor) {
 		topics: []vorclient.Topic{
 			bash, // first: the nearest match for a name vor does not have
 			wotan, ghost, adr, hostile,
-			canonical("networking", "tcp", "TCP", "# TCP\n"),
+			canonical("networking", "tcp", "TCP", "# TCP\n\nSee [arp](arp.md), [bash loops](../shell/bash.md#loops), [saml](auth/saml) and [udp](udp.md).\n"),
 			canonical("networking", "arp", "ARP", "# ARP\n"),
 			canonical("shell", evilAttr, "Attr", "# Attr\n"),
 			canonical(evilCat, "odd", "Odd", "# Odd\n"),
 			// A repository file in a category vor's own sheets also use.
 			external("security", "cve-fixes", "CVE fixes"),
-			// One name, twice: vor answers with the wiki page, so the
-			// sheet of that name cannot be shown.
+			// One name, twice: by name alone vor answers with the wiki
+			// page, so the sheet is reachable only under its category.
 			external("wiki", "Chaos-Engineering", "Chaos Engineering"),
 			canonical("testing", "chaos-engineering", "Chaos engineering", "# Chaos\n"),
+			// One name in two categories, both vor's own.
+			canonical("auth", "saml", "SAML (auth)", "# SAML for sign-on\n"),
+			canonical("security", "saml", "SAML (security)", "# SAML attacks\n"),
+			// A sheet no URL can name: it is never listed or linked.
+			canonical("a/b", "slashed", "Slashed", "# Slashed\n"),
 			{Name: "mine", Category: "notes", Title: "Mine", Content: "# Mine\n", SourceKind: "user-custom", SourceTrust: "local"},
 		},
 	}
@@ -263,6 +276,11 @@ func searchFixture(t *testing.T) (http.Handler, *fakeVor) {
 			hit(external("wiki", "Chaos-Engineering", "Chaos Engineering"), "", "father of chaos"),
 		},
 		"half": {hit(bash, "Loops", "half a loop")},
+		"saml": {
+			hit(canonical("security", "saml", "", ""), "Attacks", "saml signature wrapping"),
+			hit(canonical("auth", "saml", "", ""), "Flow", "saml sign-on flow"),
+			hit(canonical("a/b", "slashed", "", ""), "S", "saml in a sheet no URL can name"),
+		},
 		evilScript: {
 			hit(hostile, evilScript, evilSVG),
 			{Topic: "javascript:alert(1)", Category: "shell", Section: evilImg, Line: evilAttr, SourceTrust: vorclient.TrustCanonical},
@@ -427,7 +445,7 @@ func TestSearch_GroupsByPageAndLeavesOutTheRest(t *testing.T) {
 		// Found only by the wiki call.
 		`<li><strong>Timers</strong> a second loop</li>`,
 		`<h2>vor sheets</h2>`,
-		`<h3><a href="/sheet/bash">bash</a> <span class="page-note">shell</span></h3>`,
+		`<h3><a href="/sheet/shell/bash">bash</a> <span class="page-note">shell</span></h3>`,
 		`<li><strong>Loops</strong> for f in *; do echo &#34;$f&#34;; done</li>`,
 		`<li><strong>While</strong> while read -r line; do :; done</li>`,
 		`<h2>docs/ on GitHub</h2>`,
@@ -470,7 +488,7 @@ func TestSearch_GroupsByPageAndLeavesOutTheRest(t *testing.T) {
 	vor.mu.Lock()
 	searches := append([]string(nil), vor.searches...)
 	vor.mu.Unlock()
-	want := []string{"limit=500&per_topic=2&q=loop", "category=wiki&limit=200&per_topic=2&q=loop"}
+	want := []string{"limit=500&match=word&per_topic=2&q=loop", "category=wiki&limit=200&match=word&per_topic=2&q=loop"}
 	if len(searches) != 2 || searches[0] != want[0] || searches[1] != want[1] {
 		t.Errorf("vor was asked %q, want %q", searches, want)
 	}
@@ -604,10 +622,10 @@ func TestSearch_HostileQueryAndHostileVor(t *testing.T) {
 		`value="&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"`,
 		`<strong>&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</strong>`,
 		// vor's topic, section and line.
-		`<a href="/sheet/%3Cimg%20src=x%20onerror=alert%281%29%3E">&lt;img src=x onerror=alert(1)&gt;</a>`,
+		`<a href="/sheet/shell/%3Cimg%20src=x%20onerror=alert%281%29%3E">&lt;img src=x onerror=alert(1)&gt;</a>`,
 		`&lt;/li&gt;&lt;/ul&gt;&lt;svg onload=alert(1)&gt;`,
 		// A topic named like a script URL is a path under /sheet/.
-		`<a href="/sheet/javascript:alert%281%29">javascript:alert(1)</a>`,
+		`<a href="/sheet/shell/javascript:alert%281%29">javascript:alert(1)</a>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("page lacks the escaped %s:\n%s", want, mainOf(t, body))
@@ -643,9 +661,9 @@ func TestSheet(t *testing.T) {
 		`<h1 id="bash">Bash</h1>`,
 		`for f in *; do echo &quot;$f&quot;; done`,
 		`<p class="page-note">vor sheet shell/bash</p>`,
-		// A sheet's own text is left alone: no wiki link, no GitHub link.
-		`<a href="../shell/zsh.md">zsh</a>`,
-		`[[ -f x ]]`,
+		// zsh is not a sheet vor has: the text stays without a link. A
+		// sheet's [[ ]] is shell, never a wiki link.
+		`<p>See zsh and [[ -f x ]].</p>`,
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("sheet page lacks %s:\n%s", want, mainOf(t, body))
@@ -665,12 +683,25 @@ func TestSheet(t *testing.T) {
 		{"a wiki page", "/sheet/Wotan"},
 		{"a repository file", "/sheet/ADR-900-unpublished"},
 		{"the operator's own sheet", "/sheet/mine"},
-		{"a sheet hidden behind a wiki page of its name", "/sheet/chaos-engineering"},
+		{"a sheet hidden behind a wiki page of its name, by name alone", "/sheet/chaos-engineering"},
 		{"no name", "/sheet/"},
-		{"two segments", "/sheet/shell/bash"},
 		{"trailing slash", "/sheet/bash/"},
 		{"dots", "/sheet/..%2f..%2fapi%2ftopics"},
 		{"too long", "/sheet/" + strings.Repeat("a", maxSheetNameBytes+1)},
+		{"no such sheet in the category", "/sheet/auth/nosuch"},
+		{"no such category", "/sheet/nosuch/saml"},
+		{"the sheet of another category", "/sheet/networking/bash"},
+		{"a wiki page under its category", "/sheet/wiki/Chaos-Engineering"},
+		{"a wiki page under its category", "/sheet/wiki/Wotan"},
+		{"a repository file under its category", "/sheet/security/cve-fixes"},
+		{"the operator's own sheet under its category", "/sheet/notes/mine"},
+		{"three segments", "/sheet/a/b/c"},
+		{"a category with a slash", "/sheet/a%2Fb/slashed"},
+		{"no name under a category", "/sheet/shell/"},
+		{"dots as the category, escaped", "/sheet/%2e%2e/bash"},
+		{"dots as the name", "/sheet/shell/%2e%2e"},
+		{"category too long", "/sheet/" + strings.Repeat("a", maxSheetNameBytes+1) + "/bash"},
+		{"name too long under a category", "/sheet/shell/" + strings.Repeat("a", maxSheetNameBytes+1)},
 	} {
 		w := get(t, h, tc.target)
 		if w.Code != http.StatusNotFound {
@@ -680,6 +711,117 @@ func TestSheet(t *testing.T) {
 			if strings.Contains(w.Body.String(), hidden) {
 				t.Errorf("%s: GET %s shows a topic that is not a vor sheet", tc.name, tc.target)
 			}
+		}
+	}
+}
+
+// TestSheet_UncleanPathsAreNotSheets: the mux cleans "//" and ".." away
+// with a redirect before the handler sees them, so neither can name a
+// category.
+func TestSheet_UncleanPathsAreNotSheets(t *testing.T) {
+	h, _ := searchFixture(t)
+	for target, want := range map[string]string{
+		"/sheet/../x":         "/x",
+		"/sheet/shell/../../": "/",
+		"/sheet//bash":        "/sheet/bash",
+	} {
+		w := get(t, h, target)
+		if w.Code != http.StatusTemporaryRedirect || w.Header().Get("Location") != want {
+			t.Errorf("GET %s = %d to %q, want a redirect to %s", target, w.Code, w.Header().Get("Location"), want)
+		}
+	}
+}
+
+// TestSheet_ByCategory: /sheet/<category>/<name> opens the sheet of that
+// category, which is the only way to reach both sheets of one name.
+func TestSheet_ByCategory(t *testing.T) {
+	h, vor := searchFixture(t)
+	for _, tc := range []struct{ target, want, foot string }{
+		{"/sheet/auth/saml", "SAML for sign-on", "vor sheet auth/saml"},
+		{"/sheet/security/saml", "SAML attacks", "vor sheet security/saml"},
+		// The wiki page of this name is larger and wins the name; the
+		// category still finds vor's own sheet.
+		{"/sheet/testing/chaos-engineering", `<h1 id="chaos">Chaos</h1>`, "vor sheet testing/chaos-engineering"},
+		{"/sheet/shell/bash", `<h1 id="bash">Bash</h1>`, "vor sheet shell/bash"},
+		{"/sheet/shell/" + url.PathEscape(evilImg), "inline", "vor sheet shell/&lt;img"},
+		{"/sheet/" + url.PathEscape(evilCat) + "/odd", `<h1 id="odd">Odd</h1>`, "/odd</p>"},
+	} {
+		w := get(t, h, tc.target)
+		if w.Code != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", tc.target, w.Code)
+			continue
+		}
+		wantInert(t, w)
+		content := mainOf(t, w.Body.String())
+		if !strings.Contains(content, tc.want) || !strings.Contains(content, tc.foot) {
+			t.Errorf("GET %s lacks %q or %q:\n%s", tc.target, tc.want, tc.foot, content)
+		}
+	}
+
+	// The old form still opens a name only one topic has.
+	if w := get(t, h, "/sheet/bash"); w.Code != http.StatusOK {
+		t.Errorf("GET /sheet/bash = %d, want 200", w.Code)
+	}
+	if w := get(t, h, "/sheet/tcp"); w.Code != http.StatusOK {
+		t.Errorf("GET /sheet/tcp = %d, want 200", w.Code)
+	}
+
+	// A vor from before 2026-11-12 ignores the category and answers with
+	// the first sheet of the name: the other one is a 404, not the wrong
+	// page.
+	vor.old = true
+	if w := get(t, h, "/sheet/auth/saml"); w.Code != http.StatusOK {
+		t.Errorf("old vor: GET /sheet/auth/saml = %d, want 200", w.Code)
+	}
+	if w := get(t, h, "/sheet/security/saml"); w.Code != http.StatusNotFound || strings.Contains(w.Body.String(), "sign-on") {
+		t.Errorf("old vor: GET /sheet/security/saml = %d, want 404 and not the auth sheet", w.Code)
+	}
+}
+
+// TestSearch_SheetLinksCarryTheCategory: two sheets of one name are two
+// results, each linked under its own category.
+func TestSearch_SheetLinksCarryTheCategory(t *testing.T) {
+	h, _ := searchFixture(t)
+	w := get(t, h, "/search?q=saml")
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /search?q=saml = %d", w.Code)
+	}
+	content := mainOf(t, w.Body.String())
+	for _, want := range []string{
+		"2 matches for <strong>saml</strong>",
+		`<h3><a href="/sheet/security/saml">saml</a> <span class="page-note">security</span></h3>`,
+		`<h3><a href="/sheet/auth/saml">saml</a> <span class="page-note">auth</span></h3>`,
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("results lack %s:\n%s", want, content)
+		}
+	}
+	if strings.Contains(content, "slashed") || strings.Contains(content, "no URL can name") {
+		t.Errorf("a sheet no URL can name is shown:\n%s", content)
+	}
+	for _, m := range regexp.MustCompile(`<h3><a href="(/sheet/[^"]+)"`).FindAllStringSubmatch(content, -1) {
+		if got := get(t, h, m[1]); got.Code != http.StatusOK {
+			t.Errorf("search link %s = %d, want 200", m[1], got.Code)
+		}
+	}
+}
+
+// TestSearch_AsksForWords: a reader searches for words, so "ccna" must not
+// find KRB5CCNAME. Both calls ask vor for match=word.
+func TestSearch_AsksForWords(t *testing.T) {
+	h, vor := searchFixture(t)
+	if w := get(t, h, "/search?q=loop"); w.Code != http.StatusOK {
+		t.Fatalf("GET /search?q=loop = %d", w.Code)
+	}
+	vor.mu.Lock()
+	defer vor.mu.Unlock()
+	if len(vor.searches) != 2 {
+		t.Fatalf("%d searches, want 2", len(vor.searches))
+	}
+	for _, raw := range vor.searches {
+		v, err := url.ParseQuery(raw)
+		if err != nil || v.Get("match") != "word" {
+			t.Errorf("search %q does not ask for match=word", raw)
 		}
 	}
 }
@@ -717,17 +859,23 @@ func TestSheets_ListsOnlyWhatSheetCanShow(t *testing.T) {
 	// Categories in order, sheets in order under them.
 	last := -1
 	for _, part := range []string{
-		`6 vor sheets in 3 categories.`,
+		`9 vor sheets in 6 categories.`,
 		`<a href="#cat-0">&lt;svg onload=alert(1)&gt; &amp; co</a>`,
 		`<h2 id="cat-0">&lt;svg onload=alert(1)&gt; &amp; co</h2>`,
-		`<li><a href="/sheet/odd">odd</a> <span class="page-note">Odd</span></li>`,
-		`<h2 id="cat-1">networking</h2>`,
-		`<li><a href="/sheet/arp">arp</a> <span class="page-note">ARP</span></li>`,
-		`<li><a href="/sheet/tcp">tcp</a> <span class="page-note">TCP</span></li>`,
-		`<h2 id="cat-2">shell</h2>`,
-		`<li><a href="/sheet/%22%20onmouseover=%22alert%281%29">&#34; onmouseover=&#34;alert(1)</a> <span class="page-note">Attr</span></li>`,
-		`<li><a href="/sheet/%3Cimg%20src=x%20onerror=alert%281%29%3E">&lt;img src=x onerror=alert(1)&gt;</a> <span class="page-note">&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</span></li>`,
-		`<li><a href="/sheet/bash">bash</a> <span class="page-note">Bash</span></li>`,
+		`<li><a href="/sheet/%3Csvg%20onload=alert%281%29%3E%20&amp;%20co/odd">odd</a> <span class="page-note">Odd</span></li>`,
+		`<h2 id="cat-1">auth</h2>`,
+		`<li><a href="/sheet/auth/saml">saml</a> <span class="page-note">SAML (auth)</span></li>`,
+		`<h2 id="cat-2">networking</h2>`,
+		`<li><a href="/sheet/networking/arp">arp</a> <span class="page-note">ARP</span></li>`,
+		`<li><a href="/sheet/networking/tcp">tcp</a> <span class="page-note">TCP</span></li>`,
+		`<h2 id="cat-3">security</h2>`,
+		`<li><a href="/sheet/security/saml">saml</a> <span class="page-note">SAML (security)</span></li>`,
+		`<h2 id="cat-4">shell</h2>`,
+		`<li><a href="/sheet/shell/%22%20onmouseover=%22alert%281%29">&#34; onmouseover=&#34;alert(1)</a> <span class="page-note">Attr</span></li>`,
+		`<li><a href="/sheet/shell/%3Cimg%20src=x%20onerror=alert%281%29%3E">&lt;img src=x onerror=alert(1)&gt;</a> <span class="page-note">&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</span></li>`,
+		`<li><a href="/sheet/shell/bash">bash</a> <span class="page-note">Bash</span></li>`,
+		`<h2 id="cat-5">testing</h2>`,
+		`<li><a href="/sheet/testing/chaos-engineering">chaos-engineering</a> <span class="page-note">Chaos engineering</span></li>`,
 	} {
 		at := strings.Index(content, part)
 		if at < 0 || at < last {
@@ -735,29 +883,30 @@ func TestSheets_ListsOnlyWhatSheetCanShow(t *testing.T) {
 		}
 		last = at
 	}
-	if !strings.Contains(content, `<a href="#cat-1">networking</a>`) {
+	if !strings.Contains(content, `<a href="#cat-2">networking</a>`) {
 		t.Error("the category index does not link to its heading")
 	}
 
 	// Wiki pages, repository files (even in a category the sheets use), the
-	// operator's sheets, and a sheet vor cannot hand out by name.
-	for _, hidden := range []string{"Wotan", "Ghost", "ADR-900", "cve-fixes", "CVE fixes", "mine", "Mine", "notes", "haos", "testing", "security"} {
+	// operator's sheets, and a sheet no URL can name.
+	for _, hidden := range []string{"Wotan", "Ghost", "ADR-900", "cve-fixes", "CVE fixes", "mine", "Mine", "notes", "Chaos-Engineering", "Chaos Engineering", "slashed", "a/b"} {
 		if strings.Contains(content, hidden) {
 			t.Errorf("listing shows %q:\n%s", hidden, content)
 		}
 	}
-	// The listing says which topics are vor's own; only a name it holds
-	// twice is fetched, to learn which one /sheet/<name> gets.
-	if n := vor.count("/api/topics/chaos-engineering"); n != 1 {
-		t.Errorf("fetched chaos-engineering %d times, want 1", n)
-	}
-	if n := vor.total() - vor.count("/api/topics") - vor.count("/api/topics/chaos-engineering"); n != 0 {
-		t.Errorf("%d other calls to vor, want 0", n)
+	// The listing says which topics are vor's own and in which category,
+	// and every sheet is linked under its category: one call, no fetches.
+	if n := vor.total() - vor.count("/api/topics"); n != 0 {
+		t.Errorf("%d calls to vor besides the listing, want 0", n)
 	}
 
-	// Every link in the listing opens.
-	for _, m := range regexp.MustCompile(`<li><a href="(/sheet/[^"]+)"`).FindAllStringSubmatch(content, -1) {
-		if got := get(t, h, m[1]); got.Code != http.StatusOK {
+	// Every link in the listing opens, and there is one for each sheet.
+	links := regexp.MustCompile(`<li><a href="(/sheet/[^"]+)"`).FindAllStringSubmatch(content, -1)
+	if len(links) != 9 {
+		t.Errorf("%d links in the listing, want 9", len(links))
+	}
+	for _, m := range links {
+		if got := get(t, h, html.UnescapeString(m[1])); got.Code != http.StatusOK {
 			t.Errorf("listed link %s = %d, want 200", m[1], got.Code)
 		}
 	}

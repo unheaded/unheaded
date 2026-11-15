@@ -127,7 +127,7 @@ cmd/zhen-eval/champion_runbooks_test.go 1
 cmd/zhen-eval/main.go 4
 cmd/zhen-eval/runbook.go 4
 cmd/zhen-eval/runbook_test.go 5
-cmd/zhen-mcp/tools.go 2
+cmd/zhen-mcp/tools.go 1
 cmd/zhen-rag/main.go 1
 demos/mbc/boot_demo/build.go 17
 demos/mbc/fuzix_compat/build.go 5

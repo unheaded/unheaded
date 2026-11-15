@@ -1,0 +1,1020 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Stevie Bellis.
+#
+# Unit tests for the host-event counter in ../vector.yaml (S-WATCH-TRUE
+# Phase 9, D-18; read by runbooks/security/ioc-audit.yaml). Account changes,
+# sudo commands, crontab edits and three kinds of kernel line are counted
+# by kind and no text is kept. Root's tools and the kernel are taken on
+# fields the sender cannot set; the set-id programs on the program's name
+# and, when journald has it, its path (the comment above journal_host says
+# what that is worth).
+# Run: scripts/test-vector-config.sh
+#
+# Every event has the same six keys: host, kind, op, class, user, runas.
+# A key a kind does not use is "".
+tests:
+  # --- account changes: root's own tools ---------------------------------
+  - name: useradd counts once, as account/useradd with the new name, no text
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=mallory, UID=1001, GID=1001, home=/home/mallory, shell=/bin/bash, from=/dev/pts/0"
+          host: west
+          _COMM: useradd
+          _UID: "0"
+          _EXE: /usr/sbin/useradd
+          SYSLOG_IDENTIFIER: useradd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "west")
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "useradd")
+              assert_eq!(.user, "mallory")
+              assert_eq!(.class, "")
+              assert_eq!(.runas, "")
+              assert!(!exists(.message))
+              assert!(!exists(._COMM))
+              assert_eq!(length(keys(.)), 6)
+
+  - name: useradd's own group line is not a second account change
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new group: name=mallory, GID=1001"
+          host: west
+          _COMM: useradd
+          _UID: "0"
+    no_outputs_from:
+      - journal_host_events
+
+  - name: usermod adding a user to a group counts under the user
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "add 'mallory' to group 'sudo'"
+          host: east
+          _COMM: usermod
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "east")
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "usermod")
+              assert_eq!(.user, "mallory")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: usermod's shadow-group line is the same change and is not counted again
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "add 'mallory' to shadow group 'sudo'"
+          host: east
+          _COMM: usermod
+          _UID: "0"
+    no_outputs_from:
+      - journal_host_events
+
+  - name: userdel counts the deleted name
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "delete user 'mallory'"
+          host: west
+          _COMM: userdel
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "userdel")
+              assert_eq!(.user, "mallory")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: groupadd counts its "new group" line (as west logged it on 2026-11-04)
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new group: name=sugroup, GID=963"
+          host: west
+          _COMM: groupadd
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "groupadd")
+              assert_eq!(.user, "sugroup")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: groupadd's two file lines are the same change and are not counted
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "group added to /etc/group: name=sugroup, GID=963"
+          host: west
+          _COMM: groupadd
+          _UID: "0"
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "group added to /etc/gshadow: name=sugroup"
+          host: west
+          _COMM: groupadd
+          _UID: "0"
+    no_outputs_from:
+      - journal_host_events
+
+  - name: gpasswd adding a member counts under the member
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "user mallory added by root to group docker"
+          host: west
+          _COMM: gpasswd
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "gpasswd")
+              assert_eq!(.user, "mallory")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a password changed by root counts as account/passwd
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for mallory"
+          host: west
+          _COMM: passwd
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "passwd")
+              assert_eq!(.user, "mallory")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a user changing their own password logs as that user, and counts by passwd's path
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for govan"
+          host: west
+          _COMM: passwd
+          _UID: "1000"
+          _EXE: /usr/bin/passwd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "passwd")
+              assert_eq!(.user, "govan")
+
+  - name: chpasswd counts as account/chpasswd
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(chpasswd:chauthtok): password changed for mallory"
+          host: west
+          _COMM: chpasswd
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "chpasswd")
+              assert_eq!(.user, "mallory")
+
+  - name: systemd-sysusers creating a user counts (the journal cuts the process name at 15 characters)
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Creating user 'unheaded-vor' (Unheaded vor) with UID 16738 and GID 16738."
+          host: west
+          _COMM: systemd-sysuser
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "systemd-sysusers")
+              assert_eq!(.user, "unheaded-vor")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a crafted account name becomes "invalid", not a new label value
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=a b;rm, UID=1002, GID=1002, home=/home/x, shell=/bin/sh, from=none"
+          host: west
+          _COMM: useradd
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "useradd")
+              assert_eq!(.user, "invalid")
+              assert_eq!(length(keys(.)), 6)
+
+  # --- forged lines --------------------------------------------------------
+  - name: an account line from logger(1), or from a useradd that is not root, is ignored
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=x, UID=1001, GID=1001, home=/home/x, shell=/bin/sh, from=none"
+          host: west
+          SYSLOG_IDENTIFIER: useradd
+          _COMM: logger
+          _UID: "0"
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=x, UID=1001, GID=1001, home=/home/x, shell=/bin/sh, from=none"
+          host: west
+          SYSLOG_IDENTIFIER: useradd
+          _COMM: useradd
+          _UID: "1000"
+          _EXE: /home/govan/useradd
+    no_outputs_from:
+      - journal_host
+
+  - name: a program named sudo that is not the installed sudo is ignored
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan : TTY=pts/0 ; PWD=/tmp ; USER=root ; COMMAND=/usr/bin/id"
+          host: west
+          SYSLOG_IDENTIFIER: sudo
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /home/govan/bin/sudo
+    no_outputs_from:
+      - journal_host
+
+  # --- a sender that was gone before journald read /proc --------------------
+  # journald fills _COMM and _EXE from /proc/<pid> when the line arrives. A
+  # program that logs and exits at once (crontab -, a quick sudo) is often
+  # gone by then: the line comes with _UID and _PID and no _EXE, sometimes
+  # no _COMM either (seen on west, 2026-11-15). Those lines count, by _COMM
+  # and then by SYSLOG_IDENTIFIER: missing a real edit is worse than
+  # counting a forged one. An _EXE that is present and wrong is still a
+  # forgery the field can catch.
+  - name: a crontab replace whose process was gone (no _EXE) still counts
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) REPLACE (govan)"
+          host: west
+          _TRANSPORT: syslog
+          _COMM: crontab
+          _UID: "1000"
+          _GID: "1000"
+          SYSLOG_IDENTIFIER: crontab
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "govan")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a crontab replace with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) REPLACE (govan)"
+          host: west
+          _TRANSPORT: syslog
+          _UID: "1000"
+          _GID: "1000"
+          SYSLOG_IDENTIFIER: crontab
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "govan")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a crontab line from a program at another path is still ignored, with or without _COMM
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (root)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /home/govan/bin/crontab
+          SYSLOG_IDENTIFIER: crontab
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (root)"
+          host: west
+          _UID: "1000"
+          _EXE: /usr/bin/logger
+          SYSLOG_IDENTIFIER: crontab
+    no_outputs_from:
+      - journal_host
+
+  - name: a line whose _COMM is another program is ignored whatever its syslog identifier says
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (root)"
+          host: west
+          _COMM: logger
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: crontab
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/tmp ; USER=root ; COMMAND=/usr/bin/id"
+          host: west
+          _COMM: python3
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: sudo
+    no_outputs_from:
+      - journal_host
+
+  - name: a sudo command whose process was gone (no _EXE) still counts
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/home/govan ; USER=nobody ; COMMAND=/usr/bin/true"
+          host: west
+          _TRANSPORT: syslog
+          _COMM: sudo
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: sudo
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "nobody")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a sudo command with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/home/govan ; USER=root ; COMMAND=/usr/bin/true"
+          host: west
+          _TRANSPORT: syslog
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: sudo
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "root")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a password change whose passwd was gone counts, with _COMM and without
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for govan"
+          host: west
+          _COMM: passwd
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: passwd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "passwd")
+              assert_eq!(.user, "govan")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a password change with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for govan"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: passwd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "passwd")
+              assert_eq!(.user, "govan")
+
+  - name: gpasswd and chage count the same way when their process was gone
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "user mallory added by govan to group docker"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: gpasswd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "gpasswd")
+              assert_eq!(.user, "mallory")
+
+  - name: chage with neither _EXE nor _COMM counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "changed password expiry for govan"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: chage
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "chage")
+              assert_eq!(.user, "govan")
+
+  - name: passwd, gpasswd and chage lines from another path are ignored
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(passwd:chauthtok): password changed for root"
+          host: west
+          _COMM: passwd
+          _UID: "1000"
+          _EXE: /tmp/passwd
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "user mallory added by root to group sudo"
+          host: west
+          _UID: "1000"
+          _EXE: /tmp/gpasswd
+          SYSLOG_IDENTIFIER: gpasswd
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "changed password expiry for root"
+          host: west
+          _COMM: chage
+          _UID: "1000"
+          _EXE: /tmp/chage
+    no_outputs_from:
+      - journal_host
+
+  - name: a root account tool that was gone (no _COMM) counts by its syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=mallory, UID=1001, GID=1001, home=/home/mallory, shell=/bin/bash, from=none"
+          host: west
+          _UID: "0"
+          SYSLOG_IDENTIFIER: useradd
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "useradd")
+              assert_eq!(.user, "mallory")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: systemd-sysusers that was gone counts under its full syslog identifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Creating group 'unheaded-vor' with GID 16738."
+          host: west
+          _UID: "0"
+          SYSLOG_IDENTIFIER: systemd-sysusers
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "account")
+              assert_eq!(.op, "systemd-sysusers")
+              assert_eq!(.user, "unheaded-vor")
+
+  - name: a root-only tool's line from a sender that is not root is ignored, with or without _COMM
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=x, UID=1001, GID=1001, home=/home/x, shell=/bin/sh, from=none"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: useradd
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "delete user 'govan'"
+          host: west
+          _UID: "1000"
+          SYSLOG_IDENTIFIER: userdel
+    no_outputs_from:
+      - journal_host
+
+  # --- sudo ----------------------------------------------------------------
+  - name: a sudo command counts who ran it and as whom; no directory, no command
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "   govan : TTY=pts/0 ; PWD=/home/govan/secret-project ; USER=root ; COMMAND=/usr/bin/cat /etc/shadow"
+          host: east
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /usr/bin/sudo
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "east")
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "root")
+              assert_eq!(.op, "")
+              assert_eq!(.class, "")
+              assert!(!exists(.message))
+              assert!(!exists(.PWD))
+              assert!(!exists(.COMMAND))
+              assert!(!contains(encode_json(.), "secret-project"))
+              assert!(!contains(encode_json(.), "shadow"))
+              assert_eq!(length(keys(.)), 6)
+
+  - name: west's sudo-rs line (no TTY field, its own path) counts the same way
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan :  PWD=/home/govan/tmp/unheaded ; USER=nobody ; COMMAND=/usr/bin/true"
+          host: west
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /usr/lib/cargo/bin/sudo
+          _CAP_EFFECTIVE: "1ffffffffff"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "nobody")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: root running sudo counts too
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "root :  PWD=/root ; USER=root ; COMMAND=/usr/bin/true"
+          host: west
+          _COMM: sudo
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "root")
+              assert_eq!(.runas, "root")
+
+  - name: sudo's PAM session lines are not commands
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(sudo:session): session opened for user root(uid=0) by govan(uid=1000)"
+          host: west
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /usr/lib/cargo/bin/sudo
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "pam_unix(sudo:session): session closed for user root"
+          host: west
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /usr/lib/cargo/bin/sudo
+    no_outputs_from:
+      - journal_host_events
+
+  - name: a sudo refusal is not a command that ran (it is an auth failure, counted elsewhere)
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "   govan : 3 incorrect password attempts ; TTY=pts/0 ; PWD=/home/govan ; USER=root ; COMMAND=/usr/bin/id"
+          host: west
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /usr/bin/sudo
+    no_outputs_from:
+      - journal_host_events
+
+  - name: a directory or command that carries its own USER= field cannot choose the runas label
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "govan : TTY=pts/0 ; PWD=/tmp/x ; USER=nobody ; COMMAND=y ; USER=root ; COMMAND=/usr/bin/id"
+          host: west
+          _COMM: sudo
+          _UID: "1000"
+          _EXE: /usr/bin/sudo
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "sudo_command")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "invalid")
+              assert_eq!(length(keys(.)), 6)
+
+  # --- crontab -------------------------------------------------------------
+  - name: a replaced crontab counts once, with who replaced it and whose it is
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) REPLACE (govan)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /usr/bin/crontab
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "west")
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "govan")
+              assert_eq!(.runas, "govan")
+              assert_eq!(.op, "")
+              assert_eq!(.class, "")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: root replacing another account's crontab names both
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(root) REPLACE (www-data)"
+          host: west
+          _COMM: crontab
+          _UID: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "root")
+              assert_eq!(.runas, "www-data")
+
+  - name: a deleted crontab is an edit too
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) DELETE (govan)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /usr/bin/crontab
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "cron_edit")
+              assert_eq!(.user, "govan")
+
+  - name: opening, closing and listing a crontab are not edits
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) BEGIN EDIT (govan)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /usr/bin/crontab
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) END EDIT (govan)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /usr/bin/crontab
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) LIST (govan)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /usr/bin/crontab
+    no_outputs_from:
+      - journal_host_events
+
+  # --- kernel --------------------------------------------------------------
+  - name: an out-of-memory kill counts as kernel/oom_kill, without the victim
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Out of memory: Killed process 4242 (llama-server) total-vm:9000000kB, anon-rss:8000000kB, file-rss:0kB, shmem-rss:0kB, UID:1000 pgtables:16000kB oom_score_adj:0"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+          SYSLOG_IDENTIFIER: kernel
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "west")
+              assert_eq!(.kind, "kernel")
+              assert_eq!(.class, "oom_kill")
+              assert_eq!(.op, "")
+              assert_eq!(.user, "")
+              assert_eq!(.runas, "")
+              assert!(!contains(encode_json(.), "llama"))
+              assert_eq!(length(keys(.)), 6)
+
+  - name: a cgroup's out-of-memory kill counts too
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Memory cgroup out of memory: Killed process 777 (go) total-vm:1kB, anon-rss:1kB, file-rss:0kB, shmem-rss:0kB, UID:1000 pgtables:1kB oom_score_adj:0"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "kernel")
+              assert_eq!(.class, "oom_kill")
+
+  - name: the kernel's other lines about the same kill do not count it again
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "oom-kill:constraint=CONSTRAINT_NONE,nodemask=(null),cpuset=/,mems_allowed=0,global_oom,task_memcg=/user.slice,task=llama-server,pid=4242,uid=1000"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "llama-server invoked oom-killer: gfp_mask=0x140cca(GFP_HIGHUSER_MOVABLE|__GFP_COMP), order=0, oom_score_adj=0"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    no_outputs_from:
+      - journal_host_events
+
+  - name: a segfault counts as kernel/segfault, without the program
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "secret-tool[31337]: segfault at 0 ip 000055d0c0de1234 sp 00007ffd00001000 error 4 in secret-tool[55d0c0de0000+1000] likely on CPU 3 (core 3, socket 0)"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "kernel")
+              assert_eq!(.class, "segfault")
+              assert_eq!(.op, "")
+              assert!(!contains(encode_json(.), "secret-tool"))
+              assert_eq!(length(keys(.)), 6)
+
+  - name: an out-of-tree module counts as kernel/module_untrusted and names the module
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "spl: loading out-of-tree module taints kernel."
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.kind, "kernel")
+              assert_eq!(.class, "module_untrusted")
+              assert_eq!(.op, "spl")
+              assert_eq!(.user, "")
+              assert_eq!(length(keys(.)), 6)
+
+  - name: an unsigned module counts as kernel/module_untrusted
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "evil_rootkit: module verification failed: signature and/or required key missing - tainting kernel"
+          host: east
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.host, "east")
+              assert_eq!(.kind, "kernel")
+              assert_eq!(.class, "module_untrusted")
+              assert_eq!(.op, "evil_rootkit")
+
+  - name: a module name that is not one becomes "invalid"
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Evil_Module_With_A_Name_Far_Longer_Than_Any_Module: loading out-of-tree module taints kernel."
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.class, "module_untrusted")
+              assert_eq!(.op, "invalid")
+
+  - name: any other kernel line is dropped
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "usb 1-2: new high-speed USB device number 5 using xhci_hcd"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "zfs: module license 'CDDL' taints kernel."
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    no_outputs_from:
+      - journal_host_events
+
+  - name: a program named like a kernel message cannot mint a kernel class by crashing
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Out of memory:[4242]: segfault at 0 ip 0000000000401000 sp 00007ffd00001000 error 6 in x[400000+1000]"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "0"
+    outputs:
+      - extract_from: journal_host_events
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.class, "segfault")
+
+  - name: a line a process wrote into the kernel log (not facility kern) is ignored
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "Out of memory: Killed process 1 (systemd) total-vm:1kB"
+          host: west
+          _TRANSPORT: kernel
+          SYSLOG_FACILITY: "3"
+          SYSLOG_IDENTIFIER: systemd
+    no_outputs_from:
+      - journal_host
+
+  - name: an ordinary service line never reaches the classifier
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "new user: name=x, UID=1, GID=1, home=/, shell=/bin/sh, from=none"
+          host: west
+          _COMM: wotan
+          _UID: "16700"
+          _SYSTEMD_UNIT: docker.service
+    no_outputs_from:
+      - journal_host
+
+  # --- the counter ---------------------------------------------------------
+  - name: the counter is unheaded_host_events_total with the six labels
+    inputs:
+      - insert_at: journal_host
+        type: log
+        log_fields:
+          message: "(govan) REPLACE (govan)"
+          host: west
+          _COMM: crontab
+          _UID: "1000"
+          _EXE: /usr/bin/crontab
+    outputs:
+      - extract_from: journal_host_metrics
+        conditions:
+          - type: vrl
+            source: |
+              assert_eq!(.namespace, "unheaded")
+              assert_eq!(.name, "host_events_total")
+              assert_eq!(.tags.host, "west")
+              assert_eq!(.tags.kind, "cron_edit")
+              assert_eq!(.tags.user, "govan")
+              assert_eq!(.tags.runas, "govan")
+              assert_eq!(.tags.op, "")
+              assert_eq!(.tags.class, "")
