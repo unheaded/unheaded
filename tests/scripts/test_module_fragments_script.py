@@ -56,7 +56,7 @@ def prom(fx):
 def no_temp(fx):
     for d in (fx["run"], fx["tf"]):
         names = [p.name for p in d.iterdir()]
-        assert not [n for n in names if n.startswith(".zhen") or n.startswith(".module_")], names
+        assert not [n for n in names if n.startswith((".zhen", ".module_"))], names
 
 
 def test_publish(fx):

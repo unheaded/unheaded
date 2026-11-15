@@ -105,7 +105,7 @@ def unit_values(text):
         elif line.startswith("Environment="):
             for kv in line[len("Environment="):].split():
                 name, _, val = kv.strip('"').partition("=")
-                if name.endswith("_ADDR") or name.endswith("_LISTEN"):
+                if name.endswith(("_ADDR", "_LISTEN")):
                     out.append((name, val))
     return out
 

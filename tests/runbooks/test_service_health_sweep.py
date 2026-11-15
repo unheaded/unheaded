@@ -6,7 +6,6 @@ platform's own timer runs (ADR-149). Its targets come from a file, one
 in FAKE_OK, so what is under test is the sweep's judgment and its exit code.
 Nothing touches a host."""
 import os
-import pathlib
 
 import harness
 import pytest

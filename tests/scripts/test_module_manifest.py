@@ -45,7 +45,7 @@ def test_ports_are_registered():
         if port == 8081:
             assert "tcp:8081" in (UNITS / "unheaded-llama.service").read_text(encoding="utf-8")
             continue
-        assert re.search(r"=\s*%d\b" % port, ports_go), port
+        assert re.search(rf"=\s*{port}\b", ports_go), port
 
 
 def test_name_and_switch():
