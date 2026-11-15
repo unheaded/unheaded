@@ -84,6 +84,7 @@ var (
 	enablePacketMarker = flag.Bool("enable-packet-marker", true, "Enable packet_marker XDP program")
 	enableFlowTracker  = flag.Bool("enable-flow-tracker", true, "Enable flow_tracker TC program")
 	enableLatencyProbe = flag.Bool("enable-latency-probe", true, "Enable latency_probe tracepoint program")
+	latencySweepEvery  = flag.Duration("latency-sweep-interval", 2*time.Second, "How often to read latency_probe's LATENCY_MAP (unified mode; at least 500ms)")
 	ebpfObjDir         = flag.String("ebpf-obj-dir", "", "Directory containing compiled BPF ELF objects (default: ebpf/target/bpfel-unknown-none/release)")
 	unifiedMode        = flag.Bool("unified", false, "Run in unified mode (load all BPF programs)")
 	allowUntrustedObjs = flag.Bool("allow-untrusted-ebpf-obj-dir", false,
@@ -628,6 +629,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		Str("metrics_addr", *metricsAddr).
 		Str("map_pin_path", *mapPinPath).
 		Dur("stats_interval", *statsInterval).
+		Dur("latency_sweep_interval", *latencySweepEvery).
 		Bool("packet_marker", *enablePacketMarker).
 		Bool("flow_tracker", *enableFlowTracker).
 		Bool("latency_probe", *enableLatencyProbe).
@@ -715,9 +717,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 
 	// Latency probe: use direct cilium/ebpf loader for proper multi-kprobe support.
 	// The standard loader only attaches one kprobe; we need all 6 (3 enter + 3 exit).
-	var directLatencyMap interface {
-		Iterate() *ciliumebpf.MapIterator
-	}
+	var directLatencyMap *ciliumebpf.Map
 	if *enableLatencyProbe {
 		progPath := fmt.Sprintf("%s/latency-probe", elfBase)
 		kl, lmap, err := LoadLatencyKprobes(progPath, *allowUntrustedObjs)
@@ -729,6 +729,12 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		} else {
 			defer kl.Close()
 			directLatencyMap = lmap
+			// The probe's own counters (LATENCY_STATS), read at scrape time.
+			if sm := kl.StatsMap(); sm == nil {
+				log.Warn().Msg("the latency-probe object has no LATENCY_STATS map; its counters are not exported")
+			} else if err := prom.Register(newLatencyStatsCollector(ebpfLatencyStats{m: sm})); err != nil {
+				log.Warn().Err(err).Msg("could not register latency-probe's counters")
+			}
 			programs[2].Loaded = true
 			// Already attached by LoadLatencyKprobes
 			programsLoaded.WithLabelValues("latency_probe").Set(1)
@@ -826,48 +832,25 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	// Start LatencyReader (latency_probe kprobe maps)
 	if *enableLatencyProbe && programs[2].Loaded {
 		if directLatencyMap != nil {
-			// Use direct cilium/ebpf map reader for proper kprobe data
+			// One batched pass over LATENCY_MAP per interval (latency_sweep.go).
+			sweeper := newLatencySweeper(newEBPFLatencyMap(directLatencyMap), func(payload []byte) {
+				publisher.PublishLatencyEvent(payload)
+			})
 			go func() {
-				ticker := time.NewTicker(200 * time.Millisecond)
+				ticker := time.NewTicker(*latencySweepEvery)
 				defer ticker.Stop()
-				rtts := newRTTTracker()
-				log.Info().Msg("direct latency map reader started (cilium/ebpf)")
 				for {
 					select {
 					case <-ctx.Done():
 						return
 					case <-ticker.C:
-						iter := directLatencyMap.Iterate()
-						var key, value []byte
-						for iter.Next(&key, &value) {
-							lk, err := DecodeLatencyTraceKey(key)
-							if err != nil {
-								continue
-							}
-							le, err := DecodeLatencyEntry(value)
-							if err != nil {
-								continue
-							}
-							// Only flows with a new measurement since the last
-							// sweep; re-emitting every flow's latest RTT each
-							// 200 ms weighted percentiles by flows x sweeps.
-							if !rtts.fresh(key, le.Samples) {
-								continue
-							}
-
-							payload, err := json.Marshal(latencyMapEvent(lk, le, time.Now()))
-							if err != nil {
-								continue
-							}
-							publisher.PublishLatencyEvent(payload)
-						}
-						if iter.Err() == nil { // a partial sweep must not forget unvisited flows
-							rtts.endSweep()
+						if err := sweeper.sweep(ctx); err != nil && ctx.Err() == nil {
+							log.Warn().Err(err).Msg("latency sweep did not finish; the next one starts over")
 						}
 					}
 				}
 			}()
-			log.Info().Msg("latency reader started (direct cilium/ebpf map)")
+			log.Info().Dur("interval", *latencySweepEvery).Int("batch", latencySweepBatch).Msg("latency sweep started")
 		} else {
 			// Fallback: use standard loader's map reader
 			latencyConfig := DefaultLatencyReaderConfig()
@@ -1237,6 +1220,9 @@ func main() {
 	cmdline.Parse(spec)
 	if *statsInterval <= 0 {
 		cmdline.Fail(spec, "--stats-interval must be positive, not %v", *statsInterval)
+	}
+	if err := checkLatencySweepInterval(*latencySweepEvery); err != nil {
+		cmdline.Fail(spec, "%v", err)
 	}
 	wotanClient.InitServiceIdentity("trace-collector") // ADR-103 §6: every Wotan call carries trace-collector's service token
 

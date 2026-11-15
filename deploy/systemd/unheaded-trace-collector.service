@@ -3,11 +3,16 @@
 # latency-probe (kprobe) eBPF programs and publishes their events to Wotan
 # (traces.* and the ebpf.*.events mirrors).
 #
-# Install (users first: deploy/sysusers.d/unheaded.conf):
+# Install (users first: deploy/sysusers.d/unheaded.conf). Build the binary AND
+# latency-probe from the same commit; install both, then restart. The
+# collector refuses an object whose LATENCY_MAP is not the LRU 24/40 layout
+# (one error at start, latency_probe not loaded), so an old object under a new
+# binary is loud, not silent (FND-044).
 #   go build -o /tmp/trace-collector-go ./cmd/trace-collector-go
+#   (cd ebpf && CARGO_TARGET_DIR=target/load-gate/default cargo build --release -p packet-marker -p flow-tracker -p latency-probe)
 #   sudo install -m 0755 /tmp/trace-collector-go /usr/local/bin/
 #   sudo install -d -m 0755 /usr/local/lib/unheaded/ebpf
-#   sudo install -m 0644 <packet-marker flow-tracker latency-probe> /usr/local/lib/unheaded/ebpf/
+#   sudo install -m 0644 -o root -g root ebpf/target/load-gate/default/bpfel-unknown-none/release/{packet-marker,flow-tracker,latency-probe} /usr/local/lib/unheaded/ebpf/
 #   sudo cp deploy/systemd/unheaded-trace-collector.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-trace-collector
 # East (services on the host network): TRACE_IFACE=lo in the env file.

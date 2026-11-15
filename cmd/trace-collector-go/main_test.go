@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -363,5 +364,29 @@ func TestHealthHandler(t *testing.T) {
 
 	if body["status"] != "ok" {
 		t.Errorf("status = %v, want \"ok\"", body["status"])
+	}
+}
+
+// The latency sweep runs every 2 s by default. The old sweep ran every 200 ms
+// and cost most of a core (FND-044), so an interval under 500 ms is refused.
+func TestLatencySweepIntervalFlag(t *testing.T) {
+	f := flag.Lookup("latency-sweep-interval")
+	if f == nil {
+		t.Fatal("no --latency-sweep-interval flag")
+	}
+	if f.DefValue != "2s" {
+		t.Fatalf("default = %s, want 2s", f.DefValue)
+	}
+	if err := checkLatencySweepInterval(2 * time.Second); err != nil {
+		t.Fatalf("the default is refused: %v", err)
+	}
+	if err := checkLatencySweepInterval(500 * time.Millisecond); err != nil {
+		t.Fatalf("the minimum is refused: %v", err)
+	}
+	for _, d := range []time.Duration{100 * time.Millisecond, 0, -time.Second} {
+		err := checkLatencySweepInterval(d)
+		if err == nil || !strings.Contains(err.Error(), "at least 500ms") {
+			t.Fatalf("%v: err = %v, want a refusal naming the minimum (500ms)", d, err)
+		}
 	}
 }

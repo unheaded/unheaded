@@ -20,7 +20,7 @@ pub struct LatencyTraceKey {
     pub tid: u32,
 }
 
-/// Value for LATENCY_MAP — aggregated RTT statistics per flow.
+/// Value for LATENCY_MAP — aggregated RTT statistics for one thread under one trace id.
 ///
 /// Updated atomically on each RTT sample. The reader computes
 /// average as (running sum from rtt_ns * samples) / samples.
@@ -45,6 +45,19 @@ pub const LATENCY_ENTRY_SIZE: usize = 40;
 
 /// Maximum number of entries in the LATENCY_MAP.
 pub const MAX_LATENCY_MAP_ENTRIES: u32 = 65536;
+
+/// Stats key: a LATENCY_MAP insert the kernel took.
+pub const STAT_MAP_UPDATES: u32 = 8;
+
+/// Stats key: a LATENCY_MAP insert the kernel refused. It must stay
+/// STAT_MAP_UPDATES + 1: main.rs computes the key as `STAT_MAP_UPDATES +
+/// failed` instead of branching.
+#[allow(dead_code)]
+pub const STAT_MAP_INSERT_FAILED: u32 = 9;
+
+/// Number of slots in LATENCY_STATS. Every stats key is below this.
+#[allow(dead_code)]
+pub const LATENCY_STATS_ENTRIES: u32 = 16;
 
 #[cfg(test)]
 mod tests {
@@ -74,6 +87,16 @@ mod tests {
         assert_eq!(key.trace_id, [0u8; 16]);
         assert_eq!(key.pid, 0);
         assert_eq!(key.tid, 0);
+    }
+
+    #[test]
+    fn test_insert_failed_stat_is_next_free_key() {
+        // Keys 0-8 are taken by main.rs (send/recv/connect enter and exit,
+        // events sent and dropped, map updates). 9 is the next free one.
+        assert_eq!(STAT_MAP_INSERT_FAILED, 9);
+        assert_eq!(STAT_MAP_INSERT_FAILED, STAT_MAP_UPDATES + 1);
+        assert!(STAT_MAP_INSERT_FAILED < LATENCY_STATS_ENTRIES);
+        assert_eq!(LATENCY_STATS_ENTRIES, 16);
     }
 
     #[test]
