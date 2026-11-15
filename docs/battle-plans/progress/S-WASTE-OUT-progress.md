@@ -59,6 +59,14 @@ Before readings of 2026-11-15T21:41Z (VictoriaMetrics on `127.0.0.1:8428`, cgrou
 | W-30 | Erda F2; Archimedes F3; decision 5 | Postgres 256 MiB: limit hit 52,740 times, cache hit 0.683 | Phase 22 (D8) | this plan; D8 Stevie | Step 313, after the E-GATE (21:41Z: memory `max` 81,873; well-ops cache hit 0.610) | pending | |
 | W-31 | Erda F16; decision 24 | `unheaded-well-data`, three `_0` tables, three empty volumes, `kanban.db` | Phases 19, 22 | this plan | Step 314, after the E-GATE | pending | |
 
+### Independent review 2026-11-15
+
+Nine defects an independent review found on the finished branch (head `ccfdf674`), each verified before it was fixed. "Before" and "after" are test or command readings on the branch; nothing live was read or changed.
+
+| id | seat and row | evidence | fix | owner | before | after | status |
+|---|---|---|---|---|---|---|---|
+| REV-1 | independent review 2026-11-15, High 1 | `pkg/critalert` `snapshot()` only removed fingerprints; alert-mailer's firing set was memory only, so after its restart the first snapshot was `[]` and every tracker cleared while the alert still fired; a late-starting service never learned of one | the snapshot carries each alert (`fingerprint, alertname, severity, host, starts_at`) and replaces the tracker's set (still a signed publish); alert-mailer reads `/api/v2/alerts` (`active`, not silenced or inhibited, `severity="critical"`, routed to `page`/`ticket`, `endsAt` not past; `ALERTMANAGER_URL`, default `http://alertmanager:9093`) at start and before every snapshot, publishes no snapshot until one read succeeds (`alert_mailer_critical_rebuild_errors_total`), and a notification that lands during the read wins | this plan | `TestSnapshotAddsWhatItNames` (late joiner: `Active() = []`), `TestSnapshotDropsWhatItOmits`, `TestSnapshotOverMaxRefused`, `TestBadPayloadCounted/bare_snapshot` (cleared the set) FAIL; alert-mailer tests did not build (`p.am` undefined) | `pkg/critalert` and `cmd/alert-mailer` ok under `-race`: `TestRestartRebuildsFromAlertmanager` (restart → first snapshot holds a fresh subscriber), `TestNoSnapshotUntilRebuilt`, `TestResolveDuringRebuildStays`, `TestAlertmanagerURL` | fixed |
+
 ## Log
 
 - 2026-11-15T21:40Z Step 2: worktree `/home/govan/tmp/wt/S-WASTE-OUT`, branch `sprint/s-waste-out` off develop `8d35785d`; scratch `/home/govan/tmp/wt/S-WASTE-OUT-scratch`.

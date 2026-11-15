@@ -10,7 +10,10 @@
 //
 // A message is metadata only: {"fingerprint","alertname","severity",
 // "status":"firing|resolved","host","starts_at"}, or every 5 min
-// {"snapshot":[fingerprints]}. Anything else is refused and counted. When
+// {"snapshot":[{"fingerprint","alertname","severity","host","starts_at"}]}:
+// the whole firing set, which replaces the Tracker's (so a service that
+// starts or restarts while an alert fires learns of it from the next
+// snapshot). Anything else is refused and counted. When
 // the publisher has been silent for SilentAfter the state is Unknown,
 // which allows change, with one warn line.
 package critalert
@@ -151,13 +154,23 @@ func (t *Tracker) watch(ctx context.Context) {
 
 // message is the wire shape; unknown fields are refused.
 type message struct {
+	Fingerprint string       `json:"fingerprint"`
+	AlertName   string       `json:"alertname"`
+	Severity    string       `json:"severity"`
+	Status      string       `json:"status"`
+	Host        string       `json:"host"`
+	StartsAt    time.Time    `json:"starts_at"`
+	Snapshot    *[]snapEntry `json:"snapshot"`
+}
+
+// snapEntry is one firing alert inside a snapshot; unknown fields are
+// refused.
+type snapEntry struct {
 	Fingerprint string    `json:"fingerprint"`
 	AlertName   string    `json:"alertname"`
 	Severity    string    `json:"severity"`
-	Status      string    `json:"status"`
 	Host        string    `json:"host"`
 	StartsAt    time.Time `json:"starts_at"`
-	Snapshot    *[]string `json:"snapshot"`
 }
 
 // Handle applies one alerts.critical message. A message it refuses is
@@ -184,29 +197,51 @@ func (t *Tracker) Handle(m *wotanClient.Message) {
 	t.alert(in)
 }
 
+// snapshot replaces the active set with the snapshot's: what it omits is
+// resolved, what it names fires. A snapshot with one bad entry changes
+// nothing.
 func (t *Tracker) snapshot(in message) {
 	if in.Fingerprint != "" || in.AlertName != "" || in.Severity != "" || in.Status != "" || in.Host != "" || !in.StartsAt.IsZero() || len(*in.Snapshot) > MaxActive {
 		refused.WithLabelValues("field").Inc()
 		return
 	}
-	keep := make(map[string]bool, len(*in.Snapshot))
-	for _, fp := range *in.Snapshot {
-		if fp == "" || len(fp) > MaxField {
+	next := make(map[string]Alert, len(*in.Snapshot))
+	for _, e := range *in.Snapshot {
+		if !fieldsOK(e.Fingerprint, e.AlertName, e.Severity, e.Host) {
 			refused.WithLabelValues("field").Inc()
 			return
 		}
-		keep[fp] = true
+		next[e.Fingerprint] = Alert{Fingerprint: e.Fingerprint, Name: e.AlertName, Severity: e.Severity, Status: "firing", Host: e.Host, StartsAt: e.StartsAt}
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.last = t.now()
 	for fp, a := range t.active {
-		if !keep[fp] {
+		if _, ok := next[fp]; !ok {
 			delete(t.active, fp)
 			t.logf("[critalert] critical alert %s (%s on %s) is no longer in the snapshot; %d firing", a.Name, fp, a.Host, len(t.active))
 		}
 	}
+	for fp, a := range next {
+		if _, ok := t.active[fp]; !ok {
+			t.active[fp] = a
+			t.logf("[critalert] critical alert firing (from the snapshot): %s on %s (%s); %d firing", a.Name, a.Host, fp, len(t.active))
+		}
+	}
 	t.update()
+}
+
+// fieldsOK: a fingerprint is present and every field is inside MaxField.
+func fieldsOK(fp string, rest ...string) bool {
+	if fp == "" || len(fp) > MaxField {
+		return false
+	}
+	for _, f := range rest {
+		if len(f) > MaxField {
+			return false
+		}
+	}
+	return true
 }
 
 func (t *Tracker) alert(in message) {
@@ -214,13 +249,7 @@ func (t *Tracker) alert(in message) {
 		refused.WithLabelValues("status").Inc()
 		return
 	}
-	for _, f := range []string{in.Fingerprint, in.AlertName, in.Severity, in.Host} {
-		if len(f) > MaxField {
-			refused.WithLabelValues("field").Inc()
-			return
-		}
-	}
-	if in.Fingerprint == "" {
+	if !fieldsOK(in.Fingerprint, in.AlertName, in.Severity, in.Host) {
 		refused.WithLabelValues("field").Inc()
 		return
 	}

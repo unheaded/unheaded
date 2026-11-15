@@ -7,6 +7,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 	"sync"
@@ -26,6 +29,13 @@ import (
 // and a snapshot of what fires every snapshotEvery, signed (ML-DSA-65) or
 // not at all. Every service on the bus attaches pkg/critalert. The message
 // is metadata only: no annotation text, no label outside the six fields.
+//
+// The snapshot is the whole firing set and replaces each subscriber's. The
+// set lives in memory, so at start (and before every snapshot) it is read
+// back from Alertmanager's /api/v2/alerts, filtered as the webhooks are:
+// critical, active (not silenced or inhibited), routed to page or ticket.
+// Until one read succeeds no snapshot goes out: an empty one after a
+// restart would clear every hold while the alert still fires.
 
 // snapshotEvery is how often the active set is republished; subscribers
 // call a publisher silent for critalert.SilentAfter unknown.
@@ -49,25 +59,45 @@ type critMsg struct {
 	StartsAt    time.Time `json:"starts_at"`
 }
 
+// snapMsg is one alert inside a snapshot (critalert's snapshot entry).
+type snapMsg struct {
+	Fingerprint string    `json:"fingerprint"`
+	AlertName   string    `json:"alertname"`
+	Severity    string    `json:"severity"`
+	Host        string    `json:"host"`
+	StartsAt    time.Time `json:"starts_at"`
+}
+
+// alertSource reads the critical alerts firing now.
+type alertSource interface {
+	fetch(ctx context.Context) ([]critMsg, error)
+}
+
 // critPublisher keeps the critical alerts firing and publishes changes.
 type critPublisher struct {
-	sink    critSink // nil: no signing key, every publish refused and counted
-	refused *metrics.Counter
-	errors  *metrics.Counter
+	sink          critSink    // nil: no signing key, every publish refused and counted
+	am            alertSource // nil: the memory set is trusted as is (tests)
+	refused       *metrics.Counter
+	errors        *metrics.Counter
+	rebuildErrors *metrics.Counter
 
-	mu     sync.Mutex
-	active map[string]bool // fingerprints firing
+	mu      sync.Mutex
+	active  map[string]critMsg // firing, by fingerprint
+	rebuilt bool               // the set has been read from Alertmanager once
+	touched map[string]string  // while a read is in flight: fingerprint → status seen since
 }
 
 func newCritPublisher(sink critSink, reg *metrics.Registry) *critPublisher {
 	p := &critPublisher{
-		sink:    sink,
-		refused: metrics.NewCounter("alert_mailer_critical_publish_refused_total", "alerts.critical messages not sent because no signing key is set (ALERTS_SIGNING_KEY_FILE)", nil),
-		errors:  metrics.NewCounter("alert_mailer_critical_publish_errors_total", "alerts.critical publishes that failed (Wotan down or refused)", nil),
-		active:  map[string]bool{},
+		sink:          sink,
+		refused:       metrics.NewCounter("alert_mailer_critical_publish_refused_total", "alerts.critical messages not sent because no signing key is set (ALERTS_SIGNING_KEY_FILE)", nil),
+		errors:        metrics.NewCounter("alert_mailer_critical_publish_errors_total", "alerts.critical publishes that failed (Wotan down or refused)", nil),
+		rebuildErrors: metrics.NewCounter("alert_mailer_critical_rebuild_errors_total", "Reads of Alertmanager's firing alerts that failed; no snapshot goes out until one succeeds", nil),
+		active:        map[string]critMsg{},
 	}
 	reg.MustRegister(p.refused)
 	reg.MustRegister(p.errors)
+	reg.MustRegister(p.rebuildErrors)
 	return p
 }
 
@@ -93,22 +123,25 @@ func (p *critPublisher) Observe(w Webhook) {
 		if a.Status == "resolved" {
 			status = "resolved"
 		}
-		fp := trim(a.Fingerprint)
-		p.mu.Lock()
-		if status == "firing" {
-			p.active[fp] = true
-		} else {
-			delete(p.active, fp)
-		}
-		p.mu.Unlock()
-		payload, err := json.Marshal(critMsg{
-			Fingerprint: fp,
+		m := critMsg{
+			Fingerprint: trim(a.Fingerprint),
 			AlertName:   trim(a.Labels["alertname"]),
 			Severity:    "critical",
 			Status:      status,
 			Host:        trim(a.Labels["host"]),
 			StartsAt:    a.StartsAt,
-		})
+		}
+		p.mu.Lock()
+		if status == "firing" {
+			p.active[m.Fingerprint] = m
+		} else {
+			delete(p.active, m.Fingerprint)
+		}
+		if p.touched != nil {
+			p.touched[m.Fingerprint] = status
+		}
+		p.mu.Unlock()
+		payload, err := json.Marshal(m)
 		if err != nil {
 			p.errors.Inc()
 			continue
@@ -117,20 +150,72 @@ func (p *critPublisher) Observe(w Webhook) {
 	}
 }
 
-// Snapshot publishes the fingerprints firing now, sorted; an empty list
-// too, so subscribers stay out of unknown.
+// rebuild reads the firing set from Alertmanager and replaces the memory
+// set with it; a notification that arrived during the read wins. A failed
+// read is counted and leaves the set as it was.
+func (p *critPublisher) rebuild(ctx context.Context) {
+	if p.am == nil {
+		p.mu.Lock()
+		p.rebuilt = true
+		p.mu.Unlock()
+		return
+	}
+	p.mu.Lock()
+	p.touched = map[string]string{}
+	p.mu.Unlock()
+	got, err := p.am.fetch(ctx)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	touched := p.touched
+	p.touched = nil
+	if err != nil {
+		p.rebuildErrors.Inc()
+		log.Warn().Err(err).Bool("rebuilt_before", p.rebuilt).Msg("alerts.critical: Alertmanager's firing alerts not read")
+		return
+	}
+	next := make(map[string]critMsg, len(got))
+	for _, m := range got {
+		next[m.Fingerprint] = m
+	}
+	for fp, status := range touched {
+		if status == "resolved" {
+			delete(next, fp)
+		} else if m, ok := p.active[fp]; ok {
+			next[fp] = m
+		}
+	}
+	if !p.rebuilt {
+		log.Info().Int("firing", len(next)).Msg("alerts.critical: firing set read from Alertmanager")
+	}
+	p.active = next
+	p.rebuilt = true
+}
+
+// Snapshot re-reads the firing set from Alertmanager, then publishes it
+// whole, sorted by fingerprint; an empty list too, so subscribers stay out
+// of unknown. Until the set has been read once nothing is published.
 func (p *critPublisher) Snapshot() {
 	if p == nil {
 		return
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), amTimeout)
+	p.rebuild(ctx)
+	cancel()
 	p.mu.Lock()
-	fps := make([]string, 0, len(p.active))
-	for fp := range p.active {
-		fps = append(fps, fp)
+	if !p.rebuilt {
+		p.mu.Unlock()
+		return
+	}
+	list := make([]snapMsg, 0, len(p.active))
+	for _, m := range p.active {
+		list = append(list, snapMsg{Fingerprint: m.Fingerprint, AlertName: m.AlertName, Severity: m.Severity, Host: m.Host, StartsAt: m.StartsAt})
 	}
 	p.mu.Unlock()
-	sort.Strings(fps)
-	payload, err := json.Marshal(map[string][]string{"snapshot": fps})
+	sort.Slice(list, func(i, j int) bool { return list[i].Fingerprint < list[j].Fingerprint })
+	if len(list) > critalert.MaxActive {
+		list = list[:critalert.MaxActive]
+	}
+	payload, err := json.Marshal(map[string][]snapMsg{"snapshot": list})
 	if err != nil {
 		p.errors.Inc()
 		return
@@ -151,8 +236,10 @@ func (p *critPublisher) send(payload []byte) {
 	}
 }
 
-// run publishes a snapshot on every tick until ctx ends.
+// run publishes a snapshot at once (after reading the set back from
+// Alertmanager) and on every tick until ctx ends.
 func (p *critPublisher) run(ctx context.Context, tick <-chan time.Time) {
+	p.Snapshot()
 	for {
 		select {
 		case <-ctx.Done():
@@ -185,6 +272,102 @@ func (w *wotanCritSink) Publish(ctx context.Context, payload []byte) error {
 	return w.c.PublishWithSigner(ctx, critalert.Topic, payload, w.signer)
 }
 
+// amTimeout bounds one read of Alertmanager's alerts.
+const amTimeout = 10 * time.Second
+
+// amMaxBody bounds Alertmanager's answer.
+const amMaxBody = 4 << 20
+
+// alertmanagerSource reads /api/v2/alerts.
+type alertmanagerSource struct {
+	base   string // http(s)://host:port
+	client *http.Client
+}
+
+// amAlert is the part of Alertmanager's gettableAlert read here.
+type amAlert struct {
+	Fingerprint string            `json:"fingerprint"`
+	Labels      map[string]string `json:"labels"`
+	StartsAt    time.Time         `json:"startsAt"`
+	EndsAt      time.Time         `json:"endsAt"`
+	Receivers   []struct {
+		Name string `json:"name"`
+	} `json:"receivers"`
+	Status struct {
+		State string `json:"state"`
+	} `json:"status"`
+}
+
+// mailerReceivers are the routes that reach alert-mailer's webhooks
+// (monitoring/alertmanager/alertmanager.yml): what it is told of, it
+// publishes.
+var mailerReceivers = map[string]bool{"page": true, "ticket": true}
+
+func (s *alertmanagerSource) fetch(ctx context.Context) ([]critMsg, error) {
+	q := url.Values{}
+	q.Set("active", "true")
+	q.Set("silenced", "false")
+	q.Set("inhibited", "false")
+	q.Set("unprocessed", "false")
+	q.Add("filter", `severity="critical"`)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(s.base, "/")+"/api/v2/alerts?"+q.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("alertmanager answered %d", resp.StatusCode)
+	}
+	var in []amAlert
+	if err := json.NewDecoder(io.LimitReader(resp.Body, amMaxBody)).Decode(&in); err != nil {
+		return nil, fmt.Errorf("alertmanager answer: %w", err)
+	}
+	now := time.Now()
+	out := make([]critMsg, 0, len(in))
+	for _, a := range in {
+		if a.Labels["severity"] != "critical" || a.Fingerprint == "" || a.Status.State != "active" {
+			continue
+		}
+		if !a.EndsAt.IsZero() && a.EndsAt.Before(now) {
+			continue
+		}
+		routed := false
+		for _, r := range a.Receivers {
+			routed = routed || mailerReceivers[r.Name]
+		}
+		if !routed {
+			continue
+		}
+		out = append(out, critMsg{
+			Fingerprint: trim(a.Fingerprint),
+			AlertName:   trim(a.Labels["alertname"]),
+			Severity:    "critical",
+			Status:      "firing",
+			Host:        trim(a.Labels["host"]),
+			StartsAt:    a.StartsAt,
+		})
+	}
+	return out, nil
+}
+
+// alertmanagerFromEnv: ALERTMANAGER_URL, default http://alertmanager:9093
+// (the monitoring stack's service name); http or https with a host only.
+func alertmanagerFromEnv(getenv func(string) string) (*alertmanagerSource, error) {
+	raw := strings.TrimSpace(getenv("ALERTMANAGER_URL"))
+	if raw == "" {
+		raw = "http://alertmanager:9093"
+	}
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" || u.User != nil {
+		return nil, fmt.Errorf("ALERTMANAGER_URL %q: want http(s)://host:port", raw)
+	}
+	return &alertmanagerSource{base: u.Scheme + "://" + u.Host + strings.TrimRight(u.Path, "/"), client: &http.Client{Timeout: amTimeout}}, nil
+}
+
 // critFromEnv builds the publisher: nil without WOTAN_ADDR (no client, no
 // counting). WOTAN_GRPC_ADDR defaults to the WOTAN_ADDR host on 18001. A
 // missing ALERTS_SIGNING_KEY_FILE leaves the sink nil (refused, counted);
@@ -203,14 +386,24 @@ func critFromEnv(getenv func(string) string, reg *metrics.Registry) (*critPublis
 	if err != nil {
 		return nil, fmt.Errorf("wotan client: %w", err)
 	}
+	am, err := alertmanagerFromEnv(getenv)
+	if err != nil {
+		return nil, err
+	}
 	keyPath := strings.TrimSpace(getenv("ALERTS_SIGNING_KEY_FILE"))
 	if keyPath == "" {
 		log.Warn().Msg("ALERTS_SIGNING_KEY_FILE is not set: alerts.critical is refused, never sent unsigned")
-		return newCritPublisher(nil, reg), nil
+		p := newCritPublisher(nil, reg)
+		p.am = am
+		return p, nil
 	}
 	signer, err := wotansig.LoadSignerFile(keyPath)
 	if err != nil {
-		return newCritPublisher(nil, reg), fmt.Errorf("ALERTS_SIGNING_KEY_FILE: %w", err)
+		p := newCritPublisher(nil, reg)
+		p.am = am
+		return p, fmt.Errorf("ALERTS_SIGNING_KEY_FILE: %w", err)
 	}
-	return newCritPublisher(&wotanCritSink{c: c, signer: signer}, reg), nil
+	p := newCritPublisher(&wotanCritSink{c: c, signer: signer}, reg)
+	p.am = am
+	return p, nil
 }

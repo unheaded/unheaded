@@ -119,11 +119,24 @@ func TestFiringThenResolved(t *testing.T) {
 	}
 }
 
+// snapItem is one alert inside a snapshot.
+func snapItem(fp string) string {
+	return `{"fingerprint":"` + fp + `","alertname":"WotanDown","severity":"critical","host":"west","starts_at":"2026-11-15T11:59:00Z"}`
+}
+
+func snapJSON(fps ...string) string {
+	parts := make([]string, 0, len(fps))
+	for _, fp := range fps {
+		parts = append(parts, snapItem(fp))
+	}
+	return `{"snapshot":[` + strings.Join(parts, ",") + `]}`
+}
+
 func TestSnapshotDropsWhatItOmits(t *testing.T) {
 	tr, _, _ := newTestTracker(t)
 	tr.Handle(msg(alertJSON("fp1", "firing")))
 	tr.Handle(msg(alertJSON("fp2", "firing")))
-	tr.Handle(msg(`{"snapshot":["fp2"]}`))
+	tr.Handle(msg(snapJSON("fp2")))
 	got := tr.Active()
 	if len(got) != 1 || got[0].Fingerprint != "fp2" {
 		t.Fatalf("Active() after a snapshot naming fp2 = %+v", got)
@@ -131,6 +144,44 @@ func TestSnapshotDropsWhatItOmits(t *testing.T) {
 	tr.Handle(msg(`{"snapshot":[]}`))
 	if len(tr.Active()) != 0 || tr.State() != OK {
 		t.Fatalf("an empty snapshot left %+v (%v)", tr.Active(), tr.State())
+	}
+}
+
+// REV-1: a consumer that starts (or restarts) while an alert fires learns
+// of it from the next snapshot; the snapshot is the whole set.
+func TestSnapshotAddsWhatItNames(t *testing.T) {
+	tr, _, _ := newTestTracker(t)
+	tr.Handle(msg(snapJSON("fp1", "fp2")))
+	got := tr.Active()
+	if len(got) != 2 || got[0].Fingerprint != "fp1" || got[0].Name != "WotanDown" || got[0].Host != "west" || got[1].Fingerprint != "fp2" {
+		t.Fatalf("a late joiner's Active() after a snapshot = %+v, want fp1 and fp2", got)
+	}
+	if held, why := tr.Hold(); !held || !strings.Contains(why, "WotanDown") {
+		t.Fatalf("Hold() = %v %q after a snapshot naming two alerts", held, why)
+	}
+	// The next snapshot replaces the set: fp2 goes, fp3 comes.
+	tr.Handle(msg(snapJSON("fp1", "fp3")))
+	got = tr.Active()
+	if len(got) != 2 || got[0].Fingerprint != "fp1" || got[1].Fingerprint != "fp3" {
+		t.Fatalf("Active() after a replacing snapshot = %+v, want fp1 and fp3", got)
+	}
+}
+
+func TestSnapshotOverMaxRefused(t *testing.T) {
+	tr, _, _ := newTestTracker(t)
+	tr.Handle(msg(alertJSON("keep", "firing")))
+	fps := make([]string, MaxActive+1)
+	for i := range fps {
+		fps[i] = "fp" + strconv.Itoa(i)
+	}
+	before, _ := seriesValue(t, refused, "unheaded_critical_alerts_refused_total", `reason="field"`)
+	tr.Handle(msg(snapJSON(fps...)))
+	after, _ := seriesValue(t, refused, "unheaded_critical_alerts_refused_total", `reason="field"`)
+	if after-before != 1 {
+		t.Errorf(`refused{reason="field"} rose %v, want 1`, after-before)
+	}
+	if got := tr.Active(); len(got) != 1 || got[0].Fingerprint != "keep" {
+		t.Errorf("a refused snapshot changed the set: %+v", got)
 	}
 }
 
@@ -154,7 +205,7 @@ func TestSilentPublisherIsUnknown(t *testing.T) {
 		t.Errorf("going unknown logged %d lines, want 1", n)
 	}
 	// A snapshot brings it back.
-	tr.Handle(msg(`{"snapshot":["fp1"]}`))
+	tr.Handle(msg(snapJSON("fp1")))
 	if s := tr.State(); s != Firing {
 		t.Errorf("State() after a snapshot = %v, want firing", s)
 	}
@@ -184,8 +235,11 @@ func TestBadPayloadCounted(t *testing.T) {
 		"no fingerprint": {`{"fingerprint":"","alertname":"A","severity":"critical","status":"firing","host":"west","starts_at":"2026-11-15T11:59:00Z"}`,
 			"field"},
 		"long field":     {alertJSON(long, "firing"), "field"},
-		"long snapshot":  {`{"snapshot":["` + long + `"]}`, "field"},
+		"long snapshot":  {snapJSON(long), "field"},
 		"mixed snapshot": {`{"snapshot":[],"fingerprint":"fp"}`, "field"},
+		"bare snapshot":  {`{"snapshot":["fp1"]}`, "decode"},
+		"snapshot field": {`{"snapshot":[{"fingerprint":"fp1","alertname":"A","severity":"critical","host":"west","starts_at":"2026-11-15T11:59:00Z","summary":"x"}]}`, "decode"},
+		"empty entry":    {`{"snapshot":[{"fingerprint":"","alertname":"A","severity":"critical","host":"west","starts_at":"2026-11-15T11:59:00Z"}]}`, "field"},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {

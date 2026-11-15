@@ -7,12 +7,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/metrics"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // fakeSink records signed publishes on alerts.critical.
@@ -116,8 +122,11 @@ func TestSnapshotEvery5m(t *testing.T) {
 	if sent[0] != `{"snapshot":[]}` {
 		t.Errorf("empty snapshot = %s", sent[0])
 	}
-	if last := sent[len(sent)-1]; last != `{"snapshot":["fp1","fp2"]}` {
-		t.Errorf("snapshot = %s", last)
+	// REV-1: the snapshot carries each alert, not only its fingerprint, so
+	// a subscriber that missed the firing message can hold on it.
+	const one = `{"fingerprint":"%s","alertname":"WotanDown","severity":"critical","host":"west","starts_at":"2026-11-15T12:00:00Z"}`
+	if last, want := sent[len(sent)-1], `{"snapshot":[`+fmt.Sprintf(one, "fp1")+`,`+fmt.Sprintf(one, "fp2")+`]}`; last != want {
+		t.Errorf("snapshot = %s\nwant       %s", last, want)
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	tick := make(chan time.Time)
@@ -126,8 +135,8 @@ func TestSnapshotEvery5m(t *testing.T) {
 	tick <- time.Now()
 	cancel()
 	<-done
-	if n := len(sink.all()); n != len(sent)+1 {
-		t.Errorf("a tick published %d snapshots, want 1", n-len(sent))
+	if n := len(sink.all()); n != len(sent)+2 {
+		t.Errorf("run's start and one tick published %d snapshots, want 2", n-len(sent))
 	}
 	if snapshotEvery != 5*time.Minute {
 		t.Errorf("snapshotEvery = %v", snapshotEvery)
@@ -152,4 +161,136 @@ func TestWotanOffIsQuiet(t *testing.T) {
 	var none *critPublisher
 	none.Observe(critHook("firing", "critical", "fp1")) // nil-safe
 	none.Snapshot()
+}
+
+// amAlerts is what a fake Alertmanager answers on /api/v2/alerts: fp1 is a
+// critical alert routed to page, active; the rest must be left out.
+const amAlerts = `[
+ {"fingerprint":"fp1","labels":{"alertname":"WotanDown","severity":"critical","host":"west"},"startsAt":"2026-11-15T12:00:00Z","endsAt":"2999-01-01T00:00:00Z","receivers":[{"name":"page"}],"status":{"state":"active","silencedBy":[],"inhibitedBy":[]}},
+ {"fingerprint":"warn","labels":{"alertname":"Slow","severity":"warning","host":"west"},"startsAt":"2026-11-15T12:00:00Z","receivers":[{"name":"ticket"}],"status":{"state":"active"}},
+ {"fingerprint":"silenced","labels":{"alertname":"Muted","severity":"critical","host":"west"},"startsAt":"2026-11-15T12:00:00Z","receivers":[{"name":"page"}],"status":{"state":"suppressed","silencedBy":["s1"]}},
+ {"fingerprint":"none","labels":{"alertname":"Unrouted","severity":"critical","host":"west"},"startsAt":"2026-11-15T12:00:00Z","receivers":[{"name":"none"}],"status":{"state":"active"}},
+ {"fingerprint":"ended","labels":{"alertname":"Old","severity":"critical","host":"west"},"startsAt":"2026-11-15T10:00:00Z","endsAt":"2026-11-15T11:00:00Z","receivers":[{"name":"ticket"}],"status":{"state":"active"}}
+]`
+
+func fakeAlertmanager(t *testing.T, body string, status int) (*httptest.Server, *[]string) {
+	t.Helper()
+	var mu sync.Mutex
+	var queries []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		queries = append(queries, r.URL.Path+"?"+r.URL.RawQuery)
+		mu.Unlock()
+		if r.URL.Path != "/api/v2/alerts" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(status)
+		_, _ = w.Write([]byte(body))
+	}))
+	t.Cleanup(srv.Close)
+	return srv, &queries
+}
+
+// REV-1: after a restart the publisher's set is empty; it rebuilds it from
+// Alertmanager before its first snapshot, so a subscriber's tracker keeps
+// holding. The snapshot it publishes feeds a real critalert tracker.
+func TestRestartRebuildsFromAlertmanager(t *testing.T) {
+	am, queries := fakeAlertmanager(t, amAlerts, http.StatusOK)
+	sink := &fakeSink{}
+	p := newCritPublisher(sink, metrics.NewRegistry())
+	p.am = &alertmanagerSource{base: am.URL, client: am.Client()}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	tick := make(chan time.Time)
+	done := make(chan struct{})
+	go func() { p.run(ctx, tick); close(done) }()
+	deadline := time.Now().Add(2 * time.Second)
+	for len(sink.all()) == 0 {
+		if time.Now().After(deadline) {
+			t.Fatal("no snapshot published after the start rebuild")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	cancel()
+	<-done
+
+	sent := sink.all()
+	if len(sent) != 1 || !strings.Contains(sent[0], `"fingerprint":"fp1"`) {
+		t.Fatalf("first snapshot = %v, want fp1 only", sent)
+	}
+	for _, out := range []string{"warn", "silenced", "none", "ended"} {
+		if strings.Contains(sent[0], `"`+out+`"`) {
+			t.Errorf("snapshot carries %q: %s", out, sent[0])
+		}
+	}
+	if len(*queries) == 0 || !strings.Contains((*queries)[0], "active=true") {
+		t.Errorf("Alertmanager queries %v", *queries)
+	}
+
+	// A subscriber that started after the alert fired (or whose tracker
+	// was cleared by the restart) holds on the snapshot alone.
+	tr := critalert.Attach(context.Background(), nil, "sword")
+	tr.Handle(&wotanClient.Message{Topic: critalert.Topic, Payload: sent[0]})
+	if held, why := tr.Hold(); !held || !strings.Contains(why, "WotanDown") {
+		t.Fatalf("subscriber after the restart: Hold() = %v %q, want held on WotanDown", held, why)
+	}
+}
+
+// REV-1: an Alertmanager that does not answer at start withholds the
+// snapshot (subscribers go unknown after 15 min), never an empty one that
+// would clear every tracker.
+func TestNoSnapshotUntilRebuilt(t *testing.T) {
+	am, _ := fakeAlertmanager(t, `oops`, http.StatusServiceUnavailable)
+	sink := &fakeSink{}
+	p := newCritPublisher(sink, metrics.NewRegistry())
+	p.am = &alertmanagerSource{base: am.URL, client: am.Client()}
+	p.Snapshot()
+	if n := len(sink.all()); n != 0 {
+		t.Fatalf("published %d snapshots before the set was rebuilt", n)
+	}
+	if v := p.rebuildErrors.Value(); v != 1 {
+		t.Errorf("alert_mailer_critical_rebuild_errors_total = %v, want 1", v)
+	}
+	// A firing notification still goes out on its own.
+	p.Observe(critHook("firing", "critical", "fp9"))
+	if n := len(sink.all()); n != 1 {
+		t.Fatalf("published %d, want the one firing message", n)
+	}
+}
+
+// A resolve that arrives while the rebuild is in flight is not undone by
+// it.
+func TestResolveDuringRebuildStays(t *testing.T) {
+	sink := &fakeSink{}
+	p := newCritPublisher(sink, metrics.NewRegistry())
+	p.am = fetchFunc(func(context.Context) ([]critMsg, error) {
+		p.Observe(critHook("resolved", "critical", "fp1"))
+		return []critMsg{{Fingerprint: "fp1", AlertName: "WotanDown", Severity: "critical", Host: "west"}}, nil
+	})
+	p.Snapshot()
+	sent := sink.all()
+	if last := sent[len(sent)-1]; last != `{"snapshot":[]}` {
+		t.Fatalf("snapshot after a resolve during the rebuild = %s, want empty", last)
+	}
+}
+
+type fetchFunc func(context.Context) ([]critMsg, error)
+
+func (f fetchFunc) fetch(ctx context.Context) ([]critMsg, error) { return f(ctx) }
+
+func TestAlertmanagerURL(t *testing.T) {
+	for raw, ok := range map[string]bool{
+		"":                          true,
+		"http://alertmanager:9093":  true,
+		"https://am.example:9093/":  true,
+		"ftp://alertmanager:9093":   false,
+		"http://u:p@alertmanager:1": false,
+		"alertmanager:9093":         false,
+	} {
+		_, err := alertmanagerFromEnv(func(string) string { return raw })
+		if (err == nil) != ok {
+			t.Errorf("ALERTMANAGER_URL %q: err %v, want ok=%v", raw, err, ok)
+		}
+	}
 }
