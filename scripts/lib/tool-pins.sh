@@ -12,17 +12,17 @@
 # cross-checked against the release notes), never from a mirror.
 # shellcheck disable=SC2034  # read by the scripts that source this
 
-OXLINT_VERSION="1.90.0"
-OXLINT_SHA256="70c5c44f0738b5d6a8716058e82aceff40524b476a6f533f9a94887352cb8f30" # oxlint-x86_64-unknown-linux-musl.tar.gz
+OXLINT_VERSION="1.92.0"
+OXLINT_SHA256="34c028fa6071f10520cc5420bc8d22298328826dbb0e5cbbb982bdd0aa09b686" # oxlint-x86_64-unknown-linux-musl.tar.gz
 
 GITLEAKS_VERSION="8.30.1"
 GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb" # gitleaks_<v>_linux_x64.tar.gz
 
-SYFT_VERSION="1.56.0"
-SYFT_SHA256="1c2493cfcf52d3367d6cb25780d9190c111c2219c34c820574c43e8bae15c528" # syft_<v>_linux_amd64.tar.gz
+SYFT_VERSION="1.57.0"
+SYFT_SHA256="9c077a7d43029b3b13e98a8db720661e700c4d58db6352153a06395ae4a2a704" # syft_<v>_linux_amd64.tar.gz
 
-GRYPE_VERSION="0.121.1"
-GRYPE_SHA256="bc3ea3f9e6fd56ac781c08c6c5e614271b79f438200757f6932085c19b0a4657" # grype_<v>_linux_amd64.tar.gz
+GRYPE_VERSION="0.121.2"
+GRYPE_SHA256="9c8965ced9df657e5e851c14021bae838802f711edd7a48f9bc3c923a8d28f12" # grype_<v>_linux_amd64.tar.gz
 
 COSIGN_VERSION="3.1.4"
 COSIGN_SHA256="424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa" # cosign-linux-amd64 (bare binary; cosign_checksums.txt)
@@ -42,9 +42,9 @@ HADOLINT_IMAGE_DIGEST="sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3
 # together and re-seed docs/policy/trivy-misconfig-baseline.tsv (--update only
 # drops rows; a new check that fires is a reviewed decision). The Jenkins files
 # install the release tarball through scripts/install-trivy.sh, sha256-checked.
-TRIVY_VERSION="0.76.1"
-TRIVY_SHA256="c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0" # trivy_<v>_Linux-64bit.tar.gz
-TRIVY_IMAGE_DIGEST="sha256:790fd66d1697395d8693d1acaa1ea702406a20f109b6fc7bac8db623eca6c06c" # aquasec/trivy:<v>
+TRIVY_VERSION="0.76.2"
+TRIVY_SHA256="bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf" # trivy_<v>_Linux-64bit.tar.gz
+TRIVY_IMAGE_DIGEST="sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb" # aquasec/trivy:<v>
 TRIVY_CHECKS_BUNDLE="mirror.gcr.io/aquasec/trivy-checks@sha256:b591e9190cff4aa4e385b1a25bccfd9ecf178d3c77fd194e1410b7ce7e1df058" # trivy-checks:2, 2026-10-28
 
 

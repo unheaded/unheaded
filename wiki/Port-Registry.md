@@ -54,7 +54,10 @@ All first-party ports in `docker-compose.yml` publish on `127.0.0.1`. The twelve
 that VictoriaMetrics scrapes also publish on docker0's gateway, `172.17.0.1`,
 because `config/victoria/scrape.yml` reaches them at `host.docker.internal`
 (`UNHEADED_GATEWAY_BIND` if a host's docker0 differs;
-`scripts/check-scrape-publish.sh` holds it). A host that serves peers sets the
+`scripts/check-scrape-publish.sh` holds it). The wiki is a host unit, not a
+compose service: on west its drop-in adds `--listen 172.17.0.1:20002`, and
+`deploy/systemd/unheaded-wiki-server.service.d/west.conf` states that listener
+(`X-Unheaded-Listen=`) so the same script can read it. A host that serves peers sets the
 variables below in `.env`. Unset, they fall to spare loopback addresses, because
 docker will not start a container whose published address is missing.
 

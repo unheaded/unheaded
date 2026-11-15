@@ -188,6 +188,16 @@ sources:
     owner: sentinel
     status: gap
     note: "ADR-138; built 2026-11-09, installed by S-E1-LIVE Step 244a"
+  - id: west/unheaded-wiki-server
+    host: west
+    kind: journal-unit
+    match: unheaded-wiki-server.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: it logs on start, stop and faults (vor not answering, a bad listener); requests are not logged"
+    owner: architect
+    status: gap
+    note: "installed on west 2026-11-11 (cdd04c0d: a host unit over TLS, behind the dashboard's login)"
   - id: west/nginx
     host: west
     kind: journal-unit
@@ -1613,6 +1623,16 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-vor-refresh
+    host: west
+    kind: journal-unit
+    match: unheaded-vor-refresh.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+    note: "S-WIKI-VOR Phase 8 installs it on west (attended); it becomes a west/ entry with status gap then"
   - id: unit/unheaded-well-retention
     host: west
     kind: journal-unit
