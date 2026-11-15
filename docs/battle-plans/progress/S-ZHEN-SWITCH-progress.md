@@ -53,6 +53,7 @@ Stevie's word for this run: "focus only on current churn - no questions for now"
 - Step 8-9: go, docker, python3, curl, ss, systemctl, shellcheck, pytest, PyYAML 6.0.2 present; promtool MISSING (the rule gate runs it in a container, which the evidence week forbids: every `scripts/check-prometheus-rules.sh` run in Phases 2, 4, 6, 7 is pending).
 - Steps 10-17: readings above. Step 15 not taken (sudo; `docker logs` reads Docker's data during the evidence week).
 - Step 18: G-EW closed.
+- Phase 1 (Steps 22-41): ADR-149 written and indexed (both indexes); `modules/zhen/module.yaml` + `tests/scripts/test_module_manifest.py` 4 passed; `pkg/modules` (Dir, Enabled, Fragments, ModuleOf, ValidName) green under `-race`; accounts 16714-16717 in `pkg/uids` (constants, Registry, host-unit map) and sysusers; `deploy/tmpfiles.d/unheaded-modules.conf`. `pkg/uids` tests pass before the units exist (no test asks for a unit file). Gates: gofmt clean, vet clean on the touched packages, gosec ratchet PASS.
 
 ## For Stevie
 
