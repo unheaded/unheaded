@@ -236,3 +236,48 @@ Rung on (`flip UPC_RUNG4 false true`): 883,522, delta -2,007 against 885,529 (th
 
 Run cost after rung 4 (4,000,000 triggers; the boot ends with `sh` waiting for a key): `ls` insn_count 63,260,801 (it was 6,271,580 after rung 3); `echo peace and love` 63,254,989 (5,168,583). The work of the commands did not grow: the prompt did. A read blocked on an empty ring used to rewind the PC and end the tick (one instruction); it now traps into the kernel, finds no line, takes the retry hand-off and runs again on the next tick, so every waiting tick does a full tick's work (up to 16 instructions). 4,000,000 triggers allow 64,000,000. One `ls` boot took 11.4 s on the wall; the eight-boot sweep with the const off ran at about 9.5 s a boot. The same holds for an idle `console` session: the host does about sixteen times the BPF work per tick while the shell waits. A cheap wait is possible and not built: the kernel marks the slot-table word when it retries with nothing buffered, and BPF holds the read in its own arm (PC rewind, tick ends) while that mark is there and the ring is empty. Filed For Stevie.
 
+## Phase 11, rungs 5+6 design (2026-11-15)
+
+State read first: `d980e84b`, tree clean, baseline row 883,522 (ascend) and 758,199 (Doom), consts `UPC_RUNG3`, `UPC_RUNG4`, `UPC_FORK_MARK` on. No build, no boot in this phase's first half.
+
+**Step 207, BPF sites** (`main.rs` at `d980e84b`). The plan's `grep` for `fd_inode_|FD_INODE_MAP|fs_walk|FD_TABLE` counts 58 lines; the accessors are named `fd_kind`, `fd_set_kind`, `fd_alloc`, `fd_inode`, `fd_set_inode`, `fd_set_offset`, `fd_clear_inode` here, so the callers were listed by those names too.
+
+| Where | Lines | What it reads or writes |
+|---|---|---|
+| Map definitions | 374, 383 | `FD_TABLE` (kind per fd, 16 x 8 slots), `FD_INODE_MAP` (`[inum, offset]`) |
+| Accessors | 610-704 | the seven functions above |
+| `write` 16 | 2288-2347 | no table read in the arm; under rung 3 what is left answers -1 (T-F3 interim) |
+| fork finalize | 2523-2531 | copies the parent's 16 kinds into the child's row (16 reads, 16 writes) |
+| `open` 15 | 2862-3084 | console name → `fd_alloc`, `fd_set_kind` (2911-2915); superblock check and re-entrant dirent scan through `fs_walk` (2921-3015); bind → `fd_alloc`, `fd_set_inode` (3062-3066) |
+| `fstat` 8 | 3085-3131 | `fd_kind`, `fd_inode`, dinode through `fs_walk` |
+| `dup` 10 | 3141-3161 | `fd_kind`, `fd_alloc`, `fd_set_kind` (kind only: the inode binding is not copied) |
+| `close` 21 | 3162-3178 | `fd_kind`, `fd_set_kind`, `fd_clear_inode` |
+| `read` 5 | 3179-3325 | inode branch: `fd_inode`, block resolve through `fs_walk`, `fd_set_offset` (3192-3281); console branch is already `!UPC_RUNG4` |
+| routing | 4013, 4019, 4025, 4034-4039 | `>= 16` row; rung 3 asks `fd_kind != FD_INODE`; rung 4 asks `fd_kind == FD_CONSOLE`; `open` by masked flag and by `cwd_off_root()` |
+| trap injection | 4114 | rung 4's keyboard offer tests `a7 == 5 && fd < 16`; no table read |
+| `component_match` | 4392-4427 | `fs_walk` constants for the dirent name compare |
+
+Not sites: `exit` 2 (kernel-routed since D13, no BPF fd work), `exec` 7 (resident-program lookup, no fd), `mknod` 17 (returns 0, touches nothing), the D16 path bound (reads the path's address range, not a table). No host tool opens either map by name (`grep` over `cmd/upc-bootctl` and the crates finds only `monad-common`'s model and its tests).
+
+**Step 208, kernel side.**
+
+| File | Function | What matters for the rung |
+|---|---|---|
+| `usysfile.c` | `fduser` (45), `argfd` (54) | D10's +16 and the `fd < 16` refusal for slot rows |
+| | `fdalloc` (78) | returns the `ofile` index; `sys_pipe` indexes with it |
+| | `sys_dup` (93), `sys_close` (156), `sys_fstat` (169) | stock bodies over `argfd` |
+| | `sys_read` (107) | D20: a slot row's fd below 16 goes straight to `upc_consoleread`, no `ofile` lookup |
+| | `sys_write` (129) | D19: a slot row's fd below 16 goes straight to `consolewrite`; a copy that fails before the first byte is -1 |
+| | `sys_open` (364) | `argstr`, `create` or `namei`, the `T_DEVICE` major check, `filealloc` + `fdalloc`, `fduser` at the return |
+| `ufile.c` | `fileclose` (74) | `iput(ff.ip)` for `FD_INODE` and `FD_DEVICE` alike |
+| | `filestat` (102) | `ilock(f->ip)` for both |
+| | `fileread` (121), `filewrite` (149) | a device goes through `devsw[major]`; `consoleinit` wires `consoleread` (sleeps) and `consolewrite` |
+| `uconsole.c` | `upc_consoleread` (214) | the polled read for a slot row (D20) |
+| `upc_slots.c` | `upc_slots_init` (207) | runs after `userinit()` and after `fileinit` and `consoleinit` (`umain.c` 38, 63, 66, 67) |
+| | `upc_forknote` (285) | `filedup`s the parent's `ofile` into the child's row; closes what was left there |
+| | `upc_close_row` (83), `upc_kill` (99) | D13 and D8: the row's files are closed |
+| `uproc.c` | `userinit` (274) | sets `cwd`; `ofile` is empty |
+
+Slot 0: `proc[0]` is the `userinit` process and its `ofile` is empty until something opens. `init.c` and `uinit.c` do `open("console", O_RDWR)`, then `dup(0)` twice; the literal is in `.rodata`, which `user.ld` places in the first page (`init.elf` `.rodata` ends at 0xF59), and the kernel's copy-in refuses that page for slot 0 (D6, D16). `fs.img` has no `T_DEVICE` inode: the `ls` golden's only "console" is the kernel's `after consoleinit` line. Of the 36 gate programs, 33 never open a console and print on fd 1; nine call `open` with a literal path.
+
+**Step 209.** ADR-135 D21 written (design only). Departures from the plan's eight points are tabled there. The two that change the shape: the kernel gives the first image its console (`upc_slots_init`, three references to one console file), because init's literal is unreadable to the kernel and 33 first images open nothing; and rung 4's keyboard offer is made on every routed read, because "fd below 16" no longer means "the console". Step 209.3's [DECIDE] taken by the recommendation (name match, no disk inode). Review (Step 210) pending.

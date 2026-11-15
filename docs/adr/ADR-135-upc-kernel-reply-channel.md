@@ -453,6 +453,136 @@ Under `UPC_RUNG4`, `read` on a fd below 16 goes to the owned kernel when BPF's t
   through as bytes. No corpus input holds one.
 - **BPF.** The console branch of the read arm is the `!UPC_RUNG4` branch, so the on object does not hold it.
 
+### D21. Rungs 5+6: the kernel's fd table is the only one (2026-11-15, S-STAGE-2C Phase 11; design, review pending)
+
+One const, `UPC_RUNG56`, one gate (the skeleton's first kickoff option). Written against the tree at `d980e84b`:
+rungs 3 and 4 are on, the block calls 200/201 refuse a U-mode caller (RV-1), and `kbd_in` exists. Where the plan's
+eight points no longer match that tree, the point is restated here and the difference is listed under "Departures
+from the plan's wording". Nothing below is built yet.
+
+`UPC_RUNG56` needs `UPC_RUNG_FD`, `UPC_RUNG_CHDIR`, `UPC_RUNG_PIPE`, `UPC_RUNG3` and `UPC_RUNG4`. With rung 3 or 4
+off, a console write or read would fall into a BPF arm that asks `FD_TABLE` what the fd is, and the table is gone. A
+`const` assertion in `main.rs` refuses the combination at build time.
+
+1. **Routing.** With the const on, `open` 15, `read` 5, `fstat` 8, `dup` 10, `close` 21 and `write` 16 alias to 11
+   for every fd and every flag. The rows that ask `fd_kind()` (rung 3's "not a file", rung 4's "is the console"),
+   the `>= 16` row and both `open` rows (masked flag, off the root) fold into one unconditional row each, so
+   `kernel_routed_alias` reads no map. Guarded `!UPC_RUNG56 &&`, so the on object carries none of them:
+   - the `open` arm (console name, superblock check, re-entrant dirent scan, `fd_alloc`, `fd_set_inode`) and its
+     helper `component_match`;
+   - the inode branch of the `read` arm (what is left of the arm answers -1 and is unreachable);
+   - the `fstat`, `dup` and `close` arms;
+   - what is left of the `write` arm (rung 3's -1 for a file fd, Phase 7's T-F3 interim);
+   - fork's copy of the parent's `FD_TABLE` row (16 map reads and 16 map writes per fork);
+   - the accessors `fd_kind`, `fd_set_kind`, `fd_alloc`, `fd_inode`, `fd_set_inode`, `fd_set_offset`,
+     `fd_clear_inode`, which then have no caller, and with them the maps `FD_TABLE` and `FD_INODE_MAP`.
+
+   Not guarded, because they read no fd state: the D16 path bound ahead of `open` and `exec` (it stays for `exec`;
+   for `open` the kernel's `argstr` is the bound), `mknod` 17 (a success-returning no-op, see point 3), `exec` 7
+   (point 7). `exit` 2 has had no BPF fd work since D13. `cwd_off_root()` loses its only caller (the `open` row) and
+   goes with it; `chdir` 9 still routes under `UPC_RUNG_CHDIR` and the kernel keeps `cwd_mask` for the fork note.
+2. **Kernel fd numbers.** A kernel fd is the `ofile` index: `fduser()` is the identity and `argfd()` drops its
+   `fd < 16` refusal and its subtraction. D10's +16 ends under the const. The switch is one kernel `#define`
+   (`UPC_KFD_BASE` 0 or 16) set by the build and mirrored to BPF's const by `parity_slot_tables`, so a kernel and
+   an object from different settings fail the parity test, not a boot. `NOFILE` is 16 on both sides, so a process
+   has 16 fds where it had up to 32 (16 of BPF's and 16 of the kernel's). Probe lines that say "at or above 16"
+   change in Step 216 to "lowest free fd".
+3. **[DECIDE] the console, taken by the plan's RECOMMENDATION.** The kernel matches the console by name and makes
+   no disk inode for it; `fs.img` and the `ls` golden stay as they are (the golden's one "console" is the kernel's
+   `after consoleinit` boot line, not a directory entry). `sys_open` answers a console file (`FD_DEVICE`, major
+   `CONSOLE`, `ip == 0`, readable and writable) when the path is the console's name, before `namei` and before
+   `O_CREATE` is looked at. The name rule copies what BPF's arm does today: strip one leading `./` or `/`, then the
+   whole remainder is `console`. A relative `console` or `./console` matches only when the row's cwd is the root;
+   `sub/console` is a disk lookup, as now. Three places need a guard for `ip == 0`, because stock code assumes a
+   device file has an inode: `fileclose` (no `iput`), `filestat` (answers -1, which is what BPF's `fstat` answers
+   for a console fd today), and `sys_open`'s own `T_DEVICE` major check (not reached for the name match). A read
+   on that file from a slot row goes to `upc_consoleread` (the polled, never-sleeping read of D20), not to
+   `devsw[CONSOLE].read` (`consoleread` sleeps); a write goes to `consolewrite` and keeps D19's rule that a copy
+   failing before the first byte answers -1. `mknod` stays BPF's no-op: an on-disk device node, `mknod` and
+   `T_DEVICE` inodes are a later ADR, parked in the progress file.
+4. **Slot 0 and the first image's console (restated; see Departures).** The plan has init open the console through
+   the kernel like any process. Two facts of the tree stand in the way:
+   - `user.ld` puts `.rodata` straight after `.text` from 0, so the literal `"console"` in `init.c` and `uinit.c`
+     sits in init's first page, and the kernel's copy-in refuses slot 0's first page (D6, D16). A kernel `open`
+     from init with that literal answers -1. `init.c` shrugs and dups a closed fd; `uinit.c` exits 1. This is the
+     "slot 0 literal limit" already filed for Stevie, and this rung must not depend on its answer.
+   - Thirty-three of the thirty-six gate programs boot as the first image (`--userland gate2.mbc`,
+     `getpidfork.mbc`, nearly every probe) and print on fd 1 without opening anything; only `uinit`, `devprobe` and
+     `crprobe` open the console. BPF's write never looked at the fd, and rung 3 kept that by testing "not a file".
+     With the kernel's table the only one, fd 1 of such an image is an empty slot.
+   - A read-only `open` with a literal path made by the first image itself was BPF's (BPF reads the bytes with
+     no copy-in) and becomes the kernel's, so it meets the same first-page refusal. Nine gate programs call
+     `open` with a literal (`uinit`, `devprobe`, `mkprobe`, `rmprobe`, `lnprobe`, `hostile_ptr`, `fdprobe`,
+     `chdirprobe`, `bigprobe`, counted by `grep`). D6 records that the rung probes make their kernel-routed calls
+     from a forked child; `devprobe`'s `open("console")` is made from slot 0. Step 216 audits each: a call made from slot 0 takes its path from
+     `.data`, as `crprobe` already does.
+
+   Design: **the kernel gives the first image its console.** `upc_slots_init()` (after `userinit()`, before the
+   scheduler first runs init; `fileinit` and `consoleinit` have run) allocates one console file and puts it in
+   `proc[0].ofile[0..2]` with three references, under the const only. This is what Linux does for pid 1
+   (`console_on_rootfs`). Then: every first image has stdio; `init.c` is not edited (its `open` answers -1 for the
+   literal, `mknod` answers 0, the second `open` -1, and its two `dup(0)` answer 3 and 4); `uinit.c`, which is
+   ours and exits when both opens fail, keeps the console's name in `.data` (one line, as the probes' tokens
+   were moved), so its `open` answers 3 and its dups 4 and 5. Children inherit by the fork note as now. The cost
+   is two or three spare console fds in every process of a boot, out of 16 (the corpus is expected to hold at most
+   a directory and one entry open at a time, in `ls`; the gate shows it). The alternative, kept on record: no kernel-given console, the name in `.data` in `init.c` and
+   `uinit.c`, and a three-line open in each of the thirty gate programs. It is the purer xv6 shape and it is thirty
+   probe edits plus an edit to `init.c`; it also leaves every future first image one forgotten
+   preamble away from printing nothing.
+5. **Fork, exit, kill.** Nothing moves. The fork note (24) already `filedup`s the parent's `ofile` into the child's
+   row and closes what a forged reply left there; exit closes the row (D13); kill closes it (D8). The BPF copy of
+   `FD_TABLE` at fork goes (point 1).
+6. **`open(O_RDWR)` on a regular file is a kernel file.** T-F3 closes: read and write go through `fileread` and
+   `filewrite` on one `struct file`, and a child shares the offset with its parent (D10's stale-offset limit
+   ends). Phase 7's BPF refusal goes with the compiled-out arm. R-P1 (BPF's read writes a full 16-byte chunk on a
+   short read) ends the same way: `readi` copies what it returns. A read is no longer capped at 16 bytes a call:
+   `cat`'s 512-byte reads come back whole, so it makes fewer calls; `ls` asks for 16 and gets 16.
+7. **Exec stays a BPF resident-program lookup** (departure, GROUND TRUTH). It reads no fd and no table; its path is
+   still bounded by D16's arm. The exec'd image keeps the row's `ofile`, as it kept BPF's row.
+8. **After this rung `dup` can land on 0-2**, which is what ush pipelines and redirection wait on. The shell
+   grammar is not this plan's (Step 241).
+
+**Rung 4's offer, restated for this rung.** BPF offers the next keyboard byte in `kbd_in` at the injection of a
+read "on a fd below 16", which meant "the console" because only console reads below 16 were routed. With every
+read routed and every fd below 16, the test becomes `a7 == 5` alone: a byte is offered on every routed read and
+taken only inside `upc_consoleread`. The ring still moves only on `UPC_REPLY_KBD`, so a file read with input
+pending takes nothing and loses nothing. Rung 3 needs no such change (it carries no state across the trap).
+
+**What the user sees change.** fd numbers for files and pipes start at the lowest free fd, not at 16. A read
+returns up to n bytes. `fstat` on a file is the kernel's `stati` (16 bytes under ilp32e, size at offset 12: Gate
+D's lesson, to be checked on the first `ls`). A write on a closed fd 0-2 answers -1; BPF printed it before rung 3
+and the kernel printed it after ("not a file"). A relative `console` opened off the root is a disk lookup (today:
+the same, by D15); `/console` from off the root is the device (today -1, because D15 sends it to `namei`).
+
+**Departures from the plan's wording.**
+
+| Plan point | Tree | D21 |
+|---|---|---|
+| 1: "the write inode refusal" is guarded | It is what is left of the write arm since rung 3 | Same guard, named as the arm's remainder |
+| 1: exit's close in BPF | None since D13 | Nothing to guard |
+| 1: only the arms are listed | `kernel_routed_alias` itself reads `FD_TABLE` twice (rungs 3 and 4) | Those rows fold into the unconditional ones |
+| 3: the name match | BPF matches after stripping one `./` or `/`, at the root only by way of D15 | The same rule, written out, with `/console` off the root as the one change |
+| 4: "its row is the real `userinit` process, so `ofile` is its own" | True, and empty; init's literal is unreadable to the kernel; thirty first images never open a console | The kernel gives the first image its console |
+| Rung 4 | `kbd_in` is offered for `fd < 16` | Offered on every routed read |
+| not in the plan | `upc_consoleread` is the slot row's console read; `consoleread` sleeps | `fileread` on the console from a slot row calls the polled read |
+
+**Budget and run cost, expected, to be measured at Step 223.** The open walk and the file read are the two
+largest ascend-only arms (the comments in `main.rs` call them that; D16 measured +48,914 when a refused state was
+walked through the open and exec arms, against +2,261 ahead of them), so the delta is expected well below zero, tens of
+thousands of verified instructions, not a few thousand as rungs 3 and 4 gave (-14,552 and -2,007). Against that,
+every `open`, `read`, `fstat` and `close` becomes a kernel trap. Rung 3 measured about 3,000 MBC instructions for a
+`write` call; a kernel `open` walks the path through `namei`, `ilock` and the buffer cache, and `ls` makes an
+`open`, an `fstat` and a `close` per entry. The twelve corpus boots must still finish inside 4,000,000 triggers
+(Step 179's kind of question); this is the measurement most likely to need a decision.
+
+**Questions the review (Step 210) is asked to press.** Does any BPF path still read `FD_TABLE` with the const on
+(the routing rows, the TTY drain, exec, `cwd_off_root`)? Can a disk entry named `console` shadow or confuse the
+name match (`mkdir console`, `link` to that name, `O_CREATE`)? What does slot 0 hold in `ofile` before its first
+open, and is `upc_slots_init()` late enough for `filealloc`? Is the kernel-given console sound when slot 0 exits
+or is killed, and when a slot is reused? Does D7's retry keep a0 for a read or write on a file (it must not
+re-run a write that landed)? Does a `struct file` with `ip == 0` reach any `ilock` or `iput` besides the three
+guarded places (`filedup`, the fork note, `upc_close_row`, `kexit`)? Which goldens can move, and why?
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,
