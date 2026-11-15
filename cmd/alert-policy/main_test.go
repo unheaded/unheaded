@@ -177,6 +177,84 @@ func TestValidateRunDays(t *testing.T) {
 	}
 }
 
+// renderAM renders alertmanager.yml from the repo's policy with edit applied.
+func renderAM(t *testing.T, edit func(*Policy)) amFile {
+	t.Helper()
+	p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit(p)
+	out, err := renderAlertmanager(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f amFile
+	if err := yaml.Unmarshal(out, &f); err != nil {
+		t.Fatal(err)
+	}
+	return f
+}
+
+func withPipeline(v string) func(*Policy) { return func(p *Policy) { p.Pipeline.SilentAfter = v } }
+
+// The pipeline receipt (ADR-116 R4): AlertPipelineHeartbeat goes to the
+// mailer before any other route can catch it.
+func TestPipelineRouteFirst(t *testing.T) {
+	f := renderAM(t, withPipeline("20m"))
+	r := f.Route.Routes[0]
+	if r.Receiver != "pipeline" || len(r.Matchers) != 1 || r.Matchers[0] != `alertname="AlertPipelineHeartbeat"` {
+		t.Fatalf("route 0: %+v", r)
+	}
+	if r.GroupWait != "30s" || r.GroupInterval != "1m" || r.RepeatInterval != "5m" {
+		t.Fatalf("route 0 timing %s/%s/%s, want 30s/1m/5m", r.GroupWait, r.GroupInterval, r.RepeatInterval)
+	}
+}
+
+func TestPipelineReceiverURL(t *testing.T) {
+	f := renderAM(t, withPipeline("20m"))
+	for _, rc := range f.Receivers {
+		if rc.Name == "pipeline" {
+			if len(rc.WebhookConfigs) != 1 || rc.WebhookConfigs[0].URL != "http://alert-mailer:19130/v1/alerts/pipeline" || rc.WebhookConfigs[0].SendResolved {
+				t.Fatalf("pipeline receiver: %+v", rc.WebhookConfigs)
+			}
+			return
+		}
+	}
+	t.Fatal("no pipeline receiver")
+}
+
+func TestPipelineAbsentNoRoute(t *testing.T) {
+	f := renderAM(t, withPipeline(""))
+	for _, r := range f.Route.Routes {
+		if r.Receiver == "pipeline" {
+			t.Fatal("pipeline route without pipeline.silent_after")
+		}
+	}
+	for _, rc := range f.Receivers {
+		if rc.Name == "pipeline" {
+			t.Fatal("pipeline receiver without pipeline.silent_after")
+		}
+	}
+}
+
+func TestValidatePipeline(t *testing.T) {
+	for v, ok := range map[string]bool{"": true, "20m": true, "10m": true, "5m": false, "soon": false} {
+		p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Pipeline.SilentAfter = v
+		var hit bool
+		for _, e := range p.validate() {
+			hit = hit || strings.Contains(e.Error(), "pipeline.silent_after")
+		}
+		if hit == ok {
+			t.Errorf("silent_after %q: refused=%v, want %v", v, hit, !ok)
+		}
+	}
+}
+
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
 	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")

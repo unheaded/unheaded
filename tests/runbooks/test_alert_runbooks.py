@@ -38,6 +38,8 @@ RUNBOOKS = {
     "runbooks/infra/heimdall-hook-events-lost.yaml": (),
     # The ci-develop SLO's own runbook (policy.yaml runbook:), no hand rule.
     "runbooks/observe/ci-red.yaml": (),
+    # The mailer's own pipeline mail (ADR-116 R4, S-SEE-AND-SURVIVE Phase 2), no rule.
+    "runbooks/observe/alert-pipeline-silent.yaml": (),
 }
 
 READ_ONLY = {

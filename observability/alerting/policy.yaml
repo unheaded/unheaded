@@ -55,6 +55,13 @@ page:
   group_interval: 5m
   repeat_interval: 12h
 
+# The alert path's own receipt (ADR-116 R4, ADR-147 stage 1): Alertmanager
+# hands AlertPipelineHeartbeat to the mailer every 5 minutes. When none has
+# arrived for silent_after, the mailer mails once that Prometheus,
+# Alertmanager or the route is down, and once more when receipts return.
+pipeline:
+  silent_after: 20m
+
 # Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
 #   - alert: WellBackupMissing
