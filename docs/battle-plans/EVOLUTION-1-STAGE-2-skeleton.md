@@ -138,6 +138,7 @@ until rung 6 lands.
 - **Prerequisite**: rung 0; ilp32e `struct stat` layout (16 B, size at offset 12) kept.
 - **Gate**: template, run jointly with rung 6.
 - **usertests subset**: none alone.
+- **Status 2026-11-15 (S-STAGE-2C Phases 11-12, ADR-135 D21): built with rung 6, wired, off.** See rung 6.
 
 ### Rung 6 — open (fs_walk hand-off) and file read/write
 
@@ -151,6 +152,14 @@ per decision 48 (S-ASCEND-2 Step 182).
 - **Gate**: template; the four read-path goldens (README direct blocks, BIGFILE
   single-indirect, `sub/NOTE` path walk, `ls sub`) SAME; freed insns include `fs_walk`.
 - **usertests subset**: `opentest`, `copyinstr1` (bad-address open; kernel `copyinstr`).
+- **Status 2026-11-15 (S-STAGE-2C Phases 11-12, ADR-135 D21): built, reviewed, wired, off.** One const,
+  `UPC_RUNG56`, for rungs 5 and 6. On, the ascend object verifies at 529,305 (883,522 off), every probe
+  passes (`rwprobe` 5, `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20, `bigprobe` 3) and all 12 corpus
+  boots finish inside 4,000,000 triggers. It is off because every golden carries the first 100 PCs after
+  init starts, kernel PCs included, and init's first `open` now traps at its 21st instruction. The way
+  on is Stevie's choice (progress file): let `copyinstr` read slot 0's first page and trace U-mode PCs
+  only (booted: 12 of 12 SAME at 532,152), or one named recapture of the trace. Departures from this
+  section: no on-disk device node (the console is matched by name in the kernel); mknod stays a stub.
 
 ### Rung 7 — fork / exec / wait (PROC_TABLE hand-off)
 
@@ -166,6 +175,7 @@ re-anchors on the kernel's fork.
   (S-ASCEND-2 Phase 1 observation): gates that let init exit change in the same commit.
 - **usertests subset**: `exitwait`, `twochildren`, `forktest`, `forkfork`,
   `forkforkfork`, `reparent2`; `exectest` once FS writes exist.
+- **Status 2026-11-15 (S-STAGE-2C): not started.** Its design phase needs rungs 5+6 on.
 
 ### Rung 8 — arrivals: sbrk, pipe, kill, mkdir, unlink, link, chdir, sleep
 
