@@ -87,6 +87,13 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+# An explicit -f does not load the override; west's restart policy lives there
+# (ADR-147 decision 1). Name it too when the host has one.
+OVERRIDE_FILE="$PROJECT_ROOT/docker-compose.override.yml"
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+if [[ -f "$OVERRIDE_FILE" ]]; then
+    COMPOSE_ARGS=(--project-directory "$PROJECT_ROOT" -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE")
+fi
 BIN_DIR="/opt/unheaded/bin"
 
 # Known services in dependency order (wotan first)
@@ -157,7 +164,7 @@ if [[ "$NATIVE_ONLY" != "true" ]]; then
     if [[ -f "$COMPOSE_FILE" ]]; then
         if command -v docker &> /dev/null; then
             log_info "  docker compose up -d..."
-            run docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -E "Started|Running|Created|dry-run" | while read -r line; do
+            run docker compose "${COMPOSE_ARGS[@]}" up -d 2>&1 | grep -E "Started|Running|Created|dry-run" | while read -r line; do
                 log_info "  $line"
             done || true
             log_success "Phase 1 complete"
