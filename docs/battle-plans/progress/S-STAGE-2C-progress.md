@@ -43,4 +43,8 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - Seen, not acted on: a user program's ebreak becomes HALT, and HALT has no privilege test, so any user program can halt the machine. Refuse HALT at U-mode (cost unmeasured), or leave it?
 - ascend baseline row now 899906 (net vs 921036: 21130)
 - Reorder (Step 30's override): Phase 7's refusal measures +622 and does not fit (headroom 94). Order from here: Phase 9 (rung 3) first, then Phase 7, then UPC_FORK_MARK back on. Stop C is not reached; the last named Stop is B. Everything after it (Phase 6, the review fixes) is committed and gated green: gate review-after same=12 diff=0 rc=0 doom=1 ascend=899906.
+- ascend baseline row now 885354 (net vs 921036: 35682)
+- Step 179 [DECIDE]: rung 3 stays on. All 12 corpus boots finish inside the existing 4,000,000 triggers, so no budget changed (the recommendation's condition). Cost: about 3,000 MBC instructions per write call, about 220 per byte inside a call; ls +783,397, cat BIGFILE +3,027,808, echo +72,318 instructions per boot.
+- Rung 3's alias tests 'not a file', not 'is the console' as D19 was first sketched: the gate programs run as init and print on fd 1 without opening console, so BPF's table calls that fd free and a console-kind test would have silenced every probe.
+- Slot 0 and rung 3: init can no longer write a string literal. The kernel's copyin refuses init's first page (D6, D16), where user.ld puts .rodata; before the rung BPF read the bytes itself. devprobe failed on it and its two tokens moved to .data. init and uinit print through printf (a stack byte), so no corpus program is touched. Leave the limit, or let copyin (reads only) take slot 0's first page past BootParams?
 

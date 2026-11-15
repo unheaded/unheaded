@@ -521,7 +521,7 @@ const UPC_RUNG_PIPE: bool = true;
 // byte loop below is the off branch, so the on object does not hold it; what is left
 // of the arm answers -1, which is T-F3's interim for a file fd. Needs UPC_RUNG_FD.
 // Rollback = this const off.
-const UPC_RUNG3: bool = false;
+const UPC_RUNG3: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause

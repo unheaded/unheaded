@@ -13,6 +13,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | bss + sidecar (SRET mask) | 895768 | 895767 | -1 | 25269 | bss-after |
 | fork key + I9 tripwire | 895767 | 895936 | +169 | 25100 | fork-after |
 | RV-1 block guard (fork mark off) | 895936 | 899906 | +3970 | 21130 | review-after |
+| rung 3 console write | 899906 | 885354 | -14552 | 35682 | rung3-after2 |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -157,4 +158,11 @@ Run under Step 30's override, ahead of Phase 7 and with the fork mark off: the o
 - Run cost before (4,000,000 triggers each, the boot ends with `sh` waiting for a key): `ls` insn_count 5,488,183; `cat BIGFILE` 5,129,411; `echo peace and love` 5,096,265. Write calls: `ls` prints through `printf`, one `write` per byte; `cat` writes up to 512 bytes a call; `echo` one `write` per word and one per separator.
 - Design: ADR-135 D19. The alias tests "not a file", not "is the console": the gate programs run as init and print on fd 1 without opening `console`, so BPF's table calls their fd 1 free.
 - Const off (Step 167): `vcount` 899,906 equals `offv`; `sweep` 8 of 8 SAME with the kernel's `consolewrite` and `sys_write` changed.
+- Const on (Step 170): 885,354, delta -14,552 against 899,906 (the byte loop, its two translations and the re-entry are gone; the alias adds one `FD_TABLE` read). BUDGET-OK, headroom 14,646.
+- `conprobe`: 4 of 4, `CW: done`; `abc` on the TTY once; the 600-byte write arrives as 599 `x` in one run, no NULs. `sweep` 8 of 8 SAME.
+- Mutants (Step 176): `consolewrite` back on the word store: `sweep` 0 SAME, 8 DIFF. The alias row disabled with the const on: `conprobe` prints nothing (every write answers -1, `printf` included). Both restored; `vcount` 885,354.
+- Gate `rung3-after`: `same=12 diff=0 rc=1`: `devprobe` failed. It runs as init and wrote two string literals; `user.ld` puts `.rodata` in init's first page, which the kernel's `copyin` refuses for slot 0 (D6, D16). Before the rung BPF read the bytes itself. The tokens moved to `.data`; the limit is For Stevie. No corpus program is touched: init and `uinit` print through `printf` (a stack byte), everything else runs in a child slot.
+- Gate `rung3-after2`: `same=12 diff=0 rc=0 doom=1 ascend=885354`; `conprobe: 4 checks`, `devprobe`, `fdprobe: 49 checks` PASS, ALL GREEN.
+- Run cost after (same three boots, 4,000,000 triggers): `ls` insn_count 6,271,580 (+783,397); `cat BIGFILE` 8,157,219 (+3,027,808); `echo peace and love` 5,168,583 (+72,318). A tick that waits counts one instruction and a working tick up to 16, so the work added is about 16/15 of each delta. That gives about 3,000 MBC instructions per `write` call (trap, `sys_write`, `copyin`, return; from `echo`: 26 calls) and about 220 per byte inside a call (from `cat BIGFILE`: 14,570 bytes in 512-byte calls). Before the rung a byte cost one tick.
+- Step 179 [DECIDE]: all 12 corpus boots finish inside the harness's 4,000,000 triggers (12 SAME), so the recommendation holds: proceed. No budget changed.
 

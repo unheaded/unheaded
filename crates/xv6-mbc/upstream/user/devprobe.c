@@ -7,12 +7,20 @@
 // Expected: "DEV: console-open-ok" and "DEV: console-dup-ok", once each.
 // The parent spins after its last line (init never exits).
 //
+// The tokens are in .data, not string literals. Since rung 3 (ADR-135 D19) the
+// owned kernel copies a console write's bytes in, and it refuses init's first
+// page (D6, D16), where user.ld puts .rodata. A literal here would print
+// nothing, which is the slot 0 limit D6 records, not what this probe is for.
+//
 //   upc-bootctl boot ... --userland target/devprobe.mbc
 
 #include "kernel/types.h"
 #include "kernel/stat.h"
 #include "kernel/fcntl.h"
 #include "user/user.h"
+
+static char open_ok[] = "DEV: console-open-ok\n";
+static char dup_ok[] = "DEV: console-dup-ok\n";
 
 int
 main(void)
@@ -24,10 +32,10 @@ main(void)
     for(;;)
       ;
   }
-  write(fd, "DEV: console-open-ok\n", 21);
+  write(fd, open_ok, 21);
   int fd2 = dup(fd);
   if(fd2 >= 0 && fd2 != fd)
-    write(fd2, "DEV: console-dup-ok\n", 20);
+    write(fd2, dup_ok, 20);
   for(;;)
     ;
 }

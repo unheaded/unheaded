@@ -104,6 +104,11 @@ move as one unit. FS writes and `>` (master plan 1.3.2) take this route if Step 
   or the new budgets and the per-byte cycle cost are recorded and accepted.
 - **usertests subset**: none until FS writes exist; then `writetest`, `createtest`,
   `truncate1-3`, `writebig`, `bigwrite`.
+- **Status 2026-11-15 (S-STAGE-2C Phase 9, ADR-135 D19): on.** `UPC_RUNG3`, gate `rung3-after2`
+  (`same=12 diff=0 rc=0 doom=1`), ascend 899,906 → 885,354 (-14,552). The corpus completes within the
+  existing 4,000,000 triggers; no budget changed. Cost: about 3,000 MBC instructions per `write` call and
+  about 220 per byte inside a call (it was one tick per byte). A write on a file fd below 16 now answers
+  -1 (T-F3 interim). Init cannot pass a string literal from its first page (ADR-135 D6, D16).
 
 ### Rung 4 — read (console fds)
 
