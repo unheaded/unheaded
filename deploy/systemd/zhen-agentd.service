@@ -23,6 +23,15 @@ Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/zhen-agentd
 Wants=network-online.target
 After=network-online.target postgresql.service
 After=unheaded-vor.service
+# The Well runs in compose and may be reached over wg0. Both can come up
+# minutes after boot (dockerd took 3 minutes on 2026-11-12), and the daemon
+# exits when it cannot reach the Well. Ordering only: neither is required, and
+# After= on a unit a host does not have is harmless.
+After=docker.service wg-quick@wg0.service
+# Never give up. With the default limit (5 starts in 10 s) a start that fails
+# fast while the Well is still coming up would leave the unit failed until a
+# person restarts it. 0 turns the limit off: retry every RestartSec, forever.
+StartLimitIntervalSec=0
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
@@ -86,7 +95,7 @@ StateDirectoryMode=0700
 TimeoutStopSec=20s
 
 Restart=on-failure
-RestartSec=5s
+RestartSec=10s
 
 # --- Hardening (defense-in-depth on top of the in-process gate) ---
 NoNewPrivileges=yes
