@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Zhen (Zhenai): the optional AI module (ADR-149). The platform runs whole
+# without it. One switch: the systemd target named below. Limits are
+# restated from the unit files; tests/scripts/test_module_manifest.py
+# fails when the two differ.
+name: zhen
+switch: unheaded-zhen.target
+units:
+  - {unit: zhen-agentd.service,            memory_max: 512M, tasks_max: 512}
+  - {unit: unheaded-zhen-ui-front.service, memory_max: 128M}
+  - {unit: unheaded-zhen-app.service,      memory_max: 3G,   tasks_max: 256}
+  - {unit: unheaded-llama.service,         memory_max: 6G,   tasks_max: 256}
+ports: [8081, 20103, 20111, 20112]
+database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 12}
+fragments:
+  - prometheus/rules/zhen.yml
+  - prometheus/scrape/zhen.yml
+  - victoria/scrape/zhen.yml
+  - dashboard/services.txt
