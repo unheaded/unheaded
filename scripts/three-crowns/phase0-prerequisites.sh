@@ -46,7 +46,7 @@ cd "${PROJECT_ROOT}"
 make build
 
 # Verify critical binaries exist
-REQUIRED_BINS=(wotan timeguru captain architect micromanager monad sophia dashboard-backend kanban-app gateway)
+REQUIRED_BINS=(wotan timeguru dashboard-backend kanban-app gateway)
 missing=0
 for bin in "${REQUIRED_BINS[@]}"; do
     if [[ ! -f "${BIN_DIR}/${bin}" ]]; then
@@ -65,7 +65,7 @@ fi
 # ── 0.4 Copy binaries to EAST ──────────────────────────────────────────
 tc_log "0.4 Copying binaries to EAST..."
 
-EAST_BINS=(wotan monad sophia dashboard-backend kanban-app gateway)
+EAST_BINS=(wotan dashboard-backend kanban-app gateway)
 
 east_ssh "mkdir -p ${EAST_BIN_DIR}"
 

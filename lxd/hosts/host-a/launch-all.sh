@@ -172,12 +172,8 @@ push_and_start_service "wotan"
 sleep 2
 
 # Phase 2: Protocol layer
-log_info "Phase 2: Launching protocol layer (monad, sophia, anamnesis)..."
-launch_container "monad" 2 512
-launch_container "sophia" 2 512
+log_info "Phase 2: Launching protocol layer (anamnesis)..."
 launch_container "anamnesis" 2 512
-push_and_start_service "monad"
-push_and_start_service "sophia"
 push_and_start_service "anamnesis"
 sleep 2
 
@@ -214,15 +210,12 @@ push_and_start_service "doom"
 sleep 2
 
 # Phase 7: Service containers (batch 1)
-log_info "Phase 7: Launching service batch 1 (kanban, captain, micromanager, timeguru, architect, developer)..."
+log_info "Phase 7: Launching service batch 1 (kanban, timeguru, developer)..."
 launch_container "kanban" 2 512
-launch_container "captain" 1 256
-launch_container "micromanager" 1 256
 launch_container "timeguru" 1 256
-launch_container "architect" 1 256
 launch_container "developer" 1 256
 
-for svc in kanban captain micromanager timeguru architect developer; do
+for svc in kanban timeguru developer; do
     push_and_start_service "${svc}"
 done
 sleep 2

@@ -83,7 +83,7 @@ steps:
   - name: inject-stop-well
     action: manual
     command: |
-      echo "Hypothesis: Kanban, architect, and micromanager go read-only (503 on writes), reads of cached data keep working."
+      echo "Hypothesis: Kanban goes read-only (503 on writes), reads of cached data keep working."
       docker stop unheaded-postgres
     description: "MANUAL. Stop the Well to test read-only behavior."
 

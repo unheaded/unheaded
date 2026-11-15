@@ -95,11 +95,6 @@ NATIVE_SERVICES=(
     unheaded-daemon
     trace-collector-go
     timeguru
-    architect
-    captain
-    micromanager
-    monad
-    sophia
     cuirass
     dashboard-backend
     kanban-app
@@ -111,11 +106,6 @@ HEALTH_ENDPOINTS=(
     "wotan:18000"
     "unheaded-daemon:17000"
     "timeguru:19000"
-    "architect:19001"
-    "captain:19002"
-    "micromanager:19003"
-    "monad:19004"
-    "sophia:19005"
     "dashboard-backend:20000"
     "kanban-app:20001"
     "protocol-api:17100"

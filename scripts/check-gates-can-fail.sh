@@ -705,7 +705,7 @@ provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
     # honours only the first.
-    local f="deploy/systemd/unheaded-sophia.service"
+    local f="deploy/systemd/unheaded-timeguru.service"
     backup "${f}"
     sed -i 's/^SystemCallFilter=~@privileged @resources @reboot @module @swap$/SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap/' "${REPO_ROOT}/${f}"
     grep -q '^SystemCallFilter=~@privileged ~@resources' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -1311,7 +1311,7 @@ check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its 
 check-log-sources|provoke_log_sources|fast|a systemd unit file with no row in config/logging/sources.yaml
 check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the internal haproxy config's log-format (needs docker)
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
-check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
+check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-timeguru.service
 check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare, restored in unheaded-wotan.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address

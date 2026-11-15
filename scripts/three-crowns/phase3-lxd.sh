@@ -12,7 +12,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 tc_header "PHASE 3: LXD/LXC RUNTIME (UBUNTU) — DUAL HOST"
 
-WEST_LXD_SERVICES=(wotan timeguru captain architect micromanager monad sophia dashboard kanban)
+WEST_LXD_SERVICES=(wotan timeguru dashboard kanban)
 
 # ── 3.0 Ensure LXD initialized ─────────────────────────────────────────
 tc_log "3.0 Verifying LXD on WEST..."
@@ -87,9 +87,9 @@ sleep 5
 tc_log "3.4 Adding proxy devices..."
 
 declare -A PROXY_MAP=(
-    [unheaded-wotan]=18000 [unheaded-timeguru]=19000 [unheaded-architect]=19001
-    [unheaded-captain]=19002 [unheaded-micromanager]=19003 [unheaded-monad]=19004
-    [unheaded-sophia]=19005 [unheaded-dashboard]=20000 [unheaded-kanban]=20001
+    [unheaded-wotan]=18000 [unheaded-timeguru]=19000
+   
+    [unheaded-dashboard]=20000 [unheaded-kanban]=20001
 )
 for ctr in "${!PROXY_MAP[@]}"; do
     port="${PROXY_MAP[$ctr]}"

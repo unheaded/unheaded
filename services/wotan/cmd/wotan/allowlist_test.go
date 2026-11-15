@@ -37,8 +37,7 @@ func TestShippedAllowlistCoversDeployedSubscribers(t *testing.T) {
 	// trace-collector.
 	subscribe := regexp.MustCompile(`\.Subscribe(?:Topic)?\(ctx, (?:"[^"]+"|[A-Za-z_][\w.]*), "([^"]+)"\)`)
 	deployed := []string{
-		"services/architect", "services/captain", "services/micromanager", "services/timeguru",
-		"services/monad", "services/sophia", "cmd/dashboard-backend", "cmd/kanban-app",
+		"services/timeguru", "cmd/dashboard-backend", "cmd/kanban-app",
 		"cmd/unheaded-daemon", "cmd/trace-collector-go", "cmd/akira", "cmd/kev-poller",
 	}
 	found := 0

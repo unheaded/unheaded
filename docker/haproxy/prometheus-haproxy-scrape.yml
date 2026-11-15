@@ -48,14 +48,6 @@ scrape_configs:
       - targets: ['wotan:18080']
         labels:
           service: wotan
-      # Monad service nginx sidecar
-      - targets: ['monad:19080']
-        labels:
-          service: monad
-      # Sophia service nginx sidecar
-      - targets: ['sophia:19081']
-        labels:
-          service: sophia
       # Dashboard service nginx sidecar
       - targets: ['dashboard:20080']
         labels:

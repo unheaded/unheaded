@@ -36,7 +36,7 @@ notes: |
   unless the version is named and downgrades allowed; the 1.0.0 prerm of
   wotan, akira, dashboard-backend, kanban-app and unheaded-daemon stops and
   disables the service before any new maintainer script runs (timeguru,
-  captain, architect and micromanager have no prerm), so no package can carry
+  the role services, removed 2026-11 by ADR-147, had none), so no package can carry
   that state over and install-east enables the services itself; and they ship
   /etc/unheaded/wotan.yaml as a plain file, which dpkg takes for a local edit
   of the new conffile, prompts about, and fails on with no terminal. install-east
@@ -132,7 +132,7 @@ steps:
     host: east
     command: |
       set -euo pipefail
-      for id in wotan timeguru akira captain architect micromanager unheaded-daemon dashboard-backend kanban-app; do
+      for id in wotan timeguru akira unheaded-daemon dashboard-backend kanban-app; do
         for f in ca.pem "$id.pem" "$id-key.pem"; do
           sudo test -e "/etc/unheaded/tls/$id/$f" || { echo "no /etc/unheaded/tls/$id/$f (deploy/systemd/README.md#tls): nothing installed" >&2; exit 1; }
         done
@@ -146,12 +146,12 @@ steps:
       pkgs=()
       for p in unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon \
         unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru \
-        unheaded-captain unheaded-architect unheaded-micromanager unheaded-auth; do
+        unheaded-auth; do
         pkgs+=("$p=$v")
       done
       sudo apt-get install -y --allow-downgrades "${pkgs[@]}"
-      sudo systemctl enable --now unheaded-wotan unheaded-timeguru unheaded-akira unheaded-captain \
-        unheaded-architect unheaded-micromanager unheaded-daemon unheaded-dashboard unheaded-kanban
+      sudo systemctl enable --now unheaded-wotan unheaded-timeguru unheaded-akira \
+        unheaded-daemon unheaded-dashboard unheaded-kanban
     timeout: 900
     description: Install this release's packages on east, add the issuer (its unit is installed, not enabled), and start the services east ran
     on_fail: "Read the postinst warnings. Roll back (below), unless this was the first move off 1.0.0, which has none (notes)"

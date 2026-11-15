@@ -31,15 +31,10 @@ params:
   services:
     - wotan
     - timeguru
-    - captain
-    - architect
-    - micromanager
     - dashboard-backend
     - kanban-app
     - unheaded-daemon
     - akira
-    - monad
-    - sophia
     - trace-collector
     - gateway
     - zhen-inference
@@ -132,7 +127,7 @@ steps:
     action: shell
     description: "Generate cert+key for each Kingdom service, signed by CA"
     command: |
-      SERVICES="wotan timeguru captain architect micromanager dashboard-backend kanban-app unheaded-daemon akira monad sophia trace-collector gateway zhen-inference"
+      SERVICES="wotan timeguru dashboard-backend kanban-app unheaded-daemon akira trace-collector gateway zhen-inference"
       for svc in $SERVICES; do
         echo "=== Generating cert for: $svc ==="
 
@@ -271,7 +266,7 @@ steps:
       ssh govan@east 'sudo mv /tmp/ca.crt /var/lib/unheaded/pki/ca/ca.crt'
 
       # Service certs
-      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app unheaded-daemon akira; do
+      for svc in wotan timeguru dashboard-backend kanban-app unheaded-daemon akira; do
         scp /var/lib/unheaded/pki/services/${svc}.crt govan@east:/tmp/${svc}.crt
         scp /var/lib/unheaded/pki/services/${svc}.key govan@east:/tmp/${svc}.key
         ssh govan@east "sudo mv /tmp/${svc}.crt /var/lib/unheaded/pki/services/${svc}.crt && sudo mv /tmp/${svc}.key /var/lib/unheaded/pki/services/${svc}.key"

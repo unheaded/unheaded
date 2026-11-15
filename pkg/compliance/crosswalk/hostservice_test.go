@@ -240,7 +240,7 @@ func TestRepoCatalog_AuthnReadsEveryHostService(t *testing.T) {
 			hosts[host] = true
 		}
 	}
-	if len(want) < 12 {
+	if len(want) < 7 { // 12 until the five role services left (ADR-147 decision 7)
 		t.Fatalf("the table gives only %d host-service refs", len(want))
 	}
 	for _, ctl := range c.Controls {

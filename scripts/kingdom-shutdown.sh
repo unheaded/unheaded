@@ -97,11 +97,6 @@ BINARIES=(
     lich-security
     routing-health
     timeguru
-    architect
-    captain
-    micromanager
-    monad
-    sophia
     cuirass
     cert-gen
     wotan-ctl

@@ -34,21 +34,16 @@ import (
 
 // TestContainer represents a container under test
 type TestContainer struct {
-	Name     string
-	IP       string
-	Port     int
+	Name      string
+	IP        string
+	Port      int
 	DependsOn []string
 }
 
 var testContainers = []TestContainer{
 	{Name: "wotan", IP: "10.10.10.10", Port: 18000, DependsOn: []string{}},
 	{Name: "timeguru", IP: "10.10.10.20", Port: 19000, DependsOn: []string{"wotan"}},
-	{Name: "captain", IP: "10.10.10.21", Port: 19002, DependsOn: []string{"wotan"}},
-	{Name: "micromanager", IP: "10.10.10.22", Port: 19003, DependsOn: []string{"wotan"}},
-	{Name: "architect", IP: "10.10.10.23", Port: 19001, DependsOn: []string{"wotan"}},
 	{Name: "developer", IP: "10.10.10.24", Port: 19004, DependsOn: []string{"wotan"}},
-	{Name: "monad", IP: "10.10.10.25", Port: 19004, DependsOn: []string{"wotan"}},
-	{Name: "sophia", IP: "10.10.10.26", Port: 19005, DependsOn: []string{"wotan"}},
 	{Name: "kanban", IP: "10.10.10.200", Port: 20001, DependsOn: []string{"timeguru"}},
 	{Name: "dashboard", IP: "10.10.10.201", Port: 20000, DependsOn: []string{"wotan"}},
 }
@@ -465,16 +460,11 @@ func TestPerformance_MemoryLimits(t *testing.T) {
 	}
 
 	limits := map[string]string{
-		"wotan":       "1G",
-		"timeguru":     "256M",
-		"captain":      "256M",
-		"micromanager": "256M",
-		"architect":    "256M",
-		"developer":    "256M",
-		"monad":        "256M",
-		"sophia":       "512M",
-		"kanban":       "512M",
-		"dashboard":    "1G",
+		"wotan":     "1G",
+		"timeguru":  "256M",
+		"developer": "256M",
+		"kanban":    "512M",
+		"dashboard": "1G",
 	}
 
 	for _, c := range testContainers {

@@ -338,13 +338,13 @@ east_run() { # east_run STEP: the calls the step made, then its exit status
 install_east() { east_run install-east; }
 : >"$T/conffiles"
 echo "1.0.0's file" >"$T/etc/unheaded/wotan.yaml"
-east_tls wotan timeguru akira captain architect micromanager unheaded-daemon dashboard-backend
+east_tls wotan timeguru akira unheaded-daemon dashboard-backend
 expect "install-east: one service's TLS material missing, nothing installed" "$(install_east | tail -n 2)" "rc=1"
 expect "install-east: and says whose" "$(grep -c 'no .*/tls/kanban-app/ca.pem' "$T/stderr")" "1"
 expect "install-east: and leaves wotan.yaml alone" "$(cat "$T/etc/unheaded/wotan.yaml")" "1.0.0's file"
 east_tls kanban-app
 bad=""
-for unit in wotan timeguru akira captain architect micromanager daemon dashboard kanban; do
+for unit in wotan timeguru akira daemon dashboard kanban; do
 	while read -r f; do
 		mv "$T$f" "$T$f.away"
 		[ "$(install_east)" = "rc=1" ] && grep -q "no $T$f " "$T/stderr" || bad="$bad $f"

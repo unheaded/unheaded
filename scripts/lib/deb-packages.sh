@@ -23,7 +23,7 @@
 # Binaries packaged with their unit, in build order.
 DEB_SERVICES=(
 	wotan unheaded-daemon dashboard-backend kanban-app akira
-	timeguru captain architect micromanager monad sophia
+	timeguru
 	unheaded-auth heimdall-daemon sword chaos-controller anomaly kev-poller
 	trace-collector-go unheaded-baseline huginn zhen-agentd well-retention
 	syslog-relay zhen-ui-front wiki-server unheaded-aide

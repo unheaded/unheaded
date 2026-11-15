@@ -32,7 +32,7 @@ steps:
   - name: start-core-services
     action: shell
     command: |
-      for svc in timeguru captain architect micromanager; do
+      for svc in timeguru; do
         ssh govan@east "sudo systemctl start unheaded-${svc}"
       done
     verify: "ssh govan@east '/opt/unheaded/bin/akira --once 2>&1 | grep OK | wc -l'"
@@ -54,7 +54,7 @@ steps:
   - name: enable-on-boot
     action: shell
     command: |
-      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app unheaded-daemon akira; do
+      for svc in wotan timeguru dashboard-backend kanban-app unheaded-daemon akira; do
         ssh govan@east "sudo systemctl enable unheaded-${svc}" 2>/dev/null
       done
 

@@ -47,24 +47,12 @@ build-wotan:
 	@echo "Building wotan..."
 	nix build .#nixosConfigurations.wotan.config.system.build.toplevel
 
-build-services: build-timeguru build-captain build-micromanager build-architect build-developer
+build-services: build-timeguru build-developer
 	@echo "All services built!"
 
 build-timeguru:
 	@echo "Building timeguru..."
 	nix build .#nixosConfigurations.timeguru.config.system.build.toplevel
-
-build-captain:
-	@echo "Building captain..."
-	nix build .#nixosConfigurations.captain.config.system.build.toplevel
-
-build-micromanager:
-	@echo "Building micromanager..."
-	nix build .#nixosConfigurations.micromanager.config.system.build.toplevel
-
-build-architect:
-	@echo "Building architect..."
-	nix build .#nixosConfigurations.architect.config.system.build.toplevel
 
 build-developer:
 	@echo "Building developer..."
@@ -163,7 +151,7 @@ logs-timeguru:
 	lxc exec unheaded-timeguru -- journalctl -u timeguru -f
 
 logs-all:
-	@for c in wotan timeguru captain micromanager architect developer kanban dashboard; do \
+	@for c in wotan timeguru developer kanban dashboard; do \
 		echo "=== $$c ===" ; \
 		lxc exec unheaded-$$c -- journalctl -u $$c -n 20 ; \
 	done
@@ -172,16 +160,13 @@ health-check:
 	@echo "Checking health endpoints..."
 	@curl -sf http://10.10.10.10:18000/health && echo "wotan: OK" || echo "wotan: FAIL"
 	@curl -sf http://10.10.10.20:19000/health && echo "timeguru: OK" || echo "timeguru: FAIL"
-	@curl -sf http://10.10.10.21:19002/health && echo "captain: OK" || echo "captain: FAIL"
-	@curl -sf http://10.10.10.22:19003/health && echo "micromanager: OK" || echo "micromanager: FAIL"
-	@curl -sf http://10.10.10.23:19001/health && echo "architect: OK" || echo "architect: FAIL"
 	@curl -sf http://10.10.10.24:19004/health && echo "developer: OK" || echo "developer: FAIL"
 	@curl -sf http://10.10.10.200:20001/health && echo "kanban: OK" || echo "kanban: FAIL"
 	@curl -sf http://10.10.10.201:20000/health && echo "dashboard: OK" || echo "dashboard: FAIL"
 
 metrics:
 	@echo "Fetching metrics from all containers..."
-	@for c in wotan timeguru captain micromanager architect developer kanban dashboard; do \
+	@for c in wotan timeguru developer kanban dashboard; do \
 		echo "=== $$c metrics ===" ; \
 		curl -s http://10.10.10.10:9100/metrics | head -20 ; \
 	done
@@ -192,7 +177,7 @@ metrics:
 
 security-audit:
 	@echo "Running security audit..."
-	@for c in wotan timeguru captain micromanager architect developer kanban dashboard; do \
+	@for c in wotan timeguru developer kanban dashboard; do \
 		echo "=== Auditing $$c ===" ; \
 		lxc exec unheaded-$$c -- grep Seccomp /proc/1/status ; \
 		lxc exec unheaded-$$c -- grep NoNewPrivs /proc/1/status ; \

@@ -11,7 +11,7 @@ metadata:
 
 parameters:
   - name: SERVICE
-    description: "Service name (e.g., timeguru, captain, architect, wotan)"
+    description: "Service name (e.g., timeguru, wotan)"
     required: true
   - name: HOST
     description: "Target host (west or east)"
@@ -43,7 +43,7 @@ steps:
   - name: build
     action: shell
     # services/<svc> keeps its main in services/<svc>/cmd/<svc>; ./cmd/<svc>
-    # does not exist for timeguru, captain, architect, micromanager or wotan.
+    # does not exist for timeguru or wotan.
     command: |
       cd ${PROJECT_ROOT}
       if [ -d cmd/${SERVICE} ]; then PKG=./cmd/${SERVICE}/; else PKG=./services/${SERVICE}/cmd/${SERVICE}/; fi
@@ -58,8 +58,7 @@ steps:
       # for the service name found nothing).
       case "${SERVICE}" in
         wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
-        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
-        micromanager) PORT=19003 ;; monad) PORT=19004 ;; sophia) PORT=19005 ;;
+        timeguru) PORT=19000 ;;
         akira) PORT=19100 ;; kev-poller) PORT=19120 ;;
         dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
         *) echo "no port known for ${SERVICE}"; exit 1 ;;
@@ -89,8 +88,7 @@ steps:
       # for the service name found nothing).
       case "${SERVICE}" in
         wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
-        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
-        micromanager) PORT=19003 ;; monad) PORT=19004 ;; sophia) PORT=19005 ;;
+        timeguru) PORT=19000 ;;
         akira) PORT=19100 ;; kev-poller) PORT=19120 ;;
         dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
         *) echo "no port known for ${SERVICE}"; exit 1 ;;
@@ -107,8 +105,7 @@ steps:
       # for the service name found nothing).
       case "${SERVICE}" in
         wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
-        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
-        micromanager) PORT=19003 ;; monad) PORT=19004 ;; sophia) PORT=19005 ;;
+        timeguru) PORT=19000 ;;
         akira) PORT=19100 ;; kev-poller) PORT=19120 ;;
         dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
         *) echo "no port known for ${SERVICE}"; exit 1 ;;
