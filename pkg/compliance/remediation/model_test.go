@@ -302,7 +302,9 @@ func TestParseAcceptsHardeningActions(t *testing.T) {
 		"package without recommends": "      - package: {name: aide, no_recommends: true}\n",
 		"apparmor enforce":           "      - apparmor: {enforce: [Xorg]}\n",
 		"apparmor enforce on a host": "      - apparmor: {enforce: [Xorg, usr.sbin.cupsd], hosts: [west]}\n",
-		"aideinit":                   "      - run: \"aideinit -y -f\"\n",
+		"aide config check":          "      - validate: \"aide --config=/etc/aide/aide-unheaded.conf --config-check\"\n",
+		"mask a timer":               "      - service: {name: dailyaidecheck.timer, masked: true}\n",
+		"divert a cron script":       "      - divert: /etc/cron.daily/dailyaidecheck\n",
 		"daemon-reload":              "      - run: \"systemctl daemon-reload\"\n",
 		"enable a timer":             "      - service: {name: dailyaidecheck.timer, enabled: true, active: true}\n",
 	} {

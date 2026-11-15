@@ -114,7 +114,7 @@ var argvFor = map[string][]string{
 	"systemctl restart systemd-journald.service": {"systemctl", "restart", "systemd-journald.service"},
 	"systemctl restart chrony.service":           {"systemctl", "restart", "chrony.service"},
 	"systemctl daemon-reload":                    {"systemctl", "daemon-reload"},
-	"aideinit -y -f":                             {"aideinit", "-y", "-f"},
+	remediation.ValidateAideConfig:               {"aide", "--config=/etc/aide/aide-unheaded.conf", "--config-check"},
 }
 
 const auditdHalt = `(?im)^[ \t]*(disk_full_action|disk_error_action|admin_space_left_action)[ \t]*=[ \t]*halt`
@@ -184,6 +184,13 @@ func fixTasks(f remediation.Fix) ([]any, error) {
 			}
 		case a.Absent != "":
 			body = append(body, task{"name": "Remove " + a.Absent, "ansible.builtin.file": task{"path": a.Absent, "state": "absent"}})
+		case a.Divert != "":
+			// As the executor: a path diverted already is left alone.
+			body = append(body,
+				task{"name": "Is " + a.Divert + " diverted", "ansible.builtin.command": task{"argv": []string{"dpkg-divert", "--listpackage", a.Divert}},
+					"register": reg, "changed_when": false},
+				task{"name": "Divert " + a.Divert, "ansible.builtin.command": task{"argv": []string{"dpkg-divert", "--local", "--rename", "--add", a.Divert}},
+					"when": reg + ".stdout | trim == ''", "changed_when": true})
 		case a.Service != nil:
 			svc := task{"name": a.Service.Name}
 			if a.Service.Enabled != nil {

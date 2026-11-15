@@ -157,8 +157,10 @@ func TestRemediationAnsibleHardeningActions(t *testing.T) {
     actions:
       - package: {name: aide, no_recommends: true}
       - run: "systemctl daemon-reload"
-      - run: "aideinit -y -f"
-      - service: {name: dailyaidecheck.timer, enabled: true, active: true}
+      - service: {name: dailyaidecheck.timer, masked: true}
+      - divert: /etc/cron.daily/dailyaidecheck
+      - validate: "aide --config=/etc/aide/aide-unheaded.conf --config-check"
+      - service: {name: unheaded-aide-check.timer, enabled: true, active: true}
       - apparmor: {enforce: [Xorg], hosts: [west]}
       - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log], mode: "0640", owner: root, group: root}
 `))
@@ -179,11 +181,18 @@ func TestRemediationAnsibleHardeningActions(t *testing.T) {
 		t.Fatal(err)
 	}
 	checkTasks(t, "h", tasks)
-	for _, want := range []string{"install_recommends: false", "- daemon-reload", "- aideinit", "state: started",
+	for _, want := range []string{"install_recommends: false", "- daemon-reload", "masked: true", "- dpkg-divert", "- --listpackage",
+		"- /etc/cron.daily/dailyaidecheck", "- --config-check", "state: started",
 		"- aa-enforce", "/etc/apparmor.d/Xorg", "inventory_hostname in ['west']", "/etc/apparmor.d/disable/Xorg",
 		"/etc/apparmor.d/force-complain/Xorg", "/var/log/rocm_smi_lib/ROCm-SMI-lib.log"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("role lacks %q:\n%s", want, body)
+		}
+	}
+	// No rendered task builds or updates an AIDE database (DE1).
+	for _, bad := range []string{"aideinit", "--init", "--update"} {
+		if strings.Contains(body, bad) {
+			t.Errorf("role contains %q", bad)
 		}
 	}
 }

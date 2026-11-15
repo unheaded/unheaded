@@ -1,6 +1,6 @@
 # Generated from compliance/remediation/fixes.yaml (ADR-099) by
 # `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
-# aide-install: AIDE installed with a database and a weekly check (CIS 6.3.1, 6.3.2)
+# aide-install: AIDE installed, quiet by design (CIS 6.3.1, 6.3.2); weekly idle check, package paths off
 - block:
     - ansible.builtin.apt:
         install_recommends: false
@@ -8,67 +8,290 @@
         state: present
       name: Install aide
     - ansible.builtin.stat:
-        path: /etc/systemd/system/dailyaidecheck.timer.d
-      name: Is /etc/systemd/system/dailyaidecheck.timer.d there
+        path: /etc/aide
+      name: Is /etc/aide there
       register: uh_aide_install_2_dir
     - ansible.builtin.file:
         group: root
         mode: "0755"
         owner: root
-        path: /etc/systemd/system/dailyaidecheck.timer.d
+        path: /etc/aide
         state: directory
-      name: Create /etc/systemd/system/dailyaidecheck.timer.d
+      name: Create /etc/aide
       when: not uh_aide_install_2_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
-          # CIS Ubuntu 24.04 6.3.2: AIDE checks weekly. Managed by unheaded-remediate (aide-install).
-          [Timer]
-          OnCalendar=
-          OnCalendar=weekly
-          RandomizedDelaySec=6h
-        dest: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+          # AIDE, quiet by design (S-EVIDENCE-RUNS DE1). Managed by unheaded-remediate
+          # (aide-install); edit compliance/remediation/fixes.yaml, not this file.
+          # An include list that stands alone: the package's aide.conf.d is not read.
+          database_in=file:/var/lib/aide/aide.db
+          database_out=file:/var/lib/aide/aide.db.new
+          database_new=file:/var/lib/aide/aide.db.new
+          gzip_dbout=yes
+          log_level=warning
+          report_format=json
+          report_url=stdout
+
+          # Content by sha512, plus permissions, inode, links, owner, group, size,
+          # mtime, ctime, ACLs and extended attributes. No atime.
+          UH = p+i+n+u+g+s+m+c+acl+xattrs+sha512
+
+          # Never watched. A ! line wins over any selection line.
+          !/var/lib
+          !/var/log
+          !/var/cache
+          !/var/tmp
+          !/tmp
+          !/home
+          !/root
+          !/nix/store
+          !/opt/rocm
+          !/usr/local/lib/python3
+          !/usr/local/lib/ollama
+          !/usr/lib/python3/dist-packages/__pycache__
+          !.*/__pycache__
+          !/var/snap
+          !/snap
+          !/var/zhen
+          !/etc/aide
+
+          # Watched.
+          /usr/bin UH
+          /usr/sbin UH
+          /usr/lib UH
+          /usr/local/bin UH
+          /usr/local/sbin UH
+          /etc UH
+          /boot UH
+          /lib/systemd/system UH
+          /etc/systemd/system UH
+          /opt/unheaded UH
+          /usr/share/unheaded UH
+          /usr/local/lib/unheaded UH
+        dest: /etc/aide/aide-unheaded.conf
+        group: root
+        mode: "0600"
+        owner: root
+      name: Write /etc/aide/aide-unheaded.conf
+      register: uh_aide_install_2_v1
+    - ansible.builtin.stat:
+        path: /etc/systemd/system
+      name: Is /etc/systemd/system there
+      register: uh_aide_install_3_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/systemd/system
+        state: directory
+      name: Create /etc/systemd/system
+      when: not uh_aide_install_3_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # SPDX-License-Identifier: GPL-3.0-or-later
+          # Weekly AIDE check, quiet by design (S-EVIDENCE-RUNS DE1). Written to the
+          # host by unheaded-remediate (aide-install); a test holds this file and the
+          # model's text equal. Run by unheaded-aide-check.timer, and by nothing else.
+          #
+          # Its own account, not root: CAP_DAC_READ_SEARCH reads every watched file
+          # and the database, and lets it write nothing root owns. No mount
+          # namespacing: an auditor inside a namespace audits the namespace
+          # (unheaded-baseline.service has the measurement).
+          #
+          # Before the first attended init there is no database, and the condition
+          # skips the run without a failed unit.
+
+          [Unit]
+          Description=Unheaded AIDE file integrity check (weekly, idle priority)
+          ConditionPathExists=/var/lib/aide/aide.db
+
+          [Service]
+          Type=oneshot
+          User=unheaded-aide
+          Group=unheaded-aide
+          ExecStart=/usr/local/bin/unheaded-aide check --textfile-dir /var/lib/unheaded/textfile
+          StateDirectory=unheaded/aide
+          StateDirectoryMode=0750
+          UMask=0027
+          # Idle by every knob: it yields the disk and the CPU to anything else.
+          Nice=19
+          IOSchedulingClass=idle
+          CPUSchedulingPolicy=idle
+          IOWeight=10
+          # Accounted, so the first run's read bytes and CPU time can be measured.
+          IOAccounting=yes
+          CPUAccounting=yes
+          # The ceiling covers aide itself; GOMEMLIMIT is the wrapper's share.
+          MemoryMax=512M
+          TasksMax=64
+          Environment=GOMEMLIMIT=64MiB
+          TimeoutStartSec=3h
+          AmbientCapabilities=CAP_DAC_READ_SEARCH
+          CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+          NoNewPrivileges=yes
+          ProtectClock=yes
+          ProtectHostname=yes
+          RestrictNamespaces=yes
+          RestrictRealtime=yes
+          RestrictSUIDSGID=yes
+          LockPersonality=yes
+          MemoryDenyWriteExecute=yes
+          RemoveIPC=yes
+          RestrictAddressFamilies=AF_UNIX
+          SystemCallArchitectures=native
+          SystemCallFilter=@system-service
+          SystemCallErrorNumber=EPERM
+        dest: /etc/systemd/system/unheaded-aide-check.service
         group: root
         mode: "0644"
         owner: root
-      name: Write /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
-      register: uh_aide_install_2_v1
+      name: Write /etc/systemd/system/unheaded-aide-check.service
+      register: uh_aide_install_3_v1
+    - ansible.builtin.stat:
+        path: /etc/systemd/system
+      name: Is /etc/systemd/system there
+      register: uh_aide_install_4_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/systemd/system
+        state: directory
+      name: Create /etc/systemd/system
+      when: not uh_aide_install_4_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # SPDX-License-Identifier: GPL-3.0-or-later
+          # The only AIDE run on the host (S-EVIDENCE-RUNS DE1): once a week, spread
+          # over six hours, caught up after a week the host was off.
+
+          [Unit]
+          Description=Weekly AIDE file integrity check
+
+          [Timer]
+          OnCalendar=weekly
+          RandomizedDelaySec=6h
+          Persistent=true
+
+          [Install]
+          WantedBy=timers.target
+        dest: /etc/systemd/system/unheaded-aide-check.timer
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/systemd/system/unheaded-aide-check.timer
+      register: uh_aide_install_4_v1
     - ansible.builtin.command:
         argv:
           - systemctl
           - daemon-reload
       changed_when: true
       name: Run systemctl daemon-reload
+    - ansible.builtin.systemd_service:
+        masked: true
+        name: dailyaidecheck.timer
+      name: Service dailyaidecheck.timer
     - ansible.builtin.command:
         argv:
-          - aideinit
-          - -y
-          - -f
+          - dpkg-divert
+          - --listpackage
+          - /etc/cron.daily/dailyaidecheck
+      changed_when: false
+      name: Is /etc/cron.daily/dailyaidecheck diverted
+      register: uh_aide_install_7
+    - ansible.builtin.command:
+        argv:
+          - dpkg-divert
+          - --local
+          - --rename
+          - --add
+          - /etc/cron.daily/dailyaidecheck
       changed_when: true
-      name: Run aideinit -y -f
+      name: Divert /etc/cron.daily/dailyaidecheck
+      when: uh_aide_install_7.stdout | trim == ''
+    - ansible.builtin.command:
+        argv:
+          - dpkg-divert
+          - --listpackage
+          - /etc/cron.daily/aide
+      changed_when: false
+      name: Is /etc/cron.daily/aide diverted
+      register: uh_aide_install_8
+    - ansible.builtin.command:
+        argv:
+          - dpkg-divert
+          - --local
+          - --rename
+          - --add
+          - /etc/cron.daily/aide
+      changed_when: true
+      name: Divert /etc/cron.daily/aide
+      when: uh_aide_install_8.stdout | trim == ''
+    - ansible.builtin.command:
+        argv:
+          - aide
+          - --config=/etc/aide/aide-unheaded.conf
+          - --config-check
+      changed_when: false
+      name: Check aide --config=/etc/aide/aide-unheaded.conf --config-check
     - ansible.builtin.systemd_service:
         enabled: true
-        name: dailyaidecheck.timer
+        name: unheaded-aide-check.timer
         state: started
-      name: Service dailyaidecheck.timer
+      name: Service unheaded-aide-check.timer
   name: aide-install
   rescue:
     - ansible.builtin.copy:
-        dest: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+        dest: /etc/aide/aide-unheaded.conf
         remote_src: true
         src: '{{ uh_aide_install_2_v1.backup_file }}'
-      name: Restore /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+      name: Restore /etc/aide/aide-unheaded.conf
       when: uh_aide_install_2_v1.backup_file is defined
     - ansible.builtin.file:
-        path: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+        path: /etc/aide/aide-unheaded.conf
         state: absent
-      name: Remove /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf if this role created it
+      name: Remove /etc/aide/aide-unheaded.conf if this role created it
       when: uh_aide_install_2_v1 is changed and uh_aide_install_2_v1.backup_file is not defined
     - ansible.builtin.file:
-        path: /etc/systemd/system/dailyaidecheck.timer.d
+        path: /etc/aide
         state: absent
-      name: Remove /etc/systemd/system/dailyaidecheck.timer.d if this role created it
+      name: Remove /etc/aide if this role created it
       when: not uh_aide_install_2_dir.stat.exists
+    - ansible.builtin.copy:
+        dest: /etc/systemd/system/unheaded-aide-check.service
+        remote_src: true
+        src: '{{ uh_aide_install_3_v1.backup_file }}'
+      name: Restore /etc/systemd/system/unheaded-aide-check.service
+      when: uh_aide_install_3_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/systemd/system/unheaded-aide-check.service
+        state: absent
+      name: Remove /etc/systemd/system/unheaded-aide-check.service if this role created it
+      when: uh_aide_install_3_v1 is changed and uh_aide_install_3_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/systemd/system
+        state: absent
+      name: Remove /etc/systemd/system if this role created it
+      when: not uh_aide_install_3_dir.stat.exists
+    - ansible.builtin.copy:
+        dest: /etc/systemd/system/unheaded-aide-check.timer
+        remote_src: true
+        src: '{{ uh_aide_install_4_v1.backup_file }}'
+      name: Restore /etc/systemd/system/unheaded-aide-check.timer
+      when: uh_aide_install_4_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/systemd/system/unheaded-aide-check.timer
+        state: absent
+      name: Remove /etc/systemd/system/unheaded-aide-check.timer if this role created it
+      when: uh_aide_install_4_v1 is changed and uh_aide_install_4_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/systemd/system
+        state: absent
+      name: Remove /etc/systemd/system if this role created it
+      when: not uh_aide_install_4_dir.stat.exists
     - ansible.builtin.fail:
         msg: aide-install failed a check; every file it changed was restored
       name: Fail after restoring

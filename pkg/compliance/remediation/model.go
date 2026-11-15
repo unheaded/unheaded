@@ -38,10 +38,15 @@ var KnownHosts = []string{"west", "east"}
 var (
 	AllowedRun = map[string]bool{"sysctl --system": true, "systemctl reload ssh.service": true, "augenrules --load": true,
 		"systemctl restart systemd-journald.service": true, "systemctl restart chrony.service": true,
-		"systemctl daemon-reload": true, "aideinit -y -f": true}
-	AllowedValidate = map[string]bool{"visudo -c": true, "sshd -t": true, "auditd-never-halts": true}
+		"systemctl daemon-reload": true}
+	AllowedValidate = map[string]bool{"visudo -c": true, "sshd -t": true, "auditd-never-halts": true, ValidateAideConfig: true}
 	AllowedPrecheck = map[string]bool{"visudo -cf": true}
 )
+
+// ValidateAideConfig parses the AIDE config aide-install writes. Nothing on
+// any allowlist builds or updates an AIDE database: that is done by hand,
+// after a review (S-EVIDENCE-RUNS DE1; unheaded-aide init, promote, accept).
+const ValidateAideConfig = "aide --config=/etc/aide/aide-unheaded.conf --config-check"
 
 // GenRootAndGroupMembers renders root followed by a group's members,
 // deduplicated (cron.allow).
@@ -54,6 +59,8 @@ var (
 	keyRe     = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_.]{0,63}$`)
 	accountRe = regexp.MustCompile(`^[a-z_][a-z0-9_-]{0,31}$`)
 	// An AppArmor profile is named by its file in /etc/apparmor.d.
+	// A diverted path becomes a dpkg-divert argument: plain names only.
+	divertRe  = regexp.MustCompile(`^/etc(/[A-Za-z0-9][A-Za-z0-9._-]*)+$`)
 	profileRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._+-]{0,99}$`)
 	risks     = map[string]bool{"none": true, "low": true, "medium": true, "high": true}
 	facts     = map[string]bool{"sudo-rs": true}
@@ -87,8 +94,12 @@ type Action struct {
 	Package  *PackageAction  `yaml:"package,omitempty" json:"package,omitempty"`
 	AppArmor *AppArmorAction `yaml:"apparmor,omitempty" json:"apparmor,omitempty"`
 	Absent   string          `yaml:"absent,omitempty" json:"absent,omitempty"`
-	Run      string          `yaml:"run,omitempty" json:"run,omitempty"`
-	Validate string          `yaml:"validate,omitempty" json:"validate,omitempty"`
+	// Divert makes dpkg install a path under another name from now on
+	// (dpkg-divert --local --rename), so a script a package ships stays off
+	// across upgrades. Undo removes the diversion.
+	Divert   string `yaml:"divert,omitempty" json:"divert,omitempty"`
+	Run      string `yaml:"run,omitempty" json:"run,omitempty"`
+	Validate string `yaml:"validate,omitempty" json:"validate,omitempty"`
 }
 
 // AppArmorAction puts profiles (files in /etc/apparmor.d) into enforce
@@ -236,13 +247,13 @@ func (f *Fix) validate() error {
 func (a Action) validate() error {
 	n := 0
 	for _, set := range []bool{a.File != nil, a.Setting != nil, a.Mode != nil, a.Service != nil,
-		a.Package != nil, a.AppArmor != nil, a.Absent != "", a.Run != "", a.Validate != ""} {
+		a.Package != nil, a.AppArmor != nil, a.Absent != "", a.Divert != "", a.Run != "", a.Validate != ""} {
 		if set {
 			n++
 		}
 	}
 	if n != 1 {
-		return invalid("an action is exactly one of file, setting, mode, service, package, apparmor, absent, run, validate (has %d)", n)
+		return invalid("an action is exactly one of file, setting, mode, service, package, apparmor, absent, divert, run, validate (has %d)", n)
 	}
 	switch {
 	case a.File != nil:
@@ -274,6 +285,11 @@ func (a Action) validate() error {
 		return a.AppArmor.validate()
 	case a.Absent != "":
 		return checkPath(a.Absent)
+	case a.Divert != "":
+		if !divertRe.MatchString(a.Divert) {
+			return invalid("divert %q is not a file path of plain names under /etc", a.Divert)
+		}
+		return checkPath(a.Divert)
 	case a.Run != "":
 		if !AllowedRun[a.Run] {
 			return invalid("run %q is not in the allowlist", a.Run)

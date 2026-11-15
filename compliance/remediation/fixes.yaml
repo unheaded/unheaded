@@ -2,7 +2,7 @@
 # because fixes run as root and must change only by signed commit; mirrored
 # into The Well (unheaded_config.compliance_fixes) by sha256 for display and
 # query. Actions come from a closed set (file, setting, mode, service,
-# package, apparmor, absent, run, validate); `run`/`validate`/`precheck`
+# package, apparmor, absent, divert, run, validate); `run`/`validate`/`precheck`
 # values come from a fixed allowlist in pkg/compliance/remediation.
 #
 # A file's content is an ordered list of parts. A part may name the hosts it
@@ -437,31 +437,166 @@ fixes:
       - mode: {paths: [/var/log/rocm_smi_lib/ROCm-SMI-lib.log, /var/log/amd_smi_lib/AMD-SMI-lib.log], mode: "0640", owner: root, group: root}
 
   - id: aide-install
-    title: AIDE installed with a database and a weekly check (CIS 6.3.1, 6.3.2)
+    title: AIDE installed, quiet by design (CIS 6.3.1, 6.3.2); weekly idle check, package paths off
     controls: [UH-FIM-01]
-    closes: ["host-probe:*:aide-installed", "host-probe:*:aide-timer"]
+    closes: ["host-probe:*:aide-timer"]
     risk: low
     class: package
     note: >-
-      Recommends are left out: aide-common recommends a mail transport agent, which mta-local-only would then flag.
-      aideinit hashes the whole filesystem once (minutes of disk I/O; run it in the host window). Ubuntu's
-      dailyaidecheck.timer runs weekly through a drop-in: a daily full scan of west (models, build trees) costs more
-      than it tells. Undo removes the package, the drop-in and the timer; the database in /var/lib/aide stays.
+      DE1 (Stevie, 2026-11-13): "set up carefully. Ensure no spam or useless disk io is being used". So: the package
+      alone, without what it recommends (aide-common brings a daily timer, a cron script, aideinit and a mail
+      transport agent). Our own config, an include list that stands alone (no @@ include of the package's
+      aide.conf.d): binaries, libraries, /etc, /boot and unit files are watched; the never-watched trees are ! lines
+      so no later include reaches them. /var/lib is Docker, containerd, LXD pools and every service's data, and holds
+      AIDE's own database; /var/log, /var/cache, /var/tmp and /tmp change by design; /home and /root are people's
+      files; /nix/store, /opt/rocm, /usr/local/lib/python3*, /usr/local/lib/ollama, /snap, /var/snap and /var/zhen are
+      bulk trees and model caches that cost hours of reads and say nothing; __pycache__ is rewritten by every
+      interpreter run; /etc/aide is this config. No atime in the rule, so reading a file is never a change. One run a
+      week, by our timer, at idle I/O and CPU priority, as its own account (unheaded-aide, deploy/sysusers.d) with
+      CAP_DAC_READ_SEARCH; the package's timer is masked and its cron script diverted, so a later install of
+      aide-common starts nothing. The unit runs unheaded-aide check (cmd/unheaded-aide), which reports a new diff
+      once and mails nothing. This fix never builds or updates the database: unheaded-aide init, promote and accept
+      are run by hand after a review, so aide-installed stays open until the first attended init. Undo removes the
+      package, our files and the diversions and unmasks the timer; a database in /var/lib/aide stays.
     actions:
       - package: {name: aide, no_recommends: true}
       - file:
-          path: /etc/systemd/system/dailyaidecheck.timer.d/60-unheaded-weekly.conf
+          path: /etc/aide/aide-unheaded.conf
+          mode: "0600"
+          owner: root
+          group: root
+          parts:
+            - text: |
+                # AIDE, quiet by design (S-EVIDENCE-RUNS DE1). Managed by unheaded-remediate
+                # (aide-install); edit compliance/remediation/fixes.yaml, not this file.
+                # An include list that stands alone: the package's aide.conf.d is not read.
+                database_in=file:/var/lib/aide/aide.db
+                database_out=file:/var/lib/aide/aide.db.new
+                database_new=file:/var/lib/aide/aide.db.new
+                gzip_dbout=yes
+                log_level=warning
+                report_format=json
+                report_url=stdout
+
+                # Content by sha512, plus permissions, inode, links, owner, group, size,
+                # mtime, ctime, ACLs and extended attributes. No atime.
+                UH = p+i+n+u+g+s+m+c+acl+xattrs+sha512
+
+                # Never watched. A ! line wins over any selection line.
+                !/var/lib
+                !/var/log
+                !/var/cache
+                !/var/tmp
+                !/tmp
+                !/home
+                !/root
+                !/nix/store
+                !/opt/rocm
+                !/usr/local/lib/python3
+                !/usr/local/lib/ollama
+                !/usr/lib/python3/dist-packages/__pycache__
+                !.*/__pycache__
+                !/var/snap
+                !/snap
+                !/var/zhen
+                !/etc/aide
+
+                # Watched.
+                /usr/bin UH
+                /usr/sbin UH
+                /usr/lib UH
+                /usr/local/bin UH
+                /usr/local/sbin UH
+                /etc UH
+                /boot UH
+                /lib/systemd/system UH
+                /etc/systemd/system UH
+                /opt/unheaded UH
+                /usr/share/unheaded UH
+                /usr/local/lib/unheaded UH
+      - file:
+          path: /etc/systemd/system/unheaded-aide-check.service
           mode: "0644"
           parts:
             - text: |
-                # CIS Ubuntu 24.04 6.3.2: AIDE checks weekly. Managed by unheaded-remediate (aide-install).
+                # SPDX-License-Identifier: GPL-3.0-or-later
+                # Weekly AIDE check, quiet by design (S-EVIDENCE-RUNS DE1). Written to the
+                # host by unheaded-remediate (aide-install); a test holds this file and the
+                # model's text equal. Run by unheaded-aide-check.timer, and by nothing else.
+                #
+                # Its own account, not root: CAP_DAC_READ_SEARCH reads every watched file
+                # and the database, and lets it write nothing root owns. No mount
+                # namespacing: an auditor inside a namespace audits the namespace
+                # (unheaded-baseline.service has the measurement).
+                #
+                # Before the first attended init there is no database, and the condition
+                # skips the run without a failed unit.
+
+                [Unit]
+                Description=Unheaded AIDE file integrity check (weekly, idle priority)
+                ConditionPathExists=/var/lib/aide/aide.db
+
+                [Service]
+                Type=oneshot
+                User=unheaded-aide
+                Group=unheaded-aide
+                ExecStart=/usr/local/bin/unheaded-aide check --textfile-dir /var/lib/unheaded/textfile
+                StateDirectory=unheaded/aide
+                StateDirectoryMode=0750
+                UMask=0027
+                # Idle by every knob: it yields the disk and the CPU to anything else.
+                Nice=19
+                IOSchedulingClass=idle
+                CPUSchedulingPolicy=idle
+                IOWeight=10
+                # Accounted, so the first run's read bytes and CPU time can be measured.
+                IOAccounting=yes
+                CPUAccounting=yes
+                # The ceiling covers aide itself; GOMEMLIMIT is the wrapper's share.
+                MemoryMax=512M
+                TasksMax=64
+                Environment=GOMEMLIMIT=64MiB
+                TimeoutStartSec=3h
+                AmbientCapabilities=CAP_DAC_READ_SEARCH
+                CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+                NoNewPrivileges=yes
+                ProtectClock=yes
+                ProtectHostname=yes
+                RestrictNamespaces=yes
+                RestrictRealtime=yes
+                RestrictSUIDSGID=yes
+                LockPersonality=yes
+                MemoryDenyWriteExecute=yes
+                RemoveIPC=yes
+                RestrictAddressFamilies=AF_UNIX
+                SystemCallArchitectures=native
+                SystemCallFilter=@system-service
+                SystemCallErrorNumber=EPERM
+      - file:
+          path: /etc/systemd/system/unheaded-aide-check.timer
+          mode: "0644"
+          parts:
+            - text: |
+                # SPDX-License-Identifier: GPL-3.0-or-later
+                # The only AIDE run on the host (S-EVIDENCE-RUNS DE1): once a week, spread
+                # over six hours, caught up after a week the host was off.
+
+                [Unit]
+                Description=Weekly AIDE file integrity check
+
                 [Timer]
-                OnCalendar=
                 OnCalendar=weekly
                 RandomizedDelaySec=6h
+                Persistent=true
+
+                [Install]
+                WantedBy=timers.target
       - run: "systemctl daemon-reload"
-      - run: "aideinit -y -f"
-      - service: {name: dailyaidecheck.timer, enabled: true, active: true}
+      - service: {name: dailyaidecheck.timer, masked: true}
+      - divert: /etc/cron.daily/dailyaidecheck
+      - divert: /etc/cron.daily/aide
+      - validate: "aide --config=/etc/aide/aide-unheaded.conf --config-check"
+      - service: {name: unheaded-aide-check.timer, enabled: true, active: true}
 
   - id: apparmor-enforce
     title: AppArmor profiles shipped in complain mode put in enforce (CIS 1.3.1.4)

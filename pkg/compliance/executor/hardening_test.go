@@ -135,15 +135,13 @@ func TestServiceHalfStatesRefused(t *testing.T) {
 	}
 }
 
-// aideinit builds a database; undo does not rebuild it, and daemon-reload
-// runs after the unit drop-in is gone.
-func TestAideinitNotReplayedDaemonReloadLast(t *testing.T) {
+// daemon-reload runs after the unit file is gone, so systemd forgets it.
+func TestDaemonReloadLastOnUndo(t *testing.T) {
 	e := newEnv(t)
 	f := inline(t, "a",
-		remediation.Action{File: &remediation.FileAction{Path: "/etc/systemd/system/dailyaidecheck.timer.d/60-unheaded.conf", Mode: "0644",
-			Parts: []remediation.Part{{Text: "[Timer]\nOnCalendar=\nOnCalendar=weekly\n"}}}},
-		remediation.Action{Run: "systemctl daemon-reload"},
-		remediation.Action{Run: "aideinit -y -f"})
+		remediation.Action{File: &remediation.FileAction{Path: "/etc/systemd/system/unheaded-aide-check.timer", Mode: "0644",
+			Parts: []remediation.Part{{Text: "[Timer]\nOnCalendar=weekly\n"}}}},
+		remediation.Action{Run: "systemctl daemon-reload"})
 	before := e.snapshot()
 	dir, err := e.executor("east").Apply(context.Background(), f)
 	if err != nil {
@@ -159,7 +157,174 @@ func TestAideinitNotReplayedDaemonReloadLast(t *testing.T) {
 		t.Errorf("undo calls: %q", got)
 	}
 	if e.snapshot() != before {
-		t.Error("undo left the drop-in or its directories")
+		t.Error("undo left the unit or its directories")
+	}
+}
+
+// A diversion is added once and removed by undo; one that is already there
+// is left alone both ways.
+func TestDivertAndUndo(t *testing.T) {
+	e := newEnv(t)
+	f := inline(t, "d", remediation.Action{Divert: "/etc/cron.daily/dailyaidecheck"})
+	dir, err := e.executor("west").Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "dpkg-divert --listpackage /etc/cron.daily/dailyaidecheck\ndpkg-divert --local --rename --add /etc/cron.daily/dailyaidecheck"
+	if got := strings.TrimSpace(e.callLog()); got != want {
+		t.Errorf("apply calls:\n%s\nwant:\n%s", got, want)
+	}
+	if err := os.WriteFile(e.calls, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(e.callLog()); got != "dpkg-divert --local --rename --remove /etc/cron.daily/dailyaidecheck" {
+		t.Errorf("undo calls: %q", got)
+	}
+
+	e = newEnv(t)
+	e.answer("dpkg-divert", "--listpackage /etc/cron.daily/dailyaidecheck", "LOCAL")
+	dir, err = e.executor("west").Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(e.callLog()); got != "dpkg-divert --listpackage /etc/cron.daily/dailyaidecheck" {
+		t.Errorf("already diverted, apply calls: %q", got)
+	}
+	if err := os.WriteFile(e.calls, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(e.callLog()); got != "" {
+		t.Errorf("undo removed a diversion this apply did not add: %q", got)
+	}
+
+	// A dpkg-divert that fails is an error, and nothing was recorded to undo.
+	e = newEnv(t)
+	e.failing("dpkg-divert")
+	if _, err := e.executor("west").Apply(context.Background(), f); err == nil {
+		t.Error("a failing dpkg-divert was not an error")
+	}
+}
+
+func repoFix(t *testing.T, id string) remediation.Fix {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "compliance", "remediation", "fixes.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m, err := remediation.Parse(raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range m.Fixes {
+		if f.ID == id {
+			return f
+		}
+	}
+	t.Fatalf("no fix %s", id)
+	return remediation.Fix{}
+}
+
+// The shipped aide-install, end to end against fakes: the package without
+// recommends, our files, the package's paths off, the config check, our
+// timer on. No call builds or updates a database. Undo puts it all back.
+func TestAideInstallAppliesQuietlyAndUndoes(t *testing.T) {
+	e := newEnv(t)
+	f := repoFix(t, "aide-install")
+	before := e.snapshot()
+	x := e.executor("west")
+	dir, err := x.Apply(context.Background(), f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conf := e.root + "/etc/aide/aide-unheaded.conf"
+	want := strings.Join([]string{
+		"apt-get install -y -q --no-install-recommends aide",
+		"systemctl daemon-reload",
+		"systemctl mask dailyaidecheck.timer",
+		"dpkg-divert --listpackage /etc/cron.daily/dailyaidecheck",
+		"dpkg-divert --local --rename --add /etc/cron.daily/dailyaidecheck",
+		"dpkg-divert --listpackage /etc/cron.daily/aide",
+		"dpkg-divert --local --rename --add /etc/cron.daily/aide",
+		"aide --config=" + conf + " --config-check",
+		"systemctl enable --now unheaded-aide-check.timer",
+	}, "\n")
+	if got := strings.TrimSpace(e.callLog()); got != want {
+		t.Errorf("apply calls:\n%s\nwant:\n%s", got, want)
+	}
+	for _, l := range strings.Split(e.callLog(), "\n") {
+		if strings.Contains(l, "init") || strings.Contains(l, "--update") {
+			t.Errorf("apply ran %q", l)
+		}
+	}
+	fi, err := os.Stat(conf)
+	if err != nil || fi.Mode().Perm() != 0o600 {
+		t.Errorf("config: %v, mode %v; want 0600", err, fi)
+	}
+	for _, u := range []string{"unheaded-aide-check.service", "unheaded-aide-check.timer"} {
+		if fi, err := os.Stat(e.root + "/etc/systemd/system/" + u); err != nil || fi.Mode().Perm() != 0o644 {
+			t.Errorf("%s: %v", u, err)
+		}
+	}
+	if err := os.WriteFile(e.calls, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := Undo(context.Background(), dir, nil, true); err != nil {
+		t.Fatal(err)
+	}
+	wantUndo := strings.Join([]string{
+		"systemctl disable --now unheaded-aide-check.timer",
+		"dpkg-divert --local --rename --remove /etc/cron.daily/aide",
+		"dpkg-divert --local --rename --remove /etc/cron.daily/dailyaidecheck",
+		"systemctl unmask dailyaidecheck.timer",
+		"apt-get remove -y aide",
+		"systemctl daemon-reload",
+	}, "\n")
+	if got := strings.TrimSpace(e.callLog()); got != wantUndo {
+		t.Errorf("undo calls:\n%s\nwant:\n%s", got, wantUndo)
+	}
+	if e.snapshot() != before {
+		t.Error("undo left files behind")
+	}
+
+	// A config AIDE does not parse is refused, and everything is restored.
+	e = newEnv(t)
+	e.failing("aide")
+	before = e.snapshot()
+	if _, err := e.executor("west").Apply(context.Background(), f); !errors.Is(err, ErrRefused) {
+		t.Fatalf("got %v, want ErrRefused", err)
+	}
+	if e.snapshot() != before {
+		t.Error("a refused apply left files behind")
+	}
+	if strings.Contains(e.callLog(), "enable --now unheaded-aide-check.timer") {
+		t.Error("the timer was enabled on a config that does not parse")
+	}
+}
+
+// No allowlisted string maps to a command that builds a database.
+func TestNoCommandBuildsAnAideDatabase(t *testing.T) {
+	e := newEnv(t)
+	for _, s := range []string{"aideinit -y -f", "aideinit", "aide --init", "aide --update"} {
+		if _, err := e.cmds().argv(s); !errors.Is(err, ErrRefused) {
+			t.Errorf("argv(%q) = %v, want ErrRefused", s, err)
+		}
+	}
+	for cmd := range remediation.AllowedRun {
+		argv, err := e.cmds().argv(cmd)
+		if err != nil {
+			t.Errorf("allowlisted run %q has no argv: %v", cmd, err)
+		}
+		for _, a := range argv {
+			if strings.Contains(a, "aideinit") || a == "--init" || a == "--update" {
+				t.Errorf("run %q maps to %v", cmd, argv)
+			}
+		}
 	}
 }
 

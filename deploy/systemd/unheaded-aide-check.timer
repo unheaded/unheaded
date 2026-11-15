@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The only AIDE run on the host (S-EVIDENCE-RUNS DE1): once a week, spread
+# over six hours, caught up after a week the host was off.
+
+[Unit]
+Description=Weekly AIDE file integrity check
+
+[Timer]
+OnCalendar=weekly
+RandomizedDelaySec=6h
+Persistent=true
+
+[Install]
+WantedBy=timers.target

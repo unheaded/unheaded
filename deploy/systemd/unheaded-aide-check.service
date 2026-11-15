@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Weekly AIDE check, quiet by design (S-EVIDENCE-RUNS DE1). Written to the
+# host by unheaded-remediate (aide-install); a test holds this file and the
+# model's text equal. Run by unheaded-aide-check.timer, and by nothing else.
+#
+# Its own account, not root: CAP_DAC_READ_SEARCH reads every watched file
+# and the database, and lets it write nothing root owns. No mount
+# namespacing: an auditor inside a namespace audits the namespace
+# (unheaded-baseline.service has the measurement).
+#
+# Before the first attended init there is no database, and the condition
+# skips the run without a failed unit.
+
+[Unit]
+Description=Unheaded AIDE file integrity check (weekly, idle priority)
+ConditionPathExists=/var/lib/aide/aide.db
+
+[Service]
+Type=oneshot
+User=unheaded-aide
+Group=unheaded-aide
+ExecStart=/usr/local/bin/unheaded-aide check --textfile-dir /var/lib/unheaded/textfile
+StateDirectory=unheaded/aide
+StateDirectoryMode=0750
+UMask=0027
+# Idle by every knob: it yields the disk and the CPU to anything else.
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+IOWeight=10
+# Accounted, so the first run's read bytes and CPU time can be measured.
+IOAccounting=yes
+CPUAccounting=yes
+# The ceiling covers aide itself; GOMEMLIMIT is the wrapper's share.
+MemoryMax=512M
+TasksMax=64
+Environment=GOMEMLIMIT=64MiB
+TimeoutStartSec=3h
+AmbientCapabilities=CAP_DAC_READ_SEARCH
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH
+NoNewPrivileges=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+RestrictAddressFamilies=AF_UNIX
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

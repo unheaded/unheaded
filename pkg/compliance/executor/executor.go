@@ -48,11 +48,11 @@ var errRestoreFailed = errors.New("restore failed")
 // remediate.sh, so the test harness can substitute fakes.
 type Commands struct {
 	Sysctl, Systemctl, SSHD, Visudo, Apt, Sudo, Augenrules string
-	AAEnforce, AppArmorParser, DpkgQuery, Aideinit         string
+	AAEnforce, AppArmorParser, DpkgQuery, DpkgDivert, Aide string
 }
 
 // CommandsFromEnv reads SYSCTL, SYSTEMCTL, SSHD, VISUDO, APT, SUDO_BIN,
-// AUGENRULES, AA_ENFORCE, APPARMOR_PARSER, DPKG_QUERY and AIDEINIT.
+// AUGENRULES, AA_ENFORCE, APPARMOR_PARSER, DPKG_QUERY, DPKG_DIVERT and AIDE.
 func CommandsFromEnv() Commands {
 	get := func(k, def string) string {
 		if v := os.Getenv(k); v != "" {
@@ -65,13 +65,12 @@ func CommandsFromEnv() Commands {
 		Visudo: get("VISUDO", "visudo"), Apt: get("APT", "apt-get"), Sudo: get("SUDO_BIN", "sudo"),
 		Augenrules: get("AUGENRULES", "augenrules"), AAEnforce: get("AA_ENFORCE", "aa-enforce"),
 		AppArmorParser: get("APPARMOR_PARSER", "apparmor_parser"), DpkgQuery: get("DPKG_QUERY", "dpkg-query"),
-		Aideinit: get("AIDEINIT", "aideinit"),
+		DpkgDivert: get("DPKG_DIVERT", "dpkg-divert"), Aide: get("AIDE", "aide"),
 	}
 }
 
-// notReplayed are run actions whose undo is nothing: aideinit builds a
-// database, and building it again on undo restores nothing.
-var notReplayed = map[string]bool{"aideinit -y -f": true}
+// aideConfig is the config remediation.ValidateAideConfig checks.
+const aideConfig = "/etc/aide/aide-unheaded.conf"
 
 // argv maps an allowlisted run or validate string to its argv.
 func (c Commands) argv(s string) ([]string, error) {
@@ -92,8 +91,6 @@ func (c Commands) argv(s string) ([]string, error) {
 		return []string{c.Systemctl, "restart", "chrony.service"}, nil
 	case "systemctl daemon-reload":
 		return []string{c.Systemctl, "daemon-reload"}, nil
-	case "aideinit -y -f":
-		return []string{c.Aideinit, "-y", "-f"}, nil
 	}
 	return nil, fmt.Errorf("%w: %q is not an allowlisted command", ErrRefused, s)
 }
@@ -350,6 +347,9 @@ func (e *Executor) Plan(ctx context.Context, fix remediation.Fix) error {
 			if _, err := os.Lstat(e.path(a.Absent)); err == nil {
 				e.printf("  %s: would be removed\n", a.Absent)
 			}
+		case a.Divert != "":
+			e.printf("  would run: %s --local --rename --add %s (unless it is diverted already; dpkg then installs it as %s.distrib)\n",
+				e.o.Cmd.DpkgDivert, a.Divert, a.Divert)
 		case a.Service != nil:
 			e.printf("  would run: %s\n", strings.Join(e.serviceArgv(a.Service), "; "))
 		case a.Package != nil:
@@ -491,6 +491,8 @@ func (r *applyRun) apply(ctx context.Context, a remediation.Action) error {
 		return os.Remove(full)
 	case a.Service != nil:
 		return r.applyService(ctx, a.Service)
+	case a.Divert != "":
+		return r.applyDivert(ctx, a.Divert)
 	case a.Package != nil:
 		if err := r.record(undoStep{Op: "run", Argv: []string{e.o.Cmd.Apt, "remove", "-y", a.Package.Name}}); err != nil {
 			return err
@@ -507,10 +509,8 @@ func (r *applyRun) apply(ctx context.Context, a remediation.Action) error {
 		// Undo replays it after every file is restored (sysctl --system
 		// reloads the restored values; a reload picks up restored config).
 		// Recorded before it runs, so a run that fails is replayed too.
-		if !notReplayed[a.Run] {
-			if err := r.record(undoStep{Op: "reload", Argv: argv}); err != nil {
-				return err
-			}
+		if err := r.record(undoStep{Op: "reload", Argv: argv}); err != nil {
+			return err
 		}
 		return runCmd(ctx, argv)
 	case a.Validate != "":
@@ -767,9 +767,15 @@ func (r *applyRun) validate(ctx context.Context, v string) error {
 		}
 		return nil
 	}
-	argv, err := e.o.Cmd.argv(v)
-	if err != nil {
-		return err
+	var argv []string
+	if v == remediation.ValidateAideConfig {
+		// Parses the config and reads nothing else: no database, no tree.
+		argv = []string{e.o.Cmd.Aide, "--config=" + e.path(aideConfig), "--config-check"}
+	} else {
+		var err error
+		if argv, err = e.o.Cmd.argv(v); err != nil {
+			return err
+		}
 	}
 	if err := runCmd(ctx, argv); err != nil {
 		return fmt.Errorf("%w: %s failed: %v", ErrRefused, v, err)
@@ -779,12 +785,42 @@ func (r *applyRun) validate(ctx context.Context, v string) error {
 }
 
 func runCmd(ctx context.Context, argv []string, env ...string) error {
+	_, err := runOut(ctx, argv, env...)
+	return err
+}
+
+// runOut runs argv and returns what it printed.
+func runOut(ctx context.Context, argv []string, env ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...) // #nosec G204 -- argv comes from the allowlist, the model's validated names, or the undo record apply wrote in the operator-named backup directory
 	cmd.Env = append(os.Environ(), env...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("%s: %w: %s", strings.Join(argv, " "), err, bytes.TrimSpace(out))
+		return nil, fmt.Errorf("%s: %w: %s", strings.Join(argv, " "), err, bytes.TrimSpace(out))
 	}
+	return out, nil
+}
+
+// applyDivert adds a local dpkg diversion for p, so the file a package
+// ships there is installed as p.distrib from now on and what p held is
+// renamed out of the way. A path that is diverted already, by the operator
+// or by a package, is left as it is, and undo then leaves it too.
+func (r *applyRun) applyDivert(ctx context.Context, p string) error {
+	e := r.e
+	out, err := runOut(ctx, []string{e.o.Cmd.DpkgDivert, "--listpackage", p})
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(string(out)) != "" {
+		e.printf("  %s: diverted already, left as it is\n", p)
+		return nil
+	}
+	if err := r.record(undoStep{Op: "run", Argv: []string{e.o.Cmd.DpkgDivert, "--local", "--rename", "--remove", p}}); err != nil {
+		return err
+	}
+	if err := runCmd(ctx, []string{e.o.Cmd.DpkgDivert, "--local", "--rename", "--add", p}); err != nil {
+		return err
+	}
+	e.printf("  diverted %s\n", p)
 	return nil
 }
 
