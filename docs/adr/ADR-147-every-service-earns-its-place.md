@@ -208,5 +208,11 @@ Stevie, a few minutes later, verbatim:
 - **Tenants.** The hosts are to carry programs that are not Unheaded: a media server, something for games, others not yet named. None is chosen here and none is installed without Stevie's yes (each is third-party). The table designs for a tenant it has not met: what a tenant is given (CPU, memory, disk, network, a name, a login), what it is refused, and how the stack keeps its own share.
 - **Zhen is a tenant.** Zhenai is treated as a production application that runs on the platform, with its own budget, its own alerts and its own place in the load, not as a default part of Unheaded. Where the stack assumes Zhen is there, that is a finding.
 
+Stevie, again, verbatim:
+
+> unheaded services might be on every host in an environment but you would only need a cluster running zhenai
+
+- **Three sets, three budgets.** What runs on every host (collectors, the baseline, the agent), what runs once per environment (Wotan, VictoriaMetrics, the Well, the dashboards), and what is a tenant on a few hosts (Zhen). The first set's cost is multiplied by the number of hosts, so it carries the tightest budget and is the first thing test 4 (scale) is applied to. The table sorts every service into one of the three; a service that fits none is a finding.
+
 The table's answers are written below this line as they come in, each under its skill's name, dated.
 
