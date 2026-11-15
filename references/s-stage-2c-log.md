@@ -438,3 +438,9 @@ Gate `review3-after`, with every fix and the two new harness lines: `same=12 dif
 
 Gate `sec-after`, with the two new harness lines, on the tree of this commit: `same=12 diff=0 rc=0 doom=1 ascend=883522`; `opcode scan refuses a user image with PUSH, POP, INT or IRET (review RV-2)` PASS, `sidecar check refuses a missing and a truncated .data sidecar, and passes the image's own` PASS, the three "ush cd" lines PASS, ALL GREEN. The eBPF object and the kernel are untouched by this phase.
 
+### Steps 298-300 (2026-11-15)
+
+Repo gates on `539cf5b0`, each read on its own line: no `.go` file in the branch's diff; `check-ebpf-insns.sh` PASS (41 programs within 10 % of the baseline; 0 allowlisted over 900000); `check-spdx.sh` OK (1,936 files); `check-gitleaks.sh` PASS (5,946 tracked files); `check-gates-can-fail.sh --only check-ebpf-insns` PASS (1 gate proven to fail when violated); `cargo clippy --release -- -D warnings` and `cargo fmt --check` in `cmd/upc-bootctl` clean; `cargo test --release` there green; ruff clean on the three UPC scripts and `check-ruff.sh` PASS (it was red on this branch: `scripts/upc-tty-split.py` had a shebang and no mode bit, fixed in `539cf5b0`); `tests/scripts` 114 passed; `bash -n` and shellcheck clean on the harness.
+
+ADR-135 stays **Proposed**. No rung 7 ADR was written (Phases 13 and 14 were not run).
+
