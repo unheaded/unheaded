@@ -47,6 +47,7 @@ RUNBOOKS = {
     "runbooks/observe/host-pressure.yaml": ("HostMemoryPressure", "HostSwapping", "HostSwapNearFull", "HostIOPressure", "HostCPUPressure", "ContainerCPUThrottled"),
     "runbooks/observe/host-temperature.yaml": ("HostTemperatureNearCritical",),
     "runbooks/observe/unit-restart.yaml": ("UnitFailed", "UnitRestartLoop"),
+    "runbooks/data/store-backup-late.yaml": ("StoreBackupLate", "StoreBackupMissing", "StoreDrillLate"),
     "runbooks/observe/monitoring-path.yaml": ("VictoriaMetricsDown", "HuginnDown", "AlertMailerDown", "PrometheusRemoteWriteFailing", "AlertmanagerNotReached", "HostStateStale"),
 }
 

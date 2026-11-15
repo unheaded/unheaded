@@ -210,9 +210,10 @@ promote:
 # bad, so a scrape target that disappears does not look healthy.
 window: 28d
 slos:
+  # East's Wotan is off until S-E1-LIVE Evening 10B; plan 6 adds its target and says "both hosts" again.
   - name: wotan
     service: wotan
-    description: The message bus answers on both hosts
+    description: The message bus answers on west
     objective: 99.5
     page: true
     good: avg(up{job="wotan"})
@@ -287,11 +288,13 @@ slos:
   # September and nobody was told (docs/incidents/2026-09-21-ci-clippy-red-on-develop.md).
   # unheaded-ci-status.timer on west writes the SLI from the public Actions
   # API every 10 minutes; data over 2 h old counts as red.
+  # ADR-147 decision 4 (Stevie, 2026-11-15): out of the alert set until CI is fixed. Recorded, not notified.
   - name: ci-develop
     service: github-actions
     description: Every workflow's latest finished run on develop is green
     objective: 99.0
     page: false
+    notify: false
     good: >-
       min(unheaded_ci_run_success)
       * (time() - max(unheaded_ci_run_checked_timestamp_seconds) < bool 7200)
@@ -299,3 +302,20 @@ slos:
       unheaded_ci_run_success == 0 names the workflow; the Actions API lists
       its failing run and step; reproduce the job in a clean clone.
     runbook: runbooks/observe/ci-red.yaml
+
+  # ADR-147 decision 6: ClickHouse (audit logs, 455 days) and VictoriaMetrics
+  # get nightly sets and a weekly restore drill, like the Well.
+  - name: store-backups
+    service: backups
+    description: A restorable copy of ClickHouse and of VictoriaMetrics is under a day old
+    objective: 99.0
+    page: false
+    good: >-
+      (time() - max(unheaded_store_backup_last_success_timestamp_seconds{store="clickhouse"}) < bool 26 * 3600)
+      * (time() - max(unheaded_store_backup_last_success_timestamp_seconds{store="victoria"}) < bool 26 * 3600)
+      * (time() - max(unheaded_store_drill_last_success_timestamp_seconds{store="clickhouse"}) < bool 8 * 86400)
+      * (time() - max(unheaded_store_drill_last_success_timestamp_seconds{store="victoria"}) < bool 8 * 86400)
+    checks: >-
+      journalctl -u unheaded-clickhouse-backup -u unheaded-victoria-backup -u unheaded-store-drill
+      on west; cat /srv/backups/unheaded-{clickhouse,victoria}/LATEST.
+    runbook: runbooks/data/store-backup-late.yaml

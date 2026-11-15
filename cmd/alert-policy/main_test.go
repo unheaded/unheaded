@@ -95,7 +95,7 @@ func TestRefusals(t *testing.T) {
 			}
 			return re.ReplaceAllString(s, "  mode: yolo")
 		}, "", `mailer.mode "yolo"`},
-		{"template in text", replace("description: The message bus answers on both hosts", "description: hi {{ $labels }}"), "", "may not contain {{"},
+		{"template in text", replace("description: The message bus answers on west", "description: hi {{ $labels }}"), "", "may not contain {{"},
 		{"duplicate slo", replace("  - name: dashboard\n", "  - name: wotan\n"), "", "duplicate name"},
 		{"promotion of an alert that does not exist", addPromotion(t, "  - alert: Nope\n    urgency: ticket\n    reason: test"), "", "Nope is not an alert"},
 		{"promotion without a reason", addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: \"\""), "", "a reason is required"},
@@ -174,6 +174,81 @@ func TestValidateRunDays(t *testing.T) {
 				t.Fatalf("want an error containing %q, got %q", c.wants, got)
 			}
 		})
+	}
+}
+
+// renderedRules renders slo.yml from the repo's policy with edit applied.
+func renderedRules(t *testing.T, edit func(*Policy)) []rule {
+	t.Helper()
+	p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+	if err != nil {
+		t.Fatal(err)
+	}
+	edit(p)
+	out, err := renderRules(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rf ruleFile
+	if err := yaml.Unmarshal(out, &rf); err != nil {
+		t.Fatal(err)
+	}
+	return rf.Groups[0].Rules
+}
+
+// ADR-147 decision 4: a minute under a planned-stop mark for the SLO, or
+// for all, counts as good.
+func TestGoodHonoursPlannedStop(t *testing.T) {
+	want := `clamp_max(((avg(up{job="wotan"})) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|wotan"}) > bool time()) or on() vector(0)), 1)`
+	for _, r := range renderedRules(t, func(*Policy) {}) {
+		if r.Record == "slo:good" && r.Labels["slo"] == "wotan" {
+			if r.Expr != want {
+				t.Fatalf("slo:good for wotan:\n got %s\nwant %s", r.Expr, want)
+			}
+			return
+		}
+	}
+	t.Fatal("no slo:good for wotan")
+}
+
+func countFor(rules []rule, slo string) (records map[string]int, burns int) {
+	records = map[string]int{}
+	for _, r := range rules {
+		if r.Labels["slo"] != slo {
+			continue
+		}
+		if r.Record != "" {
+			records[r.Record]++
+		}
+		if r.Alert == "ErrorBudgetBurn" {
+			burns++
+		}
+	}
+	return records, burns
+}
+
+// notify: false records the SLO and notifies nobody (ADR-147 decision 4:
+// ci-develop leaves the alert set).
+func TestNotifyFalse(t *testing.T) {
+	no := false
+	rules := renderedRules(t, func(p *Policy) { p.SLOs[0].Notify = &no })
+	p, _ := loadPolicy(filepath.Join("..", "..", policyPath))
+	rec, burns := countFor(rules, p.SLOs[0].Name)
+	if burns != 0 {
+		t.Fatalf("%d ErrorBudgetBurn rules for an SLO with notify: false", burns)
+	}
+	for _, name := range []string{"slo:good", "slo:objective", "slo:error_budget_remaining"} {
+		if rec[name] != 1 {
+			t.Fatalf("notify: false: %s rendered %d times, want 1", name, rec[name])
+		}
+	}
+}
+
+func TestNotifyDefaultTrue(t *testing.T) {
+	rules := renderedRules(t, func(p *Policy) { p.SLOs[0].Notify = nil })
+	p, _ := loadPolicy(filepath.Join("..", "..", policyPath))
+	if _, burns := countFor(rules, p.SLOs[0].Name); burns != len(tiers) {
+		t.Fatalf("no notify field: %d tiers rendered, want %d", burns, len(tiers))
 	}
 }
 
