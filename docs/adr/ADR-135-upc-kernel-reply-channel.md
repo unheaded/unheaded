@@ -387,6 +387,32 @@ copy (a3 clear, then all ones).
 is the earlier one exactly (895,767 without the guard). The tripwire and `hostile_fork` stay; the probe passes either
 way with D6 on.
 
+### D19. Rung 3: console write is the kernel's (2026-11-15, S-STAGE-2C Phase 9)
+
+Under `UPC_RUNG3`, `write` on a fd below 16 goes to the owned kernel unless BPF's table says the fd is a file.
+
+- **Routing.** `kernel_routed_alias`: `16 if ascend && UPC_RUNG3 && a0 < 16 && fd_kind(pid, a0) != FD_INODE => 11`.
+  The test is "not a file", not "is the console": the gate programs run as init and print on fd 1 without ever
+  opening `console`, so their fd 1 is `FD_FREE` in BPF's table, and BPF's loop printed for them all the same. Fds at
+  or above 16, and negative ones, already go to the kernel (D11).
+- **Kernel.** `sys_write` on a slot row with a fd in 0-15 calls `consolewrite(1, addr, n)`: `either_copyin` through
+  the slot's page table, 32 bytes at a time, each byte stored by `uartputc_byte`, a one-byte store to 0xC001. Kernel
+  `printf` keeps `uartputc_sync`'s word store, so the boot lines keep their char-plus-NUL bytes (they are in the
+  goldens). A copy that fails before the first byte answers -1; one that fails later answers the bytes written, as
+  stock xv6 does. A count of 0 answers 0. Only BPF routes such a fd there, so the kernel does not ask what kind it is.
+- **BPF.** The console byte loop (the `n == 1` store and the 0xD0C0-tagged re-entrant cursor) is the `!UPC_RUNG3`
+  branch, so the on object does not hold it. What is left of the arm answers -1.
+- **T-F3 interim, by the same change.** With the rung on, the only `write` that still reaches BPF's arm is one on a
+  file fd below 16 (plain `O_RDWR` on a regular file, D10), and it answers -1 instead of printing the bytes and
+  returning n. That is Phase 7's refusal, with no kind test in the arm: the alias has already made it. The file write
+  itself lands in the kernel at rung 6. With `UPC_RUNG3` off the old behaviour is back; the off object has no room
+  for the refusal (Phase 7 measured +622 against 94 of headroom).
+- **Cost shape.** Every `write` is now one trap, so the cost is per call, not per byte. xv6's user `printf` writes one
+  byte per call.
+- **Slot 0.** Init's first page reads as physical 0 to `copyin`, which refuses it (D6), so a string literal in init's
+  `.rodata` cannot be the buffer of a kernel-routed `write`. Init and `uinit` print through `printf`, whose byte is on
+  the stack; every other corpus program runs in a child slot. `conprobe` keeps its buffers in `.bss`.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,

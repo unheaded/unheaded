@@ -148,3 +148,13 @@ Findings, each verified here before it was acted on (ADR-135, section of this da
 
 - Step 132's refusal (an inode-kind fd in the BPF write arm answers -1): 900,528, +622 against 899,906: BUDGET-FAIL with 94 of headroom. `main.rs` restored, count 899,906.
 - Reorder under Step 30's override: Phase 9 (rung 3, which compiles the BPF console write loop out) runs next; Phase 7 and `UPC_FORK_MARK` (+169) follow it. Phase 9 was not started in this session.
+
+## Phase 9, rung 3 (2026-11-15)
+
+Run under Step 30's override, ahead of Phase 7 and with the fork mark off: the object had 94 instructions of headroom.
+
+- Gate `rung3-before`: `same=12 diff=0 rc=0 doom=1 ascend=899906` at `b2a8f49c`.
+- Run cost before (4,000,000 triggers each, the boot ends with `sh` waiting for a key): `ls` insn_count 5,488,183; `cat BIGFILE` 5,129,411; `echo peace and love` 5,096,265. Write calls: `ls` prints through `printf`, one `write` per byte; `cat` writes up to 512 bytes a call; `echo` one `write` per word and one per separator.
+- Design: ADR-135 D19. The alias tests "not a file", not "is the console": the gate programs run as init and print on fd 1 without opening `console`, so BPF's table calls their fd 1 free.
+- Const off (Step 167): `vcount` 899,906 equals `offv`; `sweep` 8 of 8 SAME with the kernel's `consolewrite` and `sys_write` changed.
+

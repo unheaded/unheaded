@@ -20,6 +20,7 @@
 //   void uartintr(void)             — RX interrupt handler stub
 //   void uartwrite(char buf[], int) — bulk write loop
 //   void uartputc_sync(int c)       — single byte write (used by panic)
+//   void uartputc_byte(int c)       — one-byte store, for user writes (rung 3)
 //   int  uartgetc(void)             — RX read; 0xFF if empty
 //
 // xv6's printf.c, console.c, and panic call into these symbols. The
@@ -55,6 +56,20 @@ uartputc_sync(int c)
         // busy-wait
     }
     UPC_TTY_DATA = (uint32)(c & 0xFF);
+}
+
+// One byte, stored as one byte (ADR-135 D19, rung 3). uartputc_sync stores a
+// word, so each kernel printf character reaches the TTY as the character and
+// NULs; the boot lines are in the goldens that way and stay that way. A user
+// write served by the kernel must put the same bytes on the TTY as BPF's byte
+// loop did, so consolewrite stores through this instead.
+void
+uartputc_byte(int c)
+{
+    while (UPC_TTY_STATUS & TTY_STATUS_TX_BUSY) {
+        // busy-wait
+    }
+    *(volatile unsigned char *)(UPC_TTY_DATA_ADDR) = (unsigned char)c;
 }
 
 void

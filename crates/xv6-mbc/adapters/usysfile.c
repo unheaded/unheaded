@@ -35,6 +35,9 @@
 #include "fcntl.h"
 #include "upc_slots.h"
 
+// uconsole.c: the console's write, called directly for a slot row (ADR-135 D19).
+int consolewrite(int user_src, uint64 src, int n);
+
 // ADR-135 D10: an ofile index as the user sees it. Slot rows number kernel fds
 // from 16, above BPF's table, so neither allocator sees the other.
 static int
@@ -122,6 +125,18 @@ sys_write(void)
   
   argaddr(1, &p);
   argint(2, &n);
+  // ADR-135 D19 (rung 3): a slot row's fd below 16 is BPF's number, and BPF
+  // sends a write on one here only when its table does not call the fd a file.
+  // So it is the console. A copy that fails before the first byte is a bad
+  // pointer: -1. One that fails later answers the bytes written, as stock.
+  if(upc_slot_active()){
+    int fd;
+    argint(0, &fd);
+    if(fd >= 0 && fd < UPC_KFD_BASE){
+      int w = consolewrite(1, p, n);
+      return (w == 0 && n > 0) ? -1 : w;
+    }
+  }
   if(argfd(0, 0, &f) < 0)
     return -1;
 

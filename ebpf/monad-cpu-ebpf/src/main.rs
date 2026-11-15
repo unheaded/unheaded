@@ -516,6 +516,12 @@ const UPC_RUNG_CHDIR: bool = true;
 // read, write and close on its fds already route there; an end that cannot go on
 // retries, and EOF comes from exit's close. Needs UPC_RUNG_FD. Rollback = this const off.
 const UPC_RUNG_PIPE: bool = true;
+// EVOLUTION-1 Stage 2 rung 3, ADR-135 D19: write on a fd below 16 that is not a file
+// is the owned kernel's (sys_write, consolewrite, a one-byte store). The console
+// byte loop below is the off branch, so the on object does not hold it; what is left
+// of the arm answers -1, which is T-F3's interim for a file fd. Needs UPC_RUNG_FD.
+// Rollback = this const off.
+const UPC_RUNG3: bool = false;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -2278,7 +2284,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // the calling process's page table (walkaddr equivalent) before
                 // the physical read. Identity for pid 0; offset slice for children.
                 let buf_addr = cpu.regs[9];
-                if cfg!(feature = "ascend-linux") {
+                if cfg!(feature = "ascend-linux") && UPC_RUNG3 {
+                    // ADR-135 D19: the kernel has every write on a fd that is not
+                    // a file (kernel_routed_alias). What still gets here is a write
+                    // on a file fd below 16, which printed its bytes to the TTY and
+                    // answered n (T-F3). It is refused until rung 6 gives it a file.
+                    cpu.regs[8] = u32::MAX;
+                } else if cfg!(feature = "ascend-linux") {
                     // xv6 multi-byte re-entrant write (echo/cat write full buffers
                     // and xv6's cat treats a short write as fatal). ONE byte per
                     // tick: a whole-buffer copy loop blows the kernel-6.17 verifier
@@ -3969,7 +3981,8 @@ const OPEN_KERNEL_FLAGS: u32 = 0x001 | 0x200 | 0x400;
 /// link 19 under UPC_RUNG_LINK and mkdir 20 under UPC_RUNG_MKDIR (DP-502), and
 /// 22 in probe builds only. Under UPC_RUNG_FD (ADR-135 D11-D13): exit 2 and the
 /// fork note 24 always; read 5, fstat 8, dup 10, write 16 and close 21 for a fd at
-/// 16 or above, the compare unsigned so a negative fd goes too; open 15 with a
+/// 16 or above, the compare unsigned so a negative fd goes too; write 16 on a fd
+/// below 16 that is not a file, under UPC_RUNG3 (ADR-135 D19); open 15 with a
 /// masked flag. Under UPC_RUNG_CHDIR (ADR-135 D15): chdir 9 always, and open 15 from a
 /// process off the root. Pipe 4 under UPC_RUNG_PIPE.
 #[inline(always)]
@@ -3980,6 +3993,12 @@ fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
         9 if cfg!(feature = "ascend-linux") && UPC_RUNG_CHDIR => 11,
         5 | 8 | 10 | 16 | 21
             if cfg!(feature = "ascend-linux") && UPC_RUNG_FD && cpu.regs[8] >= 16 =>
+        {
+            11
+        }
+        16 if cfg!(feature = "ascend-linux")
+            && UPC_RUNG3
+            && fd_kind(cpu.current_pid, cpu.regs[8]) != fdtable::FD_INODE =>
         {
             11
         }

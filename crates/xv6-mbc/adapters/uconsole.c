@@ -12,9 +12,12 @@
 // every kernel printf byte lands here on its way to the TTY MMIO. The phase22
 // goldens gate that path byte-for-byte.
 //
-// Runtime-dead on the UPC, preserved at full stock strength: consoleread /
-// consolewrite (devsw targets: the console is implicit in BPF and has no node
-// in fs.img, so no kernel fd reaches them, ADR-135 D11, D15) and consoleintr
+// consolewrite is live under UPC_RUNG3 (ADR-135 D19): sys_write calls it for a
+// slot row's fd below 16, which BPF routes here when the fd is not a file.
+//
+// Runtime-dead on the UPC, preserved at full stock strength: consoleread
+// (a devsw target: the console is implicit in BPF and has no node in fs.img,
+// so no kernel fd reaches it, ADR-135 D11, D15) and consoleintr
 // (no UART interrupt; the KBD ring in BPF feeds read(5) directly). Their line
 // discipline (^H/^U/^D/^P, echo, ring indices) and copy bounds are kept
 // behavior-identical.
@@ -61,8 +64,13 @@ struct {
   uint e;  // Edit index
 } cons;
 
+// console-mmio.c: a one-byte store to the TTY (ADR-135 D19).
+void uartputc_byte(int c);
+
 // user write() syscalls to the console: batch bytes from user space to the
-// uart, 32 at a time. Returns bytes written (short on copy failure).
+// uart, 32 at a time. Returns bytes written (short on copy failure). Each byte
+// goes out as one byte (uartputc_byte), not as uartwrite's word per character:
+// under UPC_RUNG3 this is what a user's write(1, ...) prints through.
 int
 consolewrite(int user_src, uint64 src, int n)
 {
@@ -75,7 +83,8 @@ consolewrite(int user_src, uint64 src, int n)
       nn = n - i;
     if(either_copyin(buf, user_src, src+i, nn) == -1)
       break;
-    uartwrite(buf, nn);
+    for(int j = 0; j < nn; j++)
+      uartputc_byte((int)(unsigned char)buf[j]);
     i += nn;
   }
 
