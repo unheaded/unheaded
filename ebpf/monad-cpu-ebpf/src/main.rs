@@ -528,7 +528,7 @@ const UPC_RUNG3: bool = true;
 // advancing the ring; the kernel's reply says whether it took it, and the ring
 // advances then. The console branch of the read arm below is the off branch, so
 // the on object does not hold it. Needs UPC_RUNG_FD. Rollback = this const off.
-const UPC_RUNG4: bool = false;
+const UPC_RUNG4: bool = true;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause

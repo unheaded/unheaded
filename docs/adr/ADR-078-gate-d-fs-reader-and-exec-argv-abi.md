@@ -71,7 +71,7 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 2 | exit | kernel closes, BPF ends the slot | ADR-135 D13 |
 | 3 | wait | BPF | status written as 0 until rung 7 |
 | 4 | pipe | kernel | ADR-135 D7, D10-D13; fds at 16 and up, read and write retry |
-| 5 | read | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 5 | read | BPF for a file fd below 16; kernel at fd 16 and up, and under `UPC_RUNG4` (2026-11-15) on a console fd | ADR-135 D10-D11, D20 |
 | 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |
 | 8 | fstat | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |

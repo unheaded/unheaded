@@ -17,6 +17,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | T-F3 interim (by rung 3's arm) | 885354 | 885354 | +0 | 35682 | rdwr-after |
 | fork mark on (`UPC_FORK_MARK`) | 885354 | 885529 | +175 | 35507 | mark-after |
 | probes | 885529 | 885529 | +0 | 35507 | probes-after |
+| rung 4 console read | 885529 | 883522 | -2007 | 37514 | rung4-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -224,4 +225,14 @@ Before gate: `probes-after` stands in for `rung4-before` (same code; only docs a
 Step 188, what was read: BPF's console read pops one ring byte per call, decodes `(raw >> 1) & 0xFF`, bumps `STAT_TTY_READS` per byte delivered, and on an empty ring rewinds the PC and ends the tick. It does not echo: the `echo hello` golden prints `$ hello`, not the typed line. The goldens' `tty_r` equals the input's byte count (`ls` 3, `echo hello` 11, `multi` 22, `blank` 15). The kernel's `uartgetc` reads the status word in RAM and `KBD_MAP[0]` (the Doom-era keyboard word), not the ring, so it cannot feed the read; D20's hand-over rides the trap instead (ADR-135 D20).
 
 Const off (`UPC_RUNG4 = false`): `kbuild; gbuild; ebuild; bbuild`, `vcount` 885,529 = `offv` (`off-equal`), `sweep` 8 of 8 SAME, `parity_slot_tables` and `parity_surface` pass. The slot table is one word longer (`kbd_in` at 0x820, size 0x824); the kernel's `.bss` grew by it and the goldens did not move.
+
+Rung on (`flip UPC_RUNG4 false true`): 883,522, delta -2,007 against 885,529 (the console branch of the read arm is out; the offer at injection and the ring advance at the reply are in). BUDGET-OK, headroom 16,478.
+
+- `crprobe` with `--input $'hello\nagain\n'`: `line=yes`, `second-line=yes`, `badptr=yes`, `CR: done`; `forks=1 tty_r=12 waitpid=1`.
+- `sweep12`: 12 of 12 SAME (the multi-line and blank-line inputs among them).
+- Live check (Step 200): `printf 'echo hi\n' | ... upc-bootctl console --stdin ...` prints `$ hi`. The subcommand has no `--triggers`; it ran as written otherwise.
+- Mutant (Step 201): the retry on an empty ring replaced by `return 0`: `CR: line=no`, `CR: second-line=no`, and the `echo hello` golden DIFF. Restored; `vcount` 883,522.
+- Gate `rung4-after`: `same=12 diff=0 rc=0 doom=1 ascend=883522`; `crprobe: 3 checks, two lines read whole, tty_r=12`, `conprobe`, `devprobe`, the asserter PASS, ALL GREEN. `check-ebpf-insns.sh`: 41 programs within 10 % of the baseline.
+
+Run cost after rung 4 (4,000,000 triggers; the boot ends with `sh` waiting for a key): `ls` insn_count 63,260,801 (it was 6,271,580 after rung 3); `echo peace and love` 63,254,989 (5,168,583). The work of the commands did not grow: the prompt did. A read blocked on an empty ring used to rewind the PC and end the tick (one instruction); it now traps into the kernel, finds no line, takes the retry hand-off and runs again on the next tick, so every waiting tick does a full tick's work (up to 16 instructions). 4,000,000 triggers allow 64,000,000. One `ls` boot took 11.4 s on the wall; the eight-boot sweep with the const off ran at about 9.5 s a boot. The same holds for an idle `console` session: the host does about sixteen times the BPF work per tick while the shell waits. A cheap wait is possible and not built: the kernel marks the slot-table word when it retries with nothing buffered, and BPF holds the read in its own arm (PC rewind, tick ends) while that mark is there and the ring is empty. Filed For Stevie.
 

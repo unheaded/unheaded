@@ -119,6 +119,15 @@ interrupt source (Appendix B, console-in row). File reads move with rung 6.
 - **Gate**: template; `upc-bootctl console --stdin` input reaches sh; uinit's
   `echo hello` golden SAME.
 - **usertests subset**: none.
+- **Status 2026-11-15 (S-STAGE-2C Phase 10, ADR-135 D20): on.** `UPC_RUNG4`, gate `rung4-after`
+  (`same=12 diff=0 rc=0 doom=1`), ascend 885,529 → 883,522 (-2,007). `crprobe` 3 checks with `tty_r=12`;
+  `console --stdin` with `echo hi` prints `$ hi`. Departures: the read path polls (no interrupt, one ring
+  byte per trap, offered in the slot table and advanced on the kernel's reply); no echo; a read returns a
+  line, not a byte; control characters are the line discipline's. Cost: a read blocked on an empty ring
+  now retries through the kernel every tick instead of waiting in BPF for one instruction, so a boot that
+  ends at the prompt runs about ten times the MBC instructions (`ls`: 6.27 M → 63.3 M of the 64 M that
+  4,000,000 triggers allow) and takes about a fifth longer on the wall (9.5 s → 11.4 s). The corpus still
+  completes inside the existing triggers.
 
 ### Rung 5 — fstat / dup / close
 
