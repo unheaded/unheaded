@@ -20,7 +20,7 @@ sudo reboot                                 # AMD GPU driver needs reboot
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
-| Go | 1.26+ (go.mod toolchain go1.27.3) | [go.dev/dl](https://go.dev/dl/) | `go version` |
+| Go | 1.26+ (go.mod toolchain go1.27.4) | [go.dev/dl](https://go.dev/dl/) | `go version` |
 | Rust | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | `rustc --version` |
 | Docker + Compose | 24+ | [docs.docker.com](https://docs.docker.com/engine/install/) | `docker compose version` |
 | Claude Code | latest | `curl -fsSL https://claude.ai/install.sh \| bash` (native installer; no Node or npm, ADR-006) | `claude --version` |

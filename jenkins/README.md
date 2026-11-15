@@ -322,7 +322,7 @@ through Sword and the apt repository runbooks, not CI.
 ```groovy
 agent {
   docker {
-    image 'golang:1.27.3-alpine3.24'
+    image 'golang:1.27.4-alpine3.24'
   }
 }
 ```
