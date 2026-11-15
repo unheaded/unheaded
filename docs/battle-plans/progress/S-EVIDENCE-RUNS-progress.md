@@ -40,6 +40,7 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 | Date | Steps | Note |
 |---|---|---|
+| 2026-11-15 | 34-44 | FND-009 accepted per DE6 (register test `ok`; accepted count 77 → 78). E-05 read. **Steps 38-39 as written read VictoriaMetrics, which holds none of 2026-10-22 14:00 to 2026-10-25 20:00** (9,598 samples of `slo:good` in 28 days against Prometheus's 14,671), so its 28-day average (dashboard 0.9963) disagrees with the budget (-3,405 %). The budget rule runs in Prometheus on Prometheus's samples, and there the arithmetic checks (0.8248 → -34.05). The readings were redone against Prometheus (`127.0.0.1:9090`). One postmortem instead of five: the five class (b) rows share one window and one cause. |
 | 2026-11-15 | 28-33 | DE2 removals. Seven entries deleted by name, each on its newest record: `git-signatures:develop` (pass, 2026-11-15T01:29:05Z), `github-job:Static Analysis/Python (ruff + bandit)` (pass, 2026-11-11T22:55:53Z), `github-job:SBOM + Vulnerability Scan/sbom` (pass, 2026-11-11T22:57:14Z), `host-probe:west:alert-route` and `host-probe:west:db-backup-recent` (pass, 2026-11-15T01:29:09Z), and the resolved `FND-032` and `FND-043`. **Step 32 reads 1, not 0:** `FND-038` stays, because `TestRegister_FND038CanBeMetAndKeepsAttestation` fails without it (the test keeps the attestation half of the finding on record). The plan's grounding did not see that test. Register test `ok`, `check-ci-verdicts.sh` PASS. Open count 168 → 167. |
 | 2026-11-15 | 17-27 | E-01: FND-043 `resolved` added (register test `ok`). E-02: Step 24 is attended, not run; Steps 25-26 blocked on it. |
 | 2026-11-15 | 1-16 | Phase 0. Decisions copied; baseline green; findings report before written to the host (`var/compliance/findings-s-evidence-runs-before.md`). The worktree has no `var/`, so the report reads the main checkout's `var/compliance/evidence.json` through `-evidence`. |
@@ -48,9 +49,13 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 - E-01: **closed.** FND-043 has a `resolved` block dated 2026-11-15. Nine refusal tests pass under `-race`; `configs/wotan.yaml` reads `unlisted: deny`, `mode: enforce`; live refusals over 24 h read 0 on west. Wotan was recreated at 02:00:35Z today (S-WATCH-TRUE Phase 5), so the refusal series start at zero for every listed caller.
 - E-02: **open, waits on Stevie** (Step 24, attended root rerun of `tests/hopchecks` at HEAD). The pre-check differs from the plan's grounding: one commit since `60c4bb23` touches `ebpf/` (`33fb3754`, S-WATCH-TRUE, `latency-probe` only; nothing under `ebpf/hop-ebpf`, `crates/` or `tests/hopchecks`). The rerun at HEAD covers it. Steps 25-26 are `[BLOCKED]` on Step 24.
-- E-03:
+- E-03: **accepted** per DE6. FND-009 carries `accepted` (2026-11-13 until 2027-02-11). The alternate baseline still holds WireGuard alone and `check-compose-hardening.sh` passes (41 of 42 services hardened, 1 baselined).
 - E-04: **removed.** `host-probe:west:alert-route` and `host-probe:west:db-backup-recent` both pass (newest record 2026-11-15T01:29:09Z) and are out of the register (DE2).
-- E-05:
+- E-05: **read; all six rows stay open with a dated cause.**
+  - `dashboard`, `wotan`, `well`, `log-shipping`: class (b). The bad samples are 2026-10-22 14:00 to 2026-10-24 03:30 UTC (Wotan, The Well) and to 2026-10-25 20:00 (west's dashboard-backend, Vector): west's kingdom stack was down while the monitoring stack ran. One postmortem for the shared window, `docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md`, linked from each row. Re-read on 2026-11-25.
+  - `well-backups`: class (b), same postmortem, plus a missed nightly backup on 2026-10-21 (newest backup 37.9 h old at 12:00, limit 26 h) and absent timestamps after the 2026-10-27 reboot.
+  - `ci-develop`: class (c) by construction. `unheaded-ci-status.timer` is not installed on west (0 timers listed), 7,682 samples all 0. Row says so; installing the timer is E-10, not this plan.
+  - No SLI or budget rule was wrong, so Step 42 changed no rule. Budgets on 2026-11-15 (Prometheus): dashboard -3,405 %, wotan -1,655 %, well -3,078 %, well-backups -1,894 %, log-shipping -3,048 %, ci-develop -9,900 %.
 - E-06:
 - E-07:
 
@@ -64,6 +69,9 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 - **Step 24 (E-02, FND-025):** run `tests/hopchecks` as root at HEAD (command from FND-033's plan text and `tests/hopchecks/README*`). 46 cases passed on 2026-11-09. A pass lets Step 26 add FND-025's `resolved` block.
 
+- **A stop on purpose spends error budget** whenever the monitoring stack is left up (it is, by design, since `7f6b1101`). Mark a planned stop so the budget rule skips it, or keep counting it? Until that is decided the five SLO rows will read spent after every long stop.
+- **VictoriaMetrics lacks SLO history** for 2026-10-22 14:00 to 2026-10-25 20:00; Prometheus has it. Any reading of a 28-day window goes to Prometheus until about 2026-11-25.
+- The postmortem `docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md` is a draft for your review. Why the stack was down that week is not recoverable: west's journal starts 2026-10-26.
 - **FND-038 and the "remove" list (Step 32):** the report will keep listing `FND-038` as "remove from the register" while `pkg/compliance/crosswalk/register_text_test.go` requires the entry. Either the entry and that test go together, or the plan's target ("an empty remove list") reads "empty except FND-038". Left as it is.
 
 ## Stuck

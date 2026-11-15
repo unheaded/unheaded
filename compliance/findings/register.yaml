@@ -146,6 +146,7 @@ findings:
     exposure: none of these files is deployed on west or east (2026-10-20); the gate keeps new services from joining the list
     lockout: none
     step: 7
+    accepted: {reason: "WireGuard needs root (EPERM otherwise, measured 2026-10-20); deployed on neither host", compensating: "cap_drop ALL + NET_ADMIN and the four s6 init caps, read-only, the gate keeps any other service from joining", accepted_on: 2026-11-13, until: 2027-02-11}
     plan: >-
       Done 2026-10-20 for 53 services (monitoring, telemetry, sophia-eye, loadbalancers, vllm, host-a/host-b known
       services): own pkg/uids number, read_only + measured tmpfs, cap_drop ALL, no-new-privileges, volume-init chown;
@@ -370,6 +371,13 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-25 20:00 UTC, dashboard-backend on west down, east up (SLI 0.50). West's
+      kingdom stack was down while monitoring ran (postmortem
+      docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are good except
+      inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -3,405 % on 2026-11-15; the
+      rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples age out: re-read
+      on 2026-11-25
 
   - source: "slo:log-shipping"
     severity: medium
@@ -382,6 +390,13 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-25 20:00 UTC, Vector down (SLI 0, one good 6 h bucket on 10-23). West's
+      kingdom stack was down while monitoring ran (postmortem
+      docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are good except
+      inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -3,048 % on 2026-11-15; the
+      rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples age out: re-read
+      on 2026-11-25
 
   - source: "slo:well"
     severity: medium
@@ -394,6 +409,12 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-24 03:30 UTC, huginn_pg_up 0. West's kingdom stack was down while monitoring
+      ran (postmortem docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are
+      good except inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -3,078 % on
+      2026-11-15; the rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples
+      age out: re-read on 2026-11-25
 
   - source: "slo:well-backups"
     severity: medium
@@ -406,6 +427,14 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-21 08:00 to 2026-10-22 02:00 UTC (the newest backup was 37.9 h old, limit 26 h: a missed nightly
+      run), 2026-10-23 to 2026-10-24 08:00 (The Well was down), and 2026-10-27 02:00 (the three timestamps absent after
+      a reboot). West's kingdom stack was down while monitoring ran (postmortem
+      docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily readings since 2026-11-10 are good except
+      inside known work (the 11-10 bring-up, the 11-12 boot and password pass). Budget -1,894 % on 2026-11-15; the
+      rule's arithmetic checks against Prometheus's 28-day average. The window clears as those samples age out: re-read
+      on 2026-11-25
 
   - source: "slo:wotan"
     severity: medium
@@ -418,6 +447,12 @@ findings:
       SLOs became evidence on 2026-10-27 (S-WELL-SPRING Phase 3), so this is the first reading, not a regression. Re-read after
       the auth/TLS rollout settles; if the budget is still spent with no planned work in the window, open a postmortem
       (docs/incidents/TEMPLATE.md) and fix the cause. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class b): the bad samples are in Prometheus's history, not after the TLS
+      rollout: 2026-10-22 14:00 to 2026-10-24 03:30 UTC, Wotan on west down, east up (SLI 0.50). West's kingdom stack
+      was down while monitoring ran (postmortem docs/incidents/2026-10-22-slo-kingdom-down-monitoring-up.md). Daily
+      readings since 2026-11-10 are good except inside known work (the 11-10 bring-up, the 11-12 boot and password
+      pass). Budget -1,655 % on 2026-11-15; the rule's arithmetic checks against Prometheus's 28-day average. The window
+      clears as those samples age out: re-read on 2026-11-25
 
   - id: FND-025
     title: >-
@@ -1732,6 +1767,9 @@ findings:
       plan stays red on pull requests that touch deploy/ until its dependencies get mock_outputs and a
       cluster exists (Stevie's call). Re-read after a week of green pushes; if the budget is still spent,
       open a postmortem. Not accepted: only Stevie accepts risk.
+      2026-11-15 (S-EVIDENCE-RUNS Step 40, class c): no producer on west: `unheaded-ci-status.timer` is not installed
+      (sweep E-10, M-087), so `unheaded_ci_run_*` does not exist and the SLI reads 0 by construction (7,682 samples, all
+      0; budget -9,900 %) until it is. Installing the timer is not in S-EVIDENCE-RUNS
 
   # --- 2026-11-05: found by the compliance review -----------------------------
   - source: "host-probe:west:os-supported"
