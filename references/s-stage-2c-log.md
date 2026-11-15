@@ -294,3 +294,27 @@ Slot 0: `proc[0]` is the `userinit` process and its `ofile` is empty until somet
 | Q2, Q3, Q4, Q6, Q8 | No problem found | the reviewer's evidence re-read | Recorded, a line each, in ADR-135 |
 | Q7 | Which goldens could move | `fs.img`'s contents by `Makefile.mbc-userland` | A moved golden is a stop, not a recapture |
 
+## Phase 12, rungs 5+6 (2026-11-15)
+
+Before gate (Step 215), on the committed tree at `0c66f515`: `gate rung56-before: same=12 diff=0 rc=0 doom=1 ascend=883522`, harness ALL GREEN. `offv` 883,522.
+
+**Step 216, probe changes** (each a change with a reason, not a recapture). The probes learn which build they run on from a pipe, whose fds were always the kernel's (`p[0] >= 16` before the rung, a low number after), so every changed line holds with the const off or on.
+
+| Probe | Old text | New text | Why |
+|---|---|---|---|
+| `fdprobe` | `created`, `trunc-fd`, `rw-kernel`, `dup`, `reuse-cwd`: `fd >= 16` | `KFD(fd, want)`: 16 or above before the rung; after it, exactly the lowest free fd (`want` is what `dup(1)` answered just before) | D21 point 2: a kernel fd is the `ofile` index |
+| `fdprobe` | `bpf-fd`: `fd >= 0 && fd < 16` | `BFD(fd, want)`: below 16 before; the lowest free fd after | every open is the kernel's |
+| `fdprobe` | `rdwr-file-write-refused`: plain `O_RDWR` on README, `write` is -1 | `rdwr-file-write`: -1 before the rung; after it the write answers 2 and the two bytes are written back | T-F3 closes under the rung (D21 point 6) |
+| `chdirprobe` | `kfd()` `fd >= 16`, `bfd()` `fd < 16`, `read-rel`, `bpf-read` | the same two forms | as `fdprobe` |
+| `pipeprobe` | `fds`: both ends at 16 or above | at 16 or above before; after, the two lowest free fds | as `fdprobe` |
+| `crprobe` | two lines, both read by a child; input `hello\nagain\n`; `tty_r=12` | a first line read by init itself (`slot0-line`), then the two; input `init\nhello\nagain\n`; `tty_r=17`; 4 checks | review F1: slot 0 is the row the kernel's `sleep()` does not refuse |
+| `hostile_path` | `open-ceiling-refused`: `README` planted in the slice's last 8 bytes is -1 | `open-unterminated-refused`: 8 bytes with no NUL before the ceiling is -1 | review F2: D16's 128-byte rule is exec-only once open is the kernel's; the new line is refused by BPF's bound and by the kernel's copy-in alike |
+| `devprobe` | `open("console", O_RDWR)` with a literal | the name from `.data` | the open is init's own, and under the rung the kernel copies the path in |
+| `rwprobe` (new) | | `write-lands`, `read-back`, `restored`, `console-fstat` (-1: no inode, and the kernel goes on), `dup-to-zero`; `rung_gate UPC_RUNG56 rwprobe 6000000 RW 5` | Step 216 |
+
+`uinit.c` is **not** edited. D21 put its console name in `.data`; doing that moved the `uinit_echo` golden with the const off (see "What stands in the way" below), so the edit was taken back and the golden is SAME again.
+
+**Steps 217-219, wired with the const off.** Kernel: `#define UPC_RUNG56 0` in `upc_slots.h` with `UPC_KFD_BASE` derived from it; `sys_open`'s console name match before `begin_op` (`upc_console_name`: one leading `./` or `/` stripped, the remainder is `console`, a relative name only from `cwd->inum == ROOTINO`), mode by `omode`, `ip = 0` stored; `fileclose` and `filestat` guard `ip == 0`; `fileread` sends a console read inside a tagged trap (`upc_slot_active()`) to `upc_consoleread`; `filewrite` keeps D19's -1 there; `upc_slots_init` gives slot 0 one console file on fds 0-2; `sys_read` and `sys_write` lose their fd-below-16 shortcuts under the define. BPF: `const UPC_RUNG56: bool = false` with a build-time assertion that it needs the fd, chdir and pipe rungs and rungs 3 and 4; one unconditional routing row for 5, 8, 10, 15, 16, 21 and `!UPC_RUNG56 &&` on every row that asks `FD_TABLE` or the cwd mask; `!UPC_RUNG56 &&` on the open, fstat, dup, close and (whole) read arms and on fork's table copy; rung 4's keyboard offer on every read. `surface.rs` and `XV6_SYSCALLS` did not need a change: the arms stay in the source, so the surface list is the same (`parity_surface` passes). `parity_slot_tables` gained `kernel_rung56_is_bpfs` (the header's define equals the const; `UPC_KFD_BASE` is 0 under it, else 16).
+
+Step 220: `kbuild; gbuild; ebuild; bbuild`: `vcount` 883,522 = `offv` (`off-equal`); `sweep` 8 of 8 SAME. With the const off the changed probes still pass: `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20, `hostile_path` 6, `crprobe` 4 with `tty_r=17` (a slot 0 console read works today through `sys_read`'s shortcut), `devprobe` both tokens; `uinit_echo` SAME.
+

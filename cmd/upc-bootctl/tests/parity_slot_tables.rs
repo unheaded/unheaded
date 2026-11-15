@@ -94,6 +94,37 @@ fn kernel_user_pointer_ceiling_is_bpfs() {
     assert!(bpf <= rust_const(&rs, "SLICE_STRIDE"));
 }
 
+/// ADR-135 D21 (rungs 5+6): the kernel's `#define UPC_RUNG56` must say what BPF's
+/// `const UPC_RUNG56` says. With them apart the two sides number fds differently
+/// (the kernel from 0 or from 16) and one of them keeps a table the other ignores;
+/// that is to fail here, not in a boot.
+#[test]
+fn kernel_rung56_is_bpfs() {
+    let main_rs = read("ebpf/monad-cpu-ebpf/src/main.rs");
+    let l = main_rs
+        .lines()
+        .find(|l| l.starts_with("const UPC_RUNG56: bool = "))
+        .expect("UPC_RUNG56 not in main.rs");
+    let bpf = match l.split('=').nth(1).unwrap().trim().trim_end_matches(';') {
+        "true" => 1,
+        "false" => 0,
+        v => panic!("UPC_RUNG56 is {v}"),
+    };
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(
+        c_define(&h, "UPC_RUNG56"),
+        bpf,
+        "upc_slots.h and main.rs disagree"
+    );
+    // The fd base follows the define: 0 under the rung, BPF's NOFILE (16) without.
+    let base: Vec<u32> = h
+        .lines()
+        .filter(|l| l.split_whitespace().take(2).eq(["#define", "UPC_KFD_BASE"]))
+        .map(|l| parse(l.split_whitespace().nth(2).unwrap()))
+        .collect();
+    assert_eq!(base, [0, 16], "UPC_KFD_BASE: 0 under UPC_RUNG56, else 16");
+}
+
 /// xv6's trapframe under ilp32e: 36 fields of 4 bytes (`uint64` is 4 bytes).
 fn trapframe_bytes() -> u32 {
     let h = read("crates/xv6-mbc/upstream/kernel/proc.h");

@@ -32,7 +32,16 @@
 #define UPC_REPLY_EXIT          8 // ADR-135 D13
 #define UPC_REPLY_KBD           16 // ADR-135 D20: the kernel took the byte BPF offered; BPF advances the ring
 #define UPC_RETRY_RC            (-2) // a retrying handler's return; syscall() leaves a0 alone (ADR-135 D7)
+// ADR-135 D21 (rungs 5+6): 1 when the kernel's fd table is the only one. It must
+// equal `const UPC_RUNG56` in ebpf/monad-cpu-ebpf/src/main.rs; the parity test
+// cmd/upc-bootctl/tests/parity_slot_tables.rs reads both lines. A header, not a
+// compiler flag, so make rebuilds what includes it.
+#define UPC_RUNG56              0
+#if UPC_RUNG56
+#define UPC_KFD_BASE            0  // ADR-135 D21: a kernel fd is the ofile index
+#else
 #define UPC_KFD_BASE            16 // ADR-135 D10: kernel fd = 16 + ofile index; BPF's NOFILE
+#endif
 #define UPC_HEAP_BASE           0x00010000 // ADR-135 D2: VA window, inside fork's low copy band
 #define UPC_HEAP_TOP            0x00040000
 #define UPC_USER_VA_CEILING     0x00800000 // ADR-135 D6: USER_VA_CEILING in main.rs

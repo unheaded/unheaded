@@ -219,6 +219,10 @@ rung_gate UPC_D6_MISS_FAULT hostile_fork 4000000 HF 3
 rung_gate UPC_D6_MISS_FAULT hostile_block 4000000 HB 3
 rung_gate UPC_RUNG3 conprobe 4000000 CW 4
 rung_gate UPC_RUNG_FD bigprobe 8000000 BG 3
+# S-STAGE-2C Phase 12, ADR-135 D21 (rungs 5+6): the kernel's fd table is the
+# only one. A plain O_RDWR file can be written and read back (T-F3 closed), dup
+# lands on 0, and fstat on the console answers without stopping the kernel.
+rung_gate UPC_RUNG56 rwprobe 6000000 RW 5
 if rung_on UPC_RUNG_SLEEP; then
   SLL="$(probe_lines sleepprobe 3000000 SL)"
   if [ "$(grep -c '=yes$' <<<"$SLL")" = 5 ] && ! grep -q '=no$' <<<"$SLL" && grep -q '^SL: pause-ticks=yes$' <<<"$SLL" \
@@ -229,17 +233,18 @@ else
 fi
 
 # S-STAGE-2C Phase 10, ADR-135 D20 (rung 4): read on the console is the owned
-# kernel's. crprobe needs typed input, so it is not a rung_gate line: two lines
-# go in the keyboard ring, each must come back whole from one read, a bad
-# pointer must answer -1 with nothing left to wait for, and tty_r must count
-# the twelve bytes the kernel took, as it counted BPF's deliveries.
+# kernel's. crprobe needs typed input, so it is not a rung_gate line: three
+# lines go in the keyboard ring, each must come back whole from one read (the
+# first is read by init itself, slot 0: ADR-135 D21, review F1), a bad pointer
+# must answer -1 with nothing left to wait for, and tty_r must count the
+# seventeen bytes the kernel took, as it counted BPF's deliveries.
 if rung_on UPC_RUNG4; then
   CRO="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
-    --ramdisk "$K/fs.img" --userland "$K/crprobe.mbc" --triggers 4000000 --instance 111 --input $'hello\nagain\n' 2>&1) )"
+    --ramdisk "$K/fs.img" --userland "$K/crprobe.mbc" --triggers 4000000 --instance 111 --input $'init\nhello\nagain\n' 2>&1) )"
   CRL="$(grep -a 'ascii:' <<<"$CRO" | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'CR: [a-z0-9-]+(=[a-z0-9]+)?')"
-  if [ "$(grep -c '=yes$' <<<"$CRL")" = 3 ] && ! grep -q '=no$' <<<"$CRL" && grep -qx 'CR: done' <<<"$CRL" \
-     && grep -aq 'tty_r=12\b' <<<"$CRO"; then
-    pass "crprobe: 3 checks, two lines read whole, tty_r=12 (UPC_RUNG4)"
+  if [ "$(grep -c '=yes$' <<<"$CRL")" = 4 ] && ! grep -q '=no$' <<<"$CRL" && grep -qx 'CR: done' <<<"$CRL" \
+     && grep -aq 'tty_r=17\b' <<<"$CRO"; then
+    pass "crprobe: 4 checks, a line read by init and two by a child, tty_r=17 (UPC_RUNG4)"
   else
     fail "crprobe (UPC_RUNG4)"; note "$(tr '\n' ' ' <<<"$CRL") $(grep -aoE 'tty_r=[0-9]+' <<<"$CRO" | tail -1)"
   fi

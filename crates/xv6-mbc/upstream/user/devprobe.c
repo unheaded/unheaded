@@ -19,13 +19,16 @@
 #include "kernel/fcntl.h"
 #include "user/user.h"
 
+// The name too: once open is the kernel's (ADR-135 D21) its path is copied in
+// like any other pointer of init's.
+static char con[] = "console";
 static char open_ok[] = "DEV: console-open-ok\n";
 static char dup_ok[] = "DEV: console-dup-ok\n";
 
 int
 main(void)
 {
-  int fd = open("console", O_RDWR);
+  int fd = open(con, O_RDWR);
   if(fd < 0){
     // No other fd is open, so nothing can print this; the missing token is
     // the failure signal.

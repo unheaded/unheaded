@@ -19,7 +19,7 @@
 // Observables (fixed classes; the MBC userland varargs ABI is unreliable):
 //   "HQ: open-wild-refused=yes|no"          open of a path past the ceiling is -1
 //   "HQ: exec-wild-refused=yes|no"          exec of a path past the ceiling is -1
-//   "HQ: open-ceiling-refused=yes|no"       a path in the last 8 bytes of the slice is -1
+//   "HQ: open-unterminated-refused=yes|no"  a path with no NUL before the ceiling is -1
 //   "HQ: pipe-badbuf-refused=yes|no"        write to a pipe from a bad buffer is -1
 //   "HQ: slot0-kernel-name-refused=yes|no"  mkdir of a kernel .rodata pointer is -1,
 //                                           and that directory does not exist after
@@ -61,8 +61,14 @@ child(void)
   char *argv[] = { "echo", 0 };
   SAY("HQ: exec-wild-refused", exec((char *)(NEXT_SLICE_VA + 16), argv) == -1);
 
-  put((volatile char *)CEILING_PATH, "README");
-  SAY("HQ: open-ceiling-refused", open((char *)CEILING_PATH, 0) < 0);
+  // A path with no NUL before the ceiling. BPF's bound (D16) refuses it because
+  // 128 bytes from its start cross the ceiling; the kernel's copy-in refuses it
+  // because the next page is not the caller's. (A short terminated path here,
+  // which D16 refused for the same 128 bytes, opens once open is the kernel's:
+  // ADR-135 D21, review F2.)
+  for(int i = 0; i < 8; i++)
+    ((volatile char *)CEILING_PATH)[i] = 'R';
+  SAY("HQ: open-unterminated-refused", open((char *)CEILING_PATH, 0) < 0);
 
   int p[2];
   if(pipe(p) < 0){

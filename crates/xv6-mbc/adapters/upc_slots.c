@@ -18,6 +18,9 @@
 #include "spinlock.h"
 #include "proc.h"
 #include "defs.h"
+#include "fs.h"
+#include "sleeplock.h"
+#include "file.h"
 #include "upc_slots.h"
 
 extern struct proc proc[NPROC];
@@ -229,6 +232,27 @@ upc_slots_init(void)
       nz++;
     }
   printf("PG:f01000-nonzero=%d;first=%d;val=%d;\n", nz, first, (int)firstval);
+#endif
+
+#if UPC_RUNG56
+  // ADR-135 D21: the kernel gives the first image its console, fds 0 to 2, one
+  // file with three references, as Linux does for pid 1. Init's own
+  // open("console") cannot be answered (its literal sits in the first page,
+  // which copy-in refuses for slot 0), and most first images open nothing and
+  // print on fd 1. fileinit and consoleinit have run; userinit left ofile
+  // empty. ip is stored as 0: see sys_open.
+  struct file *con = filealloc();
+  if(con == 0)
+    panic("upc: console");
+  con->type = FD_DEVICE;
+  con->major = CONSOLE;
+  con->ip = 0;
+  con->off = 0;
+  con->readable = 1;
+  con->writable = 1;
+  proc[0].ofile[0] = con;
+  proc[0].ofile[1] = filedup(con);
+  proc[0].ofile[2] = filedup(con);
 #endif
 
   __sync_synchronize();

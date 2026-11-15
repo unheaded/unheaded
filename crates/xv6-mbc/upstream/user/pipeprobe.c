@@ -50,8 +50,12 @@ bulk(void)
 {
   int p[2], total = 0, same = 1, n;
 
+  // ADR-135 D21: 16 and up before rungs 5+6; after, the two lowest free fds.
+  int w = dup(1);
+  if(w >= 0)
+    close(w);
   SAY("PI: pipe", pipe(p) == 0);
-  SAY("PI: fds", p[0] >= 16 && p[1] >= 16 && p[0] != p[1]);
+  SAY("PI: fds", p[0] != p[1] && (p[0] >= 16 ? p[1] >= 16 : (p[0] == w && p[1] == w + 1)));
   for(int i = 0; i < N; i++)
     out[i] = pat(i);
   int c = fork();

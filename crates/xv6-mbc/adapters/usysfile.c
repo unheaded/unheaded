@@ -41,7 +41,8 @@ int consolewrite(int user_src, uint64 src, int n);
 int upc_consoleread(uint64 dst, int n);
 
 // ADR-135 D10: an ofile index as the user sees it. Slot rows number kernel fds
-// from 16, above BPF's table, so neither allocator sees the other.
+// from 16, above BPF's table, so neither allocator sees the other. Under
+// UPC_RUNG56 (D21) the base is 0: BPF keeps no table, and a fd is the index.
 static int
 fduser(int fd)
 {
@@ -113,14 +114,18 @@ sys_read(void)
 
   argaddr(1, &p);
   argint(2, &n);
+#if !UPC_RUNG56
   // ADR-135 D20 (rung 4): a slot row's fd below 16 is BPF's number, and BPF
   // sends a read on one here only when its table calls the fd the console.
+  // Under UPC_RUNG56 the console is a file in ofile and fileread sends it to
+  // the same polled read (D21).
   if(upc_slot_active()){
     int fd;
     argint(0, &fd);
     if(fd >= 0 && fd < UPC_KFD_BASE)
       return upc_consoleread(p, n);
   }
+#endif
   if(argfd(0, 0, &f) < 0)
     return -1;
   return fileread(f, p, n);
@@ -139,6 +144,9 @@ sys_write(void)
   // sends a write on one here only when its table does not call the fd a file.
   // So it is the console. A copy that fails before the first byte is a bad
   // pointer: -1. One that fails later answers the bytes written, as stock.
+  // Under UPC_RUNG56 the console is a file in ofile and filewrite keeps this
+  // rule in its device branch (D21).
+#if !UPC_RUNG56
   if(upc_slot_active()){
     int fd;
     argint(0, &fd);
@@ -147,6 +155,7 @@ sys_write(void)
       return (w == 0 && n > 0) ? -1 : w;
     }
   }
+#endif
   if(argfd(0, 0, &f) < 0)
     return -1;
 
@@ -360,6 +369,30 @@ create(char *path, short type, short major, short minor)
   return 0;
 }
 
+#if UPC_RUNG56
+// ADR-135 D21: is this path the console's name? The rule is the one BPF's open
+// arm had: strip one leading "./" or "/", then the whole remainder is
+// "console". A relative name matches only from the root; "/console" matches
+// from anywhere. No disk inode: fs.img has none, and a disk entry of that name
+// is shadowed for these three spellings only (ADR-135 D21, review Q2).
+static int
+upc_console_name(const char *path)
+{
+  const char *b = path;
+  int absolute = 0;
+
+  if(b[0] == '.' && b[1] == '/'){
+    b += 2;
+  } else if(b[0] == '/'){
+    b += 1;
+    absolute = 1;
+  }
+  if(strncmp(b, "console", 8) != 0)
+    return 0;
+  return absolute || myproc()->cwd->inum == ROOTINO;
+}
+#endif
+
 uint64
 sys_open(void)
 {
@@ -372,6 +405,27 @@ sys_open(void)
   argint(1, &omode);
   if((n = argstr(0, path, MAXPATH)) < 0)
     return -1;
+
+#if UPC_RUNG56
+  // ADR-135 D21: the console by name, for a slot row. Before begin_op: no log
+  // transaction, no namei, and O_CREATE is not looked at. The file has no
+  // inode, and ip is stored as 0 here because filealloc hands back a struct
+  // file with whatever ip its last user left (review F4).
+  if(upc_slot_active() && upc_console_name(path)){
+    if((f = filealloc()) == 0 || (fd = fdalloc(f)) < 0){
+      if(f)
+        fileclose(f);
+      return -1;
+    }
+    f->type = FD_DEVICE;
+    f->major = CONSOLE;
+    f->ip = 0;
+    f->off = 0;
+    f->readable = !(omode & O_WRONLY);
+    f->writable = (omode & O_WRONLY) || (omode & O_RDWR);
+    return fduser(fd);
+  }
+#endif
 
   begin_op();
 

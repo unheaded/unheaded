@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // chdirprobe.c: S-STAGE-2B chdir rung (ADR-135 D15). Off the root, open goes to
 // the kernel and answers a fd at 16 or above; at the root it stays in BPF, below 16.
+// After rungs 5+6 (D21) every open is the kernel's and answers the lowest free fd.
 // A dropped cwd shows through ialloc, as in fdprobe: it hands out the lowest free inum.
 #include "kernel/types.h"
 #include "kernel/stat.h"
@@ -9,11 +10,43 @@
 
 #define SAY(t, c) do { if(c) printf(t "=yes\n"); else printf(t "=no\n"); } while(0)
 
+// ADR-135 D21. Before rungs 5+6 a kernel fd is 16 or above and BPF's are
+// below; after, every fd is the kernel's and is the lowest free one. A pipe's
+// fds were always the kernel's, so its first one says which build this is.
+static int kbase;
+
+static void
+learn(void)
+{
+  int p[2];
+  if(pipe(p) == 0){
+    kbase = p[0] >= 16 ? 16 : 0;
+    close(p[0]);
+    close(p[1]);
+  }
+}
+
+// The lowest free fd of the one table (used only after the rung).
+static int
+low(void)
+{
+  int d = dup(1);
+  if(d >= 0)
+    close(d);
+  return d;
+}
+
+// A fd the kernel answered: 16 or above before the rung, the lowest free after.
+#define KFD(fd, want) (kbase == 16 ? (fd) >= 16 : ((fd) >= 0 && (fd) == (want)))
+// A fd BPF answered before the rung; after it, the kernel's lowest free too.
+#define BFD(fd, want) (kbase == 16 ? ((fd) >= 0 && (fd) < 16) : ((fd) >= 0 && (fd) == (want)))
+
 static int
 kfd(char *path)
 {
+  int w = low();
   int fd = open(path, O_RDONLY);
-  int ok = fd >= 16;
+  int ok = KFD(fd, w);
   if(fd >= 0)
     close(fd);
   return ok;
@@ -22,8 +55,9 @@ kfd(char *path)
 static int
 bfd(char *path)
 {
+  int w = low();
   int fd = open(path, O_RDONLY);
-  int ok = fd >= 0 && fd < 16;
+  int ok = BFD(fd, w);
   if(fd >= 0)
     close(fd);
   return ok;
@@ -74,7 +108,7 @@ offroot(void)
   SAY("CD: wrote", write(fd, "chdir", 5) == 5);
   close(fd);
   fd = open("f", O_RDONLY);
-  SAY("CD: read-rel", fd >= 16 && read(fd, got, 8) == 5 && memcmp(got, "chdir", 5) == 0);
+  SAY("CD: read-rel", (kbase == 16 ? fd >= 16 : fd >= 0) && read(fd, got, 8) == 5 && memcmp(got, "chdir", 5) == 0);
   close(fd);
 
   int c = fork();
@@ -90,7 +124,7 @@ offroot(void)
   SAY("CD: chdir-up", chdir("..") == 0);
   SAY("CD: bpf-again", bfd("cdd/in"));
   fd = open("cdd/f", O_RDONLY);
-  SAY("CD: bpf-read", fd >= 0 && fd < 16 && read(fd, got, 8) == 5 && memcmp(got, "chdir", 5) == 0);
+  SAY("CD: bpf-read", (kbase == 16 ? (fd >= 0 && fd < 16) : fd >= 0) && read(fd, got, 8) == 5 && memcmp(got, "chdir", 5) == 0);
   close(fd);
 }
 
@@ -131,6 +165,7 @@ int
 main(void)
 {
   if(fork() == 0){
+    learn();
     offroot();
     reuse();
     drop();
