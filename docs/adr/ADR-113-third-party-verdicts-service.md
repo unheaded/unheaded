@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-113: Third-party verdicts as a Kingdom service ("_____", name TBD)
 
-**Status:** Proposed (pitch, parked under ADR-112). Brainstorm before acceptance; nothing is built. Addenda 2026-10-30: accuracy check, SBOM documentation, daily project + environment checks.
+**Status:** Proposed (pitch, parked under ADR-112). Brainstorm before acceptance; nothing is built. Addenda 2026-10-30: accuracy check, SBOM documentation, daily project + environment checks. Update 2026-11-15: a second draft merged and checked against the repository; wanted in alpha, low priority.
 **Date:** 2026-10-30
 **Grounded on:** `churn/2026-10-30` at `efa90e18`
 **Related:**
@@ -347,3 +347,111 @@ Built that day, and only that:
 - No table in the Well, no service account, no audit trail, no write path: the page cannot change anything, so the rule "no mutable page without the database" is not in play yet. A verdict is given by editing the record in git, as before.
 
 Everything this ADR asks for is still open: the service and its name, the schema and role, who may write, the audit trail, the generator that rebuilds the inventory from the tree (the 2026-10-29 one lived in scratch and is gone), the daily check. The questions above stand.
+
+## Update 2026-11-15: a second draft, checked against the repository
+
+Stevie brought a draft from another session ("Third-Party Ledger", then "Mímir, the Kingdom's dependency ledger"). It is the same service as this ADR, so it is merged here and no new ADR is made. His words, verbatim:
+
+> note i'd like it to be a living intergal part of unheaded just like kanban, wotan, and others
+
+> incoming future far off ADR's - would like them to be rolled into alpha but they are far off low priority post unfreeze
+
+**Standing:** still parked under ADR-112. Wanted in alpha; low priority; nothing is planned or built beyond the read-only page of 2026-11-12.
+
+### What the draft adds
+
+**A trust rubric, stored and versioned.** Every gate must pass for `keep`. A change of rubric scores every item again and shows what moved.
+
+| Gate | Rule |
+|---|---|
+| G1 Steward | The language or platform team, or two or more independent institutions, or a named team with a record |
+| G2 Alive | A release by a person within 24 months |
+| G3 Verifiable | Fetched through a checksum log: `sum.golang.org`, `Cargo.lock` hashes, pip `--require-hashes`, images by digest, Actions by commit |
+| G4 Native first | Not replaceable by the standard library and our own code in one short ADR |
+| G5 Crypto | Never written by us; specialist teams only (G4 waived) |
+
+| Tier | Meaning | Default |
+|---|---|---|
+| T1 Platform | language, kernel, distribution, database project | keep |
+| T2 Consortium or crypto team | a foundation of several organisations, or a specialist team | keep after the gates |
+| T3 A team, widely used | named maintainers, many dependents | keep, checked again each year |
+| T4 Out | one author, redundant, or one short ADR away | cut or replace |
+
+**What the gate does with each state.** `cut` fails the build. A new item with no verdict fails until it is ruled on. A `keep` that falls below the rubric (older than 24 months, an open KEV entry) raises an alert, not a failure. An enricher that cannot be reached never fails a build; the `cut` check is local and still does.
+
+**Enrichers beyond this ADR's daily match:** the last release date from each registry (`proxy.golang.org`, the crates.io index, PyPI), RUSTSEC, and `govulncheck`; KEV joined from `cmd/kev-poller`, with no second fetcher. Each outbound call has a timeout, a breaker and a cache. First pass: direct dependencies only.
+
+**Roles:** `view`, `decide`, `admin` (this ADR's R6 has observer and admin; question 7 below is the same question).
+
+**A data model in SQL** (a draft for Erda's review; the schema takes the service's name; indexes, retention of `occurrence` and partitioning are not designed). The draft declared `occurrence` before `scan`; the order is corrected here.
+
+```sql
+CREATE TABLE <name>.component (
+  id         bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  ecosystem  text NOT NULL CHECK (ecosystem IN
+             ('go','rust','python','container','action','tool','browser','foreign','service')),
+  name       text NOT NULL,
+  UNIQUE (ecosystem, name)
+);
+CREATE TABLE <name>.scan (
+  id          bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  commit_sha  text NOT NULL,
+  started_at  timestamptz NOT NULL DEFAULT now(),
+  finished_at timestamptz
+);
+CREATE TABLE <name>.occurrence (           -- where it is used, per scan
+  component_id bigint NOT NULL REFERENCES <name>.component(id),
+  scan_id      bigint NOT NULL REFERENCES <name>.scan(id),
+  version      text,
+  path         text NOT NULL,
+  first_commit text,
+  PRIMARY KEY (component_id, scan_id, path)
+);
+CREATE TABLE <name>.verdict (              -- append-only; the latest row wins
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  component_id bigint NOT NULL REFERENCES <name>.component(id),
+  verdict      text NOT NULL CHECK (verdict IN ('keep','replace','cut')),
+  tier         text CHECK (tier IN ('T1','T2','T3','T4')),
+  note         text,
+  decided_by   text NOT NULL,              -- the authenticated subject
+  decided_at   timestamptz NOT NULL DEFAULT now()
+);
+CREATE TABLE <name>.finding (              -- what the enrichers found
+  id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  component_id bigint NOT NULL REFERENCES <name>.component(id),
+  kind         text NOT NULL CHECK (kind IN ('advisory','kev','stale','archived','rubric')),
+  ref          text,
+  detail       jsonb,
+  seen_at      timestamptz NOT NULL DEFAULT now(),
+  resolved_at  timestamptz
+);
+```
+
+**Phases, unscheduled:** 0, seed from the 2026-10-29 record; 1, the collector for direct dependencies and the read-only page (the page exists since 2026-11-12); 1.5, cards and events, so a verdict is tracked work from the start; 2, verdict writes behind the login, with history; 3, the enrichers; 4, the gate; 5, transitive dependencies and our own generator in place of syft and grype.
+
+**Rejected in the draft:** keeping the hosted page; a spreadsheet or markdown inventory; an outside dependency platform; a gate with no page or database (it becomes phase 4); a service outside the Kingdom that does not share the Well, the login and the dashboard.
+
+### "A living, integral part": each tie checked against what exists
+
+The draft asked for its ties to be checked before anything is accepted.
+
+| Tie in the draft | What the repository has today |
+|---|---|
+| The name "Mímir" | **Taken.** `cmd/tools/mimir` is the config drift sentry, and ADR-043 is "Mímir's Law". The name stays open (R1; Lore decides) |
+| The Well as the record, its own schema | Agrees with R2. The draft's other option, SQLite, would be a second store for one service |
+| Kanban: a `replace` or `cut` opens a card; the card closes only when the next scan no longer finds the item | kanban-app takes `POST /api/v1/tasks` and `/api/v1/tasks/from-runbook`, and its cards live in the Well. A service can open a card. Closing on a scan result is new logic |
+| Wotan: "is X allowed?" readable like other component state | Wotan carries topics; it has no query for a component's state (ADR-142, parked, is where that would come from). Today the answer is a subscription to the signed `audit.<name>.verdict` topic (R6) or a call to the service |
+| Anamnesis: every scan, verdict and finding emits an event | No package, command or service is named for Anamnesis; it is protocol vocabulary. The existing trails are Wotan's signed `audit.` prefix and the Well's append-only `audit_events` (R8) |
+| Dashboard page next to Compliance, behind the login | `/verdicts` (read only) and `/compliance` exist on dashboard-backend; the login is `unheaded-auth` |
+| The gate reads the service | CI cannot reach the Well: it reads the signed export (R5). `scripts/check-dependency-baseline.sh` already fails a new package identity |
+| Starts, stops and reports health with the Kingdom | Yes, as a once-per-environment service. ADR-147 then applies: it must have a caller from its first day (the gate), a stated cost, an alert that can fire, and a known limit. ADR-147 decided to remove five services that had none of these |
+| The 2026-10-29 record becomes the seed | Agrees with R10 |
+
+### Questions the draft adds
+
+14. Who holds `decide`: Stevie only, or one holder per ecosystem? (With 7.)
+15. Must a `keep` at tier T3 carry a written reason?
+16. How long are `occurrence` rows kept?
+17. Wotan: a subscription now, or wait for a query (ADR-142)?
+18. The page: ADR-147 says the interface is not the goal. Does the read-only page of 2026-11-12 stay as it is until writes exist?
+
