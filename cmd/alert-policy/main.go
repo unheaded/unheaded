@@ -33,6 +33,7 @@ import (
 
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/repolink"
 )
 
 const (
@@ -40,7 +41,7 @@ const (
 	rulesDir   = "monitoring/prometheus/rules"
 	sloRules   = "monitoring/prometheus/rules/slo.yml"
 	amConfig   = "monitoring/alertmanager/alertmanager.yml"
-	repoBlob   = "https://github.com/unheaded/unheaded/blob/develop/"
+	repoBlob   = repolink.BlobBase
 	runbookURL = repoBlob + "runbooks/observe/slo-error-budget-burn.yaml"
 )
 

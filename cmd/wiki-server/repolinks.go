@@ -9,11 +9,13 @@ import (
 	"strings"
 
 	"github.com/yuin/goldmark/ast"
+
+	"unheaded/pkg/repolink"
 )
 
 // repoBlobURL is where a link from a wiki page to a file or directory of the
 // repository is sent. GitHub redirects blob/ to tree/ for a directory.
-const repoBlobURL = "https://github.com/unheaded/unheaded/blob/develop/"
+const repoBlobURL = repolink.BlobBase
 
 // wikiDirName is the wiki's directory in the repository: what a relative
 // link in a wiki page is relative to.
