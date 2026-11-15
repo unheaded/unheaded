@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Container and unit state for huginn's textfile directory (ADR-147
+# decisions 1 and 2, S-SEE-AND-SURVIVE Phase 5). scripts/monitoring/
+# host-state-textfile.sh reads docker ps, docker inspect and systemctl show
+# and writes /var/lib/unheaded/textfile/host_state.prom every 30 s;
+# ContainerStopped, UnitFailed and HostStateStale read it. Root because the
+# Docker socket is root-equivalent anyway (as the Well backup's unit says);
+# no capability is kept: root needs none to reach either socket. The script
+# it runs is a root-owned copy, never the repo's.
+# Install (S-SEE-AND-SURVIVE Phase 14):
+#   sudo install -d -m 0755 /usr/local/lib/unheaded/monitoring
+#   sudo install -m 0755 scripts/monitoring/host-state-textfile.sh /usr/local/lib/unheaded/monitoring/
+#   sudo cp deploy/systemd/unheaded-host-state.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-host-state.timer
+
+[Unit]
+Description=Container and unit state for huginn's textfile directory (ADR-147)
+After=docker.service
+
+[Service]
+Type=oneshot
+Environment=DOCKER_CONFIG=/run/unheaded-host-state
+RuntimeDirectory=unheaded-host-state
+ExecStart=/usr/local/lib/unheaded/monitoring/host-state-textfile.sh /var/lib/unheaded/textfile
+TimeoutStartSec=20s
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=64M
+CPUQuota=20%
+UMask=0022
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/unheaded/textfile
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+# The Docker socket and systemd's are path sockets: PrivateNetwork keeps them.
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
