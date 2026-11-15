@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The platform's health sweep (ADR-149, ADR-147 decision 15 (a)): runs
+# runbooks/observe/service-health-sweep.yaml against the targets this host
+# runs (/etc/unheaded/health-sweep.targets) every 6 hours, through
+# scripts/monitoring/platform-schedule.sh, which leaves
+# unheaded_schedule_*{schedule="service-health-sweep"} in the textfile
+# directory; HealthSweepNotSucceeding (monitoring/prometheus/rules/schedules.yml)
+# reads it. It replaces the service-health-sweep job that zhen-agentd
+# -scheduler held: Zhen is not the platform's clock.
+#
+# Account unheaded-health-sweep, uid 16714 (pkg/uids). Install on west (users
+# first: deploy/sysusers.d/unheaded.conf):
+#   sudo install -D -m 0755 scripts/monitoring/platform-schedule.sh /usr/local/lib/unheaded/monitoring/platform-schedule.sh
+#   sudo install -D -m 0644 scripts/run-runbook.py /usr/local/lib/unheaded/schedules/run-runbook.py
+#   sudo install -D -m 0644 runbooks/observe/service-health-sweep.yaml /usr/local/lib/unheaded/schedules/runbooks/observe/service-health-sweep.yaml
+#   sudo install -m 0644 configs/health-sweep-west.targets /etc/unheaded/health-sweep.targets
+#   sudo setfacl -m u:unheaded-health-sweep:rwx /var/lib/unheaded/textfile
+#   sudo cp deploy/systemd/unheaded-health-sweep.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-health-sweep.timer
+
+[Unit]
+Description=Unheaded health sweep of this host's services (platform timer)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/service-health-sweep.yaml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/unheaded/monitoring/platform-schedule.sh service-health-sweep /usr/local/lib/unheaded/schedules/runbooks/observe/service-health-sweep.yaml /var/lib/unheaded/textfile
+Environment=SWEEP_TARGETS_FILE=/etc/unheaded/health-sweep.targets
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+TimeoutStartSec=5min
+User=unheaded-health-sweep
+Group=unheaded-health-sweep
+UMask=0022
+MemoryMax=128M
+TasksMax=64
+IPAddressDeny=any
+IPAddressAllow=localhost
+ReadWritePaths=/var/lib/unheaded/textfile
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM

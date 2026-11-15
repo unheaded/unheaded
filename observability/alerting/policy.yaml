@@ -83,6 +83,13 @@ promote:
       indicator and when it cannot see. One failed day is a card in Review;
       three days with no success means nobody read the card or the audit is
       blind, and no SLO shows either.
+  - alert: HealthSweepNotSucceeding
+    urgency: ticket
+    reason: >-
+      The platform's own sweep of this host's services, every 6 hours. A day
+      with no success means a service is down and stayed down, or the timer
+      stopped: with restart `no` (ADR-147 decision 1) nothing brings either
+      back.
   - alert: WotanTopicPermissionRefused
     urgency: ticket
     reason: >-

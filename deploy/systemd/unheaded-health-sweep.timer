@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The platform's health sweep every 6 hours (ADR-149). A host that was off
+# runs the missed sweep at the next boot (Persistent=).
+
+[Unit]
+Description=Unheaded health sweep every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00/6:10:00
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

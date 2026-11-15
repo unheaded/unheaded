@@ -1,0 +1,73 @@
+# promtool test rules schedules_test.yml (from this directory)
+rule_files:
+  - ../schedules.yml
+evaluation_interval: 1m
+tests:
+  # ioc-audit last succeeded at t=0 and its textfile keeps saying so. Up
+  # to three days it is quiet; past three days it waits out the 30m hold,
+  # then fires. A success at 74h (the gauge moves to then) clears it. The
+  # other job's gauge is as old and does not fire: the alarm is this job's.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_schedule_last_success_timestamp_seconds{job="huginn",host="west",schedule="ioc-audit"}'
+        values: '0x4440 266400x120'
+      - series: 'unheaded_schedule_last_success_timestamp_seconds{job="huginn",host="west",schedule="service-health-sweep"}'
+        values: '0x4560'
+    alert_rule_test:
+      - eval_time: 71h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 72h20m
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 73h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, schedule: ioc-audit}
+            exp_annotations:
+              summary: "The daily indicator-of-compromise audit has not succeeded for over 3 days"
+              description: "Every ioc-audit run since then failed or none ran: it kept finding an indicator, or it could not see (VictoriaMetrics or journal shipping down). Read `journalctl -u unheaded-ioc-audit`, or run the runbook by hand"
+              runbook_url: "runbooks/security/ioc-audit.yaml"
+      - eval_time: 75h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+
+  # The host was off for five days: no series, no alarm. Back up, the gauge
+  # still says five days ago for the minutes until the Persistent= run lands;
+  # the 30m hold keeps that from firing.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_schedule_last_success_timestamp_seconds{job="huginn",host="west",schedule="ioc-audit"}'
+        values: '0x10 _x7180 0x3 432180x60'
+    alert_rule_test:
+      - eval_time: 100h
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 7193m
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+      - eval_time: 7240m
+        alertname: IOCAuditNotSucceeding
+        exp_alerts: []
+
+  # The health sweep last succeeded at t=0 and every run since failed (or
+  # none ran). Quiet up to a day, quiet through the 30m hold, firing after.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_schedule_last_success_timestamp_seconds{job="huginn",host="west",schedule="service-health-sweep"}'
+        values: '0x1600'
+    alert_rule_test:
+      - eval_time: 23h
+        alertname: HealthSweepNotSucceeding
+        exp_alerts: []
+      - eval_time: 24h20m
+        alertname: HealthSweepNotSucceeding
+        exp_alerts: []
+      - eval_time: 25h
+        alertname: HealthSweepNotSucceeding
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, schedule: service-health-sweep}
+            exp_annotations:
+              summary: "The health sweep has not succeeded for over a day"
+              description: "Every run since then failed or none ran: a service on this host does not answer /health, or the timer stopped. Read journalctl -u unheaded-health-sweep"
+              runbook_url: "runbooks/observe/service-health-sweep.yaml"
