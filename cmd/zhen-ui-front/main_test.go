@@ -821,7 +821,9 @@ func TestParseFlags(t *testing.T) {
 				t.Errorf("listens %v", c.listens)
 			}
 		}},
-		{"lan address", []string{"--listen", "10.10.20.2:20103"}, "", nil},
+		// A LAN address needs the host's allowlist (ADR-149): see TestParseFlags_BindAllow.
+		{"lan address without the allowlist", []string{"--listen", "10.10.20.2:20103"}, "allowlist", nil},
+		{"global address", []string{"--listen", "8.8.8.8:20103"}, "globally routable", nil},
 		{"wildcard v4", []string{"--listen", "0.0.0.0:20103"}, "wildcard", nil},
 		{"wildcard v6", []string{"--listen", "[::]:20103"}, "wildcard", nil},
 		{"bare port", []string{"--listen", ":20103"}, "--listen", nil},
@@ -846,7 +848,7 @@ func TestParseFlags(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var errOut bytes.Buffer
 			c, err := parseFlags(tc.args, io.Discard, &errOut)
-			if tc.wantErr == "" && tc.check == nil && tc.name != "lan address" {
+			if tc.wantErr == "" && tc.check == nil {
 				if err == nil {
 					t.Fatal("accepted")
 				}
@@ -978,12 +980,13 @@ func (l *lockedBuffer) String() string {
 // A LAN address that is not on the host yet must not take loopback down
 // (D-05): the address can arrive after the unit, from a drop-in or a link
 // that is late at boot. The front binds it with FREEBIND, says so once, and
-// keeps serving. 192.0.2.1 and 2001:db8::1 are documentation addresses, never
-// on a host.
+// keeps serving. 10.255.255.1 and fd00:ffff:ffff::1 are private addresses no
+// host here holds; the bind rule (ADR-149) admits them through the allowlist.
 func TestFreebindMissingAddressKeepsLoopback(t *testing.T) {
+	t.Setenv("UNHEADED_MODULE_BIND_ALLOW", "10.255.255.0/24,fd00:ffff:ffff::/48")
 	for _, tc := range []struct{ name, loopback, missing string }{
-		{"ipv4", "127.0.0.1", "192.0.2.1"},
-		{"ipv6", "::1", "2001:db8::1"},
+		{"ipv4", "127.0.0.1", "10.255.255.1"},
+		{"ipv6", "::1", "fd00:ffff:ffff::1"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			probe, err := net.Listen("tcp", net.JoinHostPort(tc.loopback, "0"))
@@ -1091,5 +1094,26 @@ func TestFreebindDoesNotExcuseLoopback(t *testing.T) {
 	err = run(ctx, cfg, zerolog.Nop())
 	if err == nil || !strings.Contains(err.Error(), "listen") {
 		t.Fatalf("run: %v, want a listen error for the taken loopback port", err)
+	}
+}
+
+// A module listener off loopback must be a private address on the host's
+// allowlist, and never a global one even when listed (ADR-149, D5 (a)).
+func TestParseFlags_BindAllow(t *testing.T) {
+	t.Setenv("UNHEADED_MODULE_BIND_ALLOW", "")
+	if _, err := parseFlags([]string{"--listen", "192.168.69.130:20103"}, io.Discard, io.Discard); err == nil {
+		t.Fatal("a LAN address was accepted with no allowlist")
+	}
+	t.Setenv("UNHEADED_MODULE_BIND_ALLOW", "192.168.69.128/25")
+	if _, err := parseFlags([]string{"--listen", "192.168.69.130:20103"}, io.Discard, io.Discard); err != nil {
+		t.Fatalf("allowlisted LAN address refused: %v", err)
+	}
+	t.Setenv("UNHEADED_MODULE_BIND_ALLOW", "8.8.8.0/24")
+	if _, err := parseFlags([]string{"--listen", "8.8.8.8:20103"}, io.Discard, io.Discard); err == nil {
+		t.Fatal("a global address was accepted")
+	}
+	t.Setenv("UNHEADED_MODULE_BIND_ALLOW", "garbage")
+	if _, err := parseFlags(nil, io.Discard, io.Discard); err == nil {
+		t.Fatal("a malformed allowlist was accepted")
 	}
 }

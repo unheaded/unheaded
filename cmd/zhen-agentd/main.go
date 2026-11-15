@@ -28,10 +28,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -51,6 +53,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/modules"
 	"unheaded/pkg/retrieval"
 	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
@@ -72,7 +75,7 @@ const (
 func main() {
 	var (
 		port             = flag.Int("port", defaultPort, "HTTP listen port")
-		host             = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
+		host             = flag.String("host", "127.0.0.1", "HTTP listen host: loopback, or a private address on 'UNHEADED_MODULE_BIND_ALLOW (ADR-149)")
 		projectRoot      = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots     = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
 		actionStore      = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
@@ -122,6 +125,12 @@ func main() {
 	// -overnight and -once runs open no listener.
 	var authMW func(http.Handler) http.Handler
 	if !wf.overnight && !wf.once {
+		// The module bind rule (ADR-149): every listener on loopback or an
+		// allowlisted private address, checked before any opens.
+		if err := checkListenAddrs(*host, *port, *metricsAddr, os.Getenv(modules.EnvBindAllow)); err != nil {
+			fmt.Fprintf(os.Stderr, "zhen-agentd: %v (ADR-149: a module listens on loopback or an allowlisted private address)\n", err)
+			os.Exit(2)
+		}
 		mw, err := listenerAuth(auth.LoadServiceAuthConfig("zhen-agentd"), *noAuth, *host)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "zhen-agentd: %v\n", err)
@@ -361,7 +370,7 @@ func main() {
 		handler = rl.Middleware(handler)
 	}
 
-	listenAddr := fmt.Sprintf("%s:%d", *host, *port)
+	listenAddr := net.JoinHostPort(*host, strconv.Itoa(*port))
 	httpSrv := &http.Server{
 		Addr:              listenAddr,
 		Handler:           handler,
