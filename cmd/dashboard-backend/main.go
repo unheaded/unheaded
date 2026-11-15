@@ -39,7 +39,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"embed"
 	"flag"
@@ -421,27 +420,9 @@ func loadServiceEndpoints(path string) (map[string]string, error) {
 	}
 	defer f.Close()
 
-	endpoints := make(map[string]string)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid line (expected name=host:port): %q", line)
-		}
-		name := strings.TrimSpace(parts[0])
-		addr := strings.TrimSpace(parts[1])
-		if name == "" || addr == "" {
-			return nil, fmt.Errorf("empty name or address in: %q", line)
-		}
-		endpoints[name] = addr
+	endpoints, err := health.ParseServiceEndpoints(f)
+	if err != nil {
+		return nil, err
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read services file: %w", err)
-	}
-
 	return endpoints, nil
 }

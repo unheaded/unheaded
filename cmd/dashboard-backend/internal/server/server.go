@@ -258,6 +258,9 @@ type Server struct {
 	httpDuration    *metrics.HistogramVec
 	wsConnections   *metrics.Gauge
 	streamClients   *metrics.Gauge
+	// healthTargets is unheaded_dashboard_health_targets{module}: registered
+	// health targets per module, "" for the platform's (ADR-149).
+	healthTargets *metrics.GaugeVec
 
 	// complianceMetrics is nil unless ComplianceRoot is set (ADR-098).
 	complianceMetrics *complianceMetrics
@@ -643,6 +646,9 @@ func (s *Server) initMetrics() {
 	s.hostLoad1 = metrics.NewGaugeVec("host_load_1m", "1-minute load average", nil, []string{"host"})
 	s.metricsRegistry.MustRegister(s.hostLoad1)
 	s.hostLoad5 = metrics.NewGaugeVec("host_load_5m", "5-minute load average", nil, []string{"host"})
+	s.healthTargets = metrics.NewGaugeVec("unheaded_dashboard_health_targets",
+		"Registered health targets per module; module=\"\" is the platform's (ADR-149)", nil, []string{"module"})
+	s.metricsRegistry.MustRegister(s.healthTargets)
 	s.metricsRegistry.MustRegister(s.hostLoad5)
 	s.hostLoad15 = metrics.NewGaugeVec("host_load_15m", "15-minute load average", nil, []string{"host"})
 	s.metricsRegistry.MustRegister(s.hostLoad15)
@@ -842,6 +848,9 @@ func (s *Server) Start(ctx context.Context) error {
 	// Register Kingdom services for scraping and monitoring
 	s.scraper.RegisterKingdomServices(s.config.ServiceEndpoints)
 	s.healthMonitor.RegisterKingdomServices(s.config.ServiceEndpoints)
+	// A module's health targets follow its switch (ADR-149): read from
+	// /run/unheaded/modules at start and every 30 s.
+	go s.syncModuleTargets(ctx, moduleSyncInterval)
 
 	// Start WebSocket server
 	if err := s.wsServer.Start(ctx); err != nil {
@@ -3561,6 +3570,43 @@ func (s *Server) persistHealthReports(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 		case <-time.After(retry):
+		}
+	}
+}
+
+// moduleSyncInterval is how often module health targets are re-read.
+const moduleSyncInterval = 30 * time.Second
+
+// syncModuleTargets registers and removes module health targets from the
+// fragments under /run/unheaded/modules, at start and every interval until
+// ctx ends, and publishes the per-module target counts.
+func (s *Server) syncModuleTargets(ctx context.Context, interval time.Duration) {
+	seen := map[string]bool{"": true}
+	step := func() {
+		added, removed := s.healthMonitor.SyncModuleServices(health.ModuleEndpoints(s.log))
+		if added+removed > 0 {
+			s.log.Info().Int("added", added).Int("removed", removed).Msg("module health targets changed")
+		}
+		counts := s.healthMonitor.TargetCounts()
+		for mod := range seen {
+			if _, ok := counts[mod]; !ok {
+				s.healthTargets.WithLabelValues(mod).Set(0)
+			}
+		}
+		for mod, n := range counts {
+			seen[mod] = true
+			s.healthTargets.WithLabelValues(mod).Set(float64(n))
+		}
+	}
+	step()
+	t := time.NewTicker(interval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			step()
 		}
 	}
 }

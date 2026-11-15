@@ -761,6 +761,11 @@ func (m *Monitor) GetSystemHealth() *SystemHealth {
 		m.historyMu.RUnlock()
 
 		system.Services[name] = &h
+		// A module's target is listed but never decides the platform's
+		// overall state (ADR-149): it is left out of the counts.
+		if moduleOf(health.Tags) != "" {
+			continue
+		}
 		system.TotalServices++
 
 		switch health.Status {
