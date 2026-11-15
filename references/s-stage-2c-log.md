@@ -8,6 +8,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | Change | OFF | ON | delta | net vs 921,036 | gate |
 |---|---|---|---|---|---|
 | priv3 + D6 | 889941 | 893507 | +3566 | 27529 | d6-after |
+| bounded paths | 893507 | 895768 | +2261 | 25268 | paths-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -82,3 +83,4 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 57 as written (`user_phys` inside the two arms): 942,421, +48,914: BUDGET-FAIL. The exec arm alone was +41,496 (935,003): the refused state runs the 16-byte hash loop and the table scan before it reaches -1. Appendix A1's remedy, hoisted: one guard arm ahead of open and exec. Count 895768, +2261 against 893507: BUDGET-OK, headroom 4232.
 - Step 61: six `=yes`, no `=no`, `done`; corpus sweep 8 of 8 SAME.
 - Step 63 mutants, each rebuilt, booted and restored: guard without open → `open-wild-refused=no` and `open-ceiling-refused=no`; slot 0 window removed → `slot0-kernel-name-refused=no` and `slot0-copyout-refused=no`; `pipewrite`'s -1 removed → `pipe-badbuf-refused=no`. After restoring: 895768, six `=yes`.
+- Gate `paths-after`: `same=12 diff=0 rc=0 doom=1 ascend=895768`; `hostile_path: 6 checks (UPC_D6_MISS_FAULT)` PASS, `hostile_ptr: 5 checks` PASS.
