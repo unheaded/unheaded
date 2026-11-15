@@ -32,6 +32,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/critalert"
@@ -272,10 +274,10 @@ func (s *Server) buildHandler(authCfg auth.ServiceAuthConfig) (http.Handler, err
 
 	// Apply middleware stack (order matters!)
 	var handler http.Handler = mux
-	handler = s.loggingMiddleware(handler)                     // Logging (innermost — sees request ID)
-	handler = requestIDMiddleware(handler)                     // X-Request-ID injection
-	handler = requestSizeLimitMiddleware(1024 * 1024)(handler) // 1MB max request
-	handler = securityHeadersMiddleware(handler)               // Security headers
+	handler = httputil.AccessLogFunc(handler, logRequest, getRequestID) // Logging (innermost — sees request ID); probes at debug
+	handler = requestIDMiddleware(handler)                              // X-Request-ID injection
+	handler = requestSizeLimitMiddleware(1024 * 1024)(handler)          // 1MB max request
+	handler = securityHeadersMiddleware(handler)                        // Security headers
 
 	// Auth (AUTH_ENABLED=true, ADR-103): reads open, writes need an operator
 	// session (board login) or a token.
@@ -438,43 +440,24 @@ func (s *Server) pollTimeguru(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// loggingMiddleware logs HTTP requests
-func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Wrap response writer to capture status
-		wrapped := &statusWriter{ResponseWriter: w, status: 200}
-
-		next.ServeHTTP(wrapped, r)
-
-		log.Info().
-			Str("method", r.Method).
-			Str("path", r.URL.Path).
-			Int("status", wrapped.status).
-			Dur("duration", time.Since(start)).
-			Str("remote_addr", r.RemoteAddr).
-			Str("request_id", getRequestID(r.Context())).
-			Msg("request")
-	})
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(status int) {
-	w.status = status
-	w.ResponseWriter.WriteHeader(status)
-}
-
-// Flush proxies to the underlying ResponseWriter if it supports http.Flusher.
-// Required for SSE (Server-Sent Events) and streaming responses.
-func (w *statusWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
+// logRequest writes one request line through the service's logger at the
+// level httputil chooses: probe paths answered well at debug, a failing
+// probe at warn, every other request at info.
+func logRequest(a httputil.AccessRecord) {
+	ev := log.Info()
+	switch a.Level() {
+	case zerolog.DebugLevel:
+		ev = log.Debug()
+	case zerolog.WarnLevel:
+		ev = log.Warn()
 	}
+	ev.Str("method", a.Method).
+		Str("path", a.Path).
+		Int("status", a.Status).
+		Dur("duration", a.Duration).
+		Str("remote_addr", a.RemoteAddr).
+		Str("request_id", a.RequestID).
+		Msg("request")
 }
 
 // writable: a write lands in a database (The Well or SQLite), directly or

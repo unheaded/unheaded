@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/wotan-client/mock"
@@ -1523,7 +1524,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 	})
-	handler := server.loggingMiddleware(inner)
+	handler := httputil.AccessLogFunc(inner, logRequest, getRequestID)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
@@ -1533,25 +1534,6 @@ func TestLoggingMiddleware(t *testing.T) {
 	if w.Code != http.StatusTeapot {
 		t.Errorf("expected 418, got %d", w.Code)
 	}
-}
-
-func TestStatusWriter_DefaultStatus(t *testing.T) {
-	w := httptest.NewRecorder()
-	sw := &statusWriter{ResponseWriter: w, status: 200}
-
-	// Write body without explicit WriteHeader — status should remain 200
-	sw.Write([]byte("hello"))
-	if sw.status != 200 {
-		t.Errorf("expected default status 200, got %d", sw.status)
-	}
-}
-
-func TestStatusWriter_Flush(t *testing.T) {
-	w := httptest.NewRecorder()
-	sw := &statusWriter{ResponseWriter: w, status: 200}
-
-	// httptest.ResponseRecorder implements Flusher, so Flush should not panic
-	sw.Flush()
 }
 
 // ============================================================================
