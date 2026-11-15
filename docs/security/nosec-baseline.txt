@@ -77,6 +77,7 @@ cmd/trace-collector-go/main.go 1
 cmd/trace-collector-go/packet_event.go 1
 cmd/trace-collector-go/publisher.go 2
 cmd/trace-collector-go/self_filter.go 1
+cmd/unheaded-aide/main.go 1
 cmd/unheaded-auth/bff_lockout_test.go 1
 cmd/unheaded-auth/issuer.go 1
 cmd/unheaded-auth/issuer_test.go 3

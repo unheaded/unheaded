@@ -34,7 +34,7 @@ CPUAccounting=yes
 # The ceiling covers aide itself; GOMEMLIMIT is the wrapper's share.
 MemoryMax=512M
 TasksMax=64
-Environment=GOMEMLIMIT=64MiB
+Environment=GOMEMLIMIT=128MiB
 TimeoutStartSec=3h
 AmbientCapabilities=CAP_DAC_READ_SEARCH
 CapabilityBoundingSet=CAP_DAC_READ_SEARCH

@@ -1514,6 +1514,16 @@ sources:
     owner: architect
     status: gap
     note: "D4 Step 170: not installed yet"
+  - id: unit/unheaded-aide-check
+    host: west
+    kind: journal-unit
+    match: unheaded-aide-check.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host"
+    note: "S-EVIDENCE-RUNS Phases 9 and 10 install it (attended, aide-install); it becomes west/ and east/ entries then: one line a week, max_silence 8d"
   - id: unit/unheaded-anomaly
     host: west
     kind: journal-unit

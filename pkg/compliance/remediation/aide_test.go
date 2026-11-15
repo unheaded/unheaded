@@ -87,6 +87,11 @@ func TestAideInstallIsQuietByDesign(t *testing.T) {
 		}
 	}
 	for l := range lines {
+		// AIDE 0.19 refuses a selection line that does not start with a
+		// slash ("unexpected character: '!'" for "!.*/x", exit 17).
+		if strings.HasPrefix(l, "!") && !strings.HasPrefix(l, "!/") {
+			t.Errorf("negative line %q does not start with !/: aide refuses the whole config", l)
+		}
 		if strings.HasPrefix(l, "/") && !strings.HasSuffix(l, " UH") {
 			t.Errorf("selection line %q does not use the UH rule", l)
 		}
@@ -102,8 +107,17 @@ func TestAideInstallIsQuietByDesign(t *testing.T) {
 	if strings.Join(got, " ") != strings.Join(want, " ") {
 		t.Errorf("rule UH = %q, want exactly %v (no atime: reading a file is never a change)", rule, want)
 	}
+	// The report: entries and their flags only (unheaded-aide reads no more,
+	// and a large diff stays small), as JSON, and the format line before the
+	// URL it applies to.
+	if f, u := strings.Index(conf, "\nreport_format=json\n"), strings.Index(conf, "\nreport_url=stdout\n"); f < 0 || u < f {
+		t.Error("report_format=json must come before report_url=stdout: aide applies it to the URLs after it")
+	}
+	if !lines["!/.*/__pycache__"] {
+		t.Error("the config does not keep every __pycache__ out")
+	}
 	for _, need := range []string{"database_in=file:/var/lib/aide/aide.db", "database_out=file:/var/lib/aide/aide.db.new",
-		"report_format=json", "report_url=stdout"} {
+		"report_level=list_entries", "report_format=json", "report_url=stdout"} {
 		if !lines[need] {
 			t.Errorf("the config lacks %q", need)
 		}

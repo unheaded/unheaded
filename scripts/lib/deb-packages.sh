@@ -26,7 +26,7 @@ DEB_SERVICES=(
 	timeguru captain architect micromanager monad sophia
 	unheaded-auth heimdall-daemon sword chaos-controller anomaly kev-poller
 	trace-collector-go unheaded-baseline huginn zhen-agentd well-retention
-	syslog-relay zhen-ui-front wiki-server
+	syslog-relay zhen-ui-front wiki-server unheaded-aide
 )
 
 # Packages with no unit of their own (deb_control writes their stanzas).
@@ -48,6 +48,7 @@ deb_unit_for() {
 	kanban-app) echo unheaded-kanban.service ;;
 	unheaded-daemon | unheaded-auth | unheaded-baseline) echo "$1.service" ;;
 	heimdall-daemon) echo unheaded-heimdall.service ;;
+	unheaded-aide) echo unheaded-aide-check.service ;;
 	trace-collector-go) echo unheaded-trace-collector.service ;;
 	huginn | zhen-agentd) echo "$1.service" ;;
 	*) echo "unheaded-$1.service" ;;
@@ -60,6 +61,7 @@ deb_unit_for() {
 deb_extra_units() {
 	case "$1" in
 	unheaded-baseline) echo unheaded-baseline.timer unheaded-baseline.path ;;
+	unheaded-aide) echo unheaded-aide-check.timer ;;
 	well-retention) echo unheaded-well-retention.timer ;;
 	syslog-relay) echo unheaded-syslog-relay.socket ;;
 	esac
@@ -93,12 +95,13 @@ deb_objects() {
 # (huginn reports to Prometheus only; well-retention logs in to the Well
 # with a password; syslog-relay authenticates to nothing; zhen-ui-front holds
 # a TLS certificate and no service key, the app behind it does the login;
-# wiki-server verifies tokens and sessions and mints none).
+# wiki-server verifies tokens and sessions and mints none; unheaded-aide
+# runs aide and talks to no service).
 deb_identity_for() {
 	case "$1" in
 	heimdall-daemon) echo heimdall ;;
 	trace-collector-go) echo trace-collector ;;
-	huginn | well-retention | syslog-relay | zhen-ui-front | wiki-server) ;;
+	huginn | well-retention | syslog-relay | zhen-ui-front | wiki-server | unheaded-aide) ;;
 	*) echo "$1" ;;
 	esac
 }

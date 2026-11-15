@@ -475,6 +475,7 @@ fixes:
                 database_new=file:/var/lib/aide/aide.db.new
                 gzip_dbout=yes
                 log_level=warning
+                report_level=list_entries
                 report_format=json
                 report_url=stdout
 
@@ -495,7 +496,7 @@ fixes:
                 !/usr/local/lib/python3
                 !/usr/local/lib/ollama
                 !/usr/lib/python3/dist-packages/__pycache__
-                !.*/__pycache__
+                !/.*/__pycache__
                 !/var/snap
                 !/snap
                 !/var/zhen
@@ -555,7 +556,7 @@ fixes:
                 # The ceiling covers aide itself; GOMEMLIMIT is the wrapper's share.
                 MemoryMax=512M
                 TasksMax=64
-                Environment=GOMEMLIMIT=64MiB
+                Environment=GOMEMLIMIT=128MiB
                 TimeoutStartSec=3h
                 AmbientCapabilities=CAP_DAC_READ_SEARCH
                 CapabilityBoundingSet=CAP_DAC_READ_SEARCH
