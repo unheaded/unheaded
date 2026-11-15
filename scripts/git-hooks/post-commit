@@ -1,13 +1,27 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# post-commit, post-merge: refresh Zhen's source shard (DP-216) when develop
-# moves. In the background and quiet: a commit never waits for it or fails
-# because of it. Installed by `make install-hooks`; both names point here,
+# post-commit, post-merge: two jobs when develop moves.
+#   1. Refresh Zhen's source shard (DP-216): bin/zhen-codeindex.
+#   2. Refresh vor's copy of develop (S-WIKI-VOR, D-12): export develop with
+#      scripts/vor-export-source.sh. Its stamp, <destination>.exported, is
+#      what unheaded-vor-refresh.path watches to restart vor.
+# In the background and quiet: a commit never waits for either or fails
+# because of one. Installed by `make install-hooks`; both names point here,
 # since `git merge --no-ff` runs post-merge and not post-commit.
 [[ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" == develop ]] || exit 0
 top="$(git rev-parse --show-toplevel)" || exit 0
+
 bin="$top/bin/zhen-codeindex"
 out="${ZHEN_CODE_INDEX_DIR:-/var/zhen/code-index}"
-[[ -x "$bin" ]] || exit 0
-nohup nice -n 19 "$bin" --repo "$top" --out "$out" >/dev/null 2>&1 &
+if [[ -x "$bin" ]]; then
+	nohup nice -n 19 "$bin" --repo "$top" --out "$out" >/dev/null 2>&1 &
+fi
+
+# Only into a directory an earlier export made (its .vor-export marker), so
+# a host without vor's export, or a mistyped VOR_EXPORT_DEST, gets nothing.
+dest="${VOR_EXPORT_DEST:-/var/zhen/vor-source/unheaded}"
+exporter="$top/scripts/vor-export-source.sh"
+if [[ -e "$dest/.vor-export" && -x "$exporter" ]]; then
+	nohup nice -n 19 "$exporter" "$dest" develop >/dev/null 2>&1 &
+fi
 exit 0

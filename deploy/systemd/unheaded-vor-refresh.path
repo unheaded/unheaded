@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: vor follows develop (S-WIKI-VOR, D-12). Watches the stamp that
+# scripts/vor-export-source.sh writes, by rename, after a whole new export of
+# develop is in place, and starts unheaded-vor-refresh.service, which restarts
+# vor so that it reads the new export.
+#
+# The export itself is run by the repository's post-commit and post-merge hook
+# (scripts/git-hooks/post-commit, `make install-hooks`) as the repository's
+# owner. This unit and its service read and write nothing.
+#
+# Install: see deploy/systemd/unheaded-vor-refresh.service.
+
+[Unit]
+Description=Watch for a new export of develop for vor
+Documentation=https://github.com/unheaded/unheaded/blob/develop/deploy/systemd/README.md
+
+[Path]
+PathChanged=/var/zhen/vor-source/unheaded.exported
+Unit=unheaded-vor-refresh.service
+
+[Install]
+WantedBy=paths.target

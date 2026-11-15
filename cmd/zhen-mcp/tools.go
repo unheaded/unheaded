@@ -12,7 +12,6 @@ import (
 	"io/fs"
 	"math"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -25,6 +24,7 @@ import (
 	"unheaded/pkg/codeindex"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/mcpserver"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 	"unheaded/pkg/zhencapture"
 )
@@ -32,10 +32,9 @@ import (
 const (
 	maxFileReadBytes = 1_000_000 // file_read returns at most this much
 
-	corpusDefaultK      = 5
-	corpusMaxK          = 20
-	corpusSnippetBytes  = 500
-	maxVorResponseBytes = 4 << 20
+	corpusDefaultK     = 5
+	corpusMaxK         = 20
+	corpusSnippetBytes = 500
 
 	healthTimeout = 2 * time.Second
 
@@ -443,20 +442,7 @@ func probe(ctx context.Context, endpoint string) bool {
 	return resp.StatusCode == http.StatusOK
 }
 
-// --- corpus_search (vor, shaped by pkg/vorquery) ---
-
-type vorHit struct {
-	Topic       string `json:"topic"`
-	Category    string `json:"category"`
-	SourceTrust string `json:"source_trust"`
-}
-
-type vorTopic struct {
-	Name        string `json:"name"`
-	Category    string `json:"category"`
-	Content     string `json:"content"`
-	SourceTrust string `json:"source_trust"`
-}
+// --- corpus_search (vor through pkg/vorclient, shaped by pkg/vorquery) ---
 
 func (s *server) corpusSearch(ctx context.Context, args map[string]any) mcpserver.CallToolResult {
 	query, err := stringArg(args, "query", true)
@@ -480,15 +466,22 @@ func (s *server) corpusSearch(ctx context.Context, args map[string]any) mcpserve
 	if r := s.gate(ctx, "corpus_search", args); r != nil {
 		return *r
 	}
-	var hits []vorHit
-	if err := s.vorGet(ctx, "/api/search?q="+url.QueryEscape(strings.Join(terms, " ")), &hits); err != nil {
+	if s.vor == nil {
+		return errorf("corpus_search: vor unavailable at %s (cs serve): %v", s.cfg.vorURL, s.vorErr)
+	}
+	hits, err := s.vor.Search(ctx, strings.Join(terms, " "), vorclient.SearchOptions{})
+	if err != nil {
 		return errorf("corpus_search: vor unavailable at %s (cs serve): %v", s.cfg.vorURL, err)
 	}
 	searched := make([]vorquery.Topic, len(hits))
+	hitCategory := make(map[string]string) // topic name to the category of its first hit
 	for i, h := range hits {
 		searched[i] = vorquery.Topic{Name: h.Topic, Category: h.Category}
+		if _, seen := hitCategory[h.Topic]; !seen {
+			hitCategory[h.Topic] = h.Category
+		}
 	}
-	order, lerr := s.vor.Order(ctx, terms, searched)
+	order, lerr := s.vorIndex.Order(ctx, terms, searched)
 	if lerr != nil {
 		s.log.Warn("vor topic listing", "err", lerr)
 	}
@@ -503,8 +496,10 @@ func (s *server) corpusSearch(ctx context.Context, args map[string]any) mcpserve
 			continue
 		}
 		seen[name] = true
-		var t vorTopic
-		if err := s.vorGet(ctx, "/api/topics/"+url.PathEscape(name), &t); err != nil {
+		// The hit says which category its topic is in, so a hit is never
+		// answered with the text of another topic of the same name.
+		t, err := s.vor.TopicFor(ctx, hitCategory[name], name)
+		if err != nil {
 			continue
 		}
 		n++
@@ -519,29 +514,6 @@ func (s *server) corpusSearch(ctx context.Context, args map[string]any) mcpserve
 		fmt.Fprintf(&b, "---\n[%d] %s/%s (source_trust: %s)\n%s\n\n", n, t.Category, t.Name, trust, snippet)
 	}
 	return mcpserver.TextResult(fmt.Sprintf("Found %d results for '%s':\n\n%s", n, query, b.String()))
-}
-
-func (s *server) vorGet(ctx context.Context, path string, into any) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.cfg.vorURL+path, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := s.http.Do(req) // #nosec G704 -- operator-configured vor URL
-	if err != nil {
-		return err
-	}
-	defer func() { _ = resp.Body.Close() }()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxVorResponseBytes+1))
-	if err != nil {
-		return err
-	}
-	if len(body) > maxVorResponseBytes {
-		return fmt.Errorf("vor response exceeds %d bytes", maxVorResponseBytes)
-	}
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("vor %s: HTTP %d", path, resp.StatusCode)
-	}
-	return json.Unmarshal(body, into)
 }
 
 // --- local_llm ---

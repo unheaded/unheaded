@@ -19,6 +19,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/yuin/goldmark/text"
+
 	"unheaded/pkg/vorclient"
 )
 
@@ -28,10 +30,15 @@ import (
 // What is shown is narrower than what vor holds. vor is also pointed at the
 // whole repository, so it knows the wiki pages (category "wiki") and every
 // other Markdown file. Here a wiki topic leads to the wiki page, a sheet
-// built into vor (source_trust "canonical") is shown at /sheet/<name>, a
-// file under docs/ is a search result that links to GitHub (repolinks.go),
-// and nothing else is shown or linked. docs/ is never in the sidebar or on
-// /sheets.
+// built into vor (source_trust "canonical") is shown at
+// /sheet/<category>/<name>, a file under docs/ is a search result that
+// links to GitHub (repolinks.go), and nothing else is shown or linked.
+// docs/ is never in the sidebar or on /sheets.
+//
+// A sheet's name is unique only within its category (auth/saml and
+// security/saml are two sheets), so every link this server writes carries
+// the category. /sheet/<name> still answers for old links: it opens
+// whichever topic vor gives for the bare name, when that is a sheet.
 //
 // The query and every field vor returns are untrusted text. They reach a
 // page only through html/template, or, for the Markdown of a sheet, through
@@ -50,7 +57,8 @@ const (
 	// No file name holds a slash, so no sidebar entry lights up.
 	noPage = "/"
 
-	maxQueryBytes     = 256
+	maxQueryBytes = 256
+	// maxSheetNameBytes bounds a sheet's name, and its category, in a URL.
 	maxSheetNameBytes = 128
 	// maxLineRunes cuts a matching line vor returned, which can be a whole
 	// paragraph.
@@ -149,7 +157,13 @@ var sheetsTmpl = template.Must(template.New("sheets").Parse(
 type sheetsPage struct {
 	Count      int
 	Categories []sheetCategory
+	// known holds every sheet listed, for the links between sheets
+	// (sheetlinks.go).
+	known map[sheetKey]bool
 }
+
+// sheetKey names one sheet: a name is unique only within its category.
+type sheetKey struct{ category, name string }
 
 type sheetCategory struct {
 	Name   string
@@ -218,7 +232,9 @@ func (ws *WikiServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hits, err := ws.vor.Search(r.Context(), q, vorclient.SearchOptions{Limit: searchLimit, PerTopic: searchPerTopic})
+	// A reader searches for words: "ccna" must not find KRB5CCNAME. A vor
+	// from before 2026-11-12 ignores Words and matches substrings.
+	hits, err := ws.vor.Search(r.Context(), q, vorclient.SearchOptions{Limit: searchLimit, PerTopic: searchPerTopic, Words: true})
 	if err != nil {
 		ws.vorDown(w, "Search", q, "search", err)
 		return
@@ -226,7 +242,7 @@ func (ws *WikiServer) handleSearch(w http.ResponseWriter, r *http.Request) {
 	// The wiki pages on their own. A failure here costs the wiki pages the
 	// first answer did not hold, and nothing else.
 	wiki, err := ws.vor.Search(r.Context(), q, vorclient.SearchOptions{
-		Category: wikiCategory, Limit: wikiSearchLimit, PerTopic: searchPerTopic,
+		Category: wikiCategory, Limit: wikiSearchLimit, PerTopic: searchPerTopic, Words: true,
 	})
 	if err != nil {
 		logf("WARN", "vor did not answer the wiki search", "err", err)
@@ -260,8 +276,12 @@ func (ws *WikiServer) searchResults(q string, hits []vorclient.Hit) searchPage {
 		var group int
 		switch {
 		case h.SourceTrust == vorclient.TrustCanonical:
+			link, ok := sheetURL(h.Category, h.Topic)
+			if !ok {
+				continue // a sheet no URL of this server can name
+			}
 			group = groupSheets
-			res = searchResult{URL: sheetPath + url.PathEscape(h.Topic), Title: h.Topic, Note: h.Category}
+			res = searchResult{URL: link, Title: h.Topic, Note: h.Category}
 		case h.Category == wikiCategory:
 			if !pages[h.Topic] {
 				continue // a wiki page that is not on disk here
@@ -338,16 +358,45 @@ func cutRunes(s string, n int) string {
 	return string([]rune(s)[:n]) + "…"
 }
 
-// handleSheet serves /sheet/<name>: one sheet built into vor, rendered like
-// a wiki page. Any other topic vor holds is a 404 here.
+// sheetPart reports whether s can be a sheet's name or category in a URL
+// of this server: not empty, not over the cap, and nothing a path would
+// read as a separator or a step up.
+func sheetPart(s string) bool {
+	return s != "" && len(s) <= maxSheetNameBytes && s != "." && !strings.Contains(s, "..") && !strings.ContainsAny(s, `/\`)
+}
+
+// sheetURL returns the path of the sheet name in category on this server,
+// escaped. ok is false for a sheet no path can name; it is then neither
+// listed nor linked.
+func sheetURL(category, name string) (string, bool) {
+	if !sheetPart(category) || !sheetPart(name) {
+		return "", false
+	}
+	return sheetPath + url.PathEscape(category) + "/" + url.PathEscape(name), true
+}
+
+// handleSheet serves /sheet/<category>/<name>: one sheet built into vor,
+// rendered like a wiki page. /sheet/<name>, the form from before
+// 2026-11-12, opens the topic vor gives for the bare name. Any topic that
+// is not vor's own is a 404 here, in either form.
 func (ws *WikiServer) handleSheet(w http.ResponseWriter, r *http.Request) {
-	name := strings.TrimPrefix(r.URL.Path, sheetPath)
-	if name == "" || len(name) > maxSheetNameBytes {
+	rest := strings.TrimPrefix(r.URL.Path, sheetPath)
+	category, name, byCategory := strings.Cut(rest, "/")
+	if !byCategory {
+		category, name = "", rest
+	}
+	if !sheetPart(name) || (byCategory && !sheetPart(category)) {
 		http.Error(w, "Sheet not found", http.StatusNotFound)
 		return
 	}
 
-	t, err := ws.vor.Topic(r.Context(), name)
+	var t *vorclient.Topic
+	var err error
+	if byCategory {
+		t, err = ws.vor.TopicIn(r.Context(), category, name)
+	} else {
+		t, err = ws.vor.Topic(r.Context(), name)
+	}
 	if errors.Is(err, vorclient.ErrNotFound) || (err == nil && t.SourceTrust != vorclient.TrustCanonical) {
 		http.Error(w, "Sheet not found", http.StatusNotFound)
 		return
@@ -358,9 +407,13 @@ func (ws *WikiServer) handleSheet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// A sheet's links are its own, not the wiki's: neither [[Page]] nor the
-	// repository links are rewritten.
+	// repository links are rewritten. Its links to other sheets are
+	// (sheetlinks.go).
+	data := []byte(t.Content)
+	doc := ws.md.Parser().Parse(text.NewReader(data))
+	rewriteSheetLinks(doc, t.Category, ws.knownSheets(r.Context()))
 	var body bytes.Buffer
-	if err := ws.md.Convert([]byte(t.Content), &body); err != nil {
+	if err := ws.md.Renderer().Render(&body, data, doc); err != nil {
 		logf("ERROR", "render sheet", "err", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
@@ -420,15 +473,10 @@ func (ws *WikiServer) sheetsPage(ctx context.Context) (sheetsPage, error) {
 	return page, err
 }
 
-// listSheets asks vor for the sheets /sheet/<name> can show: the topics its
-// listing marks source_trust "canonical".
-//
-// vor finds a topic by name alone, in any case, and a name is unique only
-// within a category: for a name the listing holds twice, /sheet/<name> may
-// get the other topic. Those few are fetched by name and listed only when
-// vor answers with that name, that category and source_trust "canonical":
-// the same test /sheet/<name> applies, which makes every link here one that
-// works.
+// listSheets asks vor for the sheets this server can show: the topics its
+// listing marks source_trust "canonical". Each is linked under its
+// category, so two sheets of one name are two entries and each link opens
+// its own sheet. One call to vor; no sheet is fetched.
 func (ws *WikiServer) listSheets(ctx context.Context) (sheetsPage, error) {
 	ctx, cancel := context.WithTimeout(ctx, sheetListTimeout)
 	defer cancel()
@@ -437,34 +485,22 @@ func (ws *WikiServer) listSheets(ctx context.Context) (sheetsPage, error) {
 	if err != nil {
 		return sheetsPage{}, err
 	}
-	names := map[string]int{}
-	for _, s := range topics {
-		names[strings.ToLower(s.Name)]++
-	}
-
-	var page sheetsPage
+	page := sheetsPage{known: map[sheetKey]bool{}}
 	byCategory := map[string][]sheetEntry{}
 	for _, s := range topics {
 		if s.SourceTrust != vorclient.TrustCanonical {
 			continue
 		}
-		if names[strings.ToLower(s.Name)] > 1 {
-			t, err := ws.vor.Topic(ctx, s.Name)
-			if errors.Is(err, vorclient.ErrNotFound) {
-				continue
-			}
-			if err != nil {
-				return sheetsPage{}, err
-			}
-			if t.Category != s.Category || t.SourceTrust != vorclient.TrustCanonical {
-				continue
-			}
+		link, ok := sheetURL(s.Category, s.Name)
+		if !ok {
+			continue
 		}
 		byCategory[s.Category] = append(byCategory[s.Category], sheetEntry{
-			URL:   sheetPath + url.PathEscape(s.Name),
+			URL:   link,
 			Name:  s.Name,
 			Title: s.Title,
 		})
+		page.known[sheetKey{s.Category, s.Name}] = true
 		page.Count++
 	}
 

@@ -10,10 +10,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"unheaded/pkg/champion"
+	"unheaded/pkg/vorclient"
 )
 
 func gateRefuses(refs []champion.Reference) bool {
@@ -124,5 +126,111 @@ func TestAdv_RejectedExternalTopicStillReachesTheGate(t *testing.T) {
 		if !gateRefuses(refs) {
 			t.Errorf("%q: an external sheet was read and refused, and the chain came back clean", q)
 		}
+	}
+}
+
+// A vor body past vorclient's bound is a failed read, not memory: the topic
+// gives no text, and an untrusted hit behind it still reaches the gate.
+// Before 2026-11-12 the retriever decoded whatever length vor sent.
+func TestAdv_OversizedVorBodyFailsBounded(t *testing.T) {
+	huge := strings.Repeat("x", vorclient.MaxResponseBytes)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]string{
+			{"topic": "poison", "category": "c", "source_trust": "external", "source_kind": "user-source"},
+		})
+	})
+	mux.HandleFunc("/api/topics", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("[]")) })
+	mux.HandleFunc("/api/topics/poison", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"name": "poison", "category": "c", "content": "poison " + huge, "source_trust": "external"})
+	})
+	s := httptest.NewServer(mux)
+	defer s.Close()
+
+	refs, contents, err := newRetriever(s.Client(), s.URL, "", "", 5*time.Second).Retrieve(context.Background(), "poison", 5)
+	t.Logf("refs: %s err=%v", names(refs), err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(contents) != 0 {
+		t.Errorf("an oversized topic's text reached the model: %d contents", len(contents))
+	}
+	if !gateRefuses(refs) {
+		t.Error("an oversized external topic failed to read and the chain came back clean")
+	}
+
+	// The search answer is bounded the same way: past the bound it is an
+	// error, never a partial list.
+	mux2 := http.NewServeMux()
+	mux2.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode([]map[string]string{{"topic": "poison", "category": "c", "source_trust": "external", "source_path": huge}})
+	})
+	mux2.HandleFunc("/api/topics", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("[]")) })
+	s2 := httptest.NewServer(mux2)
+	defer s2.Close()
+	if _, contents, err := newRetriever(s2.Client(), s2.URL, "", "", 5*time.Second).Retrieve(context.Background(), "poison", 5); err == nil || len(contents) != 0 {
+		t.Errorf("an oversized search answer: err=%v, %d contents; want an error and no text", err, len(contents))
+	}
+}
+
+// The hit says which category its topic is in, and the read asks for that
+// category. A vor that answers the name with another topic (one from before
+// 2026-11-12 ignores ?category=, and the longer sheet of the name wins) gets
+// no text into the answer under the hit's name, and the external hit still
+// reaches the gate.
+func TestAdv_SameNameInAnotherCategoryIsNotRead(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		honour bool // the vor honours ?category=
+	}{
+		{"vor that honours the category", true},
+		{"vor that ignores the category", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var asked []string
+			var mu sync.Mutex
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode([]map[string]string{
+					{"topic": "clash", "category": "notes", "source_trust": "external", "source_kind": "user-source"},
+				})
+			})
+			mux.HandleFunc("/api/topics", func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("[]")) })
+			mux.HandleFunc("/api/topics/clash", func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				asked = append(asked, r.URL.RawQuery)
+				mu.Unlock()
+				if tc.honour && r.URL.Query().Get("category") == "notes" {
+					_ = json.NewEncoder(w).Encode(map[string]string{"name": "clash", "category": "notes", "content": "clash, from the external notes", "source_trust": "external"})
+					return
+				}
+				// The longer, trusted sheet of the same name.
+				_ = json.NewEncoder(w).Encode(map[string]string{"name": "clash", "category": "shell", "content": "clash, the trusted sheet", "source_trust": "canonical"})
+			})
+			s := httptest.NewServer(mux)
+			defer s.Close()
+
+			refs, contents, err := newRetriever(s.Client(), s.URL, "", "", 5*time.Second).Retrieve(context.Background(), "clash", 5)
+			t.Logf("refs: %s err=%v", names(refs), err)
+			if err != nil {
+				t.Fatal(err)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if len(asked) != 1 || asked[0] != "category=notes" {
+				t.Errorf("the topic was asked for with %q, want one read with category=notes", asked)
+			}
+			if !gateRefuses(refs) {
+				t.Error("search said external, the chain came back clean")
+			}
+			for _, c := range contents {
+				if c.Ref.SourceTrust == "canonical" {
+					t.Errorf("the trusted sheet of another category was read for the external hit: %+v", c.Ref)
+				}
+			}
+			if !tc.honour && len(contents) != 0 {
+				t.Errorf("a vor that ignored the category still gave %d contents", len(contents))
+			}
+		})
 	}
 }

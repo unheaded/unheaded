@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -232,3 +233,188 @@ func TestCallsCarryADeadline(t *testing.T) {
 type roundTripFunc func(*http.Request) (*http.Response, error)
 
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+// categoryVor answers /api/topics/saml the way a vor of 2026-11-12 or later
+// does: ?category= picks the sheet. It counts requests and keeps the last
+// request URI.
+type categoryVor struct {
+	mu       sync.Mutex
+	requests int
+	last     string
+}
+
+func (f *categoryVor) saw(r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.requests++
+	f.last = r.URL.RequestURI()
+}
+
+// seen returns how many requests came and the URI of the last.
+func (f *categoryVor) seen() (int, string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.requests, f.last
+}
+
+func (f *categoryVor) client(t *testing.T) *Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/topics/", func(w http.ResponseWriter, r *http.Request) {
+		f.saw(r)
+		name := strings.TrimPrefix(r.URL.Path, "/api/topics/")
+		category := r.URL.Query().Get("category")
+		switch {
+		case strings.EqualFold(name, "saml") && (category == "auth" || category == "security"):
+			_, _ = w.Write([]byte(`{"name":"saml","category":"` + category + `","content":"# ` + category + `\n","source_trust":"canonical"}`))
+		case name == "old" && category == "auth":
+			// A vor from before 2026-11-12 ignores category and answers
+			// with whichever sheet wins the name.
+			_, _ = w.Write([]byte(`{"name":"old","category":"security","source_trust":"canonical"}`))
+		case name == "fuzzy" && category == "auth":
+			// And answers an unknown name with its nearest match.
+			_, _ = w.Write([]byte(`{"name":"fuzzy-logic","category":"auth","source_trust":"canonical"}`))
+		case name == "broken":
+			http.Error(w, "boom", http.StatusInternalServerError)
+		default:
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		}
+	})
+	mux.HandleFunc("/api/search", func(w http.ResponseWriter, r *http.Request) {
+		f.saw(r)
+		_, _ = w.Write([]byte("null"))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c, err := New(srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c
+}
+
+func TestTopicIn(t *testing.T) {
+	f := &categoryVor{}
+	c := f.client(t)
+	ctx := context.Background()
+
+	got, err := c.TopicIn(ctx, "auth", "saml")
+	if err != nil || got.Category != "auth" || got.Name != "saml" {
+		t.Fatalf("TopicIn(auth, saml) = %+v, %v", got, err)
+	}
+	if _, last := f.seen(); last != "/api/topics/saml?category=auth" {
+		t.Errorf("request = %s, want /api/topics/saml?category=auth", last)
+	}
+	got, err = c.TopicIn(ctx, "security", "saml")
+	if err != nil || got.Category != "security" {
+		t.Fatalf("TopicIn(security, saml) = %+v, %v", got, err)
+	}
+	// The name matches in any case, as vor matches it.
+	if got, err = c.TopicIn(ctx, "auth", "SAML"); err != nil || got.Name != "saml" {
+		t.Errorf("TopicIn(auth, SAML) = %+v, %v", got, err)
+	}
+
+	for _, c2 := range []struct{ category, name, why string }{
+		{"nosuch", "saml", "404"},
+		{"auth", "nosuch", "404"},
+		{"auth", "old", "the reply is from another category"},
+		{"auth", "fuzzy", "the reply is another topic"},
+	} {
+		if _, err := c.TopicIn(ctx, c2.category, c2.name); !errors.Is(err, ErrNotFound) {
+			t.Errorf("TopicIn(%s, %s) = %v, want ErrNotFound (%s)", c2.category, c2.name, err, c2.why)
+		}
+	}
+
+	if _, err := c.TopicIn(ctx, "auth", "broken"); err == nil || errors.Is(err, ErrNotFound) {
+		t.Errorf("TopicIn against a 500 = %v, want an error that is not ErrNotFound", err)
+	}
+}
+
+func TestTopicIn_RefusesWithoutARequest(t *testing.T) {
+	f := &categoryVor{}
+	c := f.client(t)
+	ctx := context.Background()
+
+	// An empty category is the caller's mistake, not a missing topic.
+	if _, err := c.TopicIn(ctx, "", "saml"); err == nil || errors.Is(err, ErrNotFound) {
+		t.Errorf("TopicIn with no category = %v, want an error that is not ErrNotFound", err)
+	}
+	// Never names, never categories.
+	for _, p := range [][2]string{
+		{"auth", ""}, {"auth", "."}, {"auth", ".."}, {"auth", "a/b"}, {"auth", "a..b"},
+		{".", "saml"}, {"..", "saml"}, {"a/b", "saml"}, {"a..b", "saml"},
+	} {
+		if _, err := c.TopicIn(ctx, p[0], p[1]); !errors.Is(err, ErrNotFound) {
+			t.Errorf("TopicIn(%q, %q) = %v, want ErrNotFound", p[0], p[1], err)
+		}
+	}
+	if n, _ := f.seen(); n != 0 {
+		t.Errorf("%d requests sent, want none", n)
+	}
+}
+
+func TestSearch_Words(t *testing.T) {
+	f := &categoryVor{}
+	c := f.client(t)
+	ctx := context.Background()
+
+	if _, err := c.Search(ctx, "ccna", SearchOptions{Words: true}); err != nil {
+		t.Fatal(err)
+	}
+	if _, last := f.seen(); !strings.Contains(last, "match=word") {
+		t.Errorf("Words: request = %s, want match=word", last)
+	}
+	if _, err := c.Search(ctx, "ccna", SearchOptions{Category: "certs"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, last := f.seen(); strings.Contains(last, "match") {
+		t.Errorf("no Words: request = %s, want no match parameter", last)
+	}
+}
+
+func TestTopicFor(t *testing.T) {
+	var mu sync.Mutex
+	var requests []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/topics/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests = append(requests, r.URL.RequestURI())
+		mu.Unlock()
+		name := strings.TrimPrefix(r.URL.Path, "/api/topics/")
+		category := r.URL.Query().Get("category")
+		if category == "" {
+			category = "docs/adr" // what vor has under the bare name
+		}
+		_, _ = w.Write([]byte(`{"name":"` + name + `","category":"` + category + `"}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c, err := New(srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	for _, tc := range []struct{ category, name, wantRequest, wantCategory string }{
+		// One segment: asked by category.
+		{"auth", "saml", "/api/topics/saml?category=auth", "auth"},
+		// A directory, the top of a directory, or nothing: by name alone.
+		{"docs/adr", "ADR-001", "/api/topics/ADR-001", "docs/adr"},
+		{".", "README", "/api/topics/README", "docs/adr"},
+		{"", "README", "/api/topics/README", "docs/adr"},
+		{"a/../b", "x", "/api/topics/x", "docs/adr"},
+	} {
+		mu.Lock()
+		requests = nil
+		mu.Unlock()
+		got, err := c.TopicFor(ctx, tc.category, tc.name)
+		if err != nil || got.Category != tc.wantCategory {
+			t.Errorf("TopicFor(%q, %q) = %+v, %v; want category %q", tc.category, tc.name, got, err, tc.wantCategory)
+		}
+		mu.Lock()
+		if len(requests) != 1 || requests[0] != tc.wantRequest {
+			t.Errorf("TopicFor(%q, %q) asked %q, want %q", tc.category, tc.name, requests, tc.wantRequest)
+		}
+		mu.Unlock()
+	}
+}

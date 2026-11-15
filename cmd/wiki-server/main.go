@@ -281,6 +281,7 @@ func (ws *WikiServer) renderPage(slug string) (string, string, error) {
 	data = rewriteWikiLinks(data)
 
 	doc := ws.md.Parser().Parse(text.NewReader(data))
+	rewriteWikiPageLinks(doc, ws.pageSlugs())
 	rewriteRepoLinks(doc)
 
 	var buf bytes.Buffer

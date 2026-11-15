@@ -69,6 +69,7 @@ import (
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/mcpserver"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
 )
 
@@ -250,8 +251,9 @@ type server struct {
 	cfg       config
 	champ     *champion.Champion
 	log       *slog.Logger
-	http      *http.Client
-	vor       *vorquery.Index
+	vor       *vorclient.Client // nil when the vor address was refused; see vorErr
+	vorErr    error
+	vorIndex  *vorquery.Index
 	code      *codeindex.Store
 	principal string
 }
@@ -267,16 +269,19 @@ func newServer(cfg config, logger *slog.Logger) (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	hc := &http.Client{Timeout: 10 * time.Second}
-	return &server{
+	srv := &server{
 		cfg:       cfg,
 		champ:     champ,
 		log:       logger,
-		http:      hc,
-		vor:       vorquery.NewIndex(hc, cfg.vorURL),
 		code:      codeindex.NewStore(cfg.codeIndexDir),
 		principal: processPrincipal(),
-	}, nil
+	}
+	// A vor address vorclient refuses costs corpus_search and no other tool.
+	srv.vor, srv.vorErr = vorclient.New(cfg.vorURL, &http.Client{Timeout: 10 * time.Second})
+	if srv.vorErr == nil {
+		srv.vorIndex = vorquery.NewIndex(srv.vor)
+	}
+	return srv, nil
 }
 
 // processPrincipal names the local user this stdio server runs as.

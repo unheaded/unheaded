@@ -1,0 +1,56 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: restart vor when a new export of develop is in place (S-WIKI-VOR,
+# D-12). vor reads its sources at start, so it serves the export it started
+# with until it is restarted. Started by unheaded-vor-refresh.path.
+#
+# D1 (Stevie, 2026-11-12): its own account with one polkit rule, not root.
+# The account unheaded-vor-refresh (uid 16758) reads nothing and writes
+# nothing. deploy/polkit/61-unheaded-vor-refresh.rules lets it ask systemd for
+# `try-restart` of unheaded-vor.service and for nothing else. try-restart
+# restarts vor only if it is running: this unit never starts a stopped vor.
+#
+# Rate limit: at most 6 starts in 10 minutes. On systemd 257 a seventh start
+# inside the window is refused, and the path unit then stops watching and
+# shows as failed (result unit-start-limit-hit); the next export is not
+# picked up until it is reset:
+#   systemctl is-failed unheaded-vor-refresh.path
+#   sudo systemctl reset-failed unheaded-vor-refresh.path unheaded-vor-refresh.service
+#   sudo systemctl start unheaded-vor-refresh.path
+#
+# Install on west (the account first: deploy/sysusers.d/unheaded.conf):
+#   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/unheaded.conf && sudo systemd-sysusers
+#   sudo install -m 0644 deploy/polkit/61-unheaded-vor-refresh.rules /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules
+#   sudo cp deploy/systemd/unheaded-vor-refresh.{path,service} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-vor-refresh.path
+
+[Unit]
+Description=Restart vor on a new export of develop
+Documentation=https://github.com/unheaded/unheaded/blob/develop/deploy/systemd/README.md
+StartLimitIntervalSec=10min
+StartLimitBurst=6
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl --no-ask-password try-restart unheaded-vor.service
+TimeoutStartSec=60s
+
+User=unheaded-vor-refresh
+Group=unheaded-vor-refresh
+
+MemoryMax=32M
+CapabilityBoundingSet=
+AmbientCapabilities=
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
