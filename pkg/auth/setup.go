@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"time"
@@ -104,6 +105,16 @@ type ServiceAuthConfig struct {
 	// AuditLog is a file that keeps every auth decision (AUTH_AUDIT_LOG).
 	// Empty: refusals go to stderr, the service's journal.
 	AuditLog string
+
+	// AnonymousFrom is AUTH_ANONYMOUS_FROM (comma-separated CIDRs): the
+	// networks a service may name in ServiceRoutes.AnonymousFrom so its
+	// source-gated routes stay open to them alone (ADR-147 decision 16).
+	// Empty: unset.
+	AnonymousFrom []netip.Prefix
+
+	// anonymousFromErr is set when AUTH_ANONYMOUS_FROM does not parse;
+	// NewServiceChain then refuses to start.
+	anonymousFromErr error
 }
 
 // ErrOpenListener refuses a listener off loopback with auth off.
@@ -147,6 +158,14 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 	}
 	if callers := os.Getenv("AUTH_ALLOW_CALLERS"); callers != "" {
 		cfg.AllowCallers = splitNonEmpty(callers, ",")
+	}
+	if v := os.Getenv("AUTH_ANONYMOUS_FROM"); v != "" {
+		p, err := ParseAnonymousFrom(v)
+		if err != nil {
+			cfg.anonymousFromErr = err
+		} else {
+			cfg.AnonymousFrom = p
+		}
 	}
 
 	if key := os.Getenv("AUTH_JWT_KEY"); key != "" {

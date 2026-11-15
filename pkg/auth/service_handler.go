@@ -5,7 +5,9 @@ package auth
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
+	"net/netip"
 	"strings"
 )
 
@@ -26,6 +28,50 @@ type ServiceRoutes struct {
 	// session cookie, ADR-103 §4). With any set, auth on with nothing else
 	// configured is not ErrNoCredentials.
 	Authenticators []Authenticator
+	// AnonymousFrom are the callers that may use the routes in SourceGated
+	// without a credential, judged by r.RemoteAddr alone (never a header).
+	// Empty: everyone, as before (S-WEST-GROUND, ADR-147 decision 16).
+	AnonymousFrom []netip.Prefix
+	// SourceGated are path prefixes, matched like OpenPaths, that are open
+	// (as OpenPaths, OpenReads or /health, /ready, /metrics would make them)
+	// only to AnonymousFrom; any other caller needs a credential.
+	SourceGated []string
+}
+
+// ParseAnonymousFrom reads AUTH_ANONYMOUS_FROM: comma-separated CIDR
+// prefixes, spaces trimmed. An empty string is nil; an empty element, an
+// address without a length or a length out of range is an error.
+func ParseAnonymousFrom(s string) ([]netip.Prefix, error) {
+	if strings.TrimSpace(s) == "" {
+		return nil, nil
+	}
+	parts := strings.Split(s, ",")
+	out := make([]netip.Prefix, 0, len(parts))
+	for _, part := range parts {
+		p, err := netip.ParsePrefix(strings.TrimSpace(part))
+		if err != nil {
+			return nil, fmt.Errorf("auth: AUTH_ANONYMOUS_FROM: %w", err)
+		}
+		out = append(out, p.Masked())
+	}
+	return out, nil
+}
+
+// remoteIn reports whether remoteAddr (host:port, as net/http fills
+// r.RemoteAddr) is inside one of allow. Anything that does not parse is
+// outside. An IPv4-mapped IPv6 address is judged as IPv4; a zone is dropped.
+func remoteIn(remoteAddr string, allow []netip.Prefix) bool {
+	ap, err := netip.ParseAddrPort(remoteAddr)
+	if err != nil {
+		return false
+	}
+	a := ap.Addr().Unmap().WithZone("")
+	for _, p := range allow {
+		if p.Contains(a) {
+			return true
+		}
+	}
+	return false
 }
 
 // writeMethods are what a write role guards wherever no policy is more
@@ -62,6 +108,9 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 	if !cfg.Enabled {
 		return nil, nil
 	}
+	if cfg.anonymousFromErr != nil {
+		return nil, cfg.anonymousFromErr
+	}
 	audit, err := NewServiceAudit(cfg)
 	if err != nil {
 		return nil, err
@@ -94,9 +143,20 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 
 	open := append([]string(nil), routes.OpenPaths...)
 	reads := append([]string(nil), routes.OpenReads...)
+	anonymous := append([]netip.Prefix(nil), routes.AnonymousFrom...)
+	gated := append([]string(nil), routes.SourceGated...)
+	strictAuthn := Middleware(authed) // no SkipAuthPaths: /metrics included
 	return func(h http.Handler) http.Handler {
 		guarded := authn(rbac(h))
+		strict := strictAuthn(rbac(h))
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// A source-gated route from outside AnonymousFrom always needs a
+			// credential. A non-canonical path is never opened below, so it
+			// needs one anyway.
+			if len(anonymous) > 0 && canonicalPath(r.URL) && underAny(r.URL.Path, gated) && !remoteIn(r.RemoteAddr, anonymous) {
+				strict.ServeHTTP(w, r)
+				return
+			}
 			if canonicalPath(r.URL) {
 				if underAny(r.URL.Path, open) {
 					h.ServeHTTP(w, r)

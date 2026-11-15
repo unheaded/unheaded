@@ -4,8 +4,10 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"testing"
@@ -236,5 +238,108 @@ func TestNewServiceHandler_UnknownMethodIsAWrite(t *testing.T) {
 		if got := do(http.MethodGet, target, observer); got != http.StatusOK {
 			t.Errorf("observer GET %s = %d, want 200", target, got)
 		}
+	}
+}
+
+// goodBearer accepts exactly "Authorization: Bearer good" as an observer.
+type goodBearer struct{}
+
+func (goodBearer) Authenticate(_ context.Context, r *http.Request) (*Identity, error) {
+	if r.Header.Get("Authorization") == "Bearer good" {
+		return &Identity{Subject: "tester", Roles: []string{RoleObserver}}, nil
+	}
+	return nil, ErrUnauthenticated
+}
+
+// S-WEST-GROUND Phase 3 (ADR-147 decision 16): routes named in SourceGated are
+// open only to callers whose RemoteAddr is in AnonymousFrom; anyone else needs
+// a credential. Empty AnonymousFrom changes nothing.
+func TestSourceGatedOpenRoutes(t *testing.T) {
+	inside := []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8"), netip.MustParsePrefix("172.16.0.0/12")}
+	cases := []struct {
+		name      string
+		anonymous []netip.Prefix
+		gated     []string
+		openReads []string
+		target    string
+		remote    string
+		authz     string
+		xff       string
+		want      int
+	}{
+		{"unset: /metrics stays open to the LAN", nil, []string{"/metrics"}, nil, "/metrics", "192.168.69.50:1234", "", "", http.StatusOK},
+		{"a bridge address reads /metrics", inside, []string{"/metrics"}, nil, "/metrics", "172.28.1.9:40000", "", "", http.StatusOK},
+		{"the LAN needs a credential for /metrics", inside, []string{"/metrics"}, nil, "/metrics", "192.168.69.50:1234", "", "", http.StatusUnauthorized},
+		{"the LAN with a credential reads /metrics", inside, []string{"/metrics"}, nil, "/metrics", "192.168.69.50:1234", "Bearer good", "", http.StatusOK},
+		{"a wrong credential from the LAN", inside, []string{"/metrics"}, nil, "/metrics", "192.168.69.50:1234", "Bearer bad", "", http.StatusUnauthorized},
+		{"/health is not gated", inside, []string{"/metrics"}, nil, "/health", "192.168.69.50:1234", "", "", http.StatusOK},
+		{"the LAN needs a credential for the task list", inside, []string{"/api"}, []string{"/"}, "/api/v1/tasks", "192.168.69.50:1234", "", "", http.StatusUnauthorized},
+		{"the page loads so a person can log in", inside, []string{"/api"}, []string{"/"}, "/", "192.168.69.50:1234", "", "", http.StatusOK},
+		{"loopback reads the task list", inside, []string{"/api"}, []string{"/"}, "/api/v1/tasks", "127.0.0.1:5555", "", "", http.StatusOK},
+		{"a mapped IPv4 address is unwrapped", inside, []string{"/metrics"}, nil, "/metrics", "[::ffff:172.28.1.9]:40000", "", "", http.StatusOK},
+		{"an address that does not parse is outside", inside, []string{"/metrics"}, nil, "/metrics", "not-an-address", "", "", http.StatusUnauthorized},
+		{"X-Forwarded-For is never read", inside, []string{"/metrics"}, nil, "/metrics", "192.168.69.50:1234", "", "127.0.0.1", http.StatusUnauthorized},
+		{"a path below a gated prefix is gated", inside, []string{"/api"}, []string{"/"}, "/api", "192.168.69.50:1234", "", "", http.StatusUnauthorized},
+		{"a prefix match is per segment", inside, []string{"/api"}, []string{"/"}, "/apix", "192.168.69.50:1234", "", "", http.StatusOK},
+		{"a dot segment never opens a gated path", inside, []string{"/metrics"}, nil, "/x/../metrics", "192.168.69.50:1234", "", "", http.StatusUnauthorized},
+		{"a trailing slash is still gated", inside, []string{"/metrics"}, nil, "/metrics/", "192.168.69.50:1234", "", "", http.StatusUnauthorized},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := ServiceAuthConfig{Enabled: true, ServiceName: "svc"}
+			h, err := NewServiceHandler(okHandler(), cfg, ServiceRoutes{
+				OpenReads:      c.openReads,
+				AnonymousFrom:  c.anonymous,
+				SourceGated:    c.gated,
+				Authenticators: []Authenticator{goodBearer{}},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			r := httptest.NewRequest(http.MethodGet, c.target, nil)
+			r.RemoteAddr = c.remote
+			if c.authz != "" {
+				r.Header.Set("Authorization", c.authz)
+			}
+			if c.xff != "" {
+				r.Header.Set("X-Forwarded-For", c.xff)
+			}
+			if got := codeOf(h, r); got != c.want {
+				t.Errorf("GET %s from %s: %d, want %d", c.target, c.remote, got, c.want)
+			}
+		})
+	}
+}
+
+func TestParseAnonymousFrom(t *testing.T) {
+	got, err := ParseAnonymousFrom(" 127.0.0.0/8 , fd00::/8 ")
+	if err != nil || len(got) != 2 || got[0] != netip.MustParsePrefix("127.0.0.0/8") || got[1] != netip.MustParsePrefix("fd00::/8") {
+		t.Errorf("two prefixes: %v, %v", got, err)
+	}
+	if got, err := ParseAnonymousFrom(""); err != nil || got != nil {
+		t.Errorf("empty: %v, %v; want nil, nil", got, err)
+	}
+	for _, bad := range []string{"10.0.0.0/33", "127.0.0.1", "127.0.0.0/8,,::1/128", "not-a-prefix/8", "127.0.0.0/8,"} {
+		if _, err := ParseAnonymousFrom(bad); err == nil {
+			t.Errorf("%q: no error", bad)
+		}
+	}
+}
+
+// A bad AUTH_ANONYMOUS_FROM refuses to start, like any bad auth setting.
+func TestAnonymousFromBadValueRefusesToStart(t *testing.T) {
+	t.Setenv("AUTH_ENABLED", "true")
+	t.Setenv("AUTH_ANONYMOUS_FROM", "192.168.0.0/99")
+	cfg := LoadServiceAuthConfig("svc")
+	if _, err := NewServiceChain(cfg, ServiceRoutes{Authenticators: []Authenticator{goodBearer{}}}); err == nil {
+		t.Fatal("AUTH_ANONYMOUS_FROM that does not parse: no error, want the service to refuse to start")
+	}
+	t.Setenv("AUTH_ANONYMOUS_FROM", "127.0.0.0/8,::1/128")
+	cfg = LoadServiceAuthConfig("svc")
+	if len(cfg.AnonymousFrom) != 2 {
+		t.Fatalf("AnonymousFrom = %v, want two prefixes", cfg.AnonymousFrom)
+	}
+	if _, err := NewServiceChain(cfg, ServiceRoutes{Authenticators: []Authenticator{goodBearer{}}}); err != nil {
+		t.Fatalf("a good value: %v", err)
 	}
 }
