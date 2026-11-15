@@ -9,8 +9,11 @@
 package codeindex
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -180,21 +183,39 @@ func Keywords(query string) string {
 	return strings.Join(kept, " ")
 }
 
-// Search scores chunks by the share of query words they hold.
+// searchCtxEvery is how many chunks SearchContext scans between looks at its
+// context.
+const searchCtxEvery = 256
+
+// Search scores chunks by the share of query words they hold. It scans every
+// chunk: a caller with a deadline uses SearchContext.
 func (ix *Index) Search(query string, k int) []Hit {
+	hits, _ := ix.SearchContext(context.Background(), query, k)
+	return hits
+}
+
+// SearchContext is Search that stops when ctx ends: it returns ctx's error
+// and no hits. It looks at ctx before the first chunk and every
+// searchCtxEvery chunks after.
+func (ix *Index) SearchContext(ctx context.Context, query string, k int) ([]Hit, error) {
 	if k <= 0 {
-		return nil
+		return nil, nil
 	}
 	words := searchWords(query)
 	if len(words) == 0 {
-		return nil
+		return nil, nil
 	}
 	type scored struct {
 		h    Hit
 		name int
 	}
 	var all []scored
-	for _, c := range ix.Chunks {
+	for i, c := range ix.Chunks {
+		if i%searchCtxEvery == 0 {
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+		}
 		text := strings.ToLower(c.Symbol + " " + c.Parent + " " + c.Path + " " + c.Content)
 		nameText := strings.ToLower(c.Symbol + " " + c.Parent)
 		found, inName := 0, 0
@@ -227,7 +248,7 @@ func (ix *Index) Search(query string, k int) []Hit {
 	for i, s := range all {
 		out[i] = s.h
 	}
-	return out
+	return out, nil
 }
 
 func slotFile(dir, slot string) string { return filepath.Join(dir, "index-"+slot+".json") }
@@ -273,6 +294,11 @@ func Save(dir string, ix *Index) error {
 	return writeAtomic(filepath.Join(dir, "CURRENT"), []byte(slot+"\n"))
 }
 
+// ErrSlotMissing means CURRENT was read and the slot file it names is gone: a
+// half-removed index, not an index that was never built. It is not
+// fs.ErrNotExist, which a reader takes for "no index".
+var ErrSlotMissing = errors.New("codeindex: CURRENT names a slot file that does not exist")
+
 // Load reads the current slot.
 func Load(dir string) (*Index, error) {
 	slot, err := readSlot(dir)
@@ -280,6 +306,10 @@ func Load(dir string) (*Index, error) {
 		return nil, err
 	}
 	b, err := os.ReadFile(slotFile(dir, slot)) // #nosec G304 -- caller-chosen index dir
+	if errors.Is(err, fs.ErrNotExist) {
+		// Not %w on err: the chain must not hold fs.ErrNotExist.
+		return nil, fmt.Errorf("%w: %s", ErrSlotMissing, slotFile(dir, slot))
+	}
 	if err != nil {
 		return nil, err
 	}

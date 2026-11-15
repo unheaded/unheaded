@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"unheaded/pkg/champion"
 	"unheaded/pkg/zhentools"
 )
 
@@ -370,5 +371,45 @@ func TestConfirm_MCPMutatingStaysRefused(t *testing.T) {
 	}
 	if mcp.callCount() != 0 {
 		t.Error("the MCP mutating tool ran")
+	}
+}
+
+// A queue-only tool (teach_write) runs from the review queue and nowhere else.
+// The terminal confirmer used to print the prompt and the code first, and the
+// refusal came only when the human had typed it: ConfirmCall takes
+// QueuePrincipal alone. Nothing is shown now.
+func TestConfirm_TTYRefusesQueueOnlyBeforeThePrompt(t *testing.T) {
+	root := t.TempDir()
+	champ, err := champion.New(champion.Config{ProjectRoot: root}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cp, err := champion.NewToolProvider(champ, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for tool := range champion.QueueOnlyTools {
+		tty := &fakeTTY{answer: approveWithCode}
+		out := (&TTYConfirmer{Champion: champ, TTY: tty, ApprovedBy: "stevie@test"}).Confirm(context.Background(), ConfirmRequest{
+			Tool:      tool,
+			Args:      map[string]any{"file": "notes.md", "section": "s", "text": "a lesson"},
+			EmittedBy: "test",
+			Provider:  cp,
+		})
+		if out.Decision != "unconfirmable" || !out.IsError {
+			t.Errorf("%s: outcome = %+v, want unconfirmable", tool, out)
+		}
+		if !strings.Contains(out.Text, "queue") {
+			t.Errorf("%s: text %q does not name the queue", tool, out.Text)
+		}
+		if got := tty.all(); got != "" {
+			t.Errorf("%s: the terminal was written to before the refusal: %q", tool, got)
+		}
+		if tty.reads != 0 {
+			t.Errorf("%s: the terminal was read %d times", tool, tty.reads)
+		}
+	}
+	if len(champion.QueueOnlyTools) == 0 {
+		t.Fatal("no queue-only tools: the test checks nothing")
 	}
 }

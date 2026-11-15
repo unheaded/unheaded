@@ -129,6 +129,11 @@ func (t *TTYConfirmer) Confirm(ctx context.Context, req ConfirmRequest) ConfirmO
 	if championOf(req.Provider) != t.Champion {
 		return unconfirmable("only the Champion's own tools can be confirmed")
 	}
+	// Before anything is shown: ConfirmCall takes a queue-only tool from
+	// QueuePrincipal alone, so a code typed here could only fail.
+	if champion.QueueOnlyTools[req.Tool] {
+		return unconfirmable("queue-only tool: it runs from the review queue, not from a terminal")
+	}
 	timeout := t.Timeout
 	if timeout <= 0 {
 		timeout = champion.PendingConfirmTTL
