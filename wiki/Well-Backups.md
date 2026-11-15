@@ -63,6 +63,39 @@ Runbooks: `runbooks/deploy/emergency-rollback.yaml`, `runbooks/data/postgresql-m
 
 > **Source:** [THE_WELL_OPERATIONS.md](../docs/architecture/THE_WELL_OPERATIONS.md) · [ADR-016](../docs/adr/ADR-016-postgres-the-well.md) · [db-backup.sh](../scripts/db-backup.sh) · [deploy/systemd/](../deploy/systemd/)
 
+## ClickHouse and VictoriaMetrics
+
+ADR-147 decision 6 (S-SEE-AND-SURVIVE Phases 9 and 13): the two stores that had no copy get the Well's pattern. Code and units are in the repository; **not installed on west until Phase 13** (after the log store week).
+
+| Store | What | Set root (NVMe) | Set | Kept |
+|---|---|---|---|---|
+| ClickHouse | database `unheaded_logs` (audit logs, 455 days) | `/srv/backups/unheaded-clickhouse` (0700, uid 16707) | `ch-<UTC>/` written by ClickHouse's own `BACKUP DATABASE ... TO File()` | newest 14 |
+| VictoriaMetrics | the whole storage (SLO window, host series) | `/srv/backups/unheaded-victoria` (0700, root) | `vm-<UTC>/`, a snapshot copied with links followed | newest 14 |
+
+Offsite: SS5 A (with plan 6, east as second home: its chroot account gets two more directories); until then the sets are local only.
+
+**What a set holds.** Beside each set: `<name>.SHA256SUMS` (every file of the set), `<name>.meta.env` (ClickHouse: `NAME`, `DB`, `TABLE`, `FROM`, `CUTOFF`, `ROWS`, `IMAGE`, `BYTES`; VictoriaMetrics: `NAME`, `CUTOFF`, `SERIES`, `SNAPSHOT`, `IMAGE`, `BYTES`) and `LATEST` (0644, the newest set's name). ClickHouse's `ROWS` is `count()` `FINAL` of the logs between `CUTOFF` - 89 days and `CUTOFF` (5 minutes before the backup): inside every TTL, so merges and TTL passes in a restored copy cannot change it. VictoriaMetrics' `SERIES` is `count({__name__!=""})` at `CUTOFF` (two minutes before the snapshot).
+
+**Schedule.** `unheaded-clickhouse-backup.timer` 04:15, `unheaded-victoria-backup.timer` 04:45 (after the Well's 03:30), `unheaded-store-drill.timer` Sundays 05:40 (after the Well's drill at 05:00). All `Persistent=`.
+
+**The drill.** `scripts/backup/store-drill.sh` runs both drills every time and fails if either does. Each checks the set against its checksums ("set damaged"), reads the meta through a strict parser, restores into a throwaway container of the image that made it (ClickHouse: no network, read-only, 2 GiB, scratch `/srv/backups/.drill-clickhouse`; VictoriaMetrics: 1 GiB on `127.0.0.1:26428`, scratch `/srv/backups/.drill-victoria`, no scrape config) and compares the count. A trap removes the container and the scratch.
+
+**Commands.**
+
+```bash
+sudo systemctl start unheaded-clickhouse-backup.service    # a set now
+sudo systemctl start unheaded-victoria-backup.service
+sudo systemctl start unheaded-store-drill.service          # both drills
+journalctl -u unheaded-clickhouse-backup -u unheaded-victoria-backup -u unheaded-store-drill -n 40
+sudo cat /srv/backups/unheaded-clickhouse/LATEST /srv/backups/unheaded-victoria/LATEST
+```
+
+The VictoriaMetrics admin key (volume `unheaded-dev_victoria-auth`) reaches `curl` on stdin, never argv; never print it. A killed run can leave a snapshot behind: S-SEE-AND-SURVIVE Appendix A 5 lists and deletes it.
+
+**Alerts and SLO.** `rules/backups.yml`: StoreBackupLate (over 26 h, for 45m), StoreBackupMissing (over 50 h), StoreDrillLate (over 8 days); the `store-backups` SLO (99%, tickets) is what notifies. Each job writes `store_backup_<store>.prom` or `store_drill_<store>.prom` in `/var/lib/unheaded/textfile` on success only. Runbook: `runbooks/data/store-backup-late.yaml`. Tested end to end by `scripts/backup/test-store-backups.sh` (CI, `security.yml`).
+
+**Other-disk rule.** Each backup refuses ("refusing ... share disk") when its set root is on the same physical disk as the store's data (`CH_BACKUP_OTHER_DISK=1`, `VM_BACKUP_OTHER_DISK=1` in the units). Today the data is on west's `/var` (sdb) and the sets on the NVMe. **After S-WEST-GROUND moves the database volumes to the NVMe, the sets must leave it:** change `CH_BACKUP_DIR` and `VM_BACKUP_DIR` (one `Environment=` line each in the units) and `CLICKHOUSE_BACKUP_DIR` (compose's `.env`, the bind source of ClickHouse's `/backups`), recreate ClickHouse, run both backups and the drill again. The units refuse to run until then.
+
 ## Not The Well: the repository (FND-005)
 
 Commits not yet pushed to GitHub exist only on west's disk. `scripts/backup/git-mirror.sh push` copies every ref to a bare repository on east every 30 minutes (user timer `deploy/systemd/user/unheaded-git-mirror.timer`). It never prunes, and the bare repository keeps reflogs forever and refuses deletions, so a branch deleted or rewritten on west (re-signing) stays recoverable on east. `git-mirror.sh check` fails while any ref is behind, and a push fails once the mirror passes `GIT_MIRROR_MAX_MB` (default 2048 MiB), so growth shows up as a failed unit. **Installed 2026-10-22**: bare repository `govan@east:~/backups/unheaded.git` (156 MiB at install), destination in `~/.config/unheaded/git-mirror.env`; install steps in the service file's header.
