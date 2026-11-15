@@ -40,7 +40,7 @@ func TestAuthBFF_KanbanBoardLogin(t *testing.T) {
 	t.Setenv("AUTH_ISSUER_URL", is.URL)
 	t.Setenv("RATE_LIMIT_ENABLED", "false")
 	f := authtest.New(t, "kanban-app", "dashboard-backend")
-	s := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	s := NewServer(Config{Port: "0"})
 	t.Cleanup(s.cancel)
 	h, err := s.buildHandler(f.Config("kanban-app", "dashboard-backend"))
 	if err != nil {
@@ -100,7 +100,7 @@ func TestAuthBFF_KanbanBoardLogin(t *testing.T) {
 func TestAuthBFF_KanbanAuthOff(t *testing.T) {
 	is := bfftest.NewIssuer(t, "kanban-app")
 	t.Setenv("AUTH_ISSUER_URL", is.URL) // set, but auth is off: no login routes
-	off := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	off := NewServer(Config{Port: "0"})
 	t.Cleanup(off.cancel)
 	cfg := authtest.New(t, "kanban-app").Config("kanban-app")
 	cfg.Enabled = false
@@ -119,7 +119,7 @@ func TestAuthBFF_KanbanAuthOff(t *testing.T) {
 func TestAuthBFF_KanbanRefusesPlainHTTPIssuer(t *testing.T) {
 	t.Setenv("AUTH_ISSUER_URL", "http://auth:19020")
 	t.Setenv("AUTH_BFF_DEV_PLAINTEXT", "")
-	s := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	s := NewServer(Config{Port: "0"})
 	t.Cleanup(s.cancel)
 	if _, err := s.buildHandler(authtest.New(t, "kanban-app").Config("kanban-app")); err == nil {
 		t.Fatal("plain http issuer accepted without AUTH_BFF_DEV_PLAINTEXT")

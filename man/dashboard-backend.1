@@ -1,4 +1,4 @@
-.TH DASHBOARD\-BACKEND 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH DASHBOARD\-BACKEND 1 "2026-11-15" "unheaded 9fc81377" "Unheaded Kingdom"
 .SH NAME
 dashboard\-backend \- Serve the Kingdom dashboard API and WebSocket feed.
 .SH SYNOPSIS
@@ -35,12 +35,6 @@ HTTP listen address (default :20000)
 .B \-\-max\-connections \fIN\fR
 Maximum WebSocket connections (default 100)
 .TP
-.B \-\-scrape\-interval \fIDURATION\fR
-Metrics scrape interval (default 15s)
-.TP
-.B \-\-scrape\-timeout \fIDURATION\fR
-Metrics scrape timeout (default 10s)
-.TP
 .B \-\-services\-file \fISTRING\fR
 Path to services endpoint file (name=host:port per line)
 .TP
@@ -48,7 +42,7 @@ Path to services endpoint file (name=host:port per line)
 Path to advanced visualizations directory (dashboard/), served under /viz/
 .TP
 .B \-\-vm\-url \fISTRING\fR
-VictoriaMetrics base URL for direct metric push (e.g. http://localhost:8428)
+VictoriaMetrics base URL every metric is read from (e.g. http://victoria:8428)
 .TP
 .B \-\-wotan \fISTRING\fR
 Wotan HTTP address (host:port); default WOTAN_ADDR, then localhost:18000

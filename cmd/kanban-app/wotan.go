@@ -53,6 +53,26 @@ type WotanClient interface {
 	Close() error
 }
 
+// wellQueueMax bounds the inbound cards held while the Well is down.
+const wellQueueMax = 256
+
+// inbound is one tasks.* message waiting for the Well.
+type inbound struct {
+	event string // task.created, task.updated, task.deleted
+	task  Task
+}
+
+// WellQueued is the number of inbound cards waiting for the Well (/health
+// well_queued).
+func (tm *TaskManager) WellQueued() int {
+	if tm == nil {
+		return 0
+	}
+	tm.qmu.Lock()
+	defer tm.qmu.Unlock()
+	return len(tm.wellQ)
+}
+
 // TaskManager handles task operations with Wotan integration
 type TaskManager struct {
 	client WotanClient
@@ -86,6 +106,12 @@ type TaskManager struct {
 	// runbookProgress holds the newest runbooks.progress event per runbook
 	// (runbooks.go).
 	runbookProgress *runbookProgressTracker
+
+	// wellQ holds inbound cards that arrived while the Well was down, in
+	// order, at most wellQueueMax. They are not on the board: a card is
+	// shown once the Well has saved it (REV-5).
+	qmu   sync.Mutex
+	wellQ []inbound
 }
 
 // NewTaskManager creates a task manager with Wotan client and optional task store.
@@ -114,15 +140,42 @@ func NewTaskManager(client WotanClient, broadcast func(string, interface{}), sto
 }
 
 // Initialize loads initial tasks and subscribes to Wotan
+// loadFromStore loads the tasks the Well holds once it answers.
+func (tm *TaskManager) loadFromStore() {
+	tasks, err := tm.store.GetAllTasks()
+	if err != nil {
+		log.Error().Err(err).Msg("the Well answered but its tasks did not load")
+		return
+	}
+	tm.mu.Lock()
+	for i := range tasks {
+		t := tasks[i]
+		if _, have := tm.tasks[t.ID]; !have {
+			tm.tasks[t.ID] = &t
+		}
+	}
+	n := len(tm.tasks)
+	tm.mu.Unlock()
+	log.Info().Int("count", n).Msg("loaded tasks from the Well")
+}
+
 func (tm *TaskManager) Initialize(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	// Load tasks from the store (The Well, or SQLite). The Genesis cards are
-	// the Well's (migration 034); this process carries none.
-	if tm.store != nil {
-		// Load from SQLite — persisted state survives restarts
+	// Load tasks from the store (the Well). The Genesis cards are the
+	// Well's (migration 034); this process carries none. A Well that has
+	// not answered yet loads when it does (well_wait.go); until then the
+	// task routes answer 503.
+	if g, ok := tm.store.(*wellGate); ok && !g.ready() {
+		log.Warn().Msg("the Well is not answering: tasks load when it does")
+		g.OnReady(func() {
+			tm.loadFromStore()
+			tm.drainWellQueue()
+		})
+	} else if tm.store != nil {
+		// Load from the Well: persisted state survives restarts
 		storeTasks, err := tm.store.GetAllTasks()
 		if err != nil {
 			// Read-only: the board is not what the store holds, so an
@@ -136,7 +189,7 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 			}
 			log.Info().
 				Int("count", len(tm.tasks)).
-				Msg("loaded tasks from SQLite L1 store")
+				Msg("loaded tasks from the Well")
 		}
 	}
 
@@ -370,46 +423,30 @@ func (tm *TaskManager) handleMessage(msg *wotanClient.Message) error {
 	switch msg.Topic {
 	case TopicTasksCreated:
 		eventType = "task.created"
-		tm.addTask(&task)
-		if tm.store != nil {
-			if err := tm.store.SaveTask(&task); err != nil {
-				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound create to SQLite L1")
-			}
-		}
 	case TopicTasksUpdated:
 		eventType = "task.updated"
-		tm.updateTask(&task)
-		if tm.store != nil {
-			if err := tm.store.SaveTask(&task); err != nil {
-				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound update to SQLite L1")
-			}
-		}
 	case TopicTasksDeleted:
 		eventType = "task.deleted"
-		tm.deleteTask(task.ID)
-		if tm.store != nil {
-			if err := tm.store.DeleteTask(task.ID); err != nil {
-				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound delete to SQLite L1")
-			}
-		}
 	default:
 		// Infer from task existence
+		eventType = "task.created"
 		if tm.taskExists(task.ID) {
 			eventType = "task.updated"
-			tm.updateTask(&task)
-		} else {
-			eventType = "task.created"
-			tm.addTask(&task)
-		}
-		if tm.store != nil {
-			if err := tm.store.SaveTask(&task); err != nil {
-				log.Warn().Err(err).Str("task_id", task.ID).Msg("failed to persist inbound task to SQLite L1")
-			}
 		}
 	}
-
-	// Broadcast to SSE clients
-	tm.broadcast(eventType, &task)
+	queued, err := tm.applyInbound(inbound{event: eventType, task: task})
+	if err != nil {
+		return err
+	}
+	if queued {
+		log.Warn().
+			Str("event", eventType).
+			Str("task_id", task.ID).
+			Str("message_id", msg.MessageID).
+			Int("well_queued", tm.WellQueued()).
+			Msg("the Well is down: inbound card queued, not shown until it is saved")
+		return nil
+	}
 
 	log.Info().
 		Str("event", eventType).
@@ -418,6 +455,71 @@ func (tm *TaskManager) handleMessage(msg *wotanClient.Message) error {
 		Msg("processed wotan message")
 
 	return nil
+}
+
+// applyInbound saves an inbound card to the store first, then puts it on
+// the board and broadcasts it. While the Well is down the card is queued
+// (queued true), up to wellQueueMax; past that, or on any other store
+// error, it is refused and the board does not change. Without a store
+// (tests, a board whose load failed) the board changes in memory only.
+func (tm *TaskManager) applyInbound(in inbound) (queued bool, err error) {
+	task := in.task
+	if tm.store != nil {
+		var serr error
+		if in.event == "task.deleted" {
+			serr = tm.store.DeleteTask(task.ID)
+		} else {
+			serr = tm.store.SaveTask(&task)
+		}
+		if errors.Is(serr, errWellUnavailable) {
+			tm.qmu.Lock()
+			if len(tm.wellQ) >= wellQueueMax {
+				tm.qmu.Unlock()
+				return false, fmt.Errorf("inbound %s %s refused, %d already wait: %w", in.event, task.ID, wellQueueMax, errWellUnavailable)
+			}
+			tm.wellQ = append(tm.wellQ, in)
+			tm.qmu.Unlock()
+			// The Well may have arrived between the save and the queue.
+			if g, ok := tm.store.(*wellGate); ok && g.ready() {
+				tm.drainWellQueue()
+			}
+			return true, nil
+		}
+		if serr != nil {
+			return false, fmt.Errorf("persist inbound %s %s: %w", in.event, task.ID, serr)
+		}
+	}
+	switch in.event {
+	case "task.deleted":
+		tm.deleteTask(task.ID)
+	case "task.updated":
+		if tm.taskExists(task.ID) {
+			tm.updateTask(&task)
+		} else {
+			tm.addTask(&task)
+		}
+	default:
+		tm.addTask(&task)
+	}
+	tm.broadcast(in.event, &task)
+	return false, nil
+}
+
+// drainWellQueue applies the queued inbound cards in order, once the Well
+// answers.
+func (tm *TaskManager) drainWellQueue() {
+	tm.qmu.Lock()
+	q := tm.wellQ
+	tm.wellQ = nil
+	tm.qmu.Unlock()
+	for _, in := range q {
+		if _, err := tm.applyInbound(in); err != nil {
+			log.Error().Err(err).Str("task_id", in.task.ID).Msg("queued inbound card not saved")
+		}
+	}
+	if len(q) > 0 {
+		log.Info().Int("count", len(q)).Msg("the Well answered: queued inbound cards saved")
+	}
 }
 
 // CreateTask creates a new task and publishes to Wotan

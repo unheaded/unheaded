@@ -18,7 +18,7 @@ go run ./cmd/perf-benchmark -scenario e2e-trace,http-load,http3 -iterations 200 
 
 Without `-scenario` the original suite runs (P2P ping, WireGuard ping6, one `/health`, Wotan publish).
 
-The bench packet runs between RFC 2544 benchmarking addresses (`198.18.0.1` to `198.18.0.2`, UDP 40000 to 9), so it shows on the dashboard as one bench flow and never as a real host's. Wotan approves `perf-benchmark` from `configs/wotan.yaml` `topics.auto_approve`; dashboard-backend ingests `bench.perf.packet` beside `ebpf.packet.events`. A running stack needs both (Wotan restart, dashboard-backend rebuild) before `e2e-trace` can see anything; until then it reports `error_ratio 1` with the reason.
+The bench packet runs between RFC 2544 benchmarking addresses (`198.18.0.1` to `198.18.0.2`, UDP 40000 to 9), so it shows on the dashboard as one bench flow and never as a real host's. Wotan approves `perf-benchmark` from `configs/wotan.yaml` `topics.auto_approve`; dashboard-backend ingests `bench.perf.packet` beside `traces.packet`. A running stack needs both (Wotan restart, dashboard-backend rebuild) before `e2e-trace` can see anything; until then it reports `error_ratio 1` with the reason.
 
 ## Report and gate
 

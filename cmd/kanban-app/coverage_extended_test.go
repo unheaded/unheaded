@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/pkg/wotan-client/mock"
@@ -474,7 +475,7 @@ func TestGetClientIP_IgnoresForwardedHeaders(t *testing.T) {
 // ============================================================================
 
 func TestHandleTaskByID_Get_WithStore(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -501,7 +502,7 @@ func TestHandleTaskByID_Get_WithStore(t *testing.T) {
 }
 
 func TestHandleTaskByID_Get_NotFound(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -518,7 +519,7 @@ func TestHandleTaskByID_Get_NotFound(t *testing.T) {
 }
 
 func TestHandleTaskByID_InvalidPath(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -535,7 +536,7 @@ func TestHandleTaskByID_InvalidPath(t *testing.T) {
 }
 
 func TestHandleTaskByID_EmptyID(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -552,7 +553,7 @@ func TestHandleTaskByID_EmptyID(t *testing.T) {
 }
 
 func TestHandleTaskByID_Put_WithStore(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -578,7 +579,7 @@ func TestHandleTaskByID_Put_WithStore(t *testing.T) {
 }
 
 func TestHandleTaskByID_Put_NotFound(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -599,7 +600,7 @@ func TestHandleTaskByID_Put_NotFound(t *testing.T) {
 }
 
 func TestHandleTaskByID_Put_InvalidJSON(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -616,7 +617,7 @@ func TestHandleTaskByID_Put_InvalidJSON(t *testing.T) {
 }
 
 func TestHandleTaskByID_Delete_WithStore(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -637,7 +638,7 @@ func TestHandleTaskByID_Delete_WithStore(t *testing.T) {
 }
 
 func TestHandleTaskByID_Delete_NotFound(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -654,7 +655,7 @@ func TestHandleTaskByID_Delete_NotFound(t *testing.T) {
 }
 
 func TestHandleTaskByID_MethodNotAllowed(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -815,7 +816,7 @@ func TestHandleDeleteTaskByID_NoDBIsReadOnly_NotFound(t *testing.T) {
 // ============================================================================
 
 func TestHandleTimeline_MethodNotAllowed(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -832,7 +833,7 @@ func TestHandleTimeline_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleTimeline_NoTimeline_ReturnsNilMessage(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -855,7 +856,7 @@ func TestHandleTimeline_NoTimeline_ReturnsNilMessage(t *testing.T) {
 }
 
 func TestHandleTimeline_WithTimeline(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -909,7 +910,7 @@ func TestHandleTimeline_NoTimelineManager(t *testing.T) {
 // ============================================================================
 
 func TestHandleTimelineCards_MethodNotAllowed(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -926,7 +927,7 @@ func TestHandleTimelineCards_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleTimelineCards_FallbackToTasks(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -949,7 +950,7 @@ func TestHandleTimelineCards_FallbackToTasks(t *testing.T) {
 }
 
 func TestHandleTimelineCards_WithTimelineTasks(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1020,7 +1021,7 @@ func TestHandleTimelineCards_NoTimelineIsEmpty(t *testing.T) {
 // ============================================================================
 
 func TestHandleReady_StandaloneMode(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1109,7 +1110,7 @@ func TestHandleMetrics_WithTaskManager(t *testing.T) {
 // ============================================================================
 
 func TestHandleHealth_WithTimelineData(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1136,7 +1137,7 @@ func TestHandleHealth_WithTimelineData(t *testing.T) {
 // ============================================================================
 
 func TestHandleSSE_NonFlusher_Returns500(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1166,7 +1167,7 @@ func (w *nonFlusherWriter) Write(b []byte) (int, error) { return w.body.Write(b)
 func (w *nonFlusherWriter) WriteHeader(code int)        { w.code = code }
 
 func TestHandleWebSocket_DelegatesToSSE(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1189,7 +1190,7 @@ func TestHandleWebSocket_DelegatesToSSE(t *testing.T) {
 // ============================================================================
 
 func TestHandleCreateTask_StoreMode_DuplicateID_Returns409(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1210,7 +1211,7 @@ func TestHandleCreateTask_StoreMode_DuplicateID_Returns409(t *testing.T) {
 }
 
 func TestHandleUpdateTask_StoreMode_HappyPath(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1232,7 +1233,7 @@ func TestHandleUpdateTask_StoreMode_HappyPath(t *testing.T) {
 }
 
 func TestHandleUpdateTask_StoreMode_NotFound(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1251,7 +1252,7 @@ func TestHandleUpdateTask_StoreMode_NotFound(t *testing.T) {
 }
 
 func TestHandleDeleteTask_StoreMode_HappyPath(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1271,7 +1272,7 @@ func TestHandleDeleteTask_StoreMode_HappyPath(t *testing.T) {
 }
 
 func TestHandleDeleteTask_StoreMode_NotFound(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1425,7 +1426,7 @@ func TestHandleDeleteTask_InMemory_NotFound(t *testing.T) {
 
 func TestHandleGetTasks_StoreOnly(t *testing.T) {
 	t.Setenv(GenesisFileEnv, genesisFixture)
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1460,7 +1461,7 @@ func TestNewServerWithTaskManager(t *testing.T) {
 		t.Fatalf("NewTaskManager: %v", err)
 	}
 
-	cfg := Config{Port: "0", DataDir: t.TempDir()}
+	cfg := Config{Port: "0"}
 	server := NewServerWithTaskManager(cfg, tm, nil)
 
 	if server == nil {
@@ -1479,7 +1480,7 @@ func TestGetTimelineManager_WithTaskManager(t *testing.T) {
 	broadcast := func(eventType string, data interface{}) {}
 	tm, _ := NewTaskManager(mockClient, broadcast, nil)
 
-	cfg := Config{Port: "0", DataDir: t.TempDir()}
+	cfg := Config{Port: "0"}
 	server := NewServerWithTaskManager(cfg, tm, nil)
 
 	got := server.getTimelineManager()
@@ -1492,7 +1493,7 @@ func TestGetTimelineManager_WithTaskManager(t *testing.T) {
 }
 
 func TestGetTimelineManager_Standalone(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1513,7 +1514,7 @@ func TestGetTimelineManager_Standalone(t *testing.T) {
 // ============================================================================
 
 func TestLoggingMiddleware(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1523,7 +1524,7 @@ func TestLoggingMiddleware(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 	})
-	handler := server.loggingMiddleware(inner)
+	handler := httputil.AccessLogFunc(inner, logRequest, getRequestID)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
@@ -1533,25 +1534,6 @@ func TestLoggingMiddleware(t *testing.T) {
 	if w.Code != http.StatusTeapot {
 		t.Errorf("expected 418, got %d", w.Code)
 	}
-}
-
-func TestStatusWriter_DefaultStatus(t *testing.T) {
-	w := httptest.NewRecorder()
-	sw := &statusWriter{ResponseWriter: w, status: 200}
-
-	// Write body without explicit WriteHeader — status should remain 200
-	sw.Write([]byte("hello"))
-	if sw.status != 200 {
-		t.Errorf("expected default status 200, got %d", sw.status)
-	}
-}
-
-func TestStatusWriter_Flush(t *testing.T) {
-	w := httptest.NewRecorder()
-	sw := &statusWriter{ResponseWriter: w, status: 200}
-
-	// httptest.ResponseRecorder implements Flusher, so Flush should not panic
-	sw.Flush()
 }
 
 // ============================================================================
@@ -1575,7 +1557,7 @@ func TestFetchTimelineFromTimeguru_Success(t *testing.T) {
 
 	// Parse ts.URL to get host:port
 	addr := strings.TrimPrefix(ts.URL, "http://")
-	server := NewServer(Config{Port: "0", TimeGuruAddr: addr, DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0", TimeGuruAddr: addr})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1600,7 +1582,7 @@ func TestFetchTimelineFromTimeguru_ErrorResponse(t *testing.T) {
 	defer ts.Close()
 
 	addr := strings.TrimPrefix(ts.URL, "http://")
-	server := NewServer(Config{Port: "0", TimeGuruAddr: addr, DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0", TimeGuruAddr: addr})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1623,7 +1605,7 @@ func TestFetchTimelineFromTimeguru_NilTimeline(t *testing.T) {
 	defer ts.Close()
 
 	addr := strings.TrimPrefix(ts.URL, "http://")
-	server := NewServer(Config{Port: "0", TimeGuruAddr: addr, DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0", TimeGuruAddr: addr})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -1643,7 +1625,7 @@ func TestFetchTimelineFromTimeguru_InvalidJSON(t *testing.T) {
 	defer ts.Close()
 
 	addr := strings.TrimPrefix(ts.URL, "http://")
-	server := NewServer(Config{Port: "0", TimeGuruAddr: addr, DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0", TimeGuruAddr: addr})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2394,7 +2376,7 @@ func TestHandleUpdateTask_InvalidStatus(t *testing.T) {
 
 func TestNewServer_EmptyDataDir(t *testing.T) {
 	// Clean up default ./data dir if it gets created
-	server := NewServer(Config{Port: "0", DataDir: ""})
+	server := NewServer(Config{Port: "0"})
 	if server == nil {
 		t.Fatal("expected non-nil server")
 	}
@@ -2471,7 +2453,7 @@ func TestHandleDeleteTask_EmptyQueryParam_Returns400(t *testing.T) {
 // ============================================================================
 
 func TestHandleSSE_SendsInitialData_AndPing(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2536,7 +2518,7 @@ func TestHandleSSE_WithTaskManager(t *testing.T) {
 }
 
 func TestHandleSSE_ReceivesBroadcast(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2571,7 +2553,7 @@ func TestHandleSSE_ReceivesBroadcast(t *testing.T) {
 }
 
 func TestHandleSSE_ChannelClosed(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2615,7 +2597,7 @@ func TestHandleSSE_ChannelClosed(t *testing.T) {
 // ============================================================================
 
 func TestHandleReady_WithHealthServer_Up(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2642,7 +2624,7 @@ func TestHandleReady_WithHealthServer_Up(t *testing.T) {
 }
 
 func TestHandleReady_WithHealthServer_Down(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2961,7 +2943,7 @@ func TestPollTimeguru_InitialFetch_Success(t *testing.T) {
 	defer ts.Close()
 
 	addr := strings.TrimPrefix(ts.URL, "http://")
-	server := NewServer(Config{Port: "0", TimeGuruAddr: addr, DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0", TimeGuruAddr: addr})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -2995,7 +2977,7 @@ func TestPollTimeguru_InitialFetch_Failure(t *testing.T) {
 	defer ts.Close()
 
 	addr := strings.TrimPrefix(ts.URL, "http://")
-	server := NewServer(Config{Port: "0", TimeGuruAddr: addr, DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0", TimeGuruAddr: addr})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -3130,7 +3112,7 @@ func TestTaskManager_DeleteTask_WithStore(t *testing.T) {
 // ============================================================================
 
 func TestHandleTasks_Post_Dispatch(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()
@@ -3149,7 +3131,7 @@ func TestHandleTasks_Post_Dispatch(t *testing.T) {
 }
 
 func TestHandleTasks_Delete_Dispatch(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()

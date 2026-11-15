@@ -215,17 +215,26 @@ type Config struct {
 	// History stores the records (NewWellHistory); nil: the file in
 	// DataDir. A Well history with DataDir set imports DataDir's file once,
 	// into an empty Well.
-	History      History
-	DataDir      string                // "" (and no History) refuses every write (503)
-	AuthEnabled  bool                  // false refuses every write (403)
-	Driver       *cuirassdriver.Driver // nil refuses deployments (503)
-	Analysis     Analysis              // nil refuses canary deployments (400)
-	Publisher    Publisher             // nil: no events
-	PollInterval time.Duration         // how often strategies re-ask health (default 2s)
+	History     History
+	DataDir     string                // "" (and no History) refuses every write (503)
+	AuthEnabled bool                  // false refuses every write (403)
+	Driver      *cuirassdriver.Driver // nil refuses deployments (503)
+	Analysis    Analysis              // nil refuses canary deployments (400)
+	Publisher   Publisher             // nil: no events
+	// Hold is the critical-alert state (pkg/critalert, ADR-147 Phase 8,
+	// D2 = B): no deploy starts while it holds. nil: never held.
+	Hold         ChangeHold
+	PollInterval time.Duration // how often strategies re-ask health (default 2s)
 	// NoAutoRollback keeps a failed deployment as it is instead of rolling
 	// back to the previous success.
 	NoAutoRollback bool
 	Log            *zerolog.Logger
+}
+
+// ChangeHold says whether change is held now and why: pkg/critalert's
+// Tracker, held while a critical alert fires (unknown allows).
+type ChangeHold interface {
+	Hold() (held bool, why string)
 }
 
 // Service is Sword.
@@ -249,6 +258,7 @@ type Service struct {
 	registry  *metrics.Registry
 	deploysC  *metrics.CounterVec
 	rollbackC *metrics.CounterVec
+	heldC     *metrics.Counter
 }
 
 // New loads the history and returns Sword. A damaged state file is an
@@ -276,6 +286,8 @@ func New(cfg Config) (*Service, error) {
 	s.rollbackC = metrics.NewCounterVec("sword_rollbacks_total", "Rollbacks by reason (analysis_failed, deploy_failed, manual)", nil, []string{"reason"})
 	s.registry.MustRegister(s.deploysC)
 	s.registry.MustRegister(s.rollbackC)
+	s.heldC = metrics.NewCounter("sword_deploys_held_total", "Deployments refused because a critical alert fires (ADR-147 Phase 8)", nil)
+	s.registry.MustRegister(s.heldC)
 
 	if s.history != nil {
 		if err := s.loadHistory(); err != nil {
@@ -551,6 +563,12 @@ func (s *Service) Deploy(req *DeployRequest) (*Deployment, int, error) {
 	cfg, err := req.validate(s.cfg.Analysis != nil)
 	if err != nil {
 		return nil, http.StatusBadRequest, err
+	}
+	if s.cfg.Hold != nil {
+		if held, why := s.cfg.Hold.Hold(); held {
+			s.heldC.Inc()
+			return nil, http.StatusConflict, errors.New(why)
+		}
 	}
 	// The driver checks labels and the proxy; ask it now, not mid-deploy.
 	if _, err := s.cfg.Driver.Callbacks(cuirassdriver.ServiceSpec{Service: req.Service, Health: req.Health, Proxy: req.Proxy, Labels: req.Labels}, "check", req.Version); err != nil {
@@ -997,7 +1015,11 @@ func (s *Service) handleDeployment(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": "sword"})
+	body := map[string]any{"status": "ok", "service": "sword"}
+	if h, ok := s.cfg.Hold.(interface{ Health() map[string]any }); ok && h != nil {
+		body["critical_alerts"] = h.Health()
+	}
+	httputil.WriteJSON(w, http.StatusOK, body)
 }
 
 // handleReady: ready means a deployment could start now: the history

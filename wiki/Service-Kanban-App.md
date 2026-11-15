@@ -5,10 +5,10 @@ The self-hosting proof of concept. Displays Unheaded development progress using 
 | | |
 |---|---|
 | Container | `unheaded-kanban` (live on west), port 20001 |
-| Cards | The Well, `unheaded_app.kanban_tasks` as role `app_kanban` over TLS; a SQLite L1 cache serves reads. The binary carries no cards (see below) |
+| Cards | The Well, `unheaded_app.kanban_tasks` as role `app_kanban` over TLS. The binary carries no cards (see below) and has no local copy (ADR-147) |
 | Live updates | Wotan streams; editing `references/timeline.md` updates the board with no restart (working in compose since 2026-09-21) |
 | Writes | need the database: without it, the board is read-only |
-| Login | Reading is public. Writing needs an operator login on the board (`/auth/login` against [unheaded-auth](Service-Auth), HttpOnly session cookie, `AUTH_ISSUER_URL`) or a service token from zhen-agentd or micromanager (`AUTH_ALLOW_CALLERS`) |
+| Login | Reading is public. Writing needs an operator login on the board (`/auth/login` against [unheaded-auth](Service-Auth), HttpOnly session cookie, `AUTH_ISSUER_URL`) or a service token from zhen-agentd (`AUTH_ALLOW_CALLERS`) |
 
 ## API
 
@@ -43,11 +43,11 @@ The Well is the only source of cards. Add or change them through the API above; 
 
 A fresh Well gets the 65 Genesis cards (milestones, armor, services, tech debt, vision, wishlist) from migration `034_app_kanban_genesis.sql`, which inserts them only when `kanban_tasks` is empty: on a Well that already has a board it is a recorded no-op. The cards are reviewed in `db/seed/kanban-genesis.json`, with the dates git records for each (`scripts/kanban/genesis-timestamps.py`); 034 is rendered from it (`scripts/kanban/render-genesis-sql.py`) and `scripts/check-kanban-genesis.sh` fails in CI when the two differ. To change the Genesis cards for future Wells: edit the JSON, re-render, add the change as a new migration if 034 is already applied anywhere.
 
-kanban-app itself carries no cards (until 2026-10-23 it seeded an empty store from a hardcoded list and invented the dates at startup). Without Postgres it uses SQLite; a new SQLite board starts empty unless `KANBAN_GENESIS_FILE` names a Genesis JSON, which then seeds that empty store once (dev runs only; set nowhere by default). Without any database the board is empty and read-only.
+kanban-app itself carries no cards (until 2026-10-23 it seeded an empty store from a hardcoded list and invented the dates at startup). Without the Well it waits, read-only: the task routes answer 503 `{"error":"the Well is unavailable"}`, `/health` says `"well":"waiting"`, and it retries every 1 s, doubling to 30 s; the cards load when the Well answers. A card that arrives on Wotan meanwhile is not shown: it waits in a queue of at most 256 (`/health` `well_queued`) and goes on the board once the Well has saved it; past 256 it is refused. One Well gate per process: when Wotan is late at start the standalone fallback keeps it. A Well that answers without kanban's migrations stops it, as before. The SQLite fallback of 2026-10-28 is gone (ADR-147 Phase 16): it split the board into a second copy whenever the Well was slow at start. `KANBAN_GENESIS_FILE` now seeds only the tests' SQLite fixture.
 
 ## Hardening
 
-Per-IP token bucket (120 req/min, burst 30), 1 MB request limit, strict field validation, restrictive CORS, CSP and frame headers, `X-Request-ID` on every request. Code: `main.go` (handlers), `runbooks.go` (runbooks, progress, agent runs), `middleware.go`, `pgstore.go` (The Well), `store.go` (SQLite cache), `timeline.go`, `wotan.go`; front end in `static/` (embedded in the binary; `kanban/` at the repo root is an older scaffold).
+Per-IP token bucket (120 req/min, burst 30), 1 MB request limit, strict field validation, restrictive CORS, CSP and frame headers, `X-Request-ID` on every request. Code: `main.go` (handlers), `runbooks.go` (runbooks, progress, agent runs), `middleware.go`, `pgstore.go` (The Well), `well_wait.go` (waiting for it), `store.go` (the store interface), `timeline.go`, `wotan.go`; front end in `static/` (embedded in the binary; `kanban/` at the repo root is an older scaffold).
 
 Decisions: ADR-020 (bug fixes), ADR-025 (mobile), ADR-038 (git audit trail, dormant), ADR-041 (timeline sync), ADR-044 (task detail / status query), ADR-106 §6 (agent runs).
 

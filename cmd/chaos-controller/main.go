@@ -53,6 +53,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -80,6 +81,10 @@ type config struct {
 	policy     string
 	wotanHTTP  string
 	wotanGRPC  string
+	// wc is the process's one Wotan client (main builds it; ADR-147 Phase 7).
+	wc *wotanClient.Client
+	// crit holds new experiments while a critical alert fires (Phase 8).
+	crit *critalert.Tracker
 	// getenv reads WELL_* for the journal store; nil reads nothing (files).
 	getenv func(string) string
 }
@@ -214,20 +219,12 @@ func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
 	} else {
 		log.Warn().Msg("VM_URL is not set: no SLO guard, so every experiment is refused")
 	}
-	if c.wotanHTTP != "" {
-		wotanClient.InitServiceIdentity("chaos-controller") // ADR-103 §6: Wotan calls carry chaos-controller's service token
-		var wc *wotanClient.Client
-		if c.wotanGRPC != "" {
-			wc, err = wotanClient.NewClientWithGRPC(c.wotanHTTP, c.wotanGRPC)
-		} else {
-			wc, err = wotanClient.NewClient(c.wotanHTTP)
-		}
-		if err != nil {
-			log.Warn().Err(err).Msg("Wotan client: events and the chaos.abort path are off")
-		} else {
-			deps.Publisher = &wotanPublisher{c: wc, joined: map[string]bool{}}
-			deps.Subscriber = wc
-		}
+	if c.wotanHTTP != "" && c.wc != nil {
+		deps.Publisher = &wotanPublisher{c: c.wc, joined: map[string]bool{}}
+		deps.Subscriber = c.wc // the chaos.abort listener rides the same client
+	}
+	if c.crit != nil {
+		deps.Hold = c.crit
 	}
 	cfg := yaldabaoth.DefaultConfig()
 	cfg.StateDir = c.stateDir
@@ -298,6 +295,7 @@ type api struct {
 	s           *yaldabaoth.Service
 	gameday     *yaldabaoth.GameDayScheduler
 	authEnabled bool
+	crit        *critalert.Tracker // /health's critical_alerts; nil-safe
 }
 
 const maxBody = 64 << 10
@@ -312,7 +310,7 @@ func refusalStatus(err error) int {
 		return http.StatusBadRequest
 	case yaldabaoth.RefuseAllowlist, yaldabaoth.RefuseLimits:
 		return http.StatusForbidden
-	case yaldabaoth.RefuseConcurrency, yaldabaoth.RefuseAbortFile:
+	case yaldabaoth.RefuseConcurrency, yaldabaoth.RefuseAbortFile, yaldabaoth.RefuseCriticalAlert:
 		return http.StatusConflict
 	case yaldabaoth.RefuseNoInjector:
 		return http.StatusNotImplemented
@@ -344,7 +342,7 @@ func (a *api) routes(reg *metrics.Registry) *http.ServeMux {
 		httputil.WriteJSON(w, http.StatusOK, a.gameday.Status())
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
-		httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": serviceName, "stats": a.s.Stats()})
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": serviceName, "stats": a.s.Stats(), "critical_alerts": a.crit.Health()})
 	})
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 		httputil.WriteJSON(w, http.StatusOK, map[string]any{"ready": true})
@@ -561,12 +559,28 @@ func main() {
 		}
 	}
 	log := logger.New(os.Stderr)
+	// The process's one Wotan client (ADR-147 Phase 7): events, the
+	// chaos.abort listener, discovery and health reports share it.
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	if c.wotanHTTP != "" {
+		wotanClient.InitServiceIdentity("chaos-controller") // ADR-103 §6: Wotan calls carry chaos-controller's service token
+		transportCfg.WotanHTTPAddr = c.wotanHTTP
+	}
+	if c.wotanGRPC != "" {
+		transportCfg.WotanGRPCAddr = c.wotanGRPC
+	}
+	var err error
+	if c.wc, err = transport.NewWotanClient(transportCfg); err != nil {
+		log.Warn().Err(err).Msg("Wotan client: events, the chaos.abort path, discovery and health reports are off")
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	c.crit = critalert.Attach(ctx, c.wc, serviceName) // no experiment starts while one fires
 	s, err := build(c, log)
 	if err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
 	if err := s.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
@@ -575,15 +589,14 @@ func main() {
 		log.Warn().Msg("AUTH_ENABLED is not true: every chaos write answers 403")
 	}
 	a := newAPI(s, nil, authCfg.Enabled)
+	a.crit = c.crit
 	h, err := handler(a, authCfg)
 	if err != nil {
 		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
 
-	transportCfg := transport.DefaultConfig()
-	transport.ConfigFromEnv(&transportCfg)
-	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Chaos))
-	healthreport.StartService(ctx, transportCfg, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Chaos))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, c.wc, serviceName, ports.PortOf(c.addr, ports.Chaos))
+	healthreport.StartService(ctx, c.wc, serviceName, healthreport.HealthURL(c.addr, ports.PortOf(c.addr, ports.Chaos))) // ADR-029: a vote on Akira's ballot
 
 	srv, tlsOn, err := newHTTPServer(c.addr, h)
 	if err != nil {

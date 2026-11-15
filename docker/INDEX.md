@@ -15,11 +15,9 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 | `base/Dockerfile.base` | 82 | Multi-stage Go build reference pattern |
 | `services/.dockerignore` | 16 | Global build context optimization |
 
-### Service Dockerfiles (7 total)
+### Service Dockerfiles (5 total)
 
-#### Standard Go Services (5 distroless)
-- `services/monad/Dockerfile` — 50051/gRPC register
-- `services/sophia/Dockerfile` — 50052/gRPC state
+#### Standard Go Services (3 distroless)
 - `services/protocol-api/Dockerfile` — 50056/gRPC
 - `services/trace-collector/Dockerfile` — 9411/HTTP traces
 - `services/dashboard-backend/Dockerfile` — 8080/HTTP+WS
@@ -107,8 +105,6 @@ Build Context Opt:     1 (.dockerignore)
 ## Port Assignments
 
 ### gRPC Standard Ports (50051-50067)
-- 50051: monad
-- 50052: sophia
 - 50055: shield
 - 50056: protocol-api
 
@@ -120,11 +116,11 @@ Build Context Opt:     1 (.dockerignore)
 
 ### Single service build
 ```bash
-docker build -f docker/services/monad/Dockerfile \
+docker build -f docker/services/protocol-api/Dockerfile \
   --build-arg VERSION=v1.0.0 \
   --build-arg COMMIT=$(git rev-parse --short HEAD) \
   --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-  -t unheaded-monad:v1.0.0 .
+  -t unheaded-protocol-api:v1.0.0 .
 ```
 
 ### Batch build (all 7)
@@ -132,16 +128,16 @@ See `QUICKSTART.md` for complete parallel build script
 
 ### With registry
 ```bash
-docker build ... -t registry.example.com/unheaded-monad:v1.0.0
-docker push registry.example.com/unheaded-monad:v1.0.0
+docker build ... -t registry.example.com/unheaded-protocol-api:v1.0.0
+docker push registry.example.com/unheaded-protocol-api:v1.0.0
 ```
 
 ## Security Scanning
 
 ### Recommended tools
-- Trivy: `trivy image unheaded-monad:v1.0.0`
-- Grype: `grype unheaded-monad:v1.0.0`
-- Snyk: `snyk container test unheaded-monad:v1.0.0`
+- Trivy: `trivy image unheaded-protocol-api:v1.0.0`
+- Grype: `grype unheaded-protocol-api:v1.0.0`
+- Snyk: `snyk container test unheaded-protocol-api:v1.0.0`
 
 ### CI/CD Integration
 See `README.md` "Security Scanning" section

@@ -179,8 +179,6 @@ var composeOnly = map[string]bool{
 	"nginx-dashboard":   true,
 	"nginx-gateway":     true,
 	"nginx-kanban":      true,
-	"nginx-monad":       true,
-	"nginx-sophia":      true,
 	"nginx-wotan":       true,
 	"open-webui":        true,
 	"qdrant":            true,

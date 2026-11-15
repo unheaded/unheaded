@@ -34,7 +34,7 @@ env:
   # What apt-repo-publish's install-east installs, under the names
   # scripts/lib/deb-packages.sh gives them. `apt upgrade` would upgrade every
   # package on the host, not these. --only-upgrade skips any a host lacks.
-  UNHEADED_PKGS: "unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru unheaded-captain unheaded-architect unheaded-micromanager unheaded-auth"
+  UNHEADED_PKGS: "unheaded-keygen unheaded-configs unheaded-wotan unheaded-daemon unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru unheaded-auth"
 
 parameters:
   - name: REPO
@@ -90,7 +90,7 @@ steps:
     action: shell
     command: |
       echo "=== Pre-flight ==="
-      for svc in wotan daemon timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+      for svc in wotan daemon timeguru dashboard-backend kanban-app akira; do
         dpkg -l "unheaded-${svc}" 2>/dev/null | grep "^ii" | awk '{print $2, $3}'
       done
     description: "Show current package versions"
@@ -215,7 +215,7 @@ steps:
     action: shell
     command: |
       echo "=== Post-upgrade versions ==="
-      for svc in wotan daemon timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+      for svc in wotan daemon timeguru dashboard-backend kanban-app akira; do
         dpkg -l "unheaded-${svc}" 2>/dev/null | grep "^ii" | awk '{print $2, $3}'
       done
 

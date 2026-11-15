@@ -17,6 +17,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 
 	"github.com/rs/zerolog"
@@ -69,7 +70,9 @@ func main() {
 	}
 
 	// Connect to Wotan
-	client, err := wotanClient.NewClient(wotanAddress)
+	// gRPC for the timeline stream, HTTP polling only while gRPC is down
+	// (ADR-147 Phase 6); WOTAN_GRPC_ADDR, else the WOTAN_ADDRESS host on 18001.
+	client, err := wotanClient.NewClientWithGRPC(wotanAddress, transport.WotanGRPCAddr(wotanAddress, os.Getenv("WOTAN_GRPC_ADDR")))
 	if err != nil {
 		log.Warn().Err(err).Msg("failed to create wotan client, running without pub/sub")
 	}

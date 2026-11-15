@@ -23,7 +23,6 @@ func createTestServer(t *testing.T) *Server {
 		Port:            "8080",
 		TimeGuruAddr:    "localhost:9091",
 		WotanAddr:       "localhost:9090",
-		DataDir:         t.TempDir(),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
@@ -164,7 +163,6 @@ func TestNewServer_ValidConfig(t *testing.T) {
 		Port:            "8080",
 		TimeGuruAddr:    "localhost:9091",
 		WotanAddr:       "localhost:9090",
-		DataDir:         t.TempDir(),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
@@ -566,7 +564,7 @@ func TestE2E_TaskLifecycle(t *testing.T) {
 // carries no cards (S-TWO-BRAINS Step 426).
 func TestNewServer_NoGenesisFileStartsEmpty(t *testing.T) {
 	t.Setenv(GenesisFileEnv, "")
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()

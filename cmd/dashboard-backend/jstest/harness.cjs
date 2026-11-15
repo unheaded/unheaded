@@ -42,9 +42,12 @@ global.window = { addEventListener(){}, location: { protocol: 'http:', host: 'x'
 global.location = window.location; global.requestAnimationFrame = () => 0; global.localStorage = { getItem(){ return null; }, setItem(){} };
 global.navigator = {};
 const intervals = {}; const fetched = [];
-global.setInterval = (fn, ms) => { (intervals[fn.name || ('anon' + ms)] ||= []).push(fn); return 1; };
-global.setTimeout = () => 1; global.clearTimeout = () => {}; global.clearInterval = () => {};
-let ws; global.WebSocket = class { constructor(u) { ws = this; } send(){} close(){} };
+// live holds the intervals not cleared, by id: fireIntervals() runs one
+// round of them, as time passing would (logged_out.cjs).
+let nextInterval = 0; const live = new Map();
+global.setInterval = (fn, ms) => { (intervals[fn.name || ('anon' + ms)] ||= []).push(fn); live.set(++nextInterval, fn); return nextInterval; };
+global.setTimeout = () => 1; global.clearTimeout = () => {}; global.clearInterval = id => { live.delete(id); };
+let ws; global.WebSocket = class { constructor(u) { ws = this; this.closed = false; } send(){} close(){ this.closed = true; } };
 let routes = {};
 global.fetch = url => { fetched.push(url);
   const key = Object.keys(routes).find(k => url.startsWith(k));
@@ -57,6 +60,6 @@ async function settle() { for (let i = 0; i < 5; i++) await tick(); }
 const text = id => (els[id] ? String(els[id].textContent) : '(none)');
 let fails = 0;
 const check = (name, got, want) => { const ok = got === want; if (!ok) fails++; console.log((ok ? 'ok   ' : 'FAIL ') + name + ': ' + JSON.stringify(got) + (ok ? '' : ' want ' + JSON.stringify(want))); };
-module.exports = { run: async (setup) => { routes = setup.routes; eval(src); await settle(); await setup.steps({ intervals, fetched, text, check, settle, ws: () => ws, advance: ms => { now += ms; }, setRoute: (k, f) => { routes[k] = f; },
+module.exports = { run: async (setup) => { routes = setup.routes; eval(src); await settle(); await setup.steps({ intervals, fetched, text, check, settle, ws: () => ws, advance: ms => { now += ms; }, fireIntervals: () => [...live.values()].forEach(fn => fn()), liveIntervals: () => live.size, setRoute: (k, f) => { routes[k] = f; },
     clickTab: page => tabHandlers.forEach(fn => fn.call({ dataset: { page } })), html: id => (els[id] ? String(els[id].innerHTML) : '(none)'),
     rows: id => (els[id] ? els[id].children.length : 0), prop: (id, k) => (els[id] ? els[id][k] : undefined) }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };

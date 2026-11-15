@@ -1,4 +1,4 @@
-.TH UPC\-CARTRIDGECTL 1 "2026-11-05" "unheaded ad26fe56" "Unheaded Kingdom"
+.TH UPC\-CARTRIDGECTL 1 "2026-11-15" "unheaded 3162eaa0" "Unheaded Kingdom"
 .SH NAME
 upc\-cartridgectl \- Register, sign, load and swap UPC cartridges on the pinned cartridge interpreter.
 .SH SYNOPSIS
@@ -65,7 +65,7 @@ pinned ML\-DSA\-65 public key that cartridge seals must verify against
 file\-backed registry: records + content\-addressed images (0700) (default /var/lib/unheaded/cartridges)
 .TP
 .B \-\-sophia \fISTRING\fR
-Sophia base URL: keep records in Sophia (namespace cartridge; x\-cartridge records still read); SOPHIA_TOKEN = bearer token
+refused: the Sophia service was removed (ADR\-147 decision 7); records live in \-\-registry\-dir
 .TP
 .B \-h, \-\-help
 display this help and exit

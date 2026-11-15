@@ -53,8 +53,6 @@ Host-A (Forge)                          Host-B (Outpost)
 Complete deployment of the Unheaded Kingdom system:
 
 **Core Infrastructure:**
-- `monad` — Central coordination
-- `sophia` — Knowledge graph
 - `shield` — Network security (eBPF)
 - `unheaded-daemon` — Core daemon (eBPF)
 
@@ -66,7 +64,7 @@ Complete deployment of the Unheaded Kingdom system:
 - `dashboard-backend` — Metrics API
 
 **Application Services:** built from the root `Dockerfile`'s stages
-(`wotan`, `timeguru`, `captain`, `architect`, `micromanager`, `kanban-app`, ...).
+(`wotan`, `timeguru`, `kanban-app`, ...). architect, captain, micromanager and the monad and sophia services were removed in 2026-11 (ADR-147) and archived in `unheaded-role-services`.
 
 #### Host-B (Outpost) — Minimal Suite
 Edge compute deployment with critical services only:
@@ -128,7 +126,7 @@ cd /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker
 make build
 
 # Or build single service
-make build-svc SERVICE=monad
+make build-svc SERVICE=protocol-api
 
 ```
 
@@ -158,8 +156,6 @@ make status
 Expected output:
 ```
 → Unheaded service status:
-unheaded-monad                  Up 2 minutes
-unheaded-sophia                 Up 2 minutes
 ...
 unheaded-wireguard              Up 2 minutes
 ```
@@ -241,14 +237,14 @@ WG_SERVERURL=<host-a-ip-or-fqdn>  # For client configuration
 **Building:**
 ```bash
 make build                          # Build all 7 services under services/
-make build-svc SERVICE=monad        # Build single service
+make build-svc SERVICE=protocol-api        # Build single service
 ```
 
 **Running:**
 ```bash
 make down                           # Stop all services
 make status                         # Show container health
-make logs SERVICE=monad             # Follow service logs
+make logs SERVICE=protocol-api             # Follow service logs
 ```
 
 **Registry:**
@@ -279,9 +275,9 @@ docker build \
 cd /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker
 docker build \
   --build-arg VERSION=dev \
-  --build-arg SERVICE=monad \
-  -f services/monad/Dockerfile \
-  -t unheaded-monad:dev \
+  --build-arg SERVICE=protocol-api \
+  -f services/protocol-api/Dockerfile \
+  -t unheaded-protocol-api:dev \
   ../
 ```
 
@@ -440,7 +436,7 @@ Disadvantages:
 
 Resource limits via `systemd.slices`:
 ```nix
-systemd.slices."unheaded-monad" = {
+systemd.slices."unheaded-protocol-api" = {
   sliceConfig = {
     MemoryAccounting = true;
     MemoryMax = "2G";
@@ -544,7 +540,7 @@ healthcheck:
 
 **View health status:**
 ```bash
-docker inspect --format='{{json .State.Health}}' unheaded-monad | jq
+docker inspect --format='{{json .State.Health}}' unheaded-protocol-api | jq
 ```
 
 ### Logs
@@ -560,9 +556,9 @@ logging:
 
 **View logs:**
 ```bash
-make logs SERVICE=monad          # Follow live logs
-docker logs unheaded-monad       # Show all logs
-docker logs --tail 100 unheaded-monad  # Last 100 lines
+make logs SERVICE=protocol-api          # Follow live logs
+docker logs unheaded-protocol-api       # Show all logs
+docker logs --tail 100 unheaded-protocol-api  # Last 100 lines
 ```
 
 ### Metrics (Prometheus)
@@ -590,13 +586,13 @@ scrape_configs:
 
 ```bash
 # Check logs
-docker logs unheaded-monad
+docker logs unheaded-protocol-api
 
 # Inspect container state
-docker inspect unheaded-monad | jq '.State'
+docker inspect unheaded-protocol-api | jq '.State'
 
 # Check resource constraints
-docker stats unheaded-monad
+docker stats unheaded-protocol-api
 ```
 
 ### WireGuard Connection Issues
@@ -632,10 +628,10 @@ docker exec unheaded-vllm-deepseek python3 -c "import torch; print(torch.cuda.is
 docker stats --no-stream | head -20
 
 # Increase memory limit
-docker update --memory 16g unheaded-monad
+docker update --memory 16g unheaded-protocol-api
 
 # Check for OOM kills
-docker inspect unheaded-monad | jq '.State.OOMKilled'
+docker inspect unheaded-protocol-api | jq '.State.OOMKilled'
 ```
 
 ### Network Connectivity
@@ -645,10 +641,10 @@ docker inspect unheaded-monad | jq '.State.OOMKilled'
 docker network inspect unheaded_unheaded
 
 # Verify DNS resolution
-docker exec unheaded-monad getent hosts unheaded-sophia
+docker exec unheaded-protocol-api getent hosts unheaded-dashboard-backend
 
 # Test port connectivity
-docker exec unheaded-monad curl -v http://unheaded-sophia:8000/health
+docker exec unheaded-protocol-api curl -v http://unheaded-dashboard-backend:8080/health
 ```
 
 ## Production Deployment
@@ -732,15 +728,15 @@ docker compose -f unheaded-compose-backup.yml up -d
 
 ```bash
 # Run single service locally
-docker build -t unheaded-monad:test .
+docker build -t unheaded-protocol-api:test .
 docker run -it --rm \
   --network unheaded_unheaded \
-  unheaded-monad:test \
+  unheaded-protocol-api:test \
   /bin/bash
 
 # Debug container
-docker exec -it unheaded-monad /bin/bash
-docker run -it --rm --entrypoint /bin/bash unheaded-monad:test
+docker exec -it unheaded-protocol-api /bin/bash
+docker run -it --rm --entrypoint /bin/bash unheaded-protocol-api:test
 ```
 
 ## References

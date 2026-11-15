@@ -179,7 +179,7 @@ func TestInitPKI(t *testing.T) {
 	}
 
 	// Spot-check a few service cert files from DefaultServices.
-	for _, svc := range []string{"gateway", "wotan", "monad", "sophia"} {
+	for _, svc := range []string{"gateway", "wotan", "timeguru", "kanban-app"} {
 		crtPath := filepath.Join(dir, svc+".crt")
 		keyPath := filepath.Join(dir, svc+".key")
 		if _, err := os.Stat(crtPath); err != nil {

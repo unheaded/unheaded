@@ -73,7 +73,7 @@ func TestEveryDiscoveryCallerReports(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if callers < 11 {
-		t.Fatalf("found %d discovery.Start callers; the walk is broken (12 on 2026-10-27)", callers)
+	if callers < 6 {
+		t.Fatalf("found %d discovery.Start callers; the walk is broken (12 on 2026-10-27, 7 after the role services left, ADR-147)", callers)
 	}
 }

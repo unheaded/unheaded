@@ -117,9 +117,8 @@ func TestHostServices_Entries(t *testing.T) {
 	}
 	// Ports come from pkg/ports, not from a second list.
 	for name, want := range map[string]int{
-		"wotan": ports.WotanHTTP, "timeguru": ports.Timeguru, "captain": ports.Captain,
-		"architect": ports.Architect, "micromanager": ports.Micromanager, "akira": ports.Akira,
-		"monad": ports.Monad, "sophia": ports.Sophia, "cuirass": ports.Cuirass,
+		"wotan": ports.WotanHTTP, "timeguru": ports.Timeguru, "akira": ports.Akira,
+		"cuirass":           ports.Cuirass,
 		"dashboard-backend": ports.DashboardBackend, "kanban-app": ports.KanbanApp,
 		"logstore-writer": ports.LogstoreWriter, "sword": ports.Sword,
 	} {
@@ -241,7 +240,7 @@ func TestRepoCatalog_AuthnReadsEveryHostService(t *testing.T) {
 			hosts[host] = true
 		}
 	}
-	if len(want) < 12 {
+	if len(want) < 6 { // 12 until the five role services left and Cuirass went behind a profile (ADR-147 decisions 7, 14)
 		t.Fatalf("the table gives only %d host-service refs", len(want))
 	}
 	for _, ctl := range c.Controls {

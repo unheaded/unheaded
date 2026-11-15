@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Fixture for scripts/test-prom-keep-list.sh: one expression with every part
+# the generator must strip (functions, aggregation, label matchers, ranges,
+# vector matching, a recorded series).
+groups:
+  - name: fixture
+    rules:
+      - alert: Fixture
+        expr: sum by (job) (rate(foo_total{a="b"}[5m])) / on(job) group_left bar_seconds_count > 0 and absent(baz) unless ignoring(x) qux:ratio5m

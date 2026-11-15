@@ -24,9 +24,6 @@ nix/
 ├── containers/
 │   ├── wotan.nix              # Message hub (10.10.10.10)
 │   ├── timeguru-service.nix    # Timeline service (10.10.10.20)
-│   ├── captain-service.nix     # Strategy service (10.10.10.21)
-│   ├── micromanager-service.nix # Execution service (10.10.10.22)
-│   ├── architect-service.nix   # Design service (10.10.10.23)
 │   ├── developer-service.nix   # Dev service (10.10.10.24)
 │   ├── wotan-service.nix      # Legacy compatibility (10.10.10.25)
 │   ├── kanban-app.nix          # Kanban board (10.10.10.200)
@@ -50,9 +47,6 @@ nix/
 nix build \
   .#nixosConfigurations.wotan.config.system.build.toplevel \
   .#nixosConfigurations.timeguru.config.system.build.toplevel \
-  .#nixosConfigurations.captain.config.system.build.toplevel \
-  .#nixosConfigurations.micromanager.config.system.build.toplevel \
-  .#nixosConfigurations.architect.config.system.build.toplevel \
   .#nixosConfigurations.developer.config.system.build.toplevel \
   .#nixosConfigurations.kanban.config.system.build.toplevel \
   .#nixosConfigurations.dashboard.config.system.build.toplevel
@@ -88,11 +82,6 @@ nix run .#deploy
 | Service | IP | Port | Role |
 |---------|-----|------|------|
 | timeguru | 10.10.10.20 | 19000 | Timeline tracking |
-| architect | 10.10.10.23 | 19001 | Infrastructure design |
-| captain | 10.10.10.21 | 19002 | Strategic planning |
-| micromanager | 10.10.10.22 | 19003 | Execution tracking |
-| monad | 10.10.10.24 | 19004 | Unified state management |
-| sophia | 10.10.10.25 | 19005 | Knowledge graph |
 
 All services:
 - Depend on wotan
@@ -305,9 +294,6 @@ Expected startup times (cold start):
 |-----------|--------|-----|
 | wotan | ~100MB | ~2% |
 | timeguru | ~50MB | ~1% |
-| captain | ~50MB | ~1% |
-| micromanager | ~50MB | ~1% |
-| architect | ~50MB | ~1% |
 | developer | ~50MB | ~1% |
 | kanban | ~80MB | ~2% |
 | dashboard | ~150MB | ~5% (WebSocket) |

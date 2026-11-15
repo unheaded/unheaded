@@ -1870,7 +1870,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:187:proxy-image",
+      "bom-ref": "docker-compose.yml:173:proxy-image",
       "name": "Traefik edge (traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1905,13 +1905,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:187"
+          "value": "docker-compose.yml:173"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:397:postgres-image",
+      "bom-ref": "docker-compose.yml:383:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1951,7 +1951,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:397"
+          "value": "docker-compose.yml:383"
         }
       ]
     },
@@ -4205,7 +4205,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/wotan-client/grpc_client.go:68:tls-config",
+      "bom-ref": "pkg/wotan-client/grpc_client.go:74:tls-config",
       "name": "TLS config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -4245,7 +4245,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/wotan-client/grpc_client.go:68"
+          "value": "pkg/wotan-client/grpc_client.go:74"
         }
       ]
     },
@@ -4664,48 +4664,6 @@
         {
           "name": "unheaded:source",
           "value": "services/shield/pqc_security.go:14"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "services/sophia/hkdf_derive.go:28:own-primitive",
-      "name": "HKDF-SHA-256 (hand-written on crypto/hmac, RFC 5869)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "kdf",
-          "parameterSetIdentifier": "HKDF-SHA-256"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "extract and expand written here on the standard library's HMAC"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "source"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "services/sophia/hkdf_derive.go:28"
         }
       ]
     },

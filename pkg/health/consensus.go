@@ -55,6 +55,9 @@ type Verdict struct {
 	// ADR-029), inside the CRITICAL band.
 	Remediate        bool     `json:"remediate"`
 	FailingReporters []string `json:"failing_reporters,omitempty"`
+	// Source is "discovered" for a service Akira checks because it
+	// announced itself (discovery.Watch), empty for a configured one.
+	Source string `json:"source,omitempty"`
 }
 
 // Ballot holds each reporter's latest report per service. Consensus is the

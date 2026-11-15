@@ -50,7 +50,7 @@ Since 2026-11-15 the inventory also lists symmetric encryption, key derivation a
 | `kdf-import` | a Go import of HKDF (`crypto/hkdf`, `x/crypto/hkdf`), Argon2, scrypt, bcrypt or PBKDF2 | `kdf` |
 | `hash-import` | a Go import of SHA-3 (`crypto/sha3`, `x/crypto/sha3`) | `hash` |
 | `rust-crypto-dep` | a `[dependencies]` line in a `Cargo.toml` naming `x25519-dalek`, `aes-gcm`, `chacha20poly1305`, `hkdf`, `sha2`, `sha3` or `blake3` | per crate |
-| `own-primitive` | a primitive written in this repository, from a fixed table in `cmd/crypto-inventory/scan_own.go`: the SHA-256 in `crates/upc-api/src/surface_hash.rs` and the HKDF in `services/sophia/hkdf_derive.go` | `hash`, `kdf` |
+| `own-primitive` | a primitive written in this repository, from a fixed table in `cmd/crypto-inventory/scan_own.go`: the SHA-256 in `crates/upc-api/src/surface_hash.rs` (the HKDF in `services/sophia/hkdf_derive.go` left with the service, ADR-147) | `hash`, `kdf` |
 
 Not listed, on purpose: Go's `crypto/sha256` and `crypto/sha512`. They are digests everywhere they appear here (content ids, cache keys, signature pre-hashes), and a row per import would bury the constructions. A test pins the choice. `crypto/hmac` is not listed either.
 

@@ -483,6 +483,16 @@ provoke_prometheus_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_prom_keep_list() {
+    # Contract (ADR-147 decisions 9, 10): Prometheus keeps only the series
+    # its rules read, so a rule may not read one the keep-list lacks.
+    local f="monitoring/prometheus/rules/wotan.yml"
+    backup "${f}"
+    sed -i 's|(increase(unheaded_wotan_topic_permission_refusals_total\[15m\])) > 0$|(increase(unheaded_wotan_topic_permission_refusals_total[15m])) > 0 or provoke_unlisted_total|' "${REPO_ROOT}/${f}"
+    grep -q ' or provoke_unlisted_total$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -705,7 +715,7 @@ provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
     # honours only the first.
-    local f="deploy/systemd/unheaded-sophia.service"
+    local f="deploy/systemd/unheaded-timeguru.service"
     backup "${f}"
     sed -i 's/^SystemCallFilter=~@privileged @resources @reboot @module @swap$/SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap/' "${REPO_ROOT}/${f}"
     grep -q '^SystemCallFilter=~@privileged ~@resources' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -1106,6 +1116,31 @@ provoke_unit_start_limits() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_ceilings_compose() {
+    # Contract (ADR-147 Phase 14): every compose service built from our
+    # Dockerfile with a memory limit sets GOMEMLIMIT below it. Drop akira's.
+    local f="docker-compose.yml"
+    backup "${f}"
+    awk '/^  akira:$/ {a=1} /^  [a-z][a-z0-9_-]*:$/ && !/^  akira:$/ {a=0} a && /^ *GOMEMLIMIT:/ {next} {print}' \
+        "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_ceilings_compose_yaml() {
+    # Contract (REV-7): a compose file the check cannot parse fails it. The
+    # second file is the one broken: the first's "ok" lines used to carry
+    # the count, and the parser's exit code was lost in a process
+    # substitution, so the check passed.
+    local f="monitoring/docker-compose.yml"
+    backup "${f}"
+    printf 'services:\n  broken: [unclosed\n' >>"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_json_responses() {
     # Contract: no handler encodes JSON to its ResponseWriter. Put one back
     # in Wotan's topic publish, which still imports encoding/json for its
@@ -1333,7 +1368,7 @@ check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its 
 check-log-sources|provoke_log_sources|fast|a systemd unit file with no row in config/logging/sources.yaml
 check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the internal haproxy config's log-format (needs docker)
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
-check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
+check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-timeguru.service
 check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare, restored in unheaded-wotan.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address
@@ -1389,6 +1424,7 @@ well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
+check-prometheus-rules|provoke_prom_keep_list|fast|a rule reads a series the keep-list lacks
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 backup/test-store-backups|provoke_store_backups|slow|clickhouse-drill.sh's SHA256SUMS check made to always pass, so a damaged set drills clean (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
@@ -1414,6 +1450,8 @@ check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, 
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 60; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
 check-unit-start-limits|provoke_unit_start_limits|fast|StartLimitIntervalSec removed from unheaded-kev-poller.service
+check-unit-ceilings|provoke_unit_ceilings_compose|fast|GOMEMLIMIT removed from the akira service
+check-unit-ceilings|provoke_unit_ceilings_compose_yaml|fast|monitoring/docker-compose.yml no longer parses
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)
@@ -1612,7 +1650,12 @@ prepare_gate() {
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
-for name in $(gate_rows | cut -d'|' -f1); do
+# One pass per registry ROW, not per name: a gate with two provocations
+# (check-prometheus-rules, check-unit-ceilings) has two rows, and a lookup by
+# name ran its first one twice (S-WASTE-OUT Phase 14). Rows come on fd 3, so
+# a gate that reads stdin cannot eat them.
+while IFS= read -r entry <&3; do
+    name="${entry%%|*}"
     # A registry name is scripts/<name>.sh, or a repo path without .sh for
     # a gate that lives elsewhere (nix/yggdrasil/scripts/...).
     gate="scripts/${name}.sh"
@@ -1620,7 +1663,6 @@ for name in $(gate_rows | cut -d'|' -f1); do
     [ -f "${gate}" ] || continue
     [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
     prepare_gate "${name}"
-    entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"
 
@@ -1644,7 +1686,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
 
     # Phase 1 — green on a clean tree. If it is already red, the provocation
     # result would be meaningless.
-    log="${GATE_LOG_DIR}/${name//\//_}"
+    log="${GATE_LOG_DIR}/${name//\//_}.${fn}"
     rc=0
     env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
     if [ "${rc}" -ne 0 ]; then
@@ -1682,7 +1724,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
         row_output "${log}.provoked.log"
         FAILURES=$((FAILURES + 1))
     fi
-done
+done 3< <(gate_rows)
 
 # Print these EVERY run. A gate we cannot test is a real gap in coverage, and a
 # gap you cannot see is indistinguishable from one that does not exist.

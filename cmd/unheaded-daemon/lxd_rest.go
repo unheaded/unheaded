@@ -510,13 +510,21 @@ func (c *lxdREST) serverInfo(ctx context.Context) (*lxdServerInfo, error) {
 	return &info, nil
 }
 
+// errNoLXDBackend: Cuirass has no default backend (ADR-147 decisions 7, 14).
+// An unset LXD_BACKEND used to mean the in-memory mock, so a missing variable
+// reconciled nothing and looked healthy.
+var errNoLXDBackend = errors.New("LXD_BACKEND is not set: use https or unix for a real LXD (docker/compose.cuirass-lxd.yml), or mock for tests and dev runs")
+
 // newLXDClient builds the configured backend. For a real one it checks
 // once that LXD answers and trusts this client; a failure is logged, not
 // fatal: reconcile skips cycles (cuirass_lxd_up 0) until LXD answers.
 func newLXDClient(cfg *Config, log *logger.Logger) (LXDClient, error) {
 	rc := LXDRESTConfig{Project: cfg.LXDProject, ProxyListenAddrs: cfg.ProxyListenAddrs}
 	switch cfg.LXDBackend {
-	case "", "mock":
+	case "":
+		return nil, errNoLXDBackend
+	case "mock":
+		log.Warn().Msg("mock LXD backend: nothing here is reconciled against a real LXD")
 		return NewMockLXDClient(log), nil
 	case "unix":
 		rc.Socket = cfg.LXDSocket

@@ -32,11 +32,6 @@ dashboard-backend   ./cmd/dashboard-backend
 kanban-app          ./cmd/kanban-app
 akira               ./cmd/akira
 timeguru            ./services/timeguru/cmd/timeguru
-captain             ./services/captain/cmd/captain
-architect           ./services/architect/cmd/architect
-micromanager        ./services/micromanager/cmd/micromanager
-monad               ./cmd/monad
-sophia              ./cmd/sophia
 huginn              ./cmd/huginn
 trace-collector-go  ./cmd/trace-collector-go
 kev-poller          ./cmd/kev-poller

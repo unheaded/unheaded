@@ -31,7 +31,15 @@ A target with `type: exec` runs a local command instead of an HTTP GET (S-IRON-G
 - `--remediate` never restarts an exec target: it has no unit. At the threshold Akira logs that a human is needed.
 - `--remediate` restarts only a service in this node's own targets. Reports on `system.health.reports` are unsigned, so a verdict on any other name is logged, not acted on: each name at most once an hour, 64 names at a time.
 
-`cert-expiry` (`runbooks/pki/akira-cert-expiry-check.yaml`) is the first: it reads every certificate under `/etc/unheaded/tls/<identity>/` (fallback `/var/lib/unheaded/pki`) and fails at 50 % of lifetime left (WARN), 25 % (ERROR), 10 % or expired (exit 2); at 66 % it reports rotation due and passes. It is read-only: rotation is `runbooks/pki/rotate-service-cert.yaml` (dev: `scripts/gen-dev-certs.sh`). A directory Akira cannot list counts as failing, so certificate directories on hosts must be listable by `unheaded-akira` (certs 0644; keys stay 0640/0600). Hosts run it hourly (`configs/akira-{west,east}.yaml`; the runner ships in `unheaded-configs` at `/opt/unheaded/scripts/`); the compose stack runs it every sweep against each listener's certificate mounted read-only under `/etc/unheaded/tls-watch/`.
+`cert-expiry` (`runbooks/pki/akira-cert-expiry-check.yaml`) is the first: it reads every certificate under `/etc/unheaded/tls/<identity>/` (fallback `/var/lib/unheaded/pki`) and fails at 50 % of lifetime left (WARN), 25 % (ERROR), 10 % or expired (exit 2); at 66 % it reports rotation due and passes. It is read-only: rotation is `runbooks/pki/rotate-service-cert.yaml` (dev: `scripts/gen-dev-certs.sh`). A directory Akira cannot list counts as failing, so certificate directories on hosts must be listable by `unheaded-akira` (certs 0644; keys stay 0640/0600). Hosts run it hourly (`configs/akira-{west,east}.yaml`; the runner ships in `unheaded-configs` at `/opt/unheaded/scripts/`); the compose stack runs it hourly too (ADR-147: every sweep cost 2,880 interpreter starts a day in a 0.10-core container) against each listener's certificate mounted read-only under `/etc/unheaded/tls-watch/`. The compose `akira` service runs with `init: true`, which reaps the exec checks' orphans. Compose probes every first-party container with `healthprobe` every 30 s, 3 retries: unhealthy after 90 s (was 10 s × 5).
+
+## Discovered services
+
+With `discover.subnets` in its config (or `--discover-subnets`), Akira reads
+`system.discovery` and checks every admitted announcement it has no target
+for: sender = the verified identity, address inside the subnets, at most
+256 (`[[Service Discovery|Service-Discovery]]`). A configured target wins
+over a discovered one of the same ballot name. No subnets: off.
 
 ## Bands
 

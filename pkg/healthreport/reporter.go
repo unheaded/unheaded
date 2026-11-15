@@ -234,6 +234,17 @@ func BallotName(displayName string) string {
 	return displayName
 }
 
+// BallotNameOf is the ballot name for a service's display name from the
+// table alone (not this process's HEALTH_REPORT_SERVICE): what a reader of
+// discovery announcements names the service it checks, so a configured
+// target and a discovered one are one ballot entry.
+func BallotNameOf(displayName string) string {
+	if v, ok := ballotNames[displayName]; ok {
+		return v
+	}
+	return displayName
+}
+
 // HostName is $KINGDOM_NODE (the name Akira's --node uses in compose), else
 // the hostname, else "localhost".
 func HostName() string {

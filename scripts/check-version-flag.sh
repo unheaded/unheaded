@@ -15,7 +15,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 # Every main under ./cmd/, plus the service binaries build-binaries.sh ships
-# from services/ (wotan, timeguru, captain, architect, micromanager).
+# from services/ (wotan, timeguru).
 svc_pkgs() { scripts/build-binaries.sh --list | awk '$2 ~ /^\.\/services\// {print $2}'; }
 mains() {
 	go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/... | sed 's#.*/##'

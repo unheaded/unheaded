@@ -23,6 +23,7 @@ func TestLateWotan_Gateway(t *testing.T) {
 	cfg.Auth.Enabled = false
 	cfg.Wotan.Enabled = true
 	cfg.Wotan.URL = fake.Addr
+	cfg.Wotan.GRPCAddr = "127.0.0.1:1" // the fake is HTTP only: gRPC refused, streams take the HTTP fallback
 	gw, err := New(cfg, newTestLogger())
 	if err != nil {
 		t.Fatal(err)

@@ -79,6 +79,9 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       # 30d: the SLOs' error budgets are over 28 days (observability/alerting/policy.yaml).
+      # Of only the series the rules read (prometheus.yml's rule-series keep,
+      # scripts/gen-prom-keep-list.py); everything else is VictoriaMetrics'
+      # alone (ADR-147 decisions 9, 10).
       - '--storage.tsdb.retention.time=30d'
       # No --web.enable-admin-api / --web.enable-lifecycle: 9090 is published
       # and those APIs have no auth (delete series, snapshots, /-/quit). Reload
@@ -176,6 +179,16 @@ services:
       ALERT_MAIL_TO: ${ALERT_MAIL_TO:-}
       HEARTBEAT_HOSTS: ${HEARTBEAT_HOSTS:-}
       HEARTBEAT_TOKEN_FILE: /run/secrets/alert-mailer/heartbeat-token
+      # alerts.critical on Wotan (ADR-147 Phase 8): off until enrolled. Set
+      # ALERT_MAILER_WOTAN_ADDR=http://[fd00:dead:beef::1]:18000 (gRPC: the
+      # same host on 18001, the overlay bind on wotan), give the container
+      # its service key (AUTH_KEY_FILE, svc_key_alert-mailer) and
+      # ALERTS_SIGNING_KEY_FILE. ALERTS_SIGNING_KEY_FILE is not set here:
+      # without it alerts.critical is refused, never sent unsigned (enrol
+      # per deployment).
+      WOTAN_ADDR: ${ALERT_MAILER_WOTAN_ADDR:-}
+      WOTAN_GRPC_ADDR: ${ALERT_MAILER_WOTAN_GRPC_ADDR:-}
+      GOMEMLIMIT: "54MiB"
     volumes:
       - ../observability/alerting/policy.yaml:/etc/alert-mailer/policy.yaml:ro
       - alert_mailer_data:/var/lib/alert-mailer

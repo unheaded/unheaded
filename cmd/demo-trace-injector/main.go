@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // demo-trace-injector — publishes realistic synthetic eBPF trace events to the
-// Wotan topics the dashboard ingestor consumes (ebpf.flow.events /
-// ebpf.latency.events / ebpf.packet.events), so the Flow Graph, Latency, and
+// Wotan topics the dashboard ingestor consumes (traces.flow /
+// traces.latency / traces.packet), so the Flow Graph, Latency, and
 // Events dashboard tabs show live data for a demo/README GIF when the real XDP
 // trace pipeline isn't running on this host.
 //
@@ -125,7 +125,7 @@ func main() {
 		log.Fatalf("wotan client: %v", err)
 	}
 	ctx := context.Background()
-	topics := []string{"ebpf.flow.events", "ebpf.latency.events", "ebpf.packet.events"}
+	topics := []string{"traces.flow", "traces.latency", "traces.packet"}
 	for _, t := range topics {
 		if _, err := c.Subscribe(ctx, t, "trace-collector"); err != nil {
 			log.Printf("subscribe %s: %v", t, err)
@@ -163,7 +163,7 @@ func main() {
 				},
 				EventType: "update",
 			}
-			publish(ctx, c, "ebpf.flow.events", fe)
+			publish(ctx, c, "traces.flow", fe)
 
 			// A couple of packet events per flow (feeds Events + packet counters).
 			for p := 0; p < 2; p++ {
@@ -183,7 +183,7 @@ func main() {
 						LatencyHintNs: uint32(rand.Intn(400000) + 50000), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					},
 				}
-				publish(ctx, c, "ebpf.packet.events", pe)
+				publish(ctx, c, "traces.packet", pe)
 			}
 			pubs++
 		}
@@ -197,7 +197,7 @@ func main() {
 					LatencyNs: lo.base + uint64(rand.Int63n(int64(lo.span))), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					Operation: lo.op,
 				}
-				publish(ctx, c, "ebpf.latency.events", le)
+				publish(ctx, c, "traces.latency", le)
 			}
 		}
 

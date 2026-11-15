@@ -12,6 +12,8 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
 
+**Prometheus keeps what its rules read (ADR-147 decisions 9, 10).** Every scrape job in `monitoring/prometheus/prometheus.yml` but `prometheus` and `alert-mailer` carries a `metric_relabel_configs` keep generated from the rules (`monitoring/prometheus/rule-series.txt`, 42 series on 2026-11-15); 30 days of those, nothing else. After adding a rule that reads a new series: `python3 scripts/gen-prom-keep-list.py`. `scripts/check-prometheus-rules.sh` runs `--check` first and fails until you do; a reader of Prometheus' own API that needs a series no rule reads lists it in `monitoring/prometheus/keep-extra.txt`. `up` and `scrape_*` are made by Prometheus and always kept.
+
 ## Urgency
 
 Every alert carries `urgency`:

@@ -203,6 +203,12 @@ func (n *NativeBPFLoader) GetStatsMap() MapReader {
 	return n.mapReader("flow_tracker", "FLOW_STATS")
 }
 
+// GetPacketMarkerStatsMap returns a reader for packet_marker's STATS
+// (key 8: failed FLOW_STATE inserts).
+func (n *NativeBPFLoader) GetPacketMarkerStatsMap() MapReader {
+	return n.mapReader("packet_marker", "STATS")
+}
+
 // GetFlowStateMap returns a reader for the flow_tracker FLOWS map.
 func (n *NativeBPFLoader) GetFlowStateMap() MapReader {
 	return n.mapReader("flow_tracker", "FLOWS")

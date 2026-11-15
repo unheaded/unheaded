@@ -370,24 +370,6 @@ else
   json_add_result "wotan_health" "FAIL"
 fi
 
-print_check "Sophia service health (curl localhost:19005/health)"
-if curl -s http://localhost:19005/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
-  pass
-  json_add_result "sophia_health" "PASS"
-else
-  fail
-  json_add_result "sophia_health" "FAIL"
-fi
-
-print_check "Monad service health (curl localhost:19004/health)"
-if curl -s http://localhost:19004/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
-  pass
-  json_add_result "monad_health" "PASS"
-else
-  fail
-  json_add_result "monad_health" "FAIL"
-fi
-
 # No shield or gateway service exists in docker-compose.yml; traefik is the
 # stack's gateway, and it answers /ping on its web entrypoint.
 print_check "Gateway (traefik) ping (curl localhost:${TRAEFIK_HTTP_PORT:-80}/ping)"

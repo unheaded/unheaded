@@ -31,7 +31,8 @@ type BPFLoader interface {
 	// GetStatsMap returns a reader for flow_tracker's FLOW_STATS counters.
 	GetStatsMap() MapReader
 
-	// GetFlowStateMap returns a reader for the FLOW_STATE map.
+	// GetFlowStateMap returns a reader for flow_tracker's FLOWS map (not
+	// packet_marker's FLOW_STATE, which nothing reads: ADR-147 decision 19).
 	GetFlowStateMap() MapReader
 
 	// GetLatencyMap returns a reader for the LATENCY_MAP.

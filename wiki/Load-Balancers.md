@@ -50,8 +50,6 @@ See [full comparison table](../docs/infrastructure/LOAD_BALANCERS.md#interchange
 | Sidecar | Port | Upstream Service | Upstream Port |
 |---------|------|-----------------|---------------|
 | nginx-wotan | 18080 | wotan | 18000 |
-| nginx-monad | 19080 | monad | 19004 |
-| nginx-sophia | 19081 | sophia | 19005 |
 | nginx-dashboard | 20080 | dashboard | 20000 |
 | nginx-kanban | 20081 | kanban | 20001 |
 | nginx-gateway | 21090 | gateway | 21000 |

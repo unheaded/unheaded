@@ -7,7 +7,6 @@
 # Notes from first run:
 #   - containerd network must NOT use 10.10.10.0/24 (conflicts with LXD bridge)
 #   - timeguru needs writable /tmp workdir (uses ./data/ relative path)
-#   - captain needs writable /var/lib/unheaded
 #   - Docker image names are "unheaded-dev-<svc>" from compose build
 
 set -euo pipefail
@@ -38,7 +37,7 @@ tc_ok "containerd is active"
 tc_log "4.1 Importing Docker images into containerd..."
 
 cd "${PROJECT_ROOT}"
-OCI_TARGETS=(wotan timeguru captain architect micromanager monad sophia dashboard-backend kanban-app)
+OCI_TARGETS=(wotan timeguru dashboard-backend kanban-app)
 
 for target in "${OCI_TARGETS[@]}"; do
     tc_log "  Importing unheaded-dev-${target}..."
@@ -61,11 +60,6 @@ tc_log "4.3 Starting WEST services via nerdctl..."
 declare -A SVC_PORTS=(
     [wotan]="-p 18000:18000 -p 18001:18001"
     [timeguru]="-p 19000:19000"
-    [architect]="-p 19001:19001"
-    [captain]="-p 19002:19002"
-    [micromanager]="-p 19003:19003"
-    [monad]="-p 19004:19004"
-    [sophia]="-p 19005:19005"
     [dashboard-backend]="-p 20000:20000"
     [kanban-app]="-p 20001:20001"
 )
@@ -80,15 +74,13 @@ sudo nerdctl run -d --name unheaded-wotan --network unheaded \
 
 wait_for_health "http://localhost:18000/health" 30 && tc_ok "Wotan healthy" || tc_warn "Wotan slow to start"
 
-# Remaining services — timeguru and captain need writable dirs
-for svc in timeguru captain architect micromanager monad sophia dashboard-backend kanban-app; do
+# Remaining services — timeguru needs writable dirs
+for svc in timeguru dashboard-backend kanban-app; do
     tc_log "  Starting ${svc}..."
     extra_args=""
-    # timeguru uses ./data/ relative path, captain uses /var/lib/unheaded
+    # timeguru uses ./data/ relative path
     if [[ "$svc" == "timeguru" ]]; then
         extra_args="--tmpfs /tmp --tmpfs /data --tmpfs /var/lib/unheaded -w /tmp"
-    elif [[ "$svc" == "captain" ]]; then
-        extra_args="--tmpfs /var/lib/unheaded --tmpfs /data"
     fi
 
     # SVC_PORTS entries and extra_args are argument lists; they must word-split.

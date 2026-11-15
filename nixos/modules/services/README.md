@@ -1,12 +1,12 @@
 # Unheaded Kingdom Services Module
 
-This directory contains 25 NixOS systemd service modules for the Unheaded Kingdom project.
+This directory contains 20 NixOS systemd service modules for the Unheaded Kingdom project.
 
 ## Services by Layer
 
-### Layer 1: Core Services (5 services)
-- `monad.nix` - Monad register (20-byte IPv6 HbH extension header) [gRPC :50051]
-- `sophia.nix` - Sophia BPF dictionary maps [gRPC :50052]
+architect, captain, micromanager and the monad and sophia service modules were removed in 2026-11 (ADR-147 decision 7) and archived in `unheaded-role-services`; ports 50051, 50052, 50058, 50059 and 50061 are retired.
+
+### Layer 1: Core Services (3 services)
 - `wotan.nix` - Wotan message bus & event broker (NATS) [gRPC :50053, NATS :4222]
 - `anamnesis.nix` - Anamnesis event log & stream [gRPC :50054]
 - `shield.nix` - Shield eBPF policy enforcement [gRPC :50055]
@@ -28,11 +28,8 @@ This directory contains 25 NixOS systemd service modules for the Unheaded Kingdo
 ### Layer 6: Red Team & Security (1 service)
 - `lich.nix` - Lich automated adversary & red team continuous [internal]
 
-### Layer 7: Strategy & Leadership (5 services)
-- `captain.nix` - Captain executive strategy [gRPC :50058]
-- `micromanager.nix` - Micromanager engineering leadership [gRPC :50059]
+### Layer 7: Strategy & Leadership (2 services)
 - `timeguru.nix` - Timeguru timeline & roadmap [gRPC :50060, HTTP :8600]
-- `architect.nix` - Architect infrastructure architecture [gRPC :50061]
 - `developer.nix` - Developer development assistance [gRPC :50062]
 
 ### Layer 8: Coordination & Organization (4 services)
@@ -56,8 +53,6 @@ imports = [ ./modules/services ];
 Then enable individual services:
 
 ```nix
-services.unheaded.monad.enable = true;
-services.unheaded.sophia.enable = true;
 services.unheaded.wotan.enable = true;
 # ... etc for other services
 ```
@@ -65,17 +60,12 @@ services.unheaded.wotan.enable = true;
 ## Port Allocation Summary
 
 ### gRPC Ports (Port Range 50051-50067)
-- 50051: monad
-- 50052: sophia
 - 50053: wotan
 - 50054: anamnesis
 - 50055: shield
 - 50056: protocol-api
 - 50057: service-discovery
-- 50058: captain
-- 50059: micromanager
 - 50060: timeguru
-- 50061: architect
 - 50062: developer
 - 50063: lore
 - 50064: busboy
@@ -122,10 +112,9 @@ services.unheaded.wotan.enable = true;
 - lore (naming lookups)
 
 ### Small (512M memory, 200% CPU)
-- Most gRPC services: monad, protocol-api, gateway, etc.
+- Most gRPC services: protocol-api, gateway, etc.
 
 ### Medium (768M memory, 200-300% CPU)
-- Sophia (BPF dictionary operations)
 - Developer (development assistance)
 - Blackmage (security operations)
 - Trace-collector (trace processing)
@@ -144,7 +133,7 @@ services.unheaded.wotan.enable = true;
 All services follow the naming convention: `unheaded-<servicename>`
 
 Examples:
-- `systemctl status unheaded-monad`
+- `systemctl status unheaded-timeguru`
 - `systemctl start unheaded-wotan`
 - `systemctl logs unheaded-shield`
 
@@ -153,8 +142,6 @@ Examples:
 Each service exports environment variables prefixed with its service name in uppercase:
 
 Examples from services:
-- MONAD_PORT, MONAD_LOG_LEVEL, WOTAN_ADDR
-- SOPHIA_PORT, SOPHIA_LOG_LEVEL
 - WOTAN_GRPC_PORT, WOTAN_NATS_PORT, WOTAN_LOG_LEVEL
 - SHIELD_PORT, SHIELD_LOG_LEVEL
 - DASHBOARD_HTTP_PORT, DASHBOARD_LOG_LEVEL

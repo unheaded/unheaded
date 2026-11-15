@@ -12,8 +12,6 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `sword` | Deploys through Cuirass (`:19011`, compose profile `deploy`): rolling, blue-green, canary with analysis from instance metrics and the Kingdom SLO guard, rollback to the previous success; history in `SWORD_DATA_DIR` | [[Service-Sword]] |
 | `dashboard-backend` | Metrics + WebSocket backend for the live dashboard (`:20000`) | [[Service-Dashboard-Backend]] |
 | `kanban-app` | Task board backed by The Well | [[Service-Kanban-App]] |
-| `monad` | HTTP API for the Monad state service | [[Protocol-Technical-Summary]] |
-| `sophia` | Knowledge graph + microcode ROM API | [[Sophia-Dictionaries]] |
 | `protocol-api` | Monad encode/decode/validate, Sophia dictionary listing, Anamnesis events | [[Protocol-Specs]] |
 | `unheaded-daemon` | Control plane: drift detection + reconciliation | [[Architecture]] |
 | `shield` | Shield gateway daemon (Go): evaluates requests against its rule set, zero-trust ingress checks (`:19009`, loopback) | [[Security]] |
@@ -24,7 +22,7 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `alert-mailer` | The only alert mail sender: pages at once, tickets as a daily digest, daily cap, dry-run mode (`:19130`) | [[Alerting]] |
 | `wiki-server` | Renders this wiki (`:20002`): a host unit, `unheaded-wiki-server.service`, over TLS and behind the dashboard's login when an issuer is configured (2026-11-11). A link from a page into the rest of the repository goes to GitHub, and a link written `Page.md` opens the page (the files keep that form for GitHub's own view). With `--vor-url`, vor answers a search box (`/search`: wiki pages, vor sheets, and `docs/` files linked on GitHub; a search term must start a word, so `ccna` does not find `KRB5CCNAME`), `/sheets` (vor's sheets by category) and `/sheet/<category>/<name>` (a sheet's name is unique only within its category; `/sheet/<name>` still answers for a name only one sheet has); links between sheets open the sheet; without `--vor-url` none of them exist. `TestEveryWikiLinkResolves` fails on a wiki link that leads nowhere. The menu to the other apps comes from `/auth/nav.js` (`pkg/bff`), the same script every page loads | — |
 
-Timeguru, Captain, Architect and Micromanager build from `services/<name>`: [[Service-Timeguru]], [[Service-Captain]], [[Service-Architect]], [[Service-Micromanager]].
+Timeguru builds from `services/timeguru`: [[Service-Timeguru]]. architect, captain, micromanager and the monad and sophia services were removed in 2026-11 (ADR-147) and archived in `unheaded-role-services`.
 
 ## Observability and eBPF
 

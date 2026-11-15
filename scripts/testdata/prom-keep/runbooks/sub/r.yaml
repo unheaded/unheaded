@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Fixture for scripts/test-prom-keep-list.sh: a runbook that reads
+# Prometheus' API. Its series must be kept like a rule's (REV-6).
+verification:
+  - name: reads-prometheus
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum(runbook_only_total{a="b"}) > 0' |
+        python3 -c 'import sys; print(sys.stdin.read())'
+      curl -s 'http://127.0.0.1:9090/api/v1/query?query=other_gauge' | head -1
+      curl -s 'http://127.0.0.1:8428/api/v1/query' --data-urlencode 'query=victoria_only_series'

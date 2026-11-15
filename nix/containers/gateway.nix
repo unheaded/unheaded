@@ -14,11 +14,6 @@
   # Proxies to:
   #   - Wotan (10.10.10.10:18001) - Message bus gRPC
   #   - Timeguru (10.10.10.20:19000) - Timeline API
-  #   - Captain (10.10.10.21:19002) - Captain service
-  #   - Micromanager (10.10.10.22:19003) - Micromanager service
-  #   - Architect (10.10.10.23:19001) - Architect service
-  #   - Monad (10.10.10.27:19004) - Monad service
-  #   - Sophia (10.10.10.26:19005) - Sophia service
   #   - Kanban (10.10.10.200:20001) - Kanban application
   #   - Dashboard (10.10.10.201:20000) - Dashboard application
   #   - Cuirass (10.10.10.5:19006) - Control plane API
@@ -90,11 +85,6 @@
     dependencies = [
       { name = "wotan"; ip = "10.10.10.10"; port = 18000; path = "/health"; }
       { name = "timeguru"; ip = "10.10.10.20"; port = 19000; path = "/health"; }
-      { name = "captain"; ip = "10.10.10.21"; port = 19002; path = "/health"; }
-      { name = "micromanager"; ip = "10.10.10.22"; port = 19003; path = "/health"; }
-      { name = "architect"; ip = "10.10.10.23"; port = 19001; path = "/health"; }
-      { name = "monad"; ip = "10.10.10.27"; port = 19004; path = "/health"; }
-      { name = "sophia"; ip = "10.10.10.26"; port = 19005; path = "/health"; }
       { name = "kanban"; ip = "10.10.10.200"; port = 20001; path = "/health"; }
       { name = "dashboard"; ip = "10.10.10.201"; port = 20000; path = "/health"; }
       { name = "cuirass"; ip = "10.10.10.5"; port = 19006; path = "/health"; }
@@ -185,31 +175,6 @@
 
       upstream timeguru_backend {
         server 10.10.10.20:19000;
-        keepalive 32;
-      }
-
-      upstream captain_backend {
-        server 10.10.10.21:19002;
-        keepalive 32;
-      }
-
-      upstream micromanager_backend {
-        server 10.10.10.22:19003;
-        keepalive 32;
-      }
-
-      upstream architect_backend {
-        server 10.10.10.23:19001;
-        keepalive 32;
-      }
-
-      upstream monad_backend {
-        server 10.10.10.27:19004;
-        keepalive 32;
-      }
-
-      upstream sophia_backend {
-        server 10.10.10.26:19005;
         keepalive 32;
       }
 
@@ -337,71 +302,6 @@
       locations."/api/timeguru/" = {
         extraConfig = ''
           proxy_pass http://timeguru_backend/;
-          proxy_http_version 1.1;
-          proxy_set_header Connection "";
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-          limit_req zone=api burst=100 nodelay;
-        '';
-      };
-
-      locations."/api/captain/" = {
-        extraConfig = ''
-          proxy_pass http://captain_backend/;
-          proxy_http_version 1.1;
-          proxy_set_header Connection "";
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-          limit_req zone=api burst=100 nodelay;
-        '';
-      };
-
-      locations."/api/micromanager/" = {
-        extraConfig = ''
-          proxy_pass http://micromanager_backend/;
-          proxy_http_version 1.1;
-          proxy_set_header Connection "";
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-          limit_req zone=api burst=100 nodelay;
-        '';
-      };
-
-      locations."/api/architect/" = {
-        extraConfig = ''
-          proxy_pass http://architect_backend/;
-          proxy_http_version 1.1;
-          proxy_set_header Connection "";
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-          limit_req zone=api burst=100 nodelay;
-        '';
-      };
-
-      locations."/api/monad/" = {
-        extraConfig = ''
-          proxy_pass http://monad_backend/;
-          proxy_http_version 1.1;
-          proxy_set_header Connection "";
-          proxy_set_header Host $host;
-          proxy_set_header X-Real-IP $remote_addr;
-          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-          proxy_set_header X-Forwarded-Proto $scheme;
-          limit_req zone=api burst=100 nodelay;
-        '';
-      };
-
-      locations."/api/sophia/" = {
-        extraConfig = ''
-          proxy_pass http://sophia_backend/;
           proxy_http_version 1.1;
           proxy_set_header Connection "";
           proxy_set_header Host $host;

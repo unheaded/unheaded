@@ -73,7 +73,7 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway build-zhen-rag build-upc-bootctl build-upc-tty-bridge ## Build all service binaries
+build-services: build-wotan build-timeguru build-gateway build-zhen-rag build-upc-bootctl build-upc-tty-bridge ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
@@ -151,31 +151,6 @@ build-timeguru: ## Build Timeguru (Oracle's Antre - Timeline)
 	@echo "⌛ Building Timeguru..."
 	@mkdir -p $(BINARY_DIR)
 	cd services/timeguru/cmd/timeguru && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/timeguru
-
-build-captain: ## Build Captain (Commander's Quarters - Vision)
-	@echo "👑 Building Captain..."
-	@mkdir -p $(BINARY_DIR)
-	cd services/captain/cmd/captain && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/captain
-
-build-architect: ## Build Architect (Sage's Lair - ADRs)
-	@echo "🏗️ Building Architect..."
-	@mkdir -p $(BINARY_DIR)
-	cd services/architect/cmd/architect && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/architect
-
-build-micromanager: ## Build Micromanager (War Room - Tasks)
-	@echo "📋 Building Micromanager..."
-	@mkdir -p $(BINARY_DIR)
-	cd services/micromanager/cmd/micromanager && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../../../$(BINARY_DIR)/micromanager
-
-build-monad: ## Build Monad (Unified State Management)
-	@echo "Building Monad..."
-	@mkdir -p $(BINARY_DIR)
-	cd cmd/monad && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../$(BINARY_DIR)/monad
-
-build-sophia: ## Build Sophia (Knowledge Graph)
-	@echo "Building Sophia..."
-	@mkdir -p $(BINARY_DIR)
-	cd cmd/sophia && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.version=$(VERSION)" -o ../../$(BINARY_DIR)/sophia
 
 build-gateway: ## Build Gateway (API Gateway)
 	@echo "Building Gateway..."
@@ -317,7 +292,7 @@ bench: ## Run benchmarks
 # The flake exposes the containers as nixosConfigurations.<name> (and the
 # same toplevels under hydraJobs.containers); there is no top-level
 # `containers` output, so `.#containers` does not resolve.
-NIX_CONTAINERS := wotan timeguru captain micromanager architect monad sophia gateway kanban dashboard cuirass
+NIX_CONTAINERS := wotan timeguru gateway kanban dashboard cuirass
 
 containers: ## Build all NixOS container images
 	@echo "Building NixOS containers..."
@@ -407,7 +382,7 @@ deploy-restart: ## Restart all deployed services
 deploy-health: ## Verify all deployed services are healthy
 	@echo "Checking service health..."
 	@# `docker compose port` needs the container port; without it the URL had no port.
-	@rc=0; for pair in wotan:18000 timeguru:19000 captain:19002 architect:19001 micromanager:19003 monad:19004 sophia:19005 cuirass:19006; do \
+	@rc=0; for pair in wotan:18000 timeguru:19000; do \
 		svc=$${pair%%:*}; port=$${pair#*:}; \
 		printf "%-16s " "$$svc:"; \
 		curl -sf http://localhost:$$(docker compose port $$svc $$port 2>/dev/null | cut -d: -f2)/health > /dev/null 2>&1 && echo "healthy" || { echo "UNHEALTHY"; rc=1; }; \

@@ -58,6 +58,8 @@
         wsConnected: false,
         reconnectAttempts: 0,
         reconnectTimeout: null,
+        pollIntervals: [],
+        loggedOut: false,
         lastHeartbeat: null,
         activePage: 'overview',
 
@@ -207,6 +209,7 @@
     // WebSocket
     // ======================================================================
     function connectWebSocket() {
+        if (state.loggedOut) return;
         if (state.ws && state.ws.readyState === WebSocket.OPEN) return;
         var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         var wsUrl = protocol + '//' + window.location.host + CONFIG.wsEndpoint;
@@ -237,7 +240,7 @@
     }
 
     function scheduleReconnect() {
-        if (state.reconnectTimeout) return;
+        if (state.reconnectTimeout || state.loggedOut) return;
         var delay = Math.min(
             CONFIG.reconnectBaseDelay * Math.pow(CONFIG.reconnectMultiplier, state.reconnectAttempts),
             CONFIG.reconnectMaxDelay
@@ -288,13 +291,29 @@
     // onFail(status, body) hears a non-2xx answer (body is its JSON, or
     // null); without it the failure is dropped and the last values stay.
     function fetchJSON(url, callback, onFail) {
+        if (state.loggedOut) return;
         fetch(url).then(function(r) {
+            // 401: the session ended. Stop, once, rather than poll on.
+            if (r.status === 401) { stopPolling(); return; }
             if (!r.ok) {
                 if (onFail) r.json().then(function(b) { onFail(r.status, b); }, function() { onFail(r.status, null); });
                 return;
             }
             return r.json().then(function(d) { state.lastDataMs = Date.now(); callback(d); });
         }).catch(function() {});
+    }
+
+    // stopPolling ends a logged-out page's work: every refresh interval, the
+    // socket and its reconnect. It polled on, 401 after 401 (ADR-147, D13).
+    function stopPolling() {
+        if (state.loggedOut) return;
+        state.loggedOut = true;
+        state.pollIntervals.forEach(function(id) { clearInterval(id); });
+        state.pollIntervals = [];
+        if (state.reconnectTimeout) { clearTimeout(state.reconnectTimeout); state.reconnectTimeout = null; }
+        if (state.ws) { state.ws.onclose = null; state.ws.onerror = null; state.ws.close(); }
+        updateConnectionStatus('disconnected');
+        if (el.wsStatusText) el.wsStatusText.textContent = 'Logged out: log in and reload';
     }
 
     function refreshHealth()     { fetchJSON(CONFIG.api.health,     updateHealthData); }
@@ -1572,16 +1591,20 @@
         refreshHosts();
         refreshSummary();
 
-        setInterval(refreshHealth, CONFIG.refreshIntervals.health);
-        setInterval(refreshServices, CONFIG.refreshIntervals.services);
-        setInterval(refreshStats, CONFIG.refreshIntervals.stats);
-        setInterval(refreshFlows, CONFIG.refreshIntervals.flows);
-        setInterval(refreshLatency, CONFIG.refreshIntervals.latency);
-        setInterval(refreshEBPFStats, CONFIG.refreshIntervals.ebpfStats);
-        setInterval(refreshEBPFEvents, CONFIG.refreshIntervals.ebpfEvents);
-        setInterval(refreshHosts, CONFIG.refreshIntervals.hosts);
-        setInterval(refreshSummary, CONFIG.refreshIntervals.summary);
-        setInterval(updateTimestamp, 1000);
+        state.pollIntervals = [
+            setInterval(refreshHealth, CONFIG.refreshIntervals.health),
+            setInterval(refreshServices, CONFIG.refreshIntervals.services),
+            setInterval(refreshStats, CONFIG.refreshIntervals.stats),
+            setInterval(refreshFlows, CONFIG.refreshIntervals.flows),
+            setInterval(refreshLatency, CONFIG.refreshIntervals.latency),
+            setInterval(refreshEBPFStats, CONFIG.refreshIntervals.ebpfStats),
+            setInterval(refreshEBPFEvents, CONFIG.refreshIntervals.ebpfEvents),
+            setInterval(refreshHosts, CONFIG.refreshIntervals.hosts),
+            setInterval(refreshSummary, CONFIG.refreshIntervals.summary),
+            setInterval(updateTimestamp, 1000)
+        ];
+        // A 401 that came back before the intervals existed.
+        if (state.loggedOut) { state.loggedOut = false; stopPolling(); }
 
         updateGauges();
 

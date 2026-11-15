@@ -25,11 +25,13 @@ The living roadmap. Tracks the Unheaded journey through Ages, Epochs, Features, 
 | `PORT` | `19000` |
 | `WOTAN_ADDR` | `localhost:18000` (HTTP) |
 | `WOTAN_GRPC_ADDR` | `localhost:18001` |
-| `DB_PATH` | `./data/timeguru.db` |
+| `WELL_HOST`, `WELL_PORT`, `WELL_USER`, `WELL_PASSWORD`, `WELL_DB`, `WELL_SSLMODE`, `WELL_SSLROOTCERT` | `localhost`, `5432`, `app_timeguru`, none, `unheaded_app`, `require`, none |
 | `TIMELINE_PATH` | `./references/timeline.md` |
 | `SYNC_DIR` | directory of `TIMELINE_PATH` |
 
 A missing timeline returns 404 and `/ready` reports not ready.
+
+**One home, the Well (ADR-147).** The timeline lives in memory, built from `TIMELINE_PATH` at start and on change, and is written to `unheaded_app.timeline_milestones` (migration 050, one row per milestone) as `app_timeguru`. A milestone changed through the API after the file's modification time keeps its status and progress over the file at the next start. Without the Well timeguru serves the file read-only: updates and imports answer 503 `{"error":"the Well is unavailable"}`, `/health` says `"well":"waiting"`, and it retries every 1 s, doubling to 30 s. A Well without migration 050 stops it. There is no SQLite file any more (it lived on a tmpfs, so every restart lost the API's changes).
 
 ---
 

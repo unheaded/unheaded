@@ -58,6 +58,19 @@ func TestRuntimeCollectors_MatchClientGolangMetadata(t *testing.T) {
 	for _, l := range want {
 		wantSet[l] = true
 	}
+	// Three families client_golang added after v1.18 (default since v1.20),
+	// exported since ADR-147 (Developer D22) with its names, types and help.
+	for _, l := range []string{
+		"# HELP go_gc_gogc_percent Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.",
+		"# TYPE go_gc_gogc_percent gauge",
+		"# HELP go_gc_gomemlimit_bytes Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.",
+		"# TYPE go_gc_gomemlimit_bytes gauge",
+		"# HELP go_sched_gomaxprocs_threads The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.",
+		"# TYPE go_sched_gomaxprocs_threads gauge",
+	} {
+		wantSet[l] = true
+		want = append(want, l)
+	}
 	gotSet := map[string]bool{}
 	for _, l := range got {
 		gotSet[l] = true

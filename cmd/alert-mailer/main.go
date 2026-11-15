@@ -218,9 +218,15 @@ func main() {
 		reg.MustRegister(hb.Gauge())
 	}
 
+	// alerts.critical on Wotan (ADR-147 Phase 8): off without WOTAN_ADDR.
+	crit, err := critFromEnv(os.Getenv, reg)
+	if err != nil {
+		log.Error().Err(err).Msg("alerts.critical: not published; mail is unaffected")
+	}
+
 	srv := &http.Server{
 		Addr:              *addr,
-		Handler:           handler(m, reg),
+		Handler:           handler(m, reg, crit),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      60 * time.Second,
@@ -255,6 +261,11 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	if crit != nil {
+		snap := time.NewTicker(snapshotEvery)
+		defer snap.Stop()
+		go crit.run(ctx, snap.C)
+	}
 	t := time.NewTicker(time.Minute)
 	defer t.Stop()
 	for {
@@ -275,7 +286,7 @@ func main() {
 	}
 }
 
-func handler(m *Mailer, reg *metrics.Registry) http.Handler {
+func handler(m *Mailer, reg *metrics.Registry, crit *critPublisher) http.Handler {
 	mux := http.NewServeMux()
 	ok := httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -297,7 +308,12 @@ func handler(m *Mailer, reg *metrics.Registry) http.Handler {
 				httputil.HandleRequestError(w, err)
 				return
 			}
-			if err := f(wh); err != nil {
+			err := f(wh)
+			// After the mail decision, never before it and never blocking
+			// it: the bus gets the critical alerts (ADR-147 Phase 8), mailed
+			// or not.
+			go crit.Observe(wh)
+			if err != nil {
 				// Not counted against the cap; Alertmanager retries.
 				log.Error().Err(err).Str("path", r.URL.Path).Msg("mail not sent")
 				httputil.WriteError(w, http.StatusServiceUnavailable, "send_failed", "relay refused the mail; retry")

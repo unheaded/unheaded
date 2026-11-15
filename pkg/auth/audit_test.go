@@ -6,6 +6,7 @@ package auth
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 )
@@ -76,4 +77,31 @@ func TestNopAuditLogger(t *testing.T) {
 	fn := NopAuditLogger()
 	// Should not panic.
 	fn(AuditEvent{EventType: AuditJWTFailure})
+}
+
+type failingWriter struct{ short bool }
+
+func (f failingWriter) Write(p []byte) (int, error) {
+	if f.short {
+		return len(p) / 2, nil
+	}
+	return 0, errors.New("disk full")
+}
+
+// A failed audit write is counted, never silent (ADR-147, BlackMage F11;
+// NIST AU-5): it used to be `_, _ = a.w.Write(data)`.
+func TestFailedAuditWriteCounted(t *testing.T) {
+	before := auditWriteFailures.Value()
+	NewAuditLogger(failingWriter{}, "svc").Log(AuditEvent{EventType: "test"})
+	if got := auditWriteFailures.Value() - before; got != 1 {
+		t.Fatalf("failures counted %v, want 1", got)
+	}
+}
+
+func TestShortAuditWriteCounted(t *testing.T) {
+	before := auditWriteFailures.Value()
+	NewAuditLogger(failingWriter{short: true}, "svc").Log(AuditEvent{EventType: "test"})
+	if got := auditWriteFailures.Value() - before; got != 1 {
+		t.Fatalf("short write counted %v, want 1", got)
+	}
 }

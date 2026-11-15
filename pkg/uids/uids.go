@@ -86,14 +86,11 @@ const (
 // and 1000 is the first normal-user UID on most Linux systems, so it collides
 // with a real human account wherever userns mapping or a hostPath is in play.
 const (
-	Wotan            = 16720
-	UnheadedDaemon   = 16721
-	Timeguru         = 16722
-	Architect        = 16723
-	Captain          = 16724
-	Micromanager     = 16725
-	Monad            = 16726
-	Sophia           = 16727
+	Wotan          = 16720
+	UnheadedDaemon = 16721
+	Timeguru       = 16722
+	// 16723-16727, 16750, 16751 retired 2026-11 (ADR-147 decision 7): the five
+	// role services and their nginx sidecars. Not reused.
 	DashboardBackend = 16728
 	KanbanApp        = 16729
 	Gateway          = 16730
@@ -164,8 +161,6 @@ const (
 	HAProxyEdge     = 16747
 	HAProxyInternal = 16748
 	NginxWotan      = 16749
-	NginxMonad      = 16750
-	NginxSophia     = 16751
 	NginxDashboard  = 16752
 	NginxKanban     = 16753
 	NginxGateway    = 16754
@@ -256,11 +251,6 @@ var Registry = map[string]int{
 	"wotan":             Wotan,
 	"unheaded-daemon":   UnheadedDaemon,
 	"timeguru":          Timeguru,
-	"architect":         Architect,
-	"captain":           Captain,
-	"micromanager":      Micromanager,
-	"monad":             Monad,
-	"sophia":            Sophia,
 	"dashboard-backend": DashboardBackend,
 	"kanban-app":        KanbanApp,
 	"gateway":           Gateway,
@@ -290,8 +280,6 @@ var Registry = map[string]int{
 	"haproxy-edge":     HAProxyEdge,
 	"haproxy-internal": HAProxyInternal,
 	"nginx-wotan":      NginxWotan,
-	"nginx-monad":      NginxMonad,
-	"nginx-sophia":     NginxSophia,
 	"nginx-dashboard":  NginxDashboard,
 	"nginx-kanban":     NginxKanban,
 	"nginx-gateway":    NginxGateway,

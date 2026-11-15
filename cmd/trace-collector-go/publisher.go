@@ -31,7 +31,6 @@ import (
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
-	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ── Wotan topic constants ─────────────────────────────────────────────────
@@ -53,11 +52,9 @@ const (
 	// snapshot per --stats-interval.
 	TopicTracesStats = "traces.stats"
 
-	// Mirror topics for dashboard ingestor compatibility.
-	// The dashboard eBPF ingestor subscribes to ebpf.*.events topics.
-	TopicEBPFPacket  = "ebpf.packet.events"
-	TopicEBPFFlow    = "ebpf.flow.events"
-	TopicEBPFLatency = "ebpf.latency.events"
+	// The ebpf.{packet,flow,latency}.events mirrors are gone (ADR-147
+	// Phase 10): each event is published once, on traces.*, in the shape
+	// the dashboard's ingestor parses; its trace view reads the same topic.
 )
 
 // ── Prometheus metrics for publisher ──────────────────────────────────────
@@ -146,8 +143,9 @@ type TracePublisher struct {
 	failMu   sync.Mutex
 	failures map[string]uint64
 
-	// gRPC client for Wotan topic publishing
-	tsc *wotanClient.TopicStreamClient
+	// wc is the process's one Wotan client (ADR-147 Phase 7): gRPC while
+	// healthy, HTTP otherwise.
+	wc topicPublisher
 }
 
 // failLogEvery: during a long outage, one reminder per this many failed
@@ -163,62 +161,33 @@ func NewTracePublisher(config TracePublisherConfig) *TracePublisher {
 	}
 }
 
-// Connect establishes the gRPC connection to Wotan and subscribes to
-// all trace topics. Must be called before Run().
-func (tp *TracePublisher) Connect(ctx context.Context) error {
-	// Create HTTP fallback client
-	var opts []wotanClient.TopicStreamOption
-	if tp.config.WotanHTTPAddr != "" {
-		httpClient, err := wotanClient.NewClient(tp.config.WotanHTTPAddr)
-		if err == nil {
-			opts = append(opts, wotanClient.WithHTTPFallback(httpClient))
-		}
+// Connect gives the publisher the process's one Wotan client. Topics are
+// joined on first publish. Must be called before Run(); a nil client is an
+// error and batches are dropped until one is given.
+func (tp *TracePublisher) Connect(wc topicPublisher) error {
+	if wc == nil || isNilClient(wc) {
+		return fmt.Errorf("no Wotan client")
 	}
-
-	tsc, err := wotanClient.NewTopicStreamClient(tp.config.WotanAddr, opts...)
-	if err != nil {
-		return fmt.Errorf("connect to Wotan gRPC at %s: %w", tp.config.WotanAddr, err)
-	}
-	tp.tsc = tsc
-
-	// Subscribe to all trace topics + mirror topics for dashboard ingestor
-	topics := []string{
-		TopicTracesPacket, TopicTracesFlow,
-		TopicTracesLatency, TopicTracesCorrelated, TopicTracesStats,
-		TopicEBPFPacket, TopicEBPFFlow, TopicEBPFLatency,
-	}
-	for _, topic := range topics {
-		// "trace-collector" is on the auto_approve list in configs/wotan.yaml;
-		// the HTTP fallback joins under it too.
-		if _, err := tsc.Subscribe(ctx, topic, "trace-collector"); err != nil {
-			tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
-			return fmt.Errorf("subscribe to %s: %w", topic, err)
-		}
-	}
-
+	tp.wc = wc
 	tp.connected.Store(true)
 	log.Info().
 		Str("grpc_addr", tp.config.WotanAddr).
 		Str("http_addr", tp.config.WotanHTTPAddr).
-		Int("topics", len(topics)).
-		Msg("trace publisher connected to Wotan (gRPC-first)")
+		Msg("trace publisher on the process's Wotan client (gRPC-first)")
 	return nil
 }
 
-// PublishPacketEvent queues a packet marker event for publishing.
+// PublishPacketEvent queues a packet marker event on traces.packet, once,
+// in the dashboard's PacketEvent shape (trace_id {high, low}, flow_key).
+// The flat shape it used to carry beside it (trace_id hex, src_ip/dst_ip,
+// flags, hop_count) went with the ebpf.packet.events mirror: a kernel
+// packet record sets neither flags nor hop_count.
 func (tp *TracePublisher) PublishPacketEvent(entry *TraceEntry) error {
-	payload, err := marshalTraceEntry(entry)
+	payload, err := marshalDashboardPacket(entry)
 	if err != nil {
 		return fmt.Errorf("marshal packet event: %w", err)
 	}
-	// The dashboard parses ebpf.packet.events as its own PacketEvent schema;
-	// it used to receive this traces.packet shape, which it cannot parse.
-	dash, err := marshalDashboardPacket(entry)
-	if err != nil {
-		return fmt.Errorf("marshal dashboard packet event: %w", err)
-	}
 	tp.enqueue(TopicTracesPacket, payload)
-	tp.enqueue(TopicEBPFPacket, dash)
 	atomic.AddUint64(&tp.stats.PacketEvents, 1)
 	return nil
 }
@@ -239,14 +208,12 @@ func (tp *TracePublisher) PublishAnamnesisEvent(ev *ebpf.AnamnesisEvent) error {
 // PublishFlowEvent queues a flow tracker event for publishing.
 func (tp *TracePublisher) PublishFlowEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesFlow, payload)
-	tp.enqueue(TopicEBPFFlow, payload)
 	atomic.AddUint64(&tp.stats.FlowEvents, 1)
 }
 
 // PublishLatencyEvent queues a latency probe event for publishing.
 func (tp *TracePublisher) PublishLatencyEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesLatency, payload)
-	tp.enqueue(TopicEBPFLatency, payload)
 	atomic.AddUint64(&tp.stats.LatencyEvents, 1)
 }
 
@@ -317,10 +284,6 @@ func (tp *TracePublisher) Run(ctx context.Context) {
 		case <-ctx.Done():
 			// Final flush on shutdown
 			tp.Flush(context.Background())
-			// Close gRPC connection
-			if tp.tsc != nil {
-				tp.tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
-			}
 			log.Info().Msg("trace publisher stopped")
 			return
 		case <-ticker.C:
@@ -395,47 +358,18 @@ func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages 
 	}
 
 	// Use gRPC client if connected, fall back to no-op if not yet connected
-	if tp.tsc == nil {
+	if tp.wc == nil {
 		log.Debug().Str("topic", topic).Msg("Wotan not connected, dropping batch")
 		return nil
 	}
 
-	if err := tp.tsc.Publish(ctx, topic, payload); err != nil {
+	if err := tp.wc.PublishPreferGRPC(ctx, topic, wotanName, payload); err != nil {
 		tp.connected.Store(false)
 		return fmt.Errorf("publish to %s: %w", topic, err)
 	}
 
 	tp.connected.Store(true)
 	return nil
-}
-
-// marshalTraceEntry converts a TraceEntry to JSON.
-func marshalTraceEntry(te *TraceEntry) (json.RawMessage, error) {
-	type jsonEntry struct {
-		TraceID     string `json:"trace_id"`
-		TimestampNS uint64 `json:"timestamp_ns"`
-		SrcIP       string `json:"src_ip"`
-		DstIP       string `json:"dst_ip"`
-		SrcPort     uint16 `json:"src_port"`
-		DstPort     uint16 `json:"dst_port"`
-		Protocol    string `json:"protocol"`
-		Flags       uint8  `json:"flags"`
-		PacketLen   uint16 `json:"packet_len"`
-		HopCount    uint8  `json:"hop_count"`
-	}
-
-	return json.Marshal(jsonEntry{
-		TraceID:     te.TraceIDHex(),
-		TimestampNS: te.TimestampNS,
-		SrcIP:       te.SrcIPAddr().String(),
-		DstIP:       te.DstIPAddr().String(),
-		SrcPort:     te.SrcPort,
-		DstPort:     te.DstPort,
-		Protocol:    te.ProtocolName(),
-		Flags:       te.Flags,
-		PacketLen:   te.PacketLen,
-		HopCount:    te.HopCount,
-	})
 }
 
 // anamnesisTopicForEvent maps an Anamnesis event type to its Wotan topic.

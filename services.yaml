@@ -1,5 +1,5 @@
 # Unheaded Services Manifest
-# This is the bundled fallback manifest containing all 25 Unheaded services.
+# This is the bundled fallback manifest containing 22 Unheaded services.
 # Used when /opt/unheaded/ is not accessible (development mode, containers).
 # Format: list of ServiceConfig YAML objects as per SERVICE_CONFIG_SCHEMA.md
 
@@ -98,94 +98,6 @@ services:
     labels:
       kingdom_tier: gnostic
       armor_piece: wotan
-
-  - service:
-      name: captain
-      display_name: "Captain"
-      description: "Service mesh control plane and traffic orchestration"
-      version: "0.5.0"
-    network:
-      port: 18002
-      http_port: 18102
-      protocol: both
-      health_endpoint: /health
-      metrics_endpoint: /metrics
-    deployment:
-      tier: infrastructure
-      replicas: 1
-      restart_policy: always
-      depends_on: [service-discovery]
-    runtime:
-      binary: captain
-      args: ["--config=/opt/unheaded/captain/config.yaml"]
-      env:
-        LOG_LEVEL: info
-        CAPTAIN_REPLICAS: "1"
-    health:
-      check_interval: 10s
-      timeout: 5s
-      retries: 3
-    labels:
-      kingdom_tier: royal-court
-      armor_piece: captain
-
-  - service:
-      name: micromanager
-      display_name: "Micromanager"
-      description: "Orchestration engine for managing service lifecycle and deployments"
-      version: "0.3.0"
-    network:
-      port: 18003
-      http_port: 18103
-      protocol: grpc
-      health_endpoint: /health
-      metrics_endpoint: /metrics
-    deployment:
-      tier: infrastructure
-      replicas: 1
-      restart_policy: always
-      depends_on: [service-discovery, log-aggregator]
-    runtime:
-      binary: micromanager
-      args: ["--config=/opt/unheaded/micromanager/config.yaml"]
-      env:
-        LOG_LEVEL: info
-    health:
-      check_interval: 15s
-      timeout: 10s
-      retries: 3
-    labels:
-      kingdom_tier: royal-court
-      armor_piece: micromanager
-
-  - service:
-      name: architect
-      display_name: "Architect"
-      description: "Infrastructure planning and resource allocation engine"
-      version: "0.2.0"
-    network:
-      port: 18004
-      http_port: 18104
-      protocol: grpc
-      health_endpoint: /health
-      metrics_endpoint: /metrics
-    deployment:
-      tier: infrastructure
-      replicas: 1
-      restart_policy: always
-      depends_on: [service-discovery]
-    runtime:
-      binary: architect
-      args: ["--config=/opt/unheaded/architect/config.yaml"]
-      env:
-        LOG_LEVEL: info
-    health:
-      check_interval: 20s
-      timeout: 10s
-      retries: 2
-    labels:
-      kingdom_tier: royal-court
-      armor_piece: architect
 
   - service:
       name: developer

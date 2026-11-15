@@ -23,7 +23,7 @@ import (
 
 // e2e-trace: one packet event with a fresh trace id is published to Wotan
 // on the bench topic (default bench.perf.packet, which dashboard-backend's
-// eBPF ingestor consumes beside ebpf.packet.events), and the dashboard's
+// eBPF ingestor consumes beside traces.packet), and the dashboard's
 // /api/v1/ebpf/events, the endpoint the browser polls, is read until the
 // event with that trace id is there. The time between the publish and the
 // read that returns it is the sample: Wotan, the dashboard's gRPC stream,

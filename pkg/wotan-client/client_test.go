@@ -35,7 +35,7 @@ func newTestServer(t *testing.T, handlers map[string]http.HandlerFunc) (*httptes
 
 	// Strip "http://" from URL, because NewClient prepends "http://".
 	addr := strings.TrimPrefix(srv.URL, "http://")
-	c, err := NewClient(addr)
+	c, err := NewClient(addr, WithHTTPPollStreams())
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestNewClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, err := NewClient(tt.addr)
+			c, err := NewClient(tt.addr, WithHTTPPollStreams())
 			if tt.wantErr {
 				if err == nil {
 					t.Fatal("expected error, got nil")
@@ -171,7 +171,7 @@ func TestNewClientWithTLS(t *testing.T) {
 
 func TestClose(t *testing.T) {
 	t.Run("close empty client", func(t *testing.T) {
-		c, err := NewClient("localhost:9090")
+		c, err := NewClient("localhost:9090", WithHTTPPollStreams())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -181,7 +181,7 @@ func TestClose(t *testing.T) {
 	})
 
 	t.Run("close client with active channels", func(t *testing.T) {
-		c, err := NewClient("localhost:9090")
+		c, err := NewClient("localhost:9090", WithHTTPPollStreams())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -295,7 +295,7 @@ func TestSubscribe(t *testing.T) {
 	})
 
 	t.Run("empty topic returns error", func(t *testing.T) {
-		c, err := NewClient("localhost:9090")
+		c, err := NewClient("localhost:9090", WithHTTPPollStreams())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -309,7 +309,7 @@ func TestSubscribe(t *testing.T) {
 	})
 
 	t.Run("empty display name returns error", func(t *testing.T) {
-		c, err := NewClient("localhost:9090")
+		c, err := NewClient("localhost:9090", WithHTTPPollStreams())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -450,7 +450,7 @@ func TestPublish(t *testing.T) {
 	})
 
 	t.Run("empty topic", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		err := c.Publish(context.Background(), "", []byte("data"))
 		if err == nil {
 			t.Fatal("expected error for empty topic")
@@ -458,7 +458,7 @@ func TestPublish(t *testing.T) {
 	})
 
 	t.Run("empty payload", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		err := c.Publish(context.Background(), "chat", []byte{})
 		if err == nil {
 			t.Fatal("expected error for empty payload")
@@ -466,7 +466,7 @@ func TestPublish(t *testing.T) {
 	})
 
 	t.Run("nil payload", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		err := c.Publish(context.Background(), "chat", nil)
 		if err == nil {
 			t.Fatal("expected error for nil payload")
@@ -474,7 +474,7 @@ func TestPublish(t *testing.T) {
 	})
 
 	t.Run("not subscribed", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		err := c.Publish(context.Background(), "unknown-topic", []byte("data"))
 		if err == nil {
 			t.Fatal("expected error when not subscribed")
@@ -485,7 +485,7 @@ func TestPublish(t *testing.T) {
 	})
 
 	t.Run("subscription pending", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		c.subscribers["chat"] = &Subscriber{
 			SubscriberID: "sub-pending",
 			Topic:        "chat",
@@ -644,7 +644,7 @@ func TestGetMessages(t *testing.T) {
 	})
 
 	t.Run("empty topic", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		_, err := c.GetMessages(context.Background(), "", 0, 10)
 		if err == nil {
 			t.Fatal("expected error for empty topic")
@@ -784,7 +784,7 @@ func TestStreamMessages(t *testing.T) {
 	})
 
 	t.Run("empty topic", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		_, err := c.StreamMessages(context.Background(), "")
 		if err == nil {
 			t.Fatal("expected error for empty topic")
@@ -792,7 +792,7 @@ func TestStreamMessages(t *testing.T) {
 	})
 
 	t.Run("not subscribed", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		_, err := c.StreamMessages(context.Background(), "unknown")
 		if err == nil {
 			t.Fatal("expected error when not subscribed")
@@ -800,7 +800,7 @@ func TestStreamMessages(t *testing.T) {
 	})
 
 	t.Run("subscription pending", func(t *testing.T) {
-		c, _ := NewClient("localhost:9090")
+		c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 		c.subscribers["chat"] = &Subscriber{
 			SubscriberID: "sub-pending",
 			Status:       "pending",
@@ -1056,7 +1056,7 @@ func TestParseError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			c, _ := NewClient("localhost:9090")
+			c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 
 			resp := &http.Response{
 				StatusCode: tt.statusCode,
@@ -1086,7 +1086,7 @@ func TestParseError(t *testing.T) {
 // ============================================================================
 
 func TestGetSubscriber(t *testing.T) {
-	c, _ := NewClient("localhost:9090")
+	c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 
 	t.Run("not found", func(t *testing.T) {
 		_, ok := c.GetSubscriber("nonexistent")
@@ -1115,7 +1115,7 @@ func TestGetSubscriber(t *testing.T) {
 }
 
 func TestIsApproved(t *testing.T) {
-	c, _ := NewClient("localhost:9090")
+	c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 
 	tests := []struct {
 		name  string
@@ -1427,7 +1427,7 @@ func TestConcurrentSubscribeAndPublish(t *testing.T) {
 }
 
 func TestConcurrentGetSubscriber(t *testing.T) {
-	c, _ := NewClient("localhost:9090")
+	c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 
 	// Seed some subscribers.
 	for i := 0; i < 10; i++ {
@@ -1459,7 +1459,7 @@ func TestConcurrentGetSubscriber(t *testing.T) {
 }
 
 func TestConcurrentIsApproved(t *testing.T) {
-	c, _ := NewClient("localhost:9090")
+	c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 
 	c.subscribers["topic-a"] = &Subscriber{Status: "approved"}
 	c.subscribers["topic-b"] = &Subscriber{Status: "pending"}
@@ -1531,7 +1531,7 @@ func TestConcurrentCloseAndStreamMessages(t *testing.T) {
 
 func TestBackpressureOnFullChannel(t *testing.T) {
 	// The channel buffer is 100. Verify behavior when channel is full.
-	c, _ := NewClient("localhost:9090")
+	c, _ := NewClient("localhost:9090", WithHTTPPollStreams())
 
 	sc := newSafeChannel(100)
 	c.chanMu.Lock()
@@ -1820,7 +1820,7 @@ func TestErrorVariables(t *testing.T) {
 }
 
 func TestClientHTTPTimeout(t *testing.T) {
-	c, err := NewClient("localhost:9090")
+	c, err := NewClient("localhost:9090", WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2053,7 +2053,7 @@ func TestNewClientWithTLSTransport(t *testing.T) {
 
 func TestServerConnectionRefused(t *testing.T) {
 	// Use a port that nothing is listening on.
-	c, err := NewClient("127.0.0.1:1")
+	c, err := NewClient("127.0.0.1:1", WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2069,7 +2069,7 @@ func TestServerConnectionRefused(t *testing.T) {
 // ============================================================================
 
 func TestCloseIdempotent(t *testing.T) {
-	c, err := NewClient("localhost:9090")
+	c, err := NewClient("localhost:9090", WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2190,7 +2190,7 @@ func TestStressConcurrentOperations(t *testing.T) {
 // ============================================================================
 
 func TestGetOrCreateGRPCClient_ConcurrentInit(t *testing.T) {
-	c, err := NewClient("localhost:18001")
+	c, err := NewClient("localhost:18001", WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}

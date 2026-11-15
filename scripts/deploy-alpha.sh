@@ -44,11 +44,6 @@ log_step()  { echo -e "${BLUE}[STEP]${NC}  $*"; }
 declare -A SERVICES=(
     [wotan]="services/wotan/cmd/wotan:8081:10.10.10.10"
     [timeguru]="services/timeguru/cmd/timeguru:8082:10.10.10.20"
-    [captain]="services/captain/cmd/captain:8083:10.10.10.21"
-    [architect]="services/architect/cmd/architect:8084:10.10.10.22"
-    [micromanager]="services/micromanager/cmd/micromanager:8085:10.10.10.23"
-    [monad]="cmd/monad:8086:10.10.10.24"
-    [sophia]="cmd/sophia:8087:10.10.10.25"
     [cuirass]="cmd/unheaded-daemon:8080:10.10.10.100"
 )
 
@@ -58,7 +53,7 @@ WOTAN_HTTP="10.10.10.10:8081"
 WOTAN_GRPC="10.10.10.10:5555"
 
 # Deploy order (wotan first as hub)
-DEPLOY_ORDER=(wotan timeguru captain architect micromanager monad sophia cuirass)
+DEPLOY_ORDER=(wotan timeguru cuirass)
 
 # Flags
 TEARDOWN=false
@@ -275,23 +270,6 @@ for svc in "${DEPLOY_ORDER[@]}"; do
             ;;
         timeguru)
             local_env="PORT=${port}\nWOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}\nDB_PATH=/data/timeguru.db\nTIMELINE_PATH=/data/timeline.md"
-            ;;
-        captain)
-            local_env="HTTP_ADDR=0.0.0.0:${port}\nDATA_PATH=/data\nWOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}"
-            ;;
-        architect)
-            local_cmd="/app/architect -addr :${port}"
-            local_env="WOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}"
-            ;;
-        micromanager)
-            local_cmd="/app/micromanager -port ${port}"
-            local_env="WOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}"
-            ;;
-        monad)
-            local_env="MONAD_PORT=${port}\nWOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}"
-            ;;
-        sophia)
-            local_env="SOPHIA_LISTEN_ADDR=:${port}\nWOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}"
             ;;
         cuirass)
             local_env="HTTP_ADDR=:${port}\nWOTAN_ADDR=${WOTAN_HTTP}\nWOTAN_GRPC_ADDR=${WOTAN_GRPC}"

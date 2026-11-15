@@ -129,12 +129,8 @@ volumes:
       kingdom.component: "gateway"
   cuirass-state:
   sword-data:
-  captain-data:
-  architect-data:
-  micromanager-data:
-  kanban-data:
-    labels:
-      kingdom.component: "control-plane"
+  # kanban-data went with kanban-app's SQLite fallback (ADR-147 Phase 16);
+  # the volume itself is removed in the Well sitting (plan Phase 22).
   # Service auth and TLS material: docs/battle-plans/S-IRON-GATE-battle-plan.md
   # (keys: secrets: below, ADR-103; TLS on every link: Phase 8, scripts/gen-dev-certs.sh).
 
@@ -147,18 +143,8 @@ secrets:
     file: ./configs/keys/dev/wotan.key
   svc_key_timeguru:
     file: ./configs/keys/dev/timeguru.key
-  svc_key_captain:
-    file: ./configs/keys/dev/captain.key
-  svc_key_architect:
-    file: ./configs/keys/dev/architect.key
-  svc_key_micromanager:
-    file: ./configs/keys/dev/micromanager.key
   svc_key_akira:
     file: ./configs/keys/dev/akira.key
-  svc_key_monad:
-    file: ./configs/keys/dev/monad.key
-  svc_key_sophia:
-    file: ./configs/keys/dev/sophia.key
   svc_key_dashboard-backend:
     file: ./configs/keys/dev/dashboard-backend.key
   svc_key_kanban-app:
@@ -767,7 +753,7 @@ services:
       # checked by services/wotan/cmd/wotan/allowlist_test.go). Auto-approve
       # then keys on the token's verified sub (configs/wotan.yaml).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "akira,anomaly,architect,captain,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,micromanager,monad,perf-benchmark,shield,sophia,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,upc-cartridgectl,zhen-agentd,zhen-claude"
+      AUTH_ALLOW_CALLERS: "akira,alert-mailer,anomaly,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,perf-benchmark,shield,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,upc-cartridgectl,zhen-agentd,zhen-claude"
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
       # Under the 256M limit so the GC works harder before the kernel OOM-kills.
       # Payload is bounded by --buffer-bytes (8 MiB per room) and, for every
@@ -779,6 +765,7 @@ services:
       - "127.0.0.1:18000:18000"     # HTTP REST API
       - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000:18000"   # VictoriaMetrics scrape; see victoria
       - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:18000:18000"   # Prometheus scrape; see victoria
+      - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:18001:18001"   # alert-mailer (monitoring network) publishes alerts.critical; WireGuard only (decision 16)
     volumes:
       - ./configs/certs/dev/wotan:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
@@ -792,9 +779,10 @@ services:
       kingdom.role: "message-bus"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "18000"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      # 30 s x 3: unhealthy after 90 s (was 10 s x 5, 50 s); ADR-147 Archimedes F4: a probe cost more CPU than a small service
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:
@@ -821,6 +809,8 @@ services:
       - /tmp:size=32M,uid=16722,gid=16722
       - /data:size=64M,uid=16722,gid=16722
     environment:
+      # GOMEMLIMIT = 85% of the limit: the runtime collects before the kernel kills (ADR-147, Developer D22)
+      GOMEMLIMIT: "217MiB"   # 85% of the memory limit (ADR-147, Developer D22)
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this
       # service's own dir only). No mTLS: identity is the service token.
@@ -831,16 +821,22 @@ services:
       UNHEADED_TLS_MTLS_ENABLED: "false"
       AUTH_KEY_FILE: /run/secrets/svc_key_timeguru   # ADR-103
       # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-      # service token; kanban-app reads the timeline with its own, and it and
-      # micromanager may write.
+      # service token; kanban-app reads the timeline with its own and may write.
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "kanban-app,micromanager"
+      AUTH_ALLOW_CALLERS: "kanban-app"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "19000"
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-      DB_PATH: "/data/timeguru.db"
+      # ADR-147: one home, the Well (migration 050); needs app_timeguru's password (Step 340)
+      WELL_HOST: "postgres"
+      WELL_PORT: "5432"
+      WELL_USER: "app_timeguru"
+      WELL_PASSWORD: "${APP_TIMEGURU_PASSWORD:?set APP_TIMEGURU_PASSWORD in .env (credentials are not stored in this repo)}"
+      WELL_DB: "unheaded_app"
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
       # The timeline IS the Meta Moment: kanban renders what timeguru publishes
       # on timeline.updates. Until 2026-09-21 nothing was mounted here, so the
       # container logged "timeline file not found", served INTERNAL_ERROR on
@@ -852,6 +848,7 @@ services:
       SYNC_DIR: "/data/sync"
     volumes:
       - ./configs/certs/dev/timeguru:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./references:/references:ro
     ports:
@@ -862,213 +859,21 @@ services:
     depends_on:
       wotan:
         condition: service_healthy
+      postgres:
+        condition: service_healthy
     labels:
       kingdom.armor: "oracle"
       kingdom.role: "timeline"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "19000"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:
         limits:
           memory: 256M
-          cpus: "0.25"
-
-  # --- Captain: Strategy Service (Commander's Quarters) ---
-  captain:
-    logging: *journald-logging
-    build:
-      context: .
-      target: captain
-    container_name: unheaded-captain
-    user: "16724:16724"   # pkg/uids
-    secrets: [svc_key_captain]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_captain (scripts/gen-dev-keys.sh)
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=32M
-    environment:
-      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
-      # listener and link; material from scripts/gen-dev-certs.sh (this
-      # service's own dir only). No mTLS: identity is the service token.
-      UNHEADED_TLS_ENABLED: "true"
-      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
-      UNHEADED_TLS_CERT: /etc/unheaded/tls/captain.pem
-      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/captain-key.pem
-      UNHEADED_TLS_MTLS_ENABLED: "false"
-      AUTH_KEY_FILE: /run/secrets/svc_key_captain   # ADR-103
-      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-      # service token from one of these callers (none calls the API today).
-      AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "architect,micromanager"
-      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
-      AUTH_TRUST_DIR: /etc/unheaded/trust.d
-      HTTP_ADDR: "0.0.0.0:19002"
-      WOTAN_ADDR: "wotan:18000"
-      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-      DATA_PATH: "/data"
-    volumes:
-      - ./configs/certs/dev/captain:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
-      - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-      - captain-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
-    ports:
-      - "127.0.0.1:19002:19002"
-      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19002:19002"   # VictoriaMetrics scrape; see victoria
-    networks:
-      - data
-    depends_on:
-      wotan:
-        condition: service_healthy
-    labels:
-      kingdom.armor: "commander"
-      kingdom.role: "strategy"
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthprobe", "19002"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
-
-  # --- Architect: ADR Service (Sage's Lair) ---
-  architect:
-    logging: *journald-logging
-    build:
-      context: .
-      target: architect
-    container_name: unheaded-architect
-    user: "16723:16723"   # pkg/uids
-    secrets: [svc_key_architect]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_architect (scripts/gen-dev-keys.sh)
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=32M
-    environment:
-      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
-      # listener and link; material from scripts/gen-dev-certs.sh (this
-      # service's own dir only). No mTLS: identity is the service token.
-      UNHEADED_TLS_ENABLED: "true"
-      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
-      UNHEADED_TLS_CERT: /etc/unheaded/tls/architect.pem
-      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/architect-key.pem
-      UNHEADED_TLS_MTLS_ENABLED: "false"
-      AUTH_KEY_FILE: /run/secrets/svc_key_architect   # ADR-103
-      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-      # service token from one of these callers (none calls the API today).
-      AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "captain,micromanager"
-      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
-      AUTH_TRUST_DIR: /etc/unheaded/trust.d
-      ARCHITECT_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
-      WOTAN_ADDR: "wotan:18000"
-      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-    command: ["-addr", ":19001"]
-    volumes:
-      - ./configs/certs/dev/architect:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
-      - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-      - architect-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
-    ports:
-      - "127.0.0.1:19001:19001"
-      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19001:19001"   # VictoriaMetrics scrape; see victoria
-    networks:
-      - data
-    depends_on:
-      wotan:
-        condition: service_healthy
-    labels:
-      kingdom.armor: "sage"
-      kingdom.role: "adr"
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthprobe", "19001"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
-
-  # --- Micromanager: Task Execution (War Room) ---
-  micromanager:
-    logging: *journald-logging
-    environment:
-      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
-      # listener and link; material from scripts/gen-dev-certs.sh (this
-      # service's own dir only). No mTLS: identity is the service token.
-      UNHEADED_TLS_ENABLED: "true"
-      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
-      UNHEADED_TLS_CERT: /etc/unheaded/tls/micromanager.pem
-      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/micromanager-key.pem
-      UNHEADED_TLS_MTLS_ENABLED: "false"
-      AUTH_KEY_FILE: /run/secrets/svc_key_micromanager   # ADR-103
-      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-      # service token from one of these callers (none calls the API today).
-      AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "captain,architect"
-      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
-      AUTH_TRUST_DIR: /etc/unheaded/trust.d
-      MICROMANAGER_DATA_DIR: "/data"   # its state file; state was memory-only, lost on every restart
-      # micromanager was the only service with no WOTAN_* env, so it ran in
-      # degraded mode with no Wotan client and forwarded no logs.
-      WOTAN_ADDR: "wotan:18000"
-      WOTAN_GRPC_ADDR: "wotan:18001"
-    build:
-      context: .
-      target: micromanager
-    container_name: unheaded-micromanager
-    user: "16725:16725"   # pkg/uids
-    secrets: [svc_key_micromanager]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_micromanager (scripts/gen-dev-keys.sh)
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=32M
-    command: ["-port", "19003"]
-    volumes:
-      - ./configs/certs/dev/micromanager:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
-      - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-      - micromanager-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
-    ports:
-      - "127.0.0.1:19003:19003"
-      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19003:19003"   # VictoriaMetrics scrape; see victoria
-    networks:
-      - data
-    depends_on:
-      wotan:
-        condition: service_healthy
-    labels:
-      kingdom.armor: "war-room"
-      kingdom.role: "execution"
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthprobe", "19003"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
           cpus: "0.25"
 
   # --- Akira: consensus health (ADR-029) ---
@@ -1083,9 +888,11 @@ services:
       context: .
       target: akira
     container_name: unheaded-akira
+    init: true   # reaps the exec checks' orphans; Akira is otherwise PID 1 (18 zombies 2026-11-15)
     user: "16731:16731"   # pkg/uids
     secrets: [svc_key_akira]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_akira (scripts/gen-dev-keys.sh)
     environment:
+      GOMEMLIMIT: "54MiB"   # 85% of the memory limit (ADR-147, Developer D22)
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this
       # service's own dir only). No mTLS: identity is the service token.
@@ -1124,15 +931,10 @@ services:
       # follow gen-dev-certs.sh re-issues: cert-gen rewrites in place.
       - ./configs/certs/dev/ca.pem:/etc/unheaded/tls-watch/ca.pem:ro
       - ./configs/certs/dev/akira/akira.pem:/etc/unheaded/tls-watch/akira/akira.pem:ro
-      - ./configs/certs/dev/architect/architect.pem:/etc/unheaded/tls-watch/architect/architect.pem:ro
       - ./configs/certs/dev/auth/auth.pem:/etc/unheaded/tls-watch/auth/auth.pem:ro
-      - ./configs/certs/dev/captain/captain.pem:/etc/unheaded/tls-watch/captain/captain.pem:ro
       - ./configs/certs/dev/cuirass/cuirass.pem:/etc/unheaded/tls-watch/cuirass/cuirass.pem:ro
       - ./configs/certs/dev/dashboard-backend/dashboard-backend.pem:/etc/unheaded/tls-watch/dashboard-backend/dashboard-backend.pem:ro
       - ./configs/certs/dev/kanban-app/kanban-app.pem:/etc/unheaded/tls-watch/kanban-app/kanban-app.pem:ro
-      - ./configs/certs/dev/micromanager/micromanager.pem:/etc/unheaded/tls-watch/micromanager/micromanager.pem:ro
-      - ./configs/certs/dev/monad/monad.pem:/etc/unheaded/tls-watch/monad/monad.pem:ro
-      - ./configs/certs/dev/sophia/sophia.pem:/etc/unheaded/tls-watch/sophia/sophia.pem:ro
       - ./configs/certs/dev/sword/sword.pem:/etc/unheaded/tls-watch/sword/sword.pem:ro
       - ./configs/certs/dev/timeguru/timeguru.pem:/etc/unheaded/tls-watch/timeguru/timeguru.pem:ro
       - ./configs/certs/dev/wotan/wotan.pem:/etc/unheaded/tls-watch/wotan/wotan.pem:ro
@@ -1148,141 +950,15 @@ services:
       kingdom.role: "health"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "19100"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:
         limits:
           memory: 64M
           cpus: "0.1"
-
-  # --- Monad: Unified State Management ---
-  monad:
-    logging: *journald-logging
-    build:
-      context: .
-      target: monad
-    container_name: unheaded-monad
-    user: "16726:16726"   # pkg/uids
-    secrets: [svc_key_monad]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_monad (scripts/gen-dev-keys.sh)
-    volumes:
-      - ./configs/certs/dev/monad:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
-      - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=32M
-      - /data:size=64M
-    environment:
-      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
-      # listener and link; material from scripts/gen-dev-certs.sh (this
-      # service's own dir only). No mTLS: identity is the service token.
-      UNHEADED_TLS_ENABLED: "true"
-      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
-      UNHEADED_TLS_CERT: /etc/unheaded/tls/monad.pem
-      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/monad-key.pem
-      UNHEADED_TLS_MTLS_ENABLED: "false"
-      AUTH_KEY_FILE: /run/secrets/svc_key_monad   # ADR-103
-      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-      # service token from one of these callers (none calls the API today).
-      AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "unheaded-cli"
-      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
-      AUTH_TRUST_DIR: /etc/unheaded/trust.d
-      MONAD_PORT: "19004"
-      WOTAN_ADDR: "wotan:18000"
-      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-    ports:
-      - "127.0.0.1:19004:19004"
-      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19004:19004"   # VictoriaMetrics scrape; see victoria
-    networks:
-      - data
-    depends_on:
-      wotan:
-        condition: service_healthy
-    labels:
-      kingdom.armor: "monad"
-      kingdom.role: "state-management"
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthprobe", "19004"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
-
-  # --- Sophia: Knowledge Graph ---
-  sophia:
-    logging: *journald-logging
-    build:
-      context: .
-      target: sophia
-    container_name: unheaded-sophia
-    user: "16727:16727"   # pkg/uids
-    secrets: [svc_key_sophia]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_sophia (scripts/gen-dev-keys.sh)
-    volumes:
-      - ./configs/certs/dev/sophia:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
-      - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-    restart: unless-stopped
-    read_only: true
-    security_opt:
-      - no-new-privileges:true
-    cap_drop:
-      - ALL
-    tmpfs:
-      - /tmp:size=32M
-      - /data:size=64M
-    environment:
-      # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
-      # listener and link; material from scripts/gen-dev-certs.sh (this
-      # service's own dir only). No mTLS: identity is the service token.
-      UNHEADED_TLS_ENABLED: "true"
-      UNHEADED_TLS_CA_CERT: /etc/unheaded/tls/ca.pem
-      UNHEADED_TLS_CERT: /etc/unheaded/tls/sophia.pem
-      UNHEADED_TLS_KEY_FILE: /etc/unheaded/tls/sophia-key.pem
-      UNHEADED_TLS_MTLS_ENABLED: "false"
-      AUTH_KEY_FILE: /run/secrets/svc_key_sophia   # ADR-103
-      # S-IRON-GATE Phase 6: every route but /health /ready /metrics needs a
-      # service token from one of these callers (none calls the API today).
-      AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "unheaded-cli"
-      KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
-      AUTH_TRUST_DIR: /etc/unheaded/trust.d
-      SOPHIA_LISTEN_ADDR: ":19005"
-      WOTAN_ADDR: "wotan:18000"
-      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-    ports:
-      - "127.0.0.1:19005:19005"
-      - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:19005:19005"   # VictoriaMetrics scrape; see victoria
-    networks:
-      - data
-    depends_on:
-      wotan:
-        condition: service_healthy
-    labels:
-      kingdom.armor: "sophia"
-      kingdom.role: "knowledge-graph"
-    healthcheck:
-      test: ["CMD", "/usr/local/bin/healthprobe", "19005"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          memory: 128M
-          cpus: "0.25"
 
   # --- Dashboard Backend: The Visor (Observability Dashboard) ---
   dashboard-backend:
@@ -1362,7 +1038,8 @@ services:
     # (Origin host == request Host), which works from localhost, the LAN IP, and
     # any future reverse proxy. A literal "*" here is NOT allow-all — isOriginAllowed
     # does exact matching, so "*" silently denies every real browser origin.
-    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--compliance-root", "/opt/unheaded"]
+    # ADR-147 decision 9: every graph reads VictoriaMetrics (shared network: observe)
+    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--compliance-root", "/opt/unheaded", "--vm-url", "http://victoria:8428"]
     ports:
       # The nav links in the dashboard and kanban pages name the host's LAN
       # address. Set UNHEADED_LAN_BIND to that address to keep them working;
@@ -1385,9 +1062,9 @@ services:
       kingdom.role: "dashboard"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "20000"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:
@@ -1413,6 +1090,7 @@ services:
     tmpfs:
       - /tmp:size=32M
     environment:
+      GOMEMLIMIT: "108MiB"   # 85% of the memory limit (ADR-147, Developer D22)
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this
       # service's own dir only). No mTLS: identity is the service token.
@@ -1428,14 +1106,13 @@ services:
       # callers. The issuer is https, verified against the dev CA (Phase 8).
       AUTH_ENABLED: "true"
       AUTH_ISSUER_URL: "https://auth:19020"
-      AUTH_ALLOW_CALLERS: "zhen-agentd,micromanager"
+      AUTH_ALLOW_CALLERS: "zhen-agentd"
       KINGDOM_NODE: ${KINGDOM_NODE:-west}   # host on its system.health.reports votes (pkg/healthreport, ADR-029)
       AUTH_TRUST_DIR: /etc/unheaded/trust.d
       PORT: "20001"
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
       TIMEGURU_ADDR: "timeguru:19000"
-      DATA_DIR: "/data"
       WELL_HOST: "postgres"
       WELL_PORT: "5432"
       # The scoped role, never the superuser (FND-008, ERDA W-02): CRUD on
@@ -1449,7 +1126,6 @@ services:
       - ./configs/certs/dev/kanban-app:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
-      - kanban-data:/data   # named volume; /data was a tmpfs, so writes vanished with the container
     ports:
       - "127.0.0.1:20001:20001"
       - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:20001:20001"   # VictoriaMetrics scrape; see victoria
@@ -1470,9 +1146,9 @@ services:
       kingdom.role: "kanban"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "20001"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:
@@ -1487,6 +1163,8 @@ services:
       context: .
       target: cuirass
     container_name: unheaded-cuirass
+    # ADR-147 decisions 7, 14: runs only with docker/compose.cuirass-lxd.yml (a real LXD); a plain "up" does not start it
+    profiles: ["lxd"]
     user: "16740:16740"   # pkg/uids
     secrets: [svc_key_unheaded-daemon]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_unheaded-daemon (scripts/gen-dev-keys.sh)
     restart: unless-stopped
@@ -1498,6 +1176,7 @@ services:
     tmpfs:
       - /tmp:size=64M
     environment:
+      GOMEMLIMIT: "217MiB"   # 85% of the memory limit (ADR-147, Developer D22)
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this
       # service's own dir only). No mTLS: identity is the service token.
@@ -1537,9 +1216,9 @@ services:
       kingdom.role: "control-plane"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "19006"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 15s
     deploy:
       resources:
@@ -1580,6 +1259,7 @@ services:
       # recreated or restarted with another one.
       - "127.0.0.1:19020:19020"
     environment:
+      GOMEMLIMIT: "217MiB"   # 85% of the memory limit (ADR-147, Developer D22)
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this
       # service's own dir only). No mTLS: identity is the service token.
@@ -1604,9 +1284,9 @@ services:
       kingdom.role: "auth"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "19020"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 5s
     deploy:
       resources:
@@ -1674,9 +1354,9 @@ services:
       kingdom.role: "log-store-writer"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "19140"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:
@@ -1710,6 +1390,7 @@ services:
       - path: /etc/unheaded/sword/sword.env
         required: false
     environment:
+      GOMEMLIMIT: "108MiB"   # 85% of the memory limit (ADR-147, Developer D22)
       # S-IRON-GATE Phase 8 (FND-017): TLS 1.3, Strict hybrid ML-KEM, on every
       # listener and link; material from scripts/gen-dev-certs.sh (this
       # service's own dir only). No mTLS: identity is the service token.
@@ -1757,7 +1438,7 @@ services:
       - data
       - observe
     depends_on:
-      cuirass:
+      cuirass:   # needs --profile lxd as well
         condition: service_healthy
       postgres:
         condition: service_started
@@ -1766,9 +1447,9 @@ services:
       kingdom.role: "deploy"
     healthcheck:
       test: ["CMD", "/usr/local/bin/healthprobe", "19011"]   # https with the CA (cmd/healthprobe)
-      interval: 10s
+      interval: 30s
       timeout: 5s
-      retries: 5
+      retries: 3
       start_period: 10s
     deploy:
       resources:

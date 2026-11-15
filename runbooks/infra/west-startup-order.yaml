@@ -34,7 +34,7 @@ env:
 # clickhouse, grafana. Grafana runs migrations on first boot (~2m).
 #
 # ─── TIER 3: Core services ────────────────────────────────────────────────────
-# timeguru, captain, architect, micromanager, monad, sophia, cuirass.
+# timeguru, cuirass.
 # All depend on wotan + postgres.
 #
 # ─── TIER 4: Applications ─────────────────────────────────────────────────────
@@ -203,7 +203,7 @@ notes: |
   STARTUP ORDER RATIONALE
   ========================
   Tier 0 (postgres) → Tier 1 (wotan, victoria, traefik, coredns) → Tier 2 (clickhouse, grafana)
-  → Tier 3 (timeguru, captain, architect, micromanager, monad, sophia, cuirass)
+  → Tier 3 (timeguru, cuirass)
   → Tier 4 (dashboard, kanban) → Tier 5 (llama-server → vor → wiki → zhenai)
   → Tier 6 (huginn, demo-trace-injector)
 

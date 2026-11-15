@@ -221,6 +221,9 @@ const (
 	RefuseNoGuard     RefusalReason = "no_guard"
 	RefuseNoInjector  RefusalReason = "no_injector"
 	RefuseStopped     RefusalReason = "stopped"
+	// RefuseCriticalAlert: a critical alert fires (pkg/critalert, ADR-147
+	// Phase 8, D2 = B): no new experiment while the Kingdom is in trouble.
+	RefuseCriticalAlert RefusalReason = "critical_alert"
 )
 
 // Refusal is why an experiment did not start.

@@ -362,15 +362,6 @@ sources:
     canary: http-get
     owner: developer
     status: "blocked:FND-001"
-  - id: west/compose-architect
-    host: west
-    kind: journal-container
-    match: unheaded-architect
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
   - id: west/compose-auth
     host: west
     kind: journal-container
@@ -387,15 +378,6 @@ sources:
     retention: operational
     max_silence: 7d
     canary: "none: logs its start, refusals and maintenance failures only; it logs no request"
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-captain
-    host: west
-    kind: journal-container
-    match: unheaded-captain
-    retention: operational
-    max_silence: 6h
-    canary: http-get
     owner: developer
     status: "blocked:FND-001"
   - id: west/compose-cuirass
@@ -420,33 +402,6 @@ sources:
     host: west
     kind: journal-container
     match: unheaded-kanban-app
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-micromanager
-    host: west
-    kind: journal-container
-    match: unheaded-micromanager
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-monad
-    host: west
-    kind: journal-container
-    match: unheaded-monad
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-sophia
-    host: west
-    kind: journal-container
-    match: unheaded-sophia
     retention: operational
     max_silence: 6h
     canary: http-get
@@ -784,7 +739,7 @@ sources:
     canary: http-get
     owner: developer
     status: gap
-    note: "D4: ships once vector-east is installed (Step 170)"
+    note: "still a host unit on east until plan 6 (S-EAST-PAIR) removes it; the code was removed and archived (ADR-147 decision 7)"
   - id: east/unheaded-captain
     host: east
     kind: journal-unit
@@ -794,7 +749,7 @@ sources:
     canary: http-get
     owner: developer
     status: gap
-    note: "D4: ships once vector-east is installed (Step 170)"
+    note: "still a host unit on east until plan 6 (S-EAST-PAIR) removes it; the code was removed and archived (ADR-147 decision 7)"
   - id: east/unheaded-chaos-controller
     host: east
     kind: journal-unit
@@ -844,7 +799,7 @@ sources:
     canary: http-get
     owner: developer
     status: gap
-    note: "D4: ships once vector-east is installed (Step 170)"
+    note: "still a host unit on east until plan 6 (S-EAST-PAIR) removes it; the code was removed and archived (ADR-147 decision 7)"
   - id: east/unheaded-trace-collector
     host: east
     kind: journal-unit
@@ -1633,24 +1588,6 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
-  - id: unit/unheaded-monad
-    host: west
-    kind: journal-unit
-    match: unheaded-monad.service
-    retention: operational
-    max_silence: n/a
-    canary: "none: excluded"
-    owner: architect
-    status: "excluded:runs in compose on west (west/compose-monad); the host unit is not installed"
-  - id: unit/unheaded-sophia
-    host: west
-    kind: journal-unit
-    match: unheaded-sophia.service
-    retention: operational
-    max_silence: n/a
-    canary: "none: excluded"
-    owner: architect
-    status: "excluded:runs in compose on west (west/compose-sophia); the host unit is not installed"
   - id: unit/unheaded-sword
     host: west
     kind: journal-unit

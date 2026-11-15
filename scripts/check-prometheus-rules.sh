@@ -26,6 +26,16 @@ COMPOSE="${REPO_ROOT}/monitoring/docker-compose.yml"
 # 3.15.1 resolved to this digest on 2026-11-04.
 CURRENT_IMAGE="${CURRENT_PROM_IMAGE:-prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2}"
 
+# ADR-147 decisions 9, 10 (D4 = A): Prometheus keeps only the series its
+# rules read. A rule that reads a series rule-series.txt lacks, or a stale
+# list in prometheus.yml, fails here, before promtool.
+if ! python3 "${REPO_ROOT}/scripts/gen-prom-keep-list.py" --check; then
+    exit 1
+fi
+if ! "${REPO_ROOT}/scripts/test-prom-keep-list.sh"; then
+    exit 1
+fi
+
 if ! docker info >/dev/null 2>&1; then
     echo "[FAIL] docker is required to run promtool; this gate does not pass by skipping." >&2
     exit 2

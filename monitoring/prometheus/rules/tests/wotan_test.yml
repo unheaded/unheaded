@@ -7,7 +7,7 @@ tests:
   # the 15m window has passed the last rise.
   - interval: 1m
     input_series:
-      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
         values: '2x960'
     alert_rule_test:
       - eval_time: 30m
@@ -23,9 +23,9 @@ tests:
   # (through minute 43) and then clears.
   - interval: 1m
     input_series:
-      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
         values: '0x29 1x60'
-      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="publish",outcome="denied",caller="sophia"}'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="publish",outcome="denied",caller="timeguru"}'
         values: '0x90'
       - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
         values: '0x90'
@@ -36,17 +36,17 @@ tests:
       - eval_time: 31m
         alertname: WotanTopicPermissionRefused
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: subscribe, outcome: denied, caller: sophia}
+          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: subscribe, outcome: denied, caller: timeguru}
             exp_annotations:
-              summary: "Wotan refused sophia a topic subscribe (denied)"
+              summary: "Wotan refused timeguru a topic subscribe (denied)"
               description: "A service asked for a topic outside configs/wotan.yaml topics.permissions; under enforce it gets nothing and retries"
               runbook_url: "runbooks/observe/wotan-topic-refused.yaml"
       - eval_time: 43m
         alertname: WotanTopicPermissionRefused
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: subscribe, outcome: denied, caller: sophia}
+          - exp_labels: {severity: warning, urgency: none, job: wotan, instance: "[fd00:dead:beef::1]:18000", action: subscribe, outcome: denied, caller: timeguru}
             exp_annotations:
-              summary: "Wotan refused sophia a topic subscribe (denied)"
+              summary: "Wotan refused timeguru a topic subscribe (denied)"
               description: "A service asked for a topic outside configs/wotan.yaml topics.permissions; under enforce it gets nothing and retries"
               runbook_url: "runbooks/observe/wotan-topic-refused.yaml"
       - eval_time: 50m
@@ -58,7 +58,7 @@ tests:
   # no false fire, during the restart or after it.
   - interval: 1m
     input_series:
-      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
         values: '314x29 _x2 0x60'
     alert_rule_test:
       - eval_time: 25m
@@ -105,7 +105,7 @@ tests:
   # ever go away, the first refusal of a caller is silent again.
   - interval: 1m
     input_series:
-      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="sophia"}'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
         values: '_x29 1x60'
     alert_rule_test:
       - eval_time: 31m

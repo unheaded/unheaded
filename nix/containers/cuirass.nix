@@ -148,7 +148,7 @@
         "CUIRASS_DRIFT_DETECTION=true"
 
         # Managed containers
-        "CUIRASS_MANAGED_CONTAINERS=wotan,timeguru,captain,micromanager,architect,developer,monad,sophia,gateway,kanban,dashboard"
+        "CUIRASS_MANAGED_CONTAINERS=wotan,timeguru,developer,gateway,kanban,dashboard"
 
         # Logging
         "CUIRASS_LOG_LEVEL=info"
@@ -215,7 +215,7 @@
       # =======================================================================
       set -euo pipefail
 
-      CONTAINERS="wotan timeguru captain micromanager architect developer monad sophia gateway kanban dashboard"
+      CONTAINERS="wotan timeguru developer gateway kanban dashboard"
       STATE_DIR="/var/lib/unheaded/state"
       TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
@@ -228,12 +228,7 @@
         case "$container" in
           wotan)        IP="10.10.10.10"; PORT="18000" ;;
           timeguru)      IP="10.10.10.20"; PORT="19000" ;;
-          captain)       IP="10.10.10.21"; PORT="19002" ;;
-          micromanager)  IP="10.10.10.22"; PORT="19003" ;;
-          architect)     IP="10.10.10.23"; PORT="19001" ;;
           developer)     IP="10.10.10.24"; PORT="19004" ;;
-          monad)         IP="10.10.10.27"; PORT="19004" ;;
-          sophia)        IP="10.10.10.26"; PORT="19005" ;;
           gateway)       IP="10.10.10.100"; PORT="443" ;;
           kanban)        IP="10.10.10.200"; PORT="20001" ;;
           dashboard)     IP="10.10.10.201"; PORT="20000" ;;
@@ -359,40 +354,15 @@
             ports: [19000, 9100]
             depends_on: ["wotan"]
 
-          - name: "captain"
-            ip: "10.10.10.21"
-            ports: [19002, 9100]
-            depends_on: ["wotan"]
-
-          - name: "micromanager"
-            ip: "10.10.10.22"
-            ports: [19003, 9100]
-            depends_on: ["wotan"]
-
-          - name: "architect"
-            ip: "10.10.10.23"
-            ports: [19001, 9100]
-            depends_on: ["wotan"]
-
           - name: "developer"
             ip: "10.10.10.24"
             ports: [19004, 9100]
             depends_on: ["wotan"]
 
-          - name: "monad"
-            ip: "10.10.10.27"
-            ports: [19004, 9100]
-            depends_on: ["wotan"]
-
-          - name: "sophia"
-            ip: "10.10.10.26"
-            ports: [19005, 9100]
-            depends_on: ["wotan"]
-
           - name: "gateway"
             ip: "10.10.10.100"
             ports: [80, 443, 9100]
-            depends_on: ["wotan", "timeguru", "captain", "micromanager", "architect", "monad", "sophia"]
+            depends_on: ["wotan", "timeguru"]
             public: true
             critical: true
 

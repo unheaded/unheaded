@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -62,7 +61,10 @@ func TestStartWithEndedContextReportsNothing(t *testing.T) {
 	}
 }
 
-func TestStartServiceBadWotanAddrIsBestEffort(t *testing.T) {
-	// Must not panic or block when the address cannot be parsed.
-	StartService(context.Background(), transport.Config{WotanHTTPAddr: "http://[::1"}, "timeguru", "http://127.0.0.1:1/health")
+func TestStartServiceNilClientIsBestEffort(t *testing.T) {
+	// A process without a Wotan client (none configured) must not panic or
+	// block: it reports nothing (ADR-147 Phase 7: the client comes in).
+	StartService(context.Background(), nil, "timeguru", "http://127.0.0.1:1/health")
+	var none *wotanClient.Client
+	StartService(context.Background(), none, "timeguru", "http://127.0.0.1:1/health")
 }

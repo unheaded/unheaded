@@ -79,9 +79,9 @@ http_method() {
 
 # Every compose service must be running. Health is only asserted where the
 # service declares a healthcheck — services without one never report healthy.
-for svc in wotan monad sophia dashboard-backend kanban-app timeguru \
-           architect captain micromanager postgres clickhouse victoria \
-           grafana traefik coredns vector cuirass akira; do
+for svc in wotan dashboard-backend kanban-app timeguru \
+           postgres clickhouse victoria \
+           grafana traefik coredns vector akira; do
   state=$("${DOCKER[@]}" compose ps --format '{{.Service}} {{.State}}' 2>/dev/null \
           | awk -v s="$svc" '$1==s{print $2; found=1} END{if(!found) print "absent"}')
   check "container/$svc" "running" "$state"
@@ -106,16 +106,14 @@ check "http/victoria"    "200" "$(http http://localhost:8428/)"
 check "http/clickhouse"  "200" "$(http http://localhost:8123/)"
 check "http/grafana"     "302" "$(http http://localhost:3001/)"
 
-for sp in timeguru:19000 architect:19001 captain:19002 micromanager:19003 \
-          monad:19004 sophia:19005 cuirass:19006 wotan:18000; do
+for sp in timeguru:19000 wotan:18000; do
   check "health/${sp%%:*}" "200" "$(http "https://localhost:${sp##*:}/health")"
 done
 
 # Probe endpoints answer GET and HEAD, and 405 to anything else
 # (httputil.ProbeMethods). Services disagreed: some returned 200 to any
 # method, others refused HEAD.
-for sp in timeguru:19000 architect:19001 captain:19002 micromanager:19003 \
-          monad:19004 sophia:19005 cuirass:19006 wotan:18000 \
+for sp in timeguru:19000 wotan:18000 \
           dashboard:20000 kanban:20001 akira:19100; do
   check "probe-methods/${sp%%:*}" "200/405" \
     "$(http_method HEAD "https://localhost:${sp##*:}/health")/$(http_method BREW "https://localhost:${sp##*:}/health")"

@@ -138,10 +138,10 @@ func TestFindPort_KnownNameReturnsPort(t *testing.T) {
 	t.Parallel()
 	targets := []health.ServiceTarget{
 		{Name: "wotan", Port: 18000},
-		{Name: "monad", Port: 19004},
+		{Name: "kanban", Port: 20001},
 	}
-	if got := findPort("monad", targets); got != 19004 {
-		t.Errorf("findPort(monad) = %d, want 19004", got)
+	if got := findPort("kanban", targets); got != 20001 {
+		t.Errorf("findPort(kanban) = %d, want 20001", got)
 	}
 }
 

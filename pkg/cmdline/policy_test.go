@@ -27,7 +27,7 @@ func TestEveryBinaryUsesCmdline(t *testing.T) {
 		}
 	}
 	// The service binaries scripts/build-binaries.sh ships from services/
-	// (wotan, timeguru, captain, architect, micromanager) answer to the same
+	// (wotan, timeguru) answer to the same
 	// rule; until 2026-11-07 nothing looked, and `timeguru --version` started
 	// the daemon.
 	svc, err := filepath.Glob(filepath.Join("..", "..", "services", "*", "cmd", "*"))

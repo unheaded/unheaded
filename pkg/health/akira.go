@@ -49,6 +49,9 @@ type ServiceTarget struct {
 	// Exec, when set, makes this an exec check (exec_check.go): Host, Port,
 	// HealthPath and Scheme are ignored and the command's exit code is the vote.
 	Exec *ExecCheck
+	// ServerName, when set, is the TLS server name checked for an https
+	// target (a discovered one is dialled by IP; its name is the service).
+	ServerName string
 }
 
 // HealthReport is a single health check result, the payload of every
@@ -84,6 +87,14 @@ type Akira struct {
 	execLast map[string]execRun // last run per exec target, reused within its Interval
 
 	sweeps atomic.Uint64 // completed CheckAll passes; see Sweeps
+
+	// discovered lists admitted announcements (discovery.Watch, ADR-147
+	// Phase 9); nil: the config only. discoveredNames is the last sweep's
+	// set of names that came from it, for Verdict.Source.
+	discovered      func() []ServiceTarget
+	discoveredNames map[string]bool
+	sniMu           sync.Mutex
+	sniClients      map[string]*http.Client
 
 	// Callbacks
 	onReport func(HealthReport) // called for each of this node's checks
@@ -163,7 +174,7 @@ func (w *Akira) CheckService(target ServiceTarget) HealthReport {
 	url := fmt.Sprintf("%s://%s%s", scheme, net.JoinHostPort(target.Host, strconv.Itoa(target.Port)), path)
 
 	start := time.Now()
-	resp, err := w.client.Get(url)
+	resp, err := w.clientFor(target).Get(url)
 	latency := time.Since(start)
 
 	report := HealthReport{
@@ -219,10 +230,70 @@ func (w *Akira) checkExec(target ServiceTarget) HealthReport {
 	return report
 }
 
+// SetDiscovered makes every sweep also check fn's targets whose name the
+// config does not list (the configured target wins). Call it before Run.
+func (w *Akira) SetDiscovered(fn func() []ServiceTarget) {
+	w.discovered = fn
+}
+
+// sweepTargets is the configured targets plus the discovered ones the
+// config does not name.
+func (w *Akira) sweepTargets() []ServiceTarget {
+	if w.discovered == nil {
+		return w.targets
+	}
+	out := append([]ServiceTarget(nil), w.targets...)
+	configured := make(map[string]bool, len(w.targets))
+	for _, t := range w.targets {
+		configured[t.Name] = true
+	}
+	names := map[string]bool{}
+	for _, t := range w.discovered() {
+		if t.Name == "" || configured[t.Name] || names[t.Name] {
+			continue
+		}
+		names[t.Name] = true
+		out = append(out, t)
+	}
+	w.mu.Lock()
+	w.discoveredNames = names
+	w.mu.Unlock()
+	return out
+}
+
+// clientFor is the check client, with target.ServerName as the TLS server
+// name when set (one client per name, sharing the base transport's CA).
+func (w *Akira) clientFor(target ServiceTarget) *http.Client {
+	if target.ServerName == "" {
+		return w.client
+	}
+	base, ok := w.client.Transport.(*http.Transport)
+	if !ok || base.TLSClientConfig == nil {
+		return w.client
+	}
+	w.sniMu.Lock()
+	defer w.sniMu.Unlock()
+	if c, ok := w.sniClients[target.ServerName]; ok {
+		return c
+	}
+	tr := base.Clone()
+	tr.TLSClientConfig = base.TLSClientConfig.Clone()
+	tr.TLSClientConfig.ServerName = target.ServerName
+	c := &http.Client{Timeout: w.client.Timeout, Transport: tr, CheckRedirect: w.client.CheckRedirect}
+	if w.sniClients == nil {
+		w.sniClients = map[string]*http.Client{}
+	}
+	if len(w.sniClients) < 512 {
+		w.sniClients[target.ServerName] = c
+	}
+	return c
+}
+
 // CheckAll performs health checks on all targets.
 func (w *Akira) CheckAll() []HealthReport {
-	reports := make([]HealthReport, 0, len(w.targets))
-	for _, target := range w.targets {
+	targets := w.sweepTargets()
+	reports := make([]HealthReport, 0, len(targets))
+	for _, target := range targets {
 		report := w.CheckService(target)
 		reports = append(reports, report)
 
@@ -334,6 +405,9 @@ func (w *Akira) GetStates() map[string]Verdict {
 
 	result := make(map[string]Verdict, len(w.verdicts))
 	for k, v := range w.verdicts {
+		if w.discoveredNames[k] {
+			v.Source = "discovered"
+		}
 		result[k] = v
 	}
 	return result

@@ -15,29 +15,25 @@ package sloguard
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"unheaded/pkg/vmquery"
 )
 
 // FastBurn is ADR-100's fast tier: 2% of a 30-day budget in an hour.
 const FastBurn = 14.4
 
 const (
-	queryTimeout = 5 * time.Second
-	maxAnswer    = 1 << 20
 	maxPolicy    = 1 << 20
 	errorRatio5m = "slo:error_ratio:5m"
 )
@@ -98,9 +94,8 @@ func LoadPolicy(path string) ([]SLO, error) {
 
 // Guard checks the page SLOs against Victoria.
 type Guard struct {
-	vm     string
-	slos   []SLO
-	client *http.Client
+	vm   *vmquery.Client
+	slos []SLO
 }
 
 // New makes a Guard over the policy at policyPath, querying vmURL.
@@ -113,15 +108,11 @@ func New(vmURL, policyPath string) (*Guard, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Guard{
-		vm:   strings.TrimRight(vmURL, "/"),
-		slos: slos,
-		client: &http.Client{
-			Timeout:       queryTimeout,
-			Transport:     &http.Transport{Proxy: nil},
-			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
-		},
-	}, nil
+	vm, err := vmquery.New(vmURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("sloguard: %w", err)
+	}
+	return &Guard{vm: vm, slos: slos}, nil
 }
 
 // SLOs returns the guarded objectives.
@@ -171,44 +162,13 @@ func (g *Guard) Check(ctx context.Context) (Verdict, error) {
 }
 
 func (g *Guard) query(ctx context.Context) (map[string]string, error) {
-	ctx, cancel := context.WithTimeout(ctx, queryTimeout)
-	defer cancel()
-	q := url.Values{"query": {errorRatio5m}}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, g.vm+"/api/v1/query?"+q.Encode(), nil)
+	samples, err := g.vm.Instant(ctx, errorRatio5m)
 	if err != nil {
 		return nil, err
-	}
-	resp, err := g.client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("victoria answered %d", resp.StatusCode)
-	}
-	var body struct {
-		Status string `json:"status"`
-		Data   struct {
-			Result []struct {
-				Metric map[string]string `json:"metric"`
-				Value  []any             `json:"value"`
-			} `json:"result"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxAnswer)).Decode(&body); err != nil {
-		return nil, err
-	}
-	if body.Status != "success" {
-		return nil, errors.New("victoria query did not succeed")
 	}
 	out := map[string]string{}
-	for _, r := range body.Data.Result {
-		if len(r.Value) != 2 {
-			continue
-		}
-		if s, ok := r.Value[1].(string); ok {
-			out[r.Metric["slo"]] = s
-		}
+	for _, sm := range samples {
+		out[sm.Metric["slo"]] = sm.Raw
 	}
 	return out, nil
 }

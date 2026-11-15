@@ -34,7 +34,7 @@ Each database has its own `well_schema_migrations` ledger. Migrations 030-046 ar
 
 | Role | Reaches | Used by |
 |---|---|---|
-| `app_kanban`, `app_timeguru`, `app_zhen` | `unheaded_app` (+ read `unheaded_config`) | kanban-app, timeguru, Zhen |
+| `app_kanban`, `app_timeguru`, `app_zhen` | `unheaded_app` (+ read `unheaded_config`); `app_timeguru` writes `timeline_milestones` (migration 050, one row per milestone of `references/timeline.md`, 2 connections) | kanban-app, timeguru, Zhen |
 | `app_auth` | `unheaded_app` `api_keys` only: SELECT, INSERT, UPDATE of `revoked_at`/`last_used_at` (no DELETE), 40 conns; password `APP_AUTH_PASSWORD` (migration 035) | `unheaded apikey`, services with `AUTH_APIKEY_STORE=well` (login `AUTH_WELL_USER`/`AUTH_WELL_PASSWORD`) |
 | `ops_writer`, `ops_reader` | `unheaded_ops` | dashboard-backend, zhen-claude / zhen-agentd audit sinks (`llm_requests`, `audit_events`), read views |
 | `config_admin`, `config_reader` | `unheaded_config` | unheaded-daemon, services |
@@ -78,7 +78,7 @@ One job, `well-retention` (`cmd/well-retention`, package `unheaded-well-retentio
 ## Rules
 
 - **No DB = read-only mode.** Mutable UI is never allowed without persistence.
-- **Ledger only.** Schema changes are new migrations through `cmd/well-migrate`; no service creates tables at startup, no hand-run SQL files. Services check the ledger instead: `pkg/database.RequireMigrations` (kanban-app requires 003 and 007 and refuses to start against a Well that answers without them, rather than falling back to its local SQLite board; `app_kanban` reads `unheaded_app`'s ledger through migration 038). kanban-app's and timeguru's `CREATE TABLE IF NOT EXISTS` are their own local SQLite files, not the Well.
+- **Ledger only.** Schema changes are new migrations through `cmd/well-migrate`; no service creates tables at startup, no hand-run SQL files. Services check the ledger instead: `pkg/database.RequireMigrations` (kanban-app requires 003 and 007 and refuses to start against a Well that answers without them; timeguru requires 050; `app_kanban` reads `unheaded_app`'s ledger through migration 038). No service keeps a local SQLite copy of Well data (kanban-app and timeguru wait for the Well, read-only, ADR-147).
 - **Batches go through `scripts/well/batch-apply.sh`.** `--dry-run [--from NNN]` lists what is pending (MANIFEST minus ledgers) and changes nothing; without it the script backs up the whole cluster (`scripts/db-backup.sh` layout) into `/srv/backups/unheaded-well/pre-batch-<UTC>/` with `pending.tsv`, applies, and prints the ledger rows added. A batch that fails part-way: do not re-run; `scripts/well/batch-rollback.sh --yes <pre-batch-dir>` drops and restores only the databases the batch touched and drops roles it created (writes since the backup are lost). Rehearsal: `scripts/well/test-batch-apply.sh` (CI). Pending live as of 2026-11-04: 030-046.
 - **Unused indexes** (ERDA 5.3): `scripts/well/index-drops-after-2026-11-15.sh` prints `DROP INDEX CONCURRENTLY` drafts for indexes still at `idx_scan = 0`; it refuses before 2026-11-15 or on statistics younger than 28 days and never drops anything. The reviewed list becomes a `notx` migration.
 - **No credentials in the repo**, and every `kingdom_config` change states a reason (`well.change_reason`, 028).

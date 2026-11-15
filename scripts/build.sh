@@ -141,32 +141,12 @@ build_all_go_binaries() {
         build_errors=$((build_errors + 1))
     fi
 
-    if ! build_binary "monad" "${PROJECT_ROOT}/cmd/monad"; then
-        build_errors=$((build_errors + 1))
-    fi
-
-    if ! build_binary "sophia" "${PROJECT_ROOT}/cmd/sophia"; then
-        build_errors=$((build_errors + 1))
-    fi
-
     # Service binaries
     if ! build_binary "wotan" "${PROJECT_ROOT}/services/wotan/cmd/wotan"; then
         build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "timeguru" "${PROJECT_ROOT}/services/timeguru/cmd/timeguru"; then
-        build_errors=$((build_errors + 1))
-    fi
-
-    if ! build_binary "captain" "${PROJECT_ROOT}/services/captain/cmd/captain"; then
-        build_errors=$((build_errors + 1))
-    fi
-
-    if ! build_binary "architect" "${PROJECT_ROOT}/services/architect/cmd/architect"; then
-        build_errors=$((build_errors + 1))
-    fi
-
-    if ! build_binary "micromanager" "${PROJECT_ROOT}/services/micromanager/cmd/micromanager"; then
         build_errors=$((build_errors + 1))
     fi
 

@@ -12,7 +12,7 @@ Topic and message contracts for Wotan (the Fae Chamber): which service publishes
 | `timeline` | Timeguru | `timeline.updates`, `.updated`, `.sync`, `.task.{created,updated,removed}`, `.phase.{started,completed}`, `.milestone.{hit,missed}` |
 | `decisions` | Captain | `decisions.created` |
 | `architecture` | Architect | `architecture.updates` |
-| `alerts` | everyone | `alerts.critical` (every service subscribes) |
+| `alerts` | alert-mailer | `alerts.critical` (signed; every service on the bus subscribes through `pkg/critalert`) |
 | `state` | unheaded-daemon | `state.changed` |
 | `system` | Akira, discovery | `system.health.reports`, `system.health.consensus`, `system.health.remediate` (ADR-029), `system.discovery` (TTL registration) |
 | `logs` | every service | `logs.<service>.<level>` (`pkg/logagg`) |
