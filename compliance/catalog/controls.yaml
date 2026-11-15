@@ -1319,17 +1319,33 @@ controls:
       or JWT) instead of the Noop one that admits every request. Checked from
       the declared compose configuration by
       scripts/compliance/check-service-auth.sh, a compliance check and not a
-      CI gate. It reads the compose file as written, so it says nothing about
-      what runs: see FND-037.
+      CI gate, which reads the compose file as written. What runs is read
+      per service by the host-service sources (ADR-097, amendment of
+      2026-11-15): the service is running, its auth setting is on, and a
+      request with no credentials answers 401. West is read; east is not
+      read until its redeploy (S-E1-LIVE Step 218), so the control stays
+      DECLARED: see FND-037.
     rationale: >-
       Access enforcement (AC-3) with identification and authentication of
       users and services (IA-2, IA-9); 800-171 03.01.02 access enforcement,
       03.05.02 device identification and authentication; CSF PR.AA-03; ISO
       A.8.5 secure authentication; SOC 2 CC6.1.
-    declared: reads the compose file, not a running service
+    declared: east not yet read (B-11)
     freshness_days: 7
     evidence:
       - {kind: gate-script, ref: scripts/compliance/check-service-auth.sh}
+      - {kind: host-service, ref: "west:akira"}
+      - {kind: host-service, ref: "west:architect"}
+      - {kind: host-service, ref: "west:captain"}
+      - {kind: host-service, ref: "west:cuirass"}
+      - {kind: host-service, ref: "west:dashboard-backend"}
+      - {kind: host-service, ref: "west:kanban-app"}
+      - {kind: host-service, ref: "west:logstore-writer"}
+      - {kind: host-service, ref: "west:micromanager"}
+      - {kind: host-service, ref: "west:monad"}
+      - {kind: host-service, ref: "west:sophia"}
+      - {kind: host-service, ref: "west:timeguru"}
+      - {kind: host-service, ref: "west:wotan"}
     mappings:
       nist-800-53r5: [AC-3, IA-2, IA-9]
       nist-800-171r3: ["03.01.02", "03.05.02"]

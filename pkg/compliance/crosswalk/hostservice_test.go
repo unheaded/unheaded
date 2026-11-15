@@ -225,3 +225,46 @@ func TestHostServices_MatchTheComposeGate(t *testing.T) {
 		}
 	})
 }
+
+// UH-AUTHN-01 reads every service on every host the table says runs it, and
+// names nothing else: a service added to the table without a source would
+// leave the control passing on a partial reading.
+func TestRepoCatalog_AuthnReadsEveryHostService(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, hosts := map[string]bool{}, map[string]bool{}
+	for name, svc := range HostServices {
+		for host := range svc.Runs {
+			want[host+":"+name] = true
+			hosts[host] = true
+		}
+	}
+	if len(want) < 12 {
+		t.Fatalf("the table gives only %d host-service refs", len(want))
+	}
+	for _, ctl := range c.Controls {
+		for _, e := range ctl.Evidence {
+			if e.Kind != KindHostService {
+				continue
+			}
+			if ctl.ID != "UH-AUTHN-01" {
+				t.Errorf("%s uses a host-service source; the kind says what UH-AUTHN-01 claims", ctl.ID)
+				continue
+			}
+			if !want[e.Ref] {
+				t.Errorf("UH-AUTHN-01 names %s twice, or the table does not hold it", e.Ref)
+			}
+			delete(want, e.Ref)
+		}
+		if ctl.ID == "UH-AUTHN-01" && ctl.Declared == "" && !hosts["east"] {
+			// East is not read yet (S-E1-LIVE Step 218): until its
+			// entries are in the table the control may not read PASS.
+			t.Error("UH-AUTHN-01 lost declared: before east's services are in the table")
+		}
+	}
+	for ref := range want {
+		t.Errorf("UH-AUTHN-01 has no source for %s", ref)
+	}
+}
