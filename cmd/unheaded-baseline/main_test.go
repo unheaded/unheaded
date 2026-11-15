@@ -346,6 +346,11 @@ func TestUnitSeesTheHost(t *testing.T) {
 	if !strings.HasSuffix(set["ExecStart"], "-root-facts /run/unheaded-baseline") {
 		t.Errorf("ExecStart=%q does not pass the root facts", set["ExecStart"])
 	}
+	// 09_compliance reads unheaded_baseline_* from the textfile huginn
+	// collects; without the flag the run writes no metrics (D-14).
+	if !strings.Contains(set["ExecStart"], " -textfile-dir /var/lib/unheaded/textfile ") {
+		t.Errorf("ExecStart=%q does not write the textfile huginn reads", set["ExecStart"])
+	}
 	if !strings.HasPrefix(set["ExecStartPre"], "+") {
 		t.Error("ExecStartPre must be the one privileged line (+) that writes the root facts")
 	}
