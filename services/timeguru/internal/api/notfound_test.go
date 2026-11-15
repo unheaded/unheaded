@@ -4,8 +4,10 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"unheaded/services/timeguru/internal/storage"
@@ -45,5 +47,18 @@ func TestSyncImport_RequirePost(t *testing.T) {
 		if w.Code != http.StatusMethodNotAllowed {
 			t.Errorf("GET %s: %d, want 405", name, w.Code)
 		}
+	}
+}
+
+// REV-4: an import the Well cannot hold is the client's mistake (400),
+// not a server error.
+func TestImportTheWellCannotHoldIs400(t *testing.T) {
+	h := NewHandler(&mockStore{saveErr: fmt.Errorf("%w: id too long", storage.ErrWellLimit)})
+	body := `{"version":"1.0.0","milestones":[]}`
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/timeline/import?format=json", strings.NewReader(body))
+	w := httptest.NewRecorder()
+	h.HandleImport(w, r)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("import refused by ErrWellLimit: %d, want 400: %s", w.Code, w.Body.String())
 	}
 }

@@ -758,6 +758,10 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 			h.writeWellUnavailable(w)
 			return
 		}
+		if errors.Is(err, storage.ErrWellLimit) {
+			h.writeError(w, http.StatusBadRequest, "WELL_LIMIT", err.Error(), nil)
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, "SAVE_ERROR", "failed to save imported timeline", err)
 		return
 	}

@@ -15,8 +15,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"unheaded/pkg/database"
 	"unheaded/services/timeguru/internal/timeline"
@@ -31,7 +33,14 @@ var (
 	ErrInvalidStatus     = errors.New("invalid status")
 	// ErrWellUnavailable: a write while the Well is not connected.
 	ErrWellUnavailable = errors.New("the Well is unavailable")
+	// ErrWellLimit: a milestone timeline_milestones (migration 050) cannot
+	// hold; the timeline is refused before memory or the Well change.
+	ErrWellLimit = errors.New("milestone does not fit the Well")
 )
+
+// wellTimeout bounds one call to the Well; the store's lock is held across
+// it, so a Well that never answers must not hold reads for ever.
+var wellTimeout = 15 * time.Second
 
 // Backend is timeline_milestones (pkg/database.TimelineStore).
 type Backend interface {
@@ -70,11 +79,14 @@ func (s *Store) SetCloser(fn func() error) {
 }
 
 // Attach connects the Well: the timeline in memory, with the rows changed
-// after the file's modification time overlaid, is written to it.
+// after the file's modification time overlaid, is written to it, within
+// wellTimeout.
 func (s *Store) Attach(ctx context.Context, b Backend) error {
 	if b == nil {
 		return errors.New("attach: nil backend")
 	}
+	ctx, cancel := context.WithTimeout(ctx, wellTimeout)
+	defer cancel()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.tl != nil {
@@ -87,14 +99,25 @@ func (s *Store) Attach(ctx context.Context, b Backend) error {
 }
 
 // Connect calls connect until it returns a backend that attaches, waiting
-// min after the first failure and doubling to max, or until ctx ends.
+// min after the first failure and doubling to max, or until ctx ends. A
+// backend that is an io.Closer (the connection pool) is closed when it
+// fails to attach, so a retry never leaves the last pool open, and is
+// closed by Close once attached.
 func (s *Store) Connect(ctx context.Context, connect func(context.Context) (Backend, error), minWait, maxWait time.Duration) {
 	wait := minWait
 	for {
 		b, err := connect(ctx)
 		if err == nil {
-			if err = s.Attach(ctx, b); err == nil {
+			err = s.Attach(ctx, b)
+			c, closes := b.(io.Closer)
+			if err == nil {
+				if closes {
+					s.SetCloser(c.Close)
+				}
 				return
+			}
+			if closes {
+				_ = c.Close()
 			}
 		}
 		select {
@@ -115,8 +138,8 @@ func (s *Store) Load(ctx context.Context, tl *timeline.Timeline, fileMod time.Ti
 	if tl == nil {
 		return ErrNilTimeline
 	}
-	if err := tl.Validate(); err != nil {
-		return fmt.Errorf("validate timeline: %w", err)
+	if err := validate(tl); err != nil {
+		return err
 	}
 	c, err := clone(tl)
 	if err != nil {
@@ -128,7 +151,33 @@ func (s *Store) Load(ctx context.Context, tl *timeline.Timeline, fileMod time.Ti
 	if s.backend == nil {
 		return nil
 	}
+	ctx, cancel := context.WithTimeout(ctx, wellTimeout)
+	defer cancel()
 	return s.syncLocked(ctx, s.backend, s.tl, fileMod)
+}
+
+// Limits of timeline_milestones (db/migrations/050): milestone_key
+// VARCHAR(64), name up to 500 characters. Status and risk are checked by
+// timeline.Validate.
+const (
+	maxKeyChars  = 64
+	maxNameChars = 500
+)
+
+// validate checks the timeline and that the Well can hold every milestone.
+func validate(tl *timeline.Timeline) error {
+	if err := tl.Validate(); err != nil {
+		return fmt.Errorf("validate timeline: %w", err)
+	}
+	for _, m := range tl.Milestones {
+		if n := utf8.RuneCountInString(m.ID); n > maxKeyChars {
+			return fmt.Errorf("%w: id %.20q... is %d characters, the Well holds %d", ErrWellLimit, m.ID, n, maxKeyChars)
+		}
+		if n := utf8.RuneCountInString(m.Name); n > maxNameChars {
+			return fmt.Errorf("%w: milestone %q has a %d-character name, the Well holds %d", ErrWellLimit, m.ID, n, maxNameChars)
+		}
+	}
+	return nil
 }
 
 // syncLocked overlays rows newer than fileMod on tl and writes tl to b.
@@ -154,8 +203,8 @@ func (s *Store) SaveTimeline(ctx context.Context, tl *timeline.Timeline) error {
 	if tl == nil {
 		return ErrNilTimeline
 	}
-	if err := tl.Validate(); err != nil {
-		return fmt.Errorf("validate timeline: %w", err)
+	if err := validate(tl); err != nil {
+		return err
 	}
 	c, err := clone(tl)
 	if err != nil {
@@ -166,6 +215,8 @@ func (s *Store) SaveTimeline(ctx context.Context, tl *timeline.Timeline) error {
 	if s.backend == nil {
 		return ErrWellUnavailable
 	}
+	ctx, cancel := context.WithTimeout(ctx, wellTimeout)
+	defer cancel()
 	if err := s.backend.ReplaceMilestones(ctx, rows(c)); err != nil {
 		return fmt.Errorf("write the timeline to the Well: %w", err)
 	}
@@ -209,6 +260,8 @@ func (s *Store) UpdateMilestone(ctx context.Context, milestoneID string, progres
 	if !found {
 		return fmt.Errorf("%w: %s", ErrMilestoneNotFound, milestoneID)
 	}
+	ctx, cancel := context.WithTimeout(ctx, wellTimeout)
+	defer cancel()
 	if err := s.backend.UpdateMilestone(ctx, milestoneID, progress, status); err != nil {
 		if errors.Is(err, database.ErrMilestoneNotFound) {
 			return fmt.Errorf("%w: %s", ErrMilestoneNotFound, milestoneID)

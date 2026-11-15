@@ -359,8 +359,17 @@ func connectWell(ctx context.Context) (storage.Backend, error) {
 		log.Fatal().Err(err).Msg("the Well lacks timeguru's migration (db/migrations/050)")
 	}
 	log.Info().Msg("connected to the Well (timeline_milestones)")
-	return database.NewTimelineStore(db), nil
+	return wellBackend{TimelineStore: database.NewTimelineStore(db), db: db}, nil
 }
+
+// wellBackend is the store with its pool: storage.Store.Connect closes a
+// pool that fails to attach, and Close closes the one that did.
+type wellBackend struct {
+	*database.TimelineStore
+	db interface{ Close() error }
+}
+
+func (w wellBackend) Close() error { return w.db.Close() }
 
 // loadTimelineFromFile parses timeline.md and stores it
 func loadTimelineFromFile(filePath string, store *storage.Store) error {

@@ -225,3 +225,139 @@ func TestNoSQLite(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+// poolWell is a connection that fails its first writes and counts closes.
+type poolWell struct {
+	*fakeWell
+	fail   func() error
+	closed *int
+	mu     *sync.Mutex
+}
+
+func (p *poolWell) ReplaceMilestones(ctx context.Context, rows []database.MilestoneRow) error {
+	if err := p.fail(); err != nil {
+		return err
+	}
+	return p.fakeWell.ReplaceMilestones(ctx, rows)
+}
+
+func (p *poolWell) Close() error {
+	p.mu.Lock()
+	*p.closed++
+	p.mu.Unlock()
+	return nil
+}
+
+// REV-4: a connection whose first write fails is closed before the next
+// try opens another; the one that attaches is closed by Close.
+func TestFailedAttachClosesItsPool(t *testing.T) {
+	s := New()
+	if err := s.Load(context.Background(), parseFixture(t), time.Unix(0, 0)); err != nil {
+		t.Fatal(err)
+	}
+	var mu sync.Mutex
+	opened, closed, writes := 0, 0, 0
+	connect := func(context.Context) (Backend, error) {
+		mu.Lock()
+		opened++
+		mu.Unlock()
+		return &poolWell{fakeWell: newFakeWell(), closed: &closed, mu: &mu, fail: func() error {
+			mu.Lock()
+			defer mu.Unlock()
+			writes++
+			if writes <= 3 {
+				return errors.New("the Well refused the write")
+			}
+			return nil
+		}}, nil
+	}
+	s.Connect(context.Background(), connect, time.Millisecond, time.Millisecond)
+	mu.Lock()
+	if opened != 4 || closed != 3 {
+		t.Fatalf("opened %d pools and closed %d; want 4 opened, the 3 that failed closed", opened, closed)
+	}
+	mu.Unlock()
+	if err := s.Close(); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if closed != 4 {
+		t.Fatalf("Close closed %d pools in all, want 4 (SetCloser was never called)", closed)
+	}
+}
+
+// REV-4: a milestone the Well cannot hold (milestone_key VARCHAR(64), name
+// up to 500 characters) is refused at Load and import, before memory or
+// the Well change, so the first write cannot fail on it for ever.
+func TestMilestoneTheWellCannotHoldRefused(t *testing.T) {
+	cases := map[string]func(*timeline.Milestone){
+		"id 65":    func(m *timeline.Milestone) { m.ID = strings.Repeat("a", 65) },
+		"name 501": func(m *timeline.Milestone) { m.Name = strings.Repeat("n", 501) },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := New()
+			w := newFakeWell()
+			if err := s.Attach(context.Background(), w); err != nil {
+				t.Fatal(err)
+			}
+			good := parseFixture(t)
+			if err := s.Load(context.Background(), good, w.now.Add(-time.Hour)); err != nil {
+				t.Fatal(err)
+			}
+			bad := parseFixture(t)
+			mutate(bad.Milestones[0])
+			if err := s.Load(context.Background(), bad, w.now.Add(-time.Hour)); !errors.Is(err, ErrWellLimit) {
+				t.Errorf("Load: err %v, want ErrWellLimit", err)
+			}
+			if err := s.SaveTimeline(context.Background(), bad); !errors.Is(err, ErrWellLimit) {
+				t.Errorf("SaveTimeline: err %v, want ErrWellLimit", err)
+			}
+			got, _ := s.GetTimeline(context.Background())
+			if got.Milestones[0].ID != good.Milestones[0].ID || got.Milestones[0].Name != good.Milestones[0].Name {
+				t.Error("a refused timeline replaced the one in memory")
+			}
+		})
+	}
+	// 64 characters fit.
+	s := New()
+	tl := parseFixture(t)
+	tl.Milestones[0].ID = strings.Repeat("é", 64)
+	if err := s.Load(context.Background(), tl, time.Unix(0, 0)); err != nil {
+		t.Errorf("a 64-character id: %v", err)
+	}
+}
+
+// hungWell never answers a write until its context ends.
+type hungWell struct{ *fakeWell }
+
+func (h hungWell) ReplaceMilestones(ctx context.Context, _ []database.MilestoneRow) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+// REV-4: the first write has a deadline; a Well that accepts the
+// connection and never answers does not hold the store's lock for ever.
+func TestAttachHasADeadline(t *testing.T) {
+	old := wellTimeout
+	wellTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { wellTimeout = old })
+	s := New()
+	if err := s.Load(context.Background(), parseFixture(t), time.Unix(0, 0)); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() { done <- s.Attach(context.Background(), hungWell{newFakeWell()}) }()
+	select {
+	case err := <-done:
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("Attach to a hung Well: %v, want a deadline", err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("Attach to a hung Well did not return")
+	}
+	if _, err := s.GetTimeline(context.Background()); err != nil {
+		t.Fatalf("reads after a hung Attach: %v", err)
+	}
+}
