@@ -4,10 +4,10 @@ rule_files:
   - ../containers.yml
 evaluation_interval: 1m
 tests:
-  # 1. captain runs, then stops at 11m: pending at 12m, firing at 14m.
+  # 1. timeguru runs, then stops at 11m: pending at 12m, firing at 14m.
   - interval: 1m
     input_series:
-      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-timeguru",project="unheaded-dev",service="timeguru"}'
         values: '1x10 0x10'
     alert_rule_test:
       - eval_time: 12m
@@ -16,10 +16,10 @@ tests:
       - eval_time: 14m
         alertname: ContainerStopped
         exp_alerts:
-          - exp_labels: {severity: critical, urgency: none, job: huginn, host: west, name: unheaded-captain, project: unheaded-dev, service: captain}
+          - exp_labels: {severity: critical, urgency: none, job: huginn, host: west, name: unheaded-timeguru, project: unheaded-dev, service: timeguru}
             exp_annotations:
-              summary: "Container unheaded-captain on west is stopped; nothing restarts it"
-              description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 unheaded-captain."
+              summary: "Container unheaded-timeguru on west is stopped; nothing restarts it"
+              description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 unheaded-timeguru."
               runbook_url: "runbooks/observe/container-stopped.yaml"
 
   # 2. A container that has not run in the last 7 days (an old one-shot,
@@ -36,9 +36,9 @@ tests:
   # 3. A planned stop of that container keeps it quiet.
   - interval: 1m
     input_series:
-      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-timeguru",project="unheaded-dev",service="timeguru"}'
         values: '1x10 0x10'
-      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="unheaded-captain"}'
+      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="unheaded-timeguru"}'
         values: '1e10x20'
     alert_rule_test:
       - eval_time: 14m
@@ -48,7 +48,7 @@ tests:
   # 4. A planned stop of everything keeps it quiet.
   - interval: 1m
     input_series:
-      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-timeguru",project="unheaded-dev",service="timeguru"}'
         values: '1x10 0x10'
       - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="all"}'
         values: '1e10x20'
@@ -60,9 +60,9 @@ tests:
   # 5. The mark runs out at 600 s (10m): pending from 10m, firing at 12m.
   - interval: 1m
     input_series:
-      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-captain",project="unheaded-dev",service="captain"}'
+      - series: 'unheaded_container_running{job="huginn",host="west",name="unheaded-timeguru",project="unheaded-dev",service="timeguru"}'
         values: '1 0x20'
-      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="unheaded-captain"}'
+      - series: 'unheaded_planned_stop_until_timestamp_seconds{job="huginn",host="west",scope="unheaded-timeguru"}'
         values: '600x20'
     alert_rule_test:
       - eval_time: 9m
@@ -71,10 +71,10 @@ tests:
       - eval_time: 14m
         alertname: ContainerStopped
         exp_alerts:
-          - exp_labels: {severity: critical, urgency: none, job: huginn, host: west, name: unheaded-captain, project: unheaded-dev, service: captain}
+          - exp_labels: {severity: critical, urgency: none, job: huginn, host: west, name: unheaded-timeguru, project: unheaded-dev, service: timeguru}
             exp_annotations:
-              summary: "Container unheaded-captain on west is stopped; nothing restarts it"
-              description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 unheaded-captain."
+              summary: "Container unheaded-timeguru on west is stopped; nothing restarts it"
+              description: "It ran in the last 7 days. Restart policy is no (ADR-147 decision 1). Why: unheaded_container_exit_code and unheaded_container_oom_killed for this name; docker logs --tail 50 unheaded-timeguru."
               runbook_url: "runbooks/observe/container-stopped.yaml"
 
   # 6. A kill in system.slice fires at once and keeps firing for 30m after
