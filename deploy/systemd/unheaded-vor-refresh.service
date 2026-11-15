@@ -18,7 +18,7 @@
 #   sudo systemctl start unheaded-vor-refresh.path
 #
 # Install on west (the account first: deploy/sysusers.d/unheaded.conf):
-#   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /usr/lib/sysusers.d/unheaded.conf && sudo systemd-sysusers
+#   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/unheaded.conf && sudo systemd-sysusers
 #   sudo install -m 0644 deploy/polkit/61-unheaded-vor-refresh.rules /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules
 #   sudo cp deploy/systemd/unheaded-vor-refresh.{path,service} /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-vor-refresh.path

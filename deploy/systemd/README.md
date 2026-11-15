@@ -218,6 +218,49 @@ IP:20002` per address and the matching `IPAddressAllow=` and
 `SocketBindAllow=tcp:20002`; vor search needs `IPAddressAllow=localhost`
 (kept) and vor on `127.0.0.1:20110`.
 
+## vor refresh
+
+vor reads its sources once, at start. Two pieces keep its copy of develop
+current with no one typing anything:
+
+- The repository's post-commit and post-merge hook
+  (`scripts/git-hooks/post-commit`, installed by `make install-hooks`) runs
+  `scripts/vor-export-source.sh <dest> develop` when develop moves, as the
+  repository's owner, only into a directory an earlier export made. The
+  script writes the commit's hash into `<dest>/.vor-export` and, last and by
+  rename, into `<dest>.exported` (the stamp).
+- `unheaded-vor-refresh.path` watches the stamp
+  (`/var/zhen/vor-source/unheaded.exported`) and starts
+  `unheaded-vor-refresh.service`, a oneshot that runs
+  `systemctl try-restart unheaded-vor.service`. A vor that is stopped stays
+  stopped.
+
+The service runs as `unheaded-vor-refresh` (uid 16758), not root (Stevie,
+2026-11-12). The account reads nothing and writes nothing. Its only power is
+`deploy/polkit/61-unheaded-vor-refresh.rules`: `try-restart` of
+`unheaded-vor.service`, no other unit and no other verb.
+
+It starts at most 6 times in 10 minutes. A seventh export inside the window
+is refused, and on systemd 257 the path unit then shows as failed
+(`unit-start-limit-hit`) and stops watching until it is reset:
+
+```bash
+systemctl is-failed unheaded-vor-refresh.path
+sudo systemctl reset-failed unheaded-vor-refresh.path unheaded-vor-refresh.service
+sudo systemctl start unheaded-vor-refresh.path
+```
+
+Install (the account first):
+
+```bash
+sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/unheaded.conf && sudo systemd-sysusers
+sudo install -m 0644 deploy/polkit/61-unheaded-vor-refresh.rules /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules
+sudo cp deploy/systemd/unheaded-vor-refresh.{path,service} /etc/systemd/system/
+sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-vor-refresh.path
+```
+
+By hand: `scripts/vor-export-source.sh /var/zhen/vor-source/unheaded develop`.
+
 ## zhen-ui-front
 
 `unheaded-zhen-ui-front.service` (ADR-138) is the only way to the Zhen web
