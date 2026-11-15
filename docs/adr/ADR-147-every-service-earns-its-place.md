@@ -370,3 +370,10 @@ The seats asked 58 questions. Merged:
 24. **Orphans:** the old `unheaded-well-data` volume, three ClickHouse tables with no retention, the SQLite fallback.
 25. **The seat reports:** into the repository, or kept on the host.
 
+### Stevie's answers to the decisions (2026-11-15)
+
+By decision number. He chose to answer all of them before the plan is forged.
+
+- **1. Restart: keep `no`.** A container that dies stays down until a person starts it. In the run, each death is then a finding that can be seen. It follows that stage 1 must make a stopped container raise an alert, since nothing brings it back.
+- **7 (first part). architect, captain, micromanager: remove all three,** with their volumes, scrape jobs, health targets and the rule that every service subscribes on their behalf. monad, sophia, Cuirass on west and timeguru's two homes are still open.
+- **25. The seat reports stay on the host** (`~/tmp/adr147-table/` on west), outside the repository.
