@@ -751,7 +751,7 @@ services:
       # checked by services/wotan/cmd/wotan/allowlist_test.go). Auto-approve
       # then keys on the token's verified sub (configs/wotan.yaml).
       AUTH_ENABLED: "true"
-      AUTH_ALLOW_CALLERS: "akira,anomaly,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,perf-benchmark,shield,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,upc-cartridgectl,zhen-agentd,zhen-claude"
+      AUTH_ALLOW_CALLERS: "akira,alert-mailer,anomaly,chaos-controller,dashboard-backend,ebpf-collector,gateway,heimdall,kanban-app,kev-poller,perf-benchmark,shield,sword,timeguru,trace-collector,unheaded-baseline,unheaded-cli,unheaded-daemon,upc-cartridgectl,zhen-agentd,zhen-claude"
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
       # Under the 256M limit so the GC works harder before the kernel OOM-kills.
       # Payload is bounded by --buffer-bytes (8 MiB per room) and, for every
@@ -763,6 +763,7 @@ services:
       - "127.0.0.1:18000:18000"     # HTTP REST API
       - "${UNHEADED_GATEWAY_BIND:-172.17.0.1}:18000:18000"   # VictoriaMetrics scrape; see victoria
       - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:18000:18000"   # Prometheus scrape; see victoria
+      - "${UNHEADED_OVERLAY_BIND:-127.0.0.3}:18001:18001"   # alert-mailer (monitoring network) publishes alerts.critical; WireGuard only (decision 16)
     volumes:
       - ./configs/certs/dev/wotan:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key

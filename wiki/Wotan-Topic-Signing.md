@@ -61,8 +61,16 @@ topic `alerts.critical` itself.
 |---|---|---|
 | `drift.` | `heimdall-daemon` | `--drift-sign-key`, one per node |
 | `audit.` | none yet | `AUDIT_SIGNING_KEY_FILE` |
-| `alerts.critical.` | none yet (every service subscribes) | (none defined) |
+| `alerts.critical.` | alert-mailer (each critical Alertmanager notification, firing and resolved, and a snapshot every 5 min; every service on the bus subscribes through `pkg/critalert`) | `ALERTS_SIGNING_KEY_FILE` |
 | `system.health.consensus.`, `system.health.remediate.` | Akira | `HEALTH_SIGNING_KEY_FILE` |
+
+Enrolling the `alerts.critical.` key (ADR-147 Phase 8): run
+`unheaded-keygen -algo mldsa65 -owner <alert-mailer's account> alerts-critical`
+on the host; paste the public key under the `alerts.critical.` prefix in the
+topic config Wotan reads on that host (on west that file is bind-mounted from
+the repository today: where a deployment's keys go is Stevie's choice); give
+alert-mailer `ALERTS_SIGNING_KEY_FILE`, `ALERT_MAILER_WOTAN_ADDR` and its
+service key; restart Wotan, then alert-mailer.
 
 `configs/wotan.yaml` lists each with `keys: []`: enrolled per deployment, never
 in the checked-in copy. Producers never send these unsigned: every unsigned

@@ -78,6 +78,8 @@ API keys go in `X-API-Key`; service tokens in `Authorization: Bearer` (aud `swor
 
 `pending` → `running` → `succeeded`, or `rolling_back` → `rolled_back` with `reason` `analysis_failed` (canary), `deploy_failed` (automatic) or `manual`; `failed` when there is no earlier success to return to. A record left `running` by a restart is marked `failed` with that reason.
 
+No deploy starts while a critical alert fires (`pkg/critalert`, 409, `sword_deploys_held_total`); state unknown allows, with a warning. A running deploy is not stopped.
+
 ## Strategies
 
 Instances are immutable (`<svc>-<ver>-<n>`): an update is a create and a delete. The service's stable endpoint is a Cuirass-managed proxy device on one instance; moving it is the traffic switch (one `POST /api/v1/reconcile` on Cuirass, so a cutover does not wait for the 30 s sync).

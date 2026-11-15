@@ -27,6 +27,7 @@ topics:
   # Use "*" to auto-approve all callers (not recommended for production).
   auto_approve:
     - "akira"                # system.health.* consensus (cmd/akira)
+    - "alert-mailer"         # alerts.critical, signed (ALERTS_SIGNING_KEY_FILE; ADR-147 Phase 8)
     - "anomaly"              # anomaly.* consumer and anomaly.scores bridge (cmd/anomaly, ADR-108)
     - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
@@ -100,7 +101,7 @@ topics:
       keys: []
     - prefix: "audit."                     # no first-party producer yet
       keys: []
-    - prefix: "alerts.critical."           # every service subscribes; no first-party producer yet
+    - prefix: "alerts.critical."           # alert-mailer publishes (ALERTS_SIGNING_KEY_FILE); every service on the bus subscribes
       keys: []
     - prefix: "system.health.consensus."   # Akira's band changes (HEALTH_SIGNING_KEY_FILE)
       keys: []
@@ -136,12 +137,15 @@ topics:
     mode: enforce
     services:
       akira:
+        subscribe: ["alerts.critical"]
         publish: ["system.health.reports", "system.health.consensus", "system.health.remediate"]
+      alert-mailer:
+        publish: ["alerts.critical"]
       anomaly:
         subscribe: ["anomaly.baseline", "alerts.critical"]
         publish: ["anomaly.alerts", "anomaly.scores"]
       chaos-controller:
-        subscribe: ["chaos.abort"]
+        subscribe: ["chaos.abort", "alerts.critical"]
         publish: ["chaos.experiment.started", "chaos.experiment.completed", "chaos.refused", "chaos.revert_failed", "chaos.schedules", "system.discovery", "system.health.reports"]
       dashboard-backend:
         # The human-facing aggregator, on its one Wotan client (ADR-147
@@ -151,7 +155,7 @@ topics:
         # health persister system.health.reports. metrics.*, health.*,
         # alerts.*, decisions.*, state.* and architecture.* went (no
         # running publisher), and with them "#".
-        subscribe: ["timeline.*", "tasks.*", "system.health.consensus", "system.health.reports", "traces.*", "ebpf.*.events", "compute.*", "anamnesis.*", "bench.perf.packet"]
+        subscribe: ["alerts.critical", "timeline.*", "tasks.*", "system.health.consensus", "system.health.reports", "traces.*", "ebpf.*.events", "compute.*", "anamnesis.*", "bench.perf.packet"]
         publish: ["system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
       ebpf-collector:
         publish: ["ebpf.packet.events", "ebpf.latency.events"]
@@ -163,18 +167,21 @@ topics:
       heimdall:
         publish: ["drift.detected.*"]
       kanban-app:
-        subscribe: ["tasks.*", "timeline.updates", "runbooks.progress"]
+        subscribe: ["tasks.*", "timeline.updates", "runbooks.progress", "alerts.critical"]
         publish: ["tasks.created", "tasks.updated", "tasks.deleted", "system.discovery", "system.health.reports", "logs.kanban-app.*"]
       kev-poller:
+        subscribe: ["alerts.critical"]
         publish: ["threats.cisa-kev.updates", "threats.cisa-kev.delta"]
       perf-benchmark:
         publish: ["bench.perf.packet"]
       sword:
+        subscribe: ["alerts.critical"]
         publish: ["deploy.started", "deploy.progress", "deploy.succeeded", "deploy.failed", "deploy.rolled_back", "system.discovery", "system.health.reports"]
       timeguru:
         subscribe: ["alerts.critical"]
         publish: ["timeline.updates", "system.discovery", "system.health.reports", "logs.timeguru.*"]
       trace-collector:
+        subscribe: ["alerts.critical"]
         publish: ["traces.*", "ebpf.*.events", "anamnesis.*", "system.discovery", "system.health.reports", "logs.trace-collector.*"]
       unheaded-baseline:
         publish: ["compliance.deviation.*"]
@@ -183,6 +190,7 @@ topics:
         # by hand, and the chaos abort nothing in the repo publishes yet.
         publish: ["ebpf.*.events", "runbooks.progress", "chaos.abort"]
       unheaded-daemon:
+        subscribe: ["alerts.critical"]
         publish: ["cuirass.drift", "cuirass.metrics", "cuirass.chaos", "system.discovery", "system.health.reports", "logs.unheaded-daemon.*"]
       upc-cartridgectl:
         # weights subcommand only: publish writes a model's topic and fetch

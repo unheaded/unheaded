@@ -142,7 +142,7 @@ Service A                    Wotan                    Service B
 
 | Topic | Publisher | Subscribers | Purpose |
 |-------|-----------|-------------|---------|
-| `alerts.critical` | Any service | Services that wire it (timeguru, chaos-controller, …) | Critical alert broadcast |
+| `alerts.critical` | alert-mailer (signed, ML-DSA-65) | Every service that holds a Wotan client (`pkg/critalert`) | Critical alerts firing and resolved, metadata only; a snapshot every 5 min |
 | `timeline.updates` | timeguru | kanban-app | Timeline changes |
 | `system.health.reports` | akira, every service with `discovery.Start` (`pkg/healthreport`) | akira (tally), dashboard-backend (into The Well) | Each reporter's checks, and each service's check of itself |
 | `system.health.consensus` | akira | dashboard-backend | Health band changes |

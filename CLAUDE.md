@@ -579,7 +579,7 @@ log.Info().
 ### Wotan Topics
 
 **Required subscriptions:**
-- `alerts.critical` - All services must subscribe for critical alerts
+- `alerts.critical`: alert-mailer publishes each critical alert, signed (ML-DSA-65), with a snapshot every 5 min. Every service that holds a Wotan client attaches `pkg/critalert` (`critalert.Attach`); a test fails one that does not. The state is in `/health` under `critical_alerts` (timeguru, sword, chaos-controller, kanban-app, kev-poller) and on `/metrics` as `unheaded_critical_alerts_state`. Sword starts no deploy and chaos-controller no experiment while one fires; unknown (15 min without a message) allows.
 
 **Publishing guidelines:**
 - Include `trace_id` in all messages
