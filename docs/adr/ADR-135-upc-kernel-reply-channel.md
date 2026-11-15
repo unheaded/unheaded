@@ -589,6 +589,19 @@ line. It outranks D18's mark (+169, a second lock on a route D6 already closes),
 `UPC_FORK_MARK`, off, and returns when a rung frees instructions. With the guard on and the mark off the object is
 899,906.
 
+## Probes booted 2026-11-15 (S-STAGE-2C Phase 8, A-62)
+
+Each of these was read from the code and not booted when this ADR's review was written. They are booted now and in the harness (`scripts/upc-regression.sh`); the numbers are in `references/s-stage-2c-log.md`, Phase 8.
+
+- **Unlink of a file with data** (`rmprobe`, RM 11): the blocks are freed and the next file to take them reads back its own bytes.
+- **Link's count read back** (`lnprobe`, LN 12): `fstat` gives nlink 2 after `link`, 1 after the first name is unlinked, and the bytes are still there under the second name.
+- **Pause's tick count** (`sleepprobe`): `pause(50)` returns no earlier than 50 ticks later; how late it woke is printed as a note.
+- **A file past one block** (`bigprobe`, BG 3): 14,000 bytes, past the direct blocks into the single-indirect block; written by the kernel, read back by BPF.
+- **Bad pointers for unlink, link and chdir** (`hostile_ptr`, HU 9): a path at the user ceiling answers -1 and creates nothing.
+- **The rung 0 asserter against a probe kernel**: ADR-109 I1-I8 hold on every tagged trap of `getpidfork` and `forkloop` (141 traps), and a changed pid fails. With rung 3 on, kernel `printf` and user bytes interleave on the TTY character by character; `scripts/upc-tty-split.py` separates them (kernel `printf` stores a word per character, a user write one byte).
+
+**Found by `rmprobe` (R-P1, Low, open).** BPF's file read copies a fixed 16-byte chunk into the user buffer whatever count it returns, so the last short read of a file writes up to 15 bytes past the end of what it reports, with bytes from the data block past the file's size. The write stays inside the caller's slice (`user_phys(pid, buf_va, READ_CHUNK)`), so no other slot is touched; a program that reads into an exact-size buffer has the bytes after it overwritten. Not fixed in BPF (the guarded copy is what the code comment says doubled the verifier's states). It closes when file reads move to the kernel (rungs 5+6): `rmprobe` prints the count as a note and it must read 0 then.
+
 ## Alternatives considered
 
 - **BPF serves sbrk itself.** One arm and no reply word, but kill and blocking still need a way back, so the channel

@@ -16,6 +16,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | rung 3 console write | 899906 | 885354 | -14552 | 35682 | rung3-after2 |
 | T-F3 interim (by rung 3's arm) | 885354 | 885354 | +0 | 35682 | rdwr-after |
 | fork mark on (`UPC_FORK_MARK`) | 885354 | 885529 | +175 | 35507 | mark-after |
+| probes | 885529 | 885529 | +0 | 35507 | probes-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -201,4 +202,18 @@ No BPF change: `vcount` 885,529 before and after (`bpf-unchanged`).
 **Finding, from `rmprobe`'s first run (`blocks-reused-clean=no`).** The read-back was right; the probe's own source buffer had been overwritten. BPF's file read (`main.rs`, the `FD_INODE` branch of `read`, H-FS6) copies a fixed 16-byte chunk into the user buffer whatever count it returns, so the last short read of a file writes up to 15 bytes past the end of what it reports. Here: file of 2,500 bytes, last read asked for 4, got 4, and 12 more bytes landed after the buffer, in the next array. The bytes come from the data block past the file's size (zeros in this run; block residue in general). The write is bounded to the caller's own slice (`user_phys(pid, buf_va, READ_CHUNK)`), so it does not cross a slot. The comment in the code calls it harmless because "our inode readers always pass buffers ≥ READ_CHUNK"; a program that reads into an exact-size buffer is not such a reader. Not fixed in BPF: the guarded copy is what "doubled verifier states" when it was tried (the comment says so), and rungs 5+6 move file reads to the kernel, where `readi` copies exactly n. The probe now reads into a buffer with a 32-byte guard after it and prints the count as a note, `RM: read-past-end=12`; it reads 0 once the kernel serves the read. `lnprobe`'s 8-byte read buffer was on the stack for the same reason and is 32 bytes now. Filed For Stevie.
 
 **The asserter and rung 3.** The S-STAGE-2B decoder (`ugl`) dropped NULs and matched tokens. With rung 3 on, every character a user program prints is a tagged trap, and the probe kernel prints a `UT:` line on each, so the two writers interleave character by character and the old decode shreds both (first try: `RUNG0-ASSERT fail 1 fork notes for 0 forks`). Kernel `printf` stores a word per character (the character and two NULs on the ring); a user write is one byte. `scripts/upc-tty-split.py` splits on that and gives each writer its text back. The awk also learned the two programs the plan names: `GF: fork-ret=N` (getpidfork) counts as a fork return, and `FL: child` (forkloop, which prints no pid) counts toward the fork total, which is what the fork-note mode checks. By hand: getpidfork `pass 89`, forkloop `pass 52`, both `pass 141`; one `pid=2` changed to `pid=5` gives `fail pid 5 for slot 1`. The probe kernel is built from a copy in a temp dir (the make rules write objects beside the sources), so the tree's kernel and `$K/xv6-mbc.mbc` are untouched.
+
+### Attack surface, Phase 8 probes
+
+| Probe | What it attacks | What bounds it | Line |
+|---|---|---|---|
+| `rmprobe` | unlink of a file that holds blocks, then reuse of those blocks by a new file | `ufs.c` `itrunc` and `bfree`; the new file reads back its own bytes | `RM: file-with-data-unlinked`, `RM: gone`, `RM: blocks-reused-clean` |
+| `rmprobe` (note) | a short file read into an exact-size buffer | nothing in BPF today: the fixed 16-byte copy writes past the count, inside the caller's slice | `RM: read-past-end=12` (a note; 0 when the kernel serves reads) |
+| `lnprobe` | link's count as the kernel keeps it, and the data under the second name once the first is gone | `sys_link` `nlink++`, `sys_unlink` `nlink--`, read back through `fstat` | `LN: nlink-two`, `LN: nlink-one`, `LN: bytes-after-unlink` |
+| `sleepprobe` | `pause(n)` returning early | the tick deadline in `upc_pause` | `SL: pause-ticks`; note `SL: late-by=N` |
+| `bigprobe` | a file past the 12 direct blocks (14,000 bytes) written by the kernel and read by BPF's `fs_walk` | `bmap`'s single-indirect block on the write; the indirect lookup in BPF's read | `BG: size`, `BG: read-back`, `BG: trunc` |
+| `hostile_ptr` | a path pointer at the user ceiling (0x00800000) given to unlink, link (either argument) and chdir | `argstr` through `upc_user_pa` (ADR-135 D6) | `HU: unlink-bad`, `HU: link-old-bad`, `HU: link-new-bad`, `HU: chdir-bad` |
+| rung 0 asserter | ADR-109 I1-I8 on every tagged trap of two programs, on a probe kernel | `scripts/upc-rung0-assert.awk`; a mutant with one pid changed must fail | harness line "rung 0 asserter" |
+
+Gate `probes-after`: `same=12 diff=0 rc=0 doom=1 ascend=885529` at `25d39563`; `rmprobe: 11 checks`, `lnprobe: 12 checks`, `hostile_ptr: 9 checks`, `bigprobe: 3 checks`, sleepprobe and the asserter PASS, ALL GREEN.
 
