@@ -167,6 +167,8 @@ print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 
 
 - **2026-11-15, not log store components:** trace-collector restarted 01:37:39Z (S-WATCH-TRUE, new binary and probe); `unheaded-victoria` and `unheaded-prometheus` restarted 01:39:26Z (S-WATCH-TRUE Step 154, scrape jobs removed). ClickHouse and the Well were not touched. **Vector restarted twice, 02:01:09Z and 02:11:17Z** (S-WATCH-TRUE Step 205, the host-events transform and its fix); it resumes from `vector-data`. Wotan recreated 02:00:35Z (Step 138). Reading of 01:50Z: pass.
 
+- **2026-11-15, a disturbance in the log store week, 17:04 to 17:10Z.** The ADR-147 analysis is read only, but one of its readers walked west's `/var` with `du` twice. `/var` is the spinning disk that holds ClickHouse, the Well and Vector's buffer. I/O pressure on west (`rate(node_pressure_io_waiting_seconds_total[2m])`) went from about 6% to **39% at 17:06Z, 28% at 17:08Z, 12% at 17:10Z**, then back. Nothing was restarted and nothing was written. Any latency or stall figure of the week that covers those six minutes is tainted and should be left out. A smaller peak at 16:04Z (12.7%) is before the analysis began and is not explained here.
+
 ## Evening 14: the drafts (2026-11-10)
 
 - Step 259 (desk pass): report at `docs/protocol/RFC-DESK-PASS-2026-11-10.md`. Changes to the frozen v0x01 format: none. Thirteen open items, each a ruling on public text: WH items 1-4 (DP-715's four), WH items 6-9, and four the pass found (stream against code points, a reference to a draft that was never uploaded, private revision labels, FIPS 206/207 citations).
