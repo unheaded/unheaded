@@ -54,7 +54,7 @@ func newEnv(t *testing.T) *env {
 		}
 	}
 	for _, n := range []string{"sysctl", "systemctl", "sshd", "visudo", "apt-get", "augenrules",
-		"aa-enforce", "apparmor_parser", "dpkg-query", "aideinit"} {
+		"aa-enforce", "apparmor_parser", "dpkg-query", "dpkg-divert", "aide"} {
 		if err := os.WriteFile(filepath.Join(e.bin, n), []byte(recorder), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +108,7 @@ func (e *env) callLog() string { b, _ := os.ReadFile(e.calls); return string(b) 
 func (e *env) cmds() Commands {
 	j := func(n string) string { return filepath.Join(e.bin, n) }
 	return Commands{Sysctl: j("sysctl"), Systemctl: j("systemctl"), SSHD: j("sshd"), Visudo: j("visudo"), Apt: j("apt-get"), Sudo: j("sudo"), Augenrules: j("augenrules"),
-		AAEnforce: j("aa-enforce"), AppArmorParser: j("apparmor_parser"), DpkgQuery: j("dpkg-query"), Aideinit: j("aideinit")}
+		AAEnforce: j("aa-enforce"), AppArmorParser: j("apparmor_parser"), DpkgQuery: j("dpkg-query"), DpkgDivert: j("dpkg-divert"), Aide: j("aide")}
 }
 
 func (e *env) executor(host string) *Executor {

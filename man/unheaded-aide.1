@@ -1,0 +1,59 @@
+.TH UNHEADED\-AIDE 1 "2026-11-15" "unheaded 70a102c0" "Unheaded Kingdom"
+.SH NAME
+unheaded\-aide \- Run AIDE quietly: one line per check, a change reported once, a database updated only after a review.
+.SH SYNOPSIS
+.B unheaded\-aide
+[\fIOPTION\fR]...
+check | init | promote | review | accept <hash>
+.SH DESCRIPTION
+Run AIDE quietly: one line per check, a change reported once, a database updated only after a review.
+.SH COMMANDS
+.TP
+.B check
+compare the tree with the database; one line, the metrics, the state; never writes a database
+.TP
+.B init
+build aide.db.new and print a summary to read before promote
+.TP
+.B promote
+make aide.db.new the database
+.TP
+.B review
+print the diff that is waiting for a review
+.TP
+.B accept <hash>
+update the database to the reviewed diff; refused if the tree has changed since
+.SH OPTIONS
+.TP
+.B \-\-aide \fISTRING\fR
+the aide binary (default /usr/bin/aide)
+.TP
+.B \-\-config \fISTRING\fR
+AIDE config (default /etc/aide/aide\-unheaded.conf)
+.TP
+.B \-\-db\-dir \fISTRING\fR
+directory of aide.db and aide.db.new, as the config names them (default /var/lib/aide)
+.TP
+.B \-\-state \fISTRING\fR
+directory of state.json (default /var/lib/unheaded/aide)
+.TP
+.B \-\-textfile\-dir \fISTRING\fR
+with check: write unheaded_aide.prom here for the textfile collector
+.TP
+.B \-h, \-\-help
+display this help and exit
+.TP
+.B \-V, \-\-version
+output version information and exit
+.SH NOTES
+check exits 0 for a clean tree and for a detected change (the change is in the line, the metrics and
+the state), 1 when AIDE could not run or its report could not be read. unheaded_aide_exit_code is AIDE's:
+0 clean, 1\-7 change bits, 14 and above its errors; 99 the report could not be read, 127 aide did not start.
+.SH EXAMPLES
+.EX
+unheaded\-aide check \-\-textfile\-dir /var/lib/unheaded/textfile
+sudo unheaded\-aide init && sudo unheaded\-aide promote
+sudo unheaded\-aide review
+.EE
+.SH SEE ALSO
+.BR unheaded (1)

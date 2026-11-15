@@ -142,6 +142,53 @@ before and after, then declared: controls passing 19 to 13, with 6 declared;
 (2); 800-171 5 to 3 (2); SSDF 4 to 3 (1). SOC 2 (0), ISO 27001 (6), CSF (2) and
 CIS L1 and L2 (136, 141) did not move.
 
+### Amendment (2026-11-15): host-service evidence kind (FND-037)
+
+FND-037's verify asks for evidence "read from what runs". The `host-service`
+kind is that evidence for UH-AUTHN-01 (S-EVIDENCE-RUNS Phase 5).
+
+- **The ref.** `<host>:<service>`. The service comes from a fixed table in the
+  code (`crosswalk.HostServices`), so the catalog names a service, never a
+  command, a container, a port or a path. A ref whose service is not in the
+  table, is exempt, or does not run on that host is refused when the catalog
+  loads.
+- **Per service, the table gives:** how it runs on each host (a compose
+  container name, or a systemd unit and its package), its port from
+  `pkg/ports`, one protected route with its method, and its auth form:
+  `AUTH_ENABLED=true` (pkg/auth), or a named token variable that must be set
+  (the same table `check-service-auth.sh` keeps as `TOKEN_AUTH`). A test fails
+  when the table and the gate's first-party set differ, so the two cannot
+  drift. The OIDC issuer is exempt in both, for the gate's reason, and has no
+  ref.
+- **Pass condition.** Pass = the service is running, its auth setting is on,
+  and a TLS request with no credentials to the protected route answers 401.
+  Not running where the table says it runs = fail. Auth setting off or absent
+  = fail. Any answer but 401 = fail ("answers without a login" for a 2xx).
+  docker, systemd or ssh unreachable, or the probe not answering at all = no
+  record, so the source is not assessed.
+- **The route.** A GET where the service has a protected read. Two services
+  have none: the Kanban board opens every read by design, so its probe is a
+  DELETE of the task collection with no id (401 with auth on; a 400 from the
+  handler with auth off, and nothing is deleted either way); logstore-writer
+  has one route, a POST, and the probe sends an empty body (the token is
+  checked before the body is read). Akira's only API route is an open read, so
+  its probe asks for `/`, which the auth layer refuses before the mux.
+- **Secrets.** A container's or a unit's environment holds passwords and
+  tokens. The command that reads it prints only the auth keys: the
+  `AUTH_ENABLED` entry as written, and for a token variable the word `set` or
+  nothing, never its value. The collector then parses that output and keeps
+  the same keys only, so a reader that printed more would still leak nothing
+  into a record, a detail, an error or a log line. A test feeds it a full
+  environment with canary values and looks for them everywhere.
+- **TLS.** The probe verifies the service's certificate against the host's CA
+  file (`/etc/unheaded/tls/ca.pem`; the path per host is in the table).
+  Timeouts are 5 s and the body read is bounded.
+- **Effect on figures.** A `host-service` record is a reading of what runs, so
+  UH-AUTHN-01 can leave DECLARED. It keeps `declared:` until every host that
+  runs a first-party service is read: west is read now; east is read after
+  its redeploy (S-E1-LIVE Step 218). The figures move when `declared:` goes,
+  which is the point of FND-037.
+
 ## Consequences
 
 - The first real run shows how little is evidenced: 800-53 12 of 1014,

@@ -399,7 +399,7 @@ func init() {
 		case strings.HasPrefix(name, "radio-"):
 			probeActions[name] = "none (alert only): taking an interface down can cut the host off (west's LAN is wireless)"
 		case strings.HasPrefix(name, "aide-"):
-			probeActions[name] = "none (alert only): installing AIDE and building its first database (aideinit) takes minutes of disk I/O; the operator runs it"
+			probeActions[name] = "none (alert only): AIDE's database is built and updated by hand after a review (unheaded-aide init, promote, accept); no fix or timer does it"
 		case name == "rsyslog-active", name == "logging-single-system":
 			probeActions[name] = "systemctl enable --now rsyslog; stop and disable systemd-journal-upload if both run"
 		case name == "journald-forward-syslog":

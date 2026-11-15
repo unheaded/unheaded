@@ -173,3 +173,9 @@ Architecture: amd64
 Depends: libc6
 Description: Unheaded wiki server: the wiki over TLS, behind the dashboard's login
  Binary wiki-server, unit unheaded-wiki-server.service.
+
+Package: unheaded-aide
+Architecture: amd64
+Depends: libc6
+Description: Unheaded AIDE file integrity check (weekly, idle priority)
+ Binary unheaded-aide, unit unheaded-aide-check.service.
