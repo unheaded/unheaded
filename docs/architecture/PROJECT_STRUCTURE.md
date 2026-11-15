@@ -70,9 +70,6 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   ├── unheaded/                   # 🎯 UNIFIED CLI (alternative)
 │   │   └── main.go                 # Single binary for all operations
 │   │
-│       └── src/
-│           ├── main.rs             # WAF entry point
-│           └── rules/              # Detection rules
 │
 ├── services/                       # ═══════════════════════════════════════════
 │   │                               # MICROSERVICES - Royal Court Integration

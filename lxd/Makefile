@@ -27,7 +27,7 @@ help:
 	@echo "  make networks           Create unheaded bridge network"
 	@echo ""
 	@echo "$(YELLOW)Launch$(NC)"
-	@echo "  make launch-all         Launch all 30 containers on host-a"
+	@echo "  make launch-all         Launch all 25 containers on host-a"
 	@echo "  make launch-minimal     Launch 6 core containers on host-b"
 	@echo "  make launch-telemetry   Launch telemetry stack (Prometheus, VM, Loki, Grafana)"
 	@echo ""
@@ -54,7 +54,7 @@ init-host-a: profiles networks
 	@echo ""
 	@echo "Next steps:"
 	@echo "  1. Configure service static IPs in lxd/static-ips.yaml"
-	@echo "  2. Run: make launch-all  (launch all 30 containers)"
+	@echo "  2. Run: make launch-all  (launch all 25 containers)"
 	@echo "  3. Run: make launch-telemetry  (optional, launch telemetry stack)"
 
 init-host-b: profiles networks
@@ -80,7 +80,7 @@ networks:
 # ============================================================================
 
 launch-all:
-	@echo "$(GREEN)Launching all 30 containers on host-a...$(NC)"
+	@echo "$(GREEN)Launching all 25 containers on host-a...$(NC)"
 	@echo "This will take 10-15 minutes."
 	@echo ""
 	@for svc in wotan ares hermes athena hephaestus demeter poseidon hades apollo artemis aphrodite ares2 athena2 hermes2 monad dyad triad tetrad pentad hexad heptad ogdoad ennead dekad hendecad; do \

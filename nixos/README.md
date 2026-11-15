@@ -6,7 +6,7 @@ Declarative NixOS configuration for the Unheaded Kingdom bare metal deployment.
 
 | Host | Role | Specs | IPv6 |
 |------|------|-------|------|
-| `host-a` (forge) | Full stack + vLLM/ROCm | 16+ cores, 64GB, RX 7700 XT | `fd00:dead:beef:0001::1/64` |
+| `host-a` (forge) | Full stack + llama-server (ROCm) | 16+ cores, 64GB, RX 7700 XT | `fd00:dead:beef:0001::1/64` |
 | `host-b` (outpost) | Minimal suite + WireGuard | 8+ cores, 8GB | `fd00:dead:beef:0002::1/64` |
 
 ## Directory Structure

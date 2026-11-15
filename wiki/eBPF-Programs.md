@@ -29,6 +29,15 @@ Workspace members of `ebpf/Cargo.toml` (GPL-2.0-only):
 
 Shared crates: `common`, `monad-common`, `pqc-common`. `trace-collector-go` loads packet-marker, flow-tracker and latency-probe on west and east ([[Systemd Units|Systemd-Units]]).
 
+### `unheaded hop`
+
+The CLI writes hop-ebpf's check maps, pinned under `/sys/fs/bpf/unheaded/hop-ebpf` (`--pin-dir` changes it). Both commands need CAP_BPF.
+
+| Command | Does |
+|---------|------|
+| `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Entries are never removed. The check mode stays as it is, so rules written while it is off do nothing. |
+| `unheaded hop mode <off\|observe\|enforce>` | Sets the check mode (CONFIG key 4). `enforce` is refused until `hoprules.EnforceBlockers` is empty (today FND-031, FND-033, FND-035), and the packaged object runs enforce as observe anyway (ADR-125). |
+
 ## Not tracing ourselves
 
 Two loops of the tracer watching its own output, both cut:

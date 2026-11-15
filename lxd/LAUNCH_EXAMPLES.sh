@@ -90,7 +90,7 @@ launch_analytics_pipeline() {
 }
 
 # ============================================================================
-# CATEGORY 2: eBPF & NETWORK OBSERVABILITY (5 containers)
+# CATEGORY 2: eBPF & NETWORK OBSERVABILITY (4 containers)
 # ============================================================================
 
 launch_shield() {
@@ -169,7 +169,7 @@ launch_mongodb() {
 }
 
 # ============================================================================
-# CATEGORY 4: AI/ML & LLM INFERENCE (2 containers) — HOST-A ONLY
+# CATEGORY 4: AI/ML & LLM INFERENCE (1 container) — HOST-A ONLY
 # ============================================================================
 
 
@@ -182,7 +182,7 @@ launch_embeddings_service() {
 }
 
 # ============================================================================
-# CATEGORY 5: OBSERVABILITY & TELEMETRY (2 containers)
+# CATEGORY 5: OBSERVABILITY & TELEMETRY (4 containers)
 # ============================================================================
 
 launch_prometheus() {

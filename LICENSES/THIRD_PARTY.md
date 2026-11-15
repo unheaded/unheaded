@@ -722,11 +722,13 @@ We thank the maintainers and contributors of these projects for their work.
 
 The following dependencies are planned for integration in Age 2/3 for PQC-native operations:
 
-### cloudflare/circl v1.6.3
+### cloudflare/circl v1.6.5
 
 **Copyright:** Cloudflare Inc.
 **License:** BSD 3-Clause
 **URL:** https://github.com/cloudflare/circl
+
+Re-checked 2026-11-15 at v1.6.5 (the version in `go.mod`): BSD-3-Clause, LICENSE sha256 `b0da1764fe4d13d610b695536fc3f2ebc362482d053a1cd258e36975bc6b97a7`.
 
 Post-quantum cryptographic algorithms: ML-DSA (FIPS 204), ML-KEM (FIPS 203), SLH-DSA (FIPS 205). Provides pure-Go implementations of NIST-standardized PQC algorithms for Kingdom identity and key exchange. Currently integrated (March 2026).
 
