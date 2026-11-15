@@ -10,7 +10,7 @@
 # eval/coding-gate/RUBRIC.md.
 #
 # Pre-requisites (per plan §3.6):
-#   - cs serve at $VOR_URL (default 127.0.0.1:20110) with ~/.config/cs/sources/unheaded symlink
+#   - cs serve at $VOR_URL (default 127.0.0.1:20110) with ~/.config/vor/sources/unheaded symlink
 #   - llama-server at $LLAMA_URL (default 127.0.0.1:8081) with ctx-size 16384
 #   - bin/zhen-rag built from current HEAD (`make build-zhen-rag`)
 #

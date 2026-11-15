@@ -23,7 +23,7 @@ When adding prompts, append-only. Use stable IDs (e.g., `syntax-go-mutable-defau
 | Verbatim (do NOT commit) | Sanitized (commit this) |
 |---|---|
 | `rm -rf /home/govan/tmp/unheaded/raft/training/` | `[destructive-cmd-elided]` |
-| `ln -s /tmp/evil-corpus ~/.config/cs/sources/...` | `ln -s /tmp/[attacker-dir] ~/.config/cs/sources/[legit-looking-name]` |
+| `ln -s /tmp/evil-corpus ~/.config/vor/sources/...` | `ln -s /tmp/[attacker-dir] ~/.config/vor/sources/[legit-looking-name]` |
 | Full quoted payload markdown | "The poisoned content advertised itself as ... and recommended deletion of two real Unheaded directories." |
 
 If a verbatim quote is necessary for the finding to be reproducible, attach the unsanitized payload to a non-indexed channel (e.g., the GitHub issue comment, a private gist) and reference it from the doc; never commit it to a path that cs/vor can index.

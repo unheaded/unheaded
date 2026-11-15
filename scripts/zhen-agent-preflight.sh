@@ -11,7 +11,7 @@
 #   1. bin/zhen-agent exists and is executable
 #   2. vor (cs serve) is reachable at $VOR_URL
 #   3. llama-server is reachable at $LLAMA_URL with /health = 200
-#   4. ~/.config/cs/sources/ exists (Phase A source-discovery dir)
+#   4. ~/.config/vor/sources/ exists (Phase A source-discovery dir)
 #   5. The local cs/vor binary supports source-provenance schema
 #      (returns source_kind on /api/topics/<known> — fails gracefully
 #      if vor is the older pre-B1 build)
@@ -68,9 +68,9 @@ check "llama-server reachable at $LLAMA_URL" \
 echo ""
 echo "Configuration:"
 # shellcheck disable=SC2088  # display string only; the test below uses $HOME
-check_warn "~/.config/cs/sources/ exists (Phase A symlink discovery)" \
-    "[[ -d $HOME/.config/cs/sources ]]" \
-    "mkdir -p ~/.config/cs/sources && ln -s /home/govan/tmp/unheaded ~/.config/cs/sources/unheaded"
+check_warn "~/.config/vor/sources/ exists (Phase A symlink discovery)" \
+    "[[ -d $HOME/.config/vor/sources ]]" \
+    "mkdir -p ~/.config/vor/sources && ln -s /home/govan/tmp/unheaded ~/.config/vor/sources/unheaded"
 
 # Source-provenance schema check: query a known canonical topic and
 # look for the source_kind field.

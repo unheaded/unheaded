@@ -57,28 +57,28 @@ The Champion gate refuses tool calls in three cases. Refusals show up in the age
 
 1. **Path outside the sandbox** — `write_file({path: "/etc/passwd"})` → hard deny.
 2. **Destructive shell verbs in args** — anything matching `rm -rf`, `drop table`, `mkfs.*`, `dd if=`, `wipe`, `shutdown`, `reboot`, `kill -9`, `truncate`, `unlink`, `git push --force`, `git reset --hard`, `chmod 000`, `> /dev/sd*` → hard deny. Word-boundary regex; recurses into nested args.
-3. **Mutating tool with untrusted justification** — when the model's reasoning relies on content from a user-symlinked source under `~/.config/cs/sources/`, OR when the justification chain is empty for a mutating call → deny pending out-of-band user confirmation.
+3. **Mutating tool with untrusted justification** — when the model's reasoning relies on content from a user-symlinked source under `~/.config/vor/sources/`, OR when the justification chain is empty for a mutating call → deny pending out-of-band user confirmation.
 
 For (3), the agent surfaces a single-use confirmation token (5-minute TTL). Redeem it via `Champion.ConfirmPendingToolCall` to re-run the call with Rule 2 suppressed (Rules 1 and 3 still enforced — the user can authorize an external source, they cannot authorize destruction).
 
 ## How the agent decides what's "untrusted"
 
 - **`embedded` sources** (`go:embed sheets/`, `go:embed detail/`) — canonical, trusted.
-- **`user-custom`** (`~/.config/cs/sheets/`) — local, trusted.
-- **`user-source`** (`~/.config/cs/sources/<name>/...`) — external, untrusted by default.
+- **`user-custom`** (`~/.config/vor/sheets/`) — local, trusted.
+- **`user-source`** (`~/.config/vor/sources/<name>/...`) — external, untrusted by default.
 
 The model sees these as `[canonical]`, `[local]`, `[external]` prefixes on each retrieved reference. The agent re-runs retrieval per tool call (using identifier tokens extracted from the model's thought + tool args) so the gate sees what the model is actually relying on for that specific call, not just the seed retrieval.
 
 ### Trusting your own repo
 
-By default, every symlinked source under `~/.config/cs/sources/` is `external`. That includes the user's own canonical repo if it's symlinked there — which produces friction (every mutating tool call goes to pending-confirm).
+By default, every symlinked source under `~/.config/vor/sources/` is `external`. That includes the user's own canonical repo if it's symlinked there — which produces friction (every mutating tool call goes to pending-confirm).
 
-Opt your own repos into `local` trust by listing them in `~/.config/cs/sources/.trusted`:
+Opt your own repos into `local` trust by listing them in `~/.config/vor/sources/.trusted`:
 
 ```bash
-mkdir -p ~/.config/cs/sources
-ln -s /home/govan/tmp/unheaded ~/.config/cs/sources/unheaded
-echo unheaded > ~/.config/cs/sources/.trusted
+mkdir -p ~/.config/vor/sources
+ln -s /home/govan/tmp/unheaded ~/.config/vor/sources/unheaded
+echo unheaded > ~/.config/vor/sources/.trusted
 ```
 
 Restart `cs serve`. The unheaded source now reports `source_kind=user-custom`, `source_trust=local`. The agent treats it as authoritative; mutating tool calls grounded in unheaded refs go through Rule 1 (path-allowlist) and Rule 3 (destructive-verb) only. External-trust pending-confirm doesn't fire for these.

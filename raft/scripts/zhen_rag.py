@@ -1078,7 +1078,7 @@ class RAGPipeline:
     #
     # The legacy implementation appended chunks to the live FAISS index +
     # ring_all.jsonl. With vor as substrate, "teaching" means writing a
-    # markdown file under ~/.config/cs/sources/<source>/ which cs picks
+    # markdown file under ~/.config/vor/sources/<source>/ which cs picks
     # up on its next index sweep.
     #
     # This stays a stub: teaching goes through zhen-cli /teach and the
@@ -1093,7 +1093,7 @@ class RAGPipeline:
             "reason": (
                 "WAVE15 rewire: 'teach' is no longer wired to a live index. "
                 "vor is the retrieval substrate; to add content, drop a markdown "
-                "file under ~/.config/cs/sources/<source>/. cs picks it up on "
+                "file under ~/.config/vor/sources/<source>/. cs picks it up on "
                 "the next index sweep."
             ),
             "received_chars": len(text or ""),
