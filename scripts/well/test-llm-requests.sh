@@ -20,11 +20,15 @@
 #      one bridge turn against the fake Claude API with the Well auditor
 #      writing to this server as ops_writer (WELL_TEST_DSN): one row per
 #      request, one audit event per tool decision, a valid hash chain;
+#  6b. cmd/zhen-agentd's AppendTurns (build tag wellint) against the same
+#      server, logged in as app_zhen on unheaded_app (WELL_TEST_APP_DSN), the
+#      daemon's role: a session's turns are written and read back, and a turn
+#      the schema refuses mid-batch leaves no row (one transaction);
 #   7. a pg_dump of unheaded_ops holds no trace of the prompt marker.
 #
 #   scripts/well/test-llm-requests.sh [--sql-only] [image]   # default postgres:16.15-alpine
 #
-# --sql-only skips 6 and 7 (no Go toolchain needed).
+# --sql-only skips 6, 6b and 7 (no Go toolchain needed).
 #
 # WELL_MIGRATIONS_DIR (default db/migrations) points the bootstrap at
 # another copy of the migrations, so a provocation can be tested.
@@ -42,6 +46,7 @@ TMP="$(mktemp -d)"
 PW="throwaway-$RANDOM$RANDOM"
 OPS_PW="ops-$RANDOM$RANDOM"
 RD_PW="rd-$RANDOM$RANDOM"
+ZH_PW="zhen-$RANDOM$RANDOM"
 cleanup() {
 	"${DOCKER[@]}" stop "$N" >/dev/null 2>&1 || true
 	rm -rf -- "$TMP"
@@ -67,7 +72,7 @@ sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded
 # login ROLE PASSWORD SQL: a real login over TCP, not SET ROLE.
 login() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$2" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$1" -d unheaded_ops -c "$3"; }
 # Passwords exist only inside this throwaway container.
-sq "ALTER ROLE ops_writer PASSWORD '$OPS_PW'; ALTER ROLE ops_reader PASSWORD '$RD_PW';" >/dev/null
+sq "ALTER ROLE ops_writer PASSWORD '$OPS_PW'; ALTER ROLE ops_reader PASSWORD '$RD_PW'; ALTER ROLE app_zhen PASSWORD '$ZH_PW';" >/dev/null
 
 fails=0
 pass() { echo "[PASS] $*"; }
@@ -135,6 +140,16 @@ if ((GO)); then
 		fail "go integration test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
 	unset WELL_TEST_DSN
+	# 6b. AppendTurns as app_zhen on unheaded_app. Both tests must have run:
+	# without the DSN they skip, and a skip is not a pass.
+	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZH_PW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
+	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-agentd/ -run WellAppendTurns -v >"$TMP/go-agentd.out" 2>&1) &&
+		[[ "$(grep -c '^--- PASS: TestWellAppendTurns' "$TMP/go-agentd.out")" == 2 ]]; then
+		pass "go test -tags wellint ./cmd/zhen-agentd -run WellAppendTurns (as app_zhen)"
+	else
+		fail "AppendTurns integration test"; tail -25 "$TMP/go-agentd.out" | sed 's/^/    /'
+	fi
+	unset WELL_TEST_APP_DSN
 	# 7. The marker was in the prompt and in a tool input; neither is stored.
 	"${DOCKER[@]}" exec "$N" pg_dump -U unheaded -d unheaded_ops >"$TMP/dump.sql"
 	n=$(grep -c 'S2B-SECRET-MARKER' "$TMP/dump.sql" || true)
