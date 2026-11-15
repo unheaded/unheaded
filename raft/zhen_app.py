@@ -112,7 +112,7 @@ app.secret_key = os.environ.get('FLASK_SECRET_KEY') or secrets.token_hex(32)
 CSRF_COOKIE = 'zhen_csrf'
 CSRF_HEADER = 'X-Zhen-CSRF'
 _CSRF_SAFE_METHODS = frozenset({'GET', 'HEAD', 'OPTIONS'})
-_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/api/v1/highlight', '/auth/login'})
+_SCRIPTED_ROUTES = frozenset({'/api/v1/query', '/auth/login'})
 
 
 def _allowed_hosts():
@@ -207,19 +207,21 @@ ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20111'
 
 # ---------------------------------------------------------------------------
 # Login (F4, H5): zhen_login.py. Everything here is behind it but the page, the
-# probe, the highlighter (which holds no data) and the login routes themselves;
-# a route added later is closed until it is listed. No issuer configured means
-# nobody logs in, and nothing opens.
+# probe, the constant stylesheet the page shell loads, and the login routes
+# themselves; a route added later is closed until it is listed. No issuer
+# configured means nobody logs in, and nothing opens.
+# tests/zhen_routes.golden lists every route; the gate tests and
+# scripts/zhen-lan-proof.sh walk that list.
 # ---------------------------------------------------------------------------
 LOGIN = zhen_login.Login.from_env(ZHEN_AGENTD_URL)
 _LOGIN_OPEN = frozenset({
     '/', '/health', '/auth/login', '/auth/logout', '/auth/me',
-    '/api/v1/highlight', '/api/v1/highlight.css',
+    '/api/v1/highlight.css',
 })
 # Where the page redeems a pending token: this origin, never the daemon's.
 CONFIRM_ENDPOINT = '/api/v1/agent/confirm'
 # POSTs that only read; every other write takes an operator or admin login.
-_READ_POSTS = frozenset({'/api/v1/search', '/api/v1/context'})
+_READ_POSTS = frozenset({'/api/v1/search', '/api/v1/context', '/api/v1/highlight'})
 
 
 def _session_cookie_name():
@@ -761,8 +763,9 @@ def health():
         'status': 'ok' if rag else 'degraded',
         'rag_ready': rag is not None,
         'well_connected': pg_conn is not None,
-        'session_id': _session_id,
-        'error': startup_error,
+        # Open before login: a fixed word, never the reason. The text is on
+        # /api/v1/system/state, behind the login.
+        'error': 'startup_failed' if startup_error else None,
     })
 
 
@@ -1631,7 +1634,8 @@ def system_state():
     state = {
         'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'webui':     {'status': 'ok', 'rag_ready': rag is not None,
-                      'well_connected': pg_conn is not None},
+                      'well_connected': pg_conn is not None,
+                      'startup_error': startup_error},
     }
 
     # vor

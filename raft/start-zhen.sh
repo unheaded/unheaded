@@ -32,7 +32,7 @@
 # goes through the daemon's gate (S-CLEAN-SLATE M-036), so without a daemon
 # on :20111 chat and mutations answer 503 "the gate is required".
 #
-# Login: everything but the page and /health needs one. Set AUTH_ISSUER_URL to
+# Login: everything but the page, /health and the stylesheet needs one. Set AUTH_ISSUER_URL to
 # unheaded-auth (its -audiences must list zhen-agentd; AUTH_BFF_DEV_PLAINTEXT=true
 # only for a stack without TLS). The UI sends the person's token to the daemon,
 # which verifies it, so the daemon needs AUTH_OIDC_ISSUER_URL too. -gated sets

@@ -36,6 +36,8 @@ import zhen_login
 import zhen_rag
 
 ORIGIN = 'http://zhen.test'
+# A password is taken over plain http only on loopback, so the login is asked there.
+LOCAL = 'http://127.0.0.1:20103'
 
 
 @pytest.fixture
@@ -79,6 +81,7 @@ def test_csrf_cookie_is_samesite_strict_and_random(client):
 
 
 def test_csrf_browser_post_without_header_is_403(client):
+    _log_in(client)
     _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN})
@@ -87,12 +90,14 @@ def test_csrf_browser_post_without_header_is_403(client):
 
 
 def test_csrf_cross_site_post_without_cookie_is_403(client):
+    _log_in(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': 'http://evil.test', 'Sec-Fetch-Site': 'cross-site'})
     assert r.status_code == 403
 
 
 def test_csrf_browser_post_with_wrong_header_is_403(client):
+    _log_in(client)
     _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN, 'X-Zhen-CSRF': 'not-the-token'})
@@ -100,6 +105,7 @@ def test_csrf_browser_post_with_wrong_header_is_403(client):
 
 
 def test_csrf_browser_post_with_header_reaches_handler(client):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN, 'Sec-Fetch-Site': 'same-origin',
@@ -109,8 +115,11 @@ def test_csrf_browser_post_with_header_reaches_handler(client):
 
 
 def test_csrf_non_browser_post_is_not_csrf(client):
-    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []})
-    assert r.status_code == 200
+    # No issuer in the test, so the login answers 400 or 503; the point is
+    # that a request with no browser headers is not a CSRF refusal.
+    r = client.post('/auth/login', base_url=LOCAL, json={})
+    assert _reached_handler(r)
+    assert r.status_code in (400, 503)
 
 
 def test_csrf_get_is_never_blocked(client):
@@ -363,15 +372,24 @@ def test_gated_route_needs_a_browser_session_with_no_headers_at_all(client, rout
     assert 'CSRF' in r.get_json()['error']
 
 
-@pytest.mark.parametrize('route', ['/api/v1/highlight'])
+@pytest.mark.parametrize('route', ['/auth/login'])
 def test_scripted_routes_stay_open_to_a_caller_with_no_browser_headers(client, route):
-    assert _reached_handler(client.post(route, base_url=ORIGIN, json={'blocks': []}))
+    assert _reached_handler(client.post(route, base_url=LOCAL, json={}))
+
+
+def test_the_highlighter_is_not_a_scripted_route(client):
+    """It was open before login until S-ZHEN-FRONT; a bare POST is now a CSRF
+    refusal like any other route the page alone calls."""
+    r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []})
+    assert r.status_code == 403
+    assert 'CSRF' in r.get_json()['error']
 
 
 @pytest.mark.parametrize('origin', [
     'http://evil.test', 'https://zhen.test.evil.test', 'http://zhen.test:1', 'null', 'zhen.test', 'file://zhen.test',
 ])
 def test_a_token_does_not_excuse_another_origin(client, origin):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': origin, 'X-Zhen-CSRF': tok})
@@ -380,6 +398,7 @@ def test_a_token_does_not_excuse_another_origin(client, origin):
 
 @pytest.mark.parametrize('site', ['cross-site', 'same-site', 'none'])
 def test_a_token_does_not_excuse_another_fetch_site(client, site):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Origin': ORIGIN, 'Sec-Fetch-Site': site, 'X-Zhen-CSRF': tok})
@@ -387,6 +406,7 @@ def test_a_token_does_not_excuse_another_fetch_site(client, site):
 
 
 def test_a_browser_marker_without_origin_is_refused(client):
+    _log_in(client)
     tok, _ = _csrf_cookie(client)
     r = client.post('/api/v1/highlight', base_url=ORIGIN, json={'blocks': []},
                     headers={'Sec-Fetch-Site': 'same-origin', 'X-Zhen-CSRF': tok})
@@ -589,3 +609,85 @@ def test_highlight_css_covers_answers_and_the_viewer(client):
     css = client.get('/api/v1/highlight.css', base_url=ORIGIN).get_data(as_text=True)
     assert '.msg.zhen pre code .hl-k' in css
     assert '.md-body pre code .hl-k' in css
+
+
+# ── the route list (D-01): what is open before login cannot drift ────────
+
+ROUTES_GOLDEN = Path(__file__).with_name('zhen_routes.golden')
+_OPEN_BEFORE_LOGIN = {
+    'GET /', 'GET /health', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me',
+    'GET /api/v1/highlight.css',
+}
+
+
+def _route_lines():
+    lines = set()
+    for rule in zhen_app.app.url_map.iter_rules():
+        if rule.endpoint == 'static':
+            continue
+        for method in sorted(rule.methods - {'HEAD', 'OPTIONS'}):
+            lines.add(f'{method} {rule.rule}')
+    return sorted(lines)
+
+
+def _golden_lines():
+    return [ln for ln in ROUTES_GOLDEN.read_text().splitlines() if ln.strip()]
+
+
+def test_route_list_is_current():
+    """zhen_routes.golden is what scripts/zhen-lan-proof.sh walks on the live
+    front. A route added to the app and not to the file fails here, so the
+    live proof cannot test a stale list. ZHEN_UPDATE_GOLDEN=1 rewrites it."""
+    import os
+    got = _route_lines()
+    if os.environ.get('ZHEN_UPDATE_GOLDEN') == '1':
+        ROUTES_GOLDEN.write_text('\n'.join(got) + '\n')
+    assert ROUTES_GOLDEN.exists(), 'run once with ZHEN_UPDATE_GOLDEN=1'
+    assert _golden_lines() == got
+
+
+def test_the_open_list_is_the_apps_open_list():
+    assert {ln.split(' ', 1)[1] for ln in _OPEN_BEFORE_LOGIN} == set(zhen_app._LOGIN_OPEN)
+    assert _OPEN_BEFORE_LOGIN <= set(_golden_lines())
+
+
+class _Untouchable:
+    """Stands in for the RAG pipeline: any use of it is a handler that ran."""
+
+    def __getattr__(self, name):
+        raise AssertionError(f'a handler reached rag.{name} with no login')
+
+
+def _concrete(path):
+    import re
+    return re.sub(r'<int:[^>]+>', '1', re.sub(r'<(?!int:)[^>]+>', 'x', path))
+
+
+def test_every_route_but_the_open_ones_refuses_a_stranger(client, monkeypatch):
+    """Three strangers: a script with no headers, a browser on this origin with
+    the CSRF cookie and no session, and a page on another origin. Each gets
+    401 or 403 on every route that is not open, and no handler runs."""
+    ran = []
+    monkeypatch.setattr(zhen_app, 'rag', _Untouchable())
+    closed = [ln for ln in _golden_lines() if ln not in _OPEN_BEFORE_LOGIN]
+    assert len(closed) >= 30
+    for rule in zhen_app.app.url_map.iter_rules():
+        if rule.endpoint == 'static' or rule.rule in zhen_app._LOGIN_OPEN:
+            continue
+        monkeypatch.setitem(zhen_app.app.view_functions, rule.endpoint,
+                            lambda *a, _ep=rule.endpoint, **kw: ran.append(_ep) or ('ran', 200))
+    same_origin = _browser(client)
+    strangers = [
+        ('no headers', {}),
+        ('same origin, no session', same_origin),
+        ('cross site', {'Origin': 'http://evil.test', 'Sec-Fetch-Site': 'cross-site'}),
+    ]
+    for line in closed:
+        method, path = line.split(' ', 1)
+        for who, headers in strangers:
+            kwargs = {'base_url': ORIGIN, 'headers': headers}
+            if method != 'GET':
+                kwargs['json'] = {}
+            r = client.open(_concrete(path), method=method, **kwargs)
+            assert r.status_code in (401, 403), f'{line} ({who}) answered {r.status_code}'
+    assert not ran
