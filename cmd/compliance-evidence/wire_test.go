@@ -10,11 +10,15 @@ import (
 	"go/parser"
 	"go/token"
 	"io"
+	"net"
 	"net/http"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"unheaded/services/compliance"
 )
 
 func TestRunWire_OffByDefault(t *testing.T) {
@@ -150,5 +154,153 @@ func TestServeWire_NoDataUntilEvaluated(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("serveWire did not stop")
+	}
+}
+
+// startWire runs serveWire on a loopback port and returns its address, its
+// cancel and the channel its result arrives on.
+func startWire(t *testing.T, o wireOptions) (string, context.CancelFunc, <-chan error) {
+	t.Helper()
+	t.Setenv("AUTH_ENABLED", "")
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	o.listen = "127.0.0.1:0"
+	ready := make(chan string, 1)
+	done := make(chan error, 1)
+	go func() { done <- serveWire(ctx, o, ready) }()
+	select {
+	case addr := <-ready:
+		return addr, cancel, done
+	case err := <-done:
+		t.Fatalf("serveWire ended before it listened: %v", err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("listener not up after 5 s")
+	}
+	return "", nil, nil
+}
+
+func wireMetrics(t *testing.T, addr string) string {
+	t.Helper()
+	resp, err := http.Get("http://" + addr + "/metrics")
+	if err != nil {
+		t.Fatalf("GET /metrics: %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read /metrics: %v", err)
+	}
+	return string(body)
+}
+
+// A ring consumer that fails used to print one stderr line and vanish: the
+// plane then served a score that no packet could ever move. The failure is on
+// /metrics now.
+func TestServeWire_AuditRingFailureIsOnMetrics(t *testing.T) {
+	addr, cancel, done := startWire(t, wireOptions{auditRing: filepath.Join(t.TempDir(), "no-such-pin")})
+	const up, errs = "\ncompliance_audit_ring_up 0\n", "\ncompliance_audit_ring_errors_total 1\n"
+	var body string
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
+		if body = wireMetrics(t, addr); strings.Contains(body, up) && strings.Contains(body, errs) {
+			break
+		}
+	}
+	if !strings.Contains(body, up) || !strings.Contains(body, errs) {
+		t.Fatalf("/metrics does not show the failed ring consumer:\n%s", body)
+	}
+	if n := strings.Count(body, "# TYPE compliance_score_pct "); n != 1 {
+		t.Fatalf("/metrics has %d compliance_score_pct families, want 1: one /metrics path", n)
+	}
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serveWire: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("serveWire did not stop")
+	}
+}
+
+// The ring is optional: with no --audit-ring there is no ring to be up or down.
+func TestServeWire_NoAuditRingNoGauge(t *testing.T) {
+	addr, _, _ := startWire(t, wireOptions{})
+	if body := wireMetrics(t, addr); strings.Contains(body, "compliance_audit_ring") {
+		t.Fatalf("/metrics names the audit ring with no --audit-ring:\n%s", body)
+	}
+}
+
+// serveWire returns only after the ring consumer has: a consumer still
+// unmapping the ring when the process exits is a consumer nobody joined.
+func TestServeWire_JoinsAuditRingConsumer(t *testing.T) {
+	release := make(chan struct{})
+	var returned atomic.Bool
+	orig := consumeRing
+	consumeRing = func(ctx context.Context, _ string, _ *compliance.WireComplianceService) error {
+		<-ctx.Done()
+		<-release
+		returned.Store(true)
+		return nil
+	}
+	t.Cleanup(func() { consumeRing = orig })
+
+	addr, cancel, done := startWire(t, wireOptions{auditRing: "/unused"})
+	if body := wireMetrics(t, addr); !strings.Contains(body, "\ncompliance_audit_ring_up 1\n") ||
+		!strings.Contains(body, "\ncompliance_audit_ring_errors_total 0\n") {
+		t.Fatalf("/metrics does not show a running ring consumer:\n%s", body)
+	}
+	cancel()
+	// The consumer is held until release closes. A serveWire that does not
+	// join it returns first, with returned still false.
+	go func() {
+		time.Sleep(100 * time.Millisecond)
+		close(release)
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("serveWire: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("serveWire did not stop")
+	}
+	if !returned.Load() {
+		t.Fatal("serveWire returned before the ring consumer goroutine did")
+	}
+}
+
+// An early error return must not wait for ctx: the consumer's context ends
+// with serveWire, and serveWire still joins it.
+func TestServeWire_ListenErrorStopsAuditRingConsumer(t *testing.T) {
+	t.Setenv("AUTH_ENABLED", "")
+	var returned atomic.Bool
+	orig := consumeRing
+	consumeRing = func(ctx context.Context, _ string, _ *compliance.WireComplianceService) error {
+		<-ctx.Done()
+		returned.Store(true)
+		return nil
+	}
+	t.Cleanup(func() { consumeRing = orig })
+
+	busy, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer busy.Close()
+	done := make(chan error, 1)
+	// ctx is never cancelled: only serveWire's own return can end the consumer.
+	go func() {
+		done <- serveWire(context.Background(), wireOptions{listen: busy.Addr().String(), auditRing: "/unused"}, nil)
+	}()
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("serveWire on a busy address = nil, want an error")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("serveWire did not return from a listen error: it is waiting on the ring consumer")
+	}
+	if !returned.Load() {
+		t.Fatal("serveWire returned before the ring consumer goroutine did")
 	}
 }

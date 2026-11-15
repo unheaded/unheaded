@@ -14,6 +14,8 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -83,7 +85,29 @@ func checkWireListen(addr string, authEnabled bool) error {
 	return nil
 }
 
-// serveWire runs the plane until ctx ends. ready, when set, receives the bound
+// consumeRing is consumeAuditRing; a test puts a consumer it controls here.
+var consumeRing = consumeAuditRing
+
+// auditRingState is what /metrics says about the ring consumer. A consumer
+// that has failed leaves the plane serving a score no packet can move, so the
+// failure has to be visible to a scrape, not only on stderr.
+type auditRingState struct {
+	wg     sync.WaitGroup
+	up     atomic.Int32
+	errors atomic.Int64
+}
+
+func (r *auditRingState) writeMetrics(w io.Writer) {
+	fmt.Fprintf(w, "# HELP compliance_audit_ring_up 1 while the audit ring consumer runs, 0 once it has ended\n")
+	fmt.Fprintf(w, "# TYPE compliance_audit_ring_up gauge\n")
+	fmt.Fprintf(w, "compliance_audit_ring_up %d\n", r.up.Load())
+	fmt.Fprintf(w, "# HELP compliance_audit_ring_errors_total Times the audit ring consumer ended with an error\n")
+	fmt.Fprintf(w, "# TYPE compliance_audit_ring_errors_total counter\n")
+	fmt.Fprintf(w, "compliance_audit_ring_errors_total %d\n", r.errors.Load())
+}
+
+// serveWire runs the plane until ctx ends, then stops the listener and waits
+// for the ring consumer. ready, when set, receives the bound
 // address once the listener is up.
 func serveWire(ctx context.Context, o wireOptions, ready chan<- string) error {
 	authCfg := auth.LoadServiceAuthConfig("compliance-evidence")
@@ -94,9 +118,24 @@ func serveWire(ctx context.Context, o wireOptions, ready chan<- string) error {
 	if err := svc.StartBackground(ctx); err != nil {
 		return err
 	}
+	// The ring consumer is joined before serveWire returns, on every path.
+	// Its context ends with serveWire, so an early error return (a listen
+	// address in use) does not wait on ctx for a consumer still running.
+	var ring auditRingState
+	ringCtx, stopRing := context.WithCancel(ctx)
+	defer func() {
+		stopRing()
+		ring.wg.Wait()
+	}()
 	if o.auditRing != "" {
+		svc.SetExtraMetrics(ring.writeMetrics)
+		ring.up.Store(1)
+		ring.wg.Add(1)
 		go func() {
-			if err := consumeAuditRing(ctx, o.auditRing, svc); err != nil {
+			defer ring.wg.Done()
+			defer ring.up.Store(0)
+			if err := consumeRing(ringCtx, o.auditRing, svc); err != nil {
+				ring.errors.Add(1)
 				fmt.Fprintln(os.Stderr, "compliance-evidence wire: audit ring:", err)
 			}
 		}()
