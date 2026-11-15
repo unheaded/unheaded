@@ -2,17 +2,19 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Stevie Bellis.
 #
-# check-image-digests.sh: third-party images in docker-compose.yml and
-# monitoring/docker-compose.yml name their bytes, tag@sha256:<64 hex>. A tag is
-# a label the publisher can move; a digest cannot be moved under the same name.
+# check-image-digests.sh: third-party images in docker-compose.yml,
+# monitoring/docker-compose.yml and docker/docker-compose.loadbalancers.yml
+# name their bytes, tag@sha256:<64 hex>. A tag is a label the publisher can
+# move; a digest cannot be moved under the same name.
 #
 # Images this repo builds (unheaded*, ${...}) are out of scope. The rest, where
 # the tag has moved on from what west holds, are in
 # docs/policy/image-digest-baseline.txt as "<file> <image>". That set may only
 # shrink: a listed image that now has a digest fails too.
 #
-# Dockerfile FROM lines and the other compose files are not read here; ADR-102
-# says why.
+# Dockerfile FROM lines and the other compose files (sophia-eye, telemetry)
+# are not read here; ADR-102 says why. The load-balancer file is read since
+# 2026-11-15 (ADR-102, Update 2026-11-15).
 #
 # Exact version tags themselves are check-image-tags.sh (ADR-102).
 set -uo pipefail
@@ -24,7 +26,7 @@ cd "$REPO_ROOT" || exit 2
 source "${REPO_ROOT}/scripts/lib/sets.sh"
 [[ -f "$BASELINE" ]] || { echo "[FAIL] ${BASELINE#"$REPO_ROOT"/} is missing" >&2; exit 2; }
 
-files=(docker-compose.yml monitoring/docker-compose.yml)
+files=(docker-compose.yml monitoring/docker-compose.yml docker/docker-compose.loadbalancers.yml)
 refs="$(for f in "${files[@]}"; do
 	sed -nE 's/^[[:space:]-]*image:[[:space:]]*["'"'"']?([^"'"'"'[:space:]#]+).*/\1/p' "$f" | sed "s|^|$f |"
 done | LC_ALL=C sort -u)"

@@ -2,7 +2,7 @@
 # Unheaded Kingdom — LXD Operations Makefile
 # Manages 30+ containers across host-a (Forge) and host-b (Outpost)
 
-.PHONY: help init-host-a init-host-b profiles networks launch-all launch-minimal launch-telemetry status stop restart logs exec snapshot destroy clean
+.PHONY: help init-host-a init-host-b profiles networks launch-all launch-minimal status stop restart logs exec snapshot destroy clean
 
 SHELL := /bin/bash
 
@@ -29,7 +29,6 @@ help:
 	@echo "$(YELLOW)Launch$(NC)"
 	@echo "  make launch-all         Launch all 25 containers on host-a"
 	@echo "  make launch-minimal     Launch 6 core containers on host-b"
-	@echo "  make launch-telemetry   Launch telemetry stack (Prometheus, VM, Loki, Grafana)"
 	@echo ""
 	@echo "$(YELLOW)Operations$(NC)"
 	@echo "  make status             Show all container status"
@@ -55,7 +54,6 @@ init-host-a: profiles networks
 	@echo "Next steps:"
 	@echo "  1. Configure service static IPs in lxd/static-ips.yaml"
 	@echo "  2. Run: make launch-all  (launch all 25 containers)"
-	@echo "  3. Run: make launch-telemetry  (optional, launch telemetry stack)"
 
 init-host-b: profiles networks
 	@echo "$(GREEN)Initializing host-b (Outpost)...$(NC)"
@@ -100,10 +98,6 @@ launch-minimal:
 	@echo ""
 	@echo "$(GREEN)Core containers launched$(NC)"
 	@make status
-
-launch-telemetry:
-	@echo "$(GREEN)Launching telemetry stack...$(NC)"
-	@cd telemetry && bash setup-telemetry.sh
 
 # ============================================================================
 # OPERATIONS TARGETS

@@ -976,8 +976,8 @@ phase_observability() {
 
     step "Pulling monitoring containers..."
     local images=(
-        "docker.io/prom/prometheus:latest"
-        "docker.io/grafana/grafana:latest"
+        "docker.io/prom/prometheus:v3.15.1@sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2"
+        "docker.io/grafana/grafana:11.5.1@sha256:5781759b3d27734d4d548fcbaf60b1180dbf4290e708f01f292faa6ae764c5e6"
         "docker.io/grafana/loki:latest"
         "docker.io/grafana/promtail:latest"
         "docker.io/prom/alertmanager:latest"

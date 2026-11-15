@@ -2,6 +2,8 @@
 
 > **2026-11-04 (S-CLEAN-CUT, DP-401):** the per-service definitions in `lxd/containers/` were deleted; Cuirass (`cmd/unheaded-daemon`) manages instances. Pi-hole runs from its own runbook. This file stays as the record.
 
+> **2026-11-15 (S-WATCH-TRUE, W4):** `lxd/telemetry/` was deleted, with the Makefile's `launch-telemetry` target (Grafana 10.2.2 and Loki fetched with no checksum; both predate ADR-117). Git history keeps the files. The telemetry lines below are the record, not instructions.
+
 Comprehensive Linux Container (LXD) deployment for the Unheaded Kingdom distributed system. Manages 30+ containerized services across two hosts (Forge and Outpost) with telemetry, east-west encryption, and GPU acceleration.
 
 **Status:** Production-ready
