@@ -105,7 +105,7 @@ func TestTaskListNeedsCredentialFromOutside(t *testing.T) {
 	t.Setenv("AUTH_ISSUER_URL", "")
 	t.Setenv("RATE_LIMIT_ENABLED", "false")
 	f := authtest.New(t, "kanban-app", "dashboard-backend")
-	s := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	s := NewServer(Config{Port: "0"})
 	t.Cleanup(s.cancel)
 	cfg := f.Config("kanban-app", "dashboard-backend")
 	cfg.AnonymousFrom = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
