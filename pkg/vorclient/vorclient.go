@@ -7,6 +7,19 @@
 //
 // Every call carries a deadline and reads a bounded response. Everything vor
 // returns is untrusted text: the caller escapes it before showing it.
+//
+// Topic names. A vor of 2026-11-12 or later answers GET /api/topics/<name>
+// with the topic of exactly that name (any case) or 404. A name is unique
+// only within its category, so "?category=" picks the sheet of that name in
+// that category (TopicIn); without it vor answers with one of them. A vor
+// from before that date ignores the category and answers an unknown name
+// with its nearest match (200, another topic). Topic and TopicIn check the
+// reply against what was asked, so both vors give ErrNotFound, never
+// another topic.
+//
+// Search. vor matches substrings by default ("ccna" finds KRB5CCNAME).
+// SearchOptions.Words asks for "match=word": a term must start a word. A
+// vor from before 2026-11-12 ignores it.
 package vorclient
 
 import (
@@ -85,8 +98,9 @@ type TopicSummary struct {
 }
 
 // SearchOptions narrows GET /api/search. Zero values leave vor's defaults:
-// every category, 50 lines, no cap per topic. A vor from before 2026-11-11
-// ignores all three, so a caller that depends on Category checks each hit.
+// every category, 50 lines, no cap per topic, substring matching. A vor from
+// before 2026-11-11 ignores all of them, so a caller that depends on Category
+// checks each hit.
 type SearchOptions struct {
 	// Category keeps only topics in exactly this category.
 	Category string
@@ -94,6 +108,9 @@ type SearchOptions struct {
 	Limit int
 	// PerTopic is the most lines from any one topic, 1 to 50.
 	PerTopic int
+	// Words keeps a topic only when every term starts a word in it
+	// (match=word). False is vor's default, substring matching.
+	Words bool
 }
 
 func (o SearchOptions) query(q string) string {
@@ -106,6 +123,9 @@ func (o SearchOptions) query(q string) string {
 	}
 	if o.PerTopic > 0 {
 		v.Set("per_topic", strconv.Itoa(o.PerTopic))
+	}
+	if o.Words {
+		v.Set("match", "word")
 	}
 	return v.Encode()
 }
@@ -158,9 +178,7 @@ func (c *Client) Topics(ctx context.Context) ([]TopicSummary, error) {
 // and matches names without regard to case. A reply whose name is not exactly
 // the one asked for is therefore ErrNotFound, never another topic.
 func (c *Client) Topic(ctx context.Context, name string) (*Topic, error) {
-	// Never topic names, and a server that cleans the path would answer for
-	// another URL ("/api/topics/." is the whole listing).
-	if name == "" || name == "." || strings.Contains(name, "..") || strings.Contains(name, "/") {
+	if !plainName(name) {
 		return nil, ErrNotFound
 	}
 	var t Topic
@@ -175,6 +193,43 @@ func (c *Client) Topic(ctx context.Context, name string) (*Topic, error) {
 		return nil, ErrNotFound
 	}
 	return &t, nil
+}
+
+// TopicIn returns the topic called name in exactly that category, or
+// ErrNotFound. It is the only way to reach both sheets when two categories
+// hold the same name. The name matches in any case, as vor matches it; the
+// reply carries the name as stored.
+//
+// An empty category is an error, not a request: use Topic. A reply from
+// another category or of another name (a vor from before 2026-11-12) is
+// ErrNotFound.
+func (c *Client) TopicIn(ctx context.Context, category, name string) (*Topic, error) {
+	if category == "" {
+		return nil, errors.New("vor: TopicIn needs a category")
+	}
+	if !plainName(name) || !plainName(category) {
+		return nil, ErrNotFound
+	}
+	var t Topic
+	q := url.Values{"category": {category}}
+	status, err := c.get(ctx, "/api/topics/"+url.PathEscape(name)+"?"+q.Encode(), MaxResponseBytes, &t)
+	if status == http.StatusNotFound || status == http.StatusBadRequest {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if t.Category != category || !strings.EqualFold(t.Name, name) {
+		return nil, ErrNotFound
+	}
+	return &t, nil
+}
+
+// plainName reports whether s can be a topic name or a category. "", "."
+// and anything with ".." or "/" never are, and a server that cleans the path
+// would answer for another URL ("/api/topics/." is the whole listing).
+func plainName(s string) bool {
+	return s != "" && s != "." && !strings.Contains(s, "..") && !strings.Contains(s, "/")
 }
 
 // get decodes the JSON body of a 200, of at most limit bytes, into v. The
