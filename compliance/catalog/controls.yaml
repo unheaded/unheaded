@@ -1341,7 +1341,6 @@ controls:
     evidence:
       - {kind: gate-script, ref: scripts/compliance/check-service-auth.sh}
       - {kind: host-service, ref: "west:akira"}
-      - {kind: host-service, ref: "west:cuirass"}
       - {kind: host-service, ref: "west:dashboard-backend"}
       - {kind: host-service, ref: "west:kanban-app"}
       - {kind: host-service, ref: "west:logstore-writer"}

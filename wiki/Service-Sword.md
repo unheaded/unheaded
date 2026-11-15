@@ -2,7 +2,7 @@
 
 Sword runs deployments of a service into LXD, through [[Cuirass|Containers]]: rolling, blue-green, canary and recreate, with automatic rollback when one fails. It never creates or deletes an instance itself; Cuirass does, and Sword counts an instance as up only when Cuirass's own health probe says so. S-REAL-STEEL Phase 8 (code), Phase 9 and game day 1 (live).
 
-**Status:** live on west since 2026-10-26 (compose, profile `deploy`), against Cuirass on the LXD HTTPS API in project `unheaded`. All four strategies and both rollback paths were run on real instances with the numbers below. East does not run Sword.
+**Status:** live on west since 2026-10-26 (compose, profile `deploy`), against Cuirass on the LXD HTTPS API in project `unheaded`. Cuirass is started with `--profile lxd` and the real-LXD overlay (`docker/compose.cuirass-lxd.yml`); it has no default backend (ADR-147), so Sword's window needs `--profile deploy --profile lxd`. All four strategies and both rollback paths were run on real instances with the numbers below. East does not run Sword.
 
 ## Running
 

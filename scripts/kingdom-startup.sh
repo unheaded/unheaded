@@ -95,7 +95,6 @@ NATIVE_SERVICES=(
     unheaded-daemon
     trace-collector-go
     timeguru
-    cuirass
     dashboard-backend
     kanban-app
     protocol-api

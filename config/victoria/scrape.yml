@@ -46,13 +46,12 @@ scrape_configs:
       ca_file: /etc/victoria/tls/ca.pem
       server_name: localhost
 
+  # West runs no Cuirass until a tenant is placed (ADR-147 decisions 7, 14).
   # East runs it as a host unit on 17000, plain HTTP until its debs are
   # upgraded (S-E1-LIVE Evening 10B); __scheme__ overrides the job's https.
   - job_name: "unheaded-daemon"
     scrape_interval: 10s
     static_configs:
-      - targets: ["host.docker.internal:19006"]
-        labels: {host: west}
       - targets: ["[fd00:dead:beef::2]:17000"]
         labels: {host: east, __scheme__: http}
     metrics_path: /metrics

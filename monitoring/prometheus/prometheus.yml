@@ -30,15 +30,13 @@ scrape_configs:
           - '[fd00:dead:beef::1]:9100'
           - '[fd00:dead:beef::2]:9100'
 
-  # Unheaded daemon metrics (job = binary name). West runs it in docker-compose.yml as cuirass
-  # (published on 19006), east as unheaded-unheaded-daemon on 17000. These
+  # Unheaded daemon metrics (job = binary name). East runs it as unheaded-unheaded-daemon on
+  # 17000; west runs no Cuirass until a tenant is placed (ADR-147 decisions 7, 14). These
   # were :9090 on both, which is this Prometheus on west and nothing on east.
   - job_name: unheaded-daemon
     metrics_path: /metrics
     tls_config: {ca_file: /etc/prometheus-tls/ca.pem, server_name: localhost}
     static_configs:
-      - targets: ['[fd00:dead:beef::1]:19006']
-        labels: {host: west, __scheme__: https}
       - targets: ['[fd00:dead:beef::2]:17000']
         labels: {host: east}
 

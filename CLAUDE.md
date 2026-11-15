@@ -70,7 +70,7 @@ Unheaded is a configuration management automation platform delivering complete i
 - ✅ Service mesh built on Wotan message bus
 - ✅ Declarative everything (version-controlled configs)
 - ✅ Self-hosting proof (The Meta Moment)
-- ✅ Real deploy via Sword + Cuirass on LXD (west, project `unheaded`): rolling, blue-green, canary with analysis and automatic rollback (`wiki/Service-Sword.md`)
+- ✅ Real deploy via Sword + Cuirass on LXD (west, project `unheaded`): rolling, blue-green, canary with analysis and automatic rollback (`wiki/Service-Sword.md`). Cuirass is started with `--profile lxd` and the real-LXD overlay; it has no default backend (ADR-147)
 - ✅ Chaos engineering via Yaldabaoth inside an allowlisted envelope: netem, container kill, systemd stop/kill on east, CHAOS-flagged packet faults; three abort paths, revert journal (`wiki/Chaos-Engineering.md`, ADR-107)
 
 ---

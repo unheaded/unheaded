@@ -1145,6 +1145,8 @@ services:
       context: .
       target: cuirass
     container_name: unheaded-cuirass
+    # ADR-147 decisions 7, 14: runs only with docker/compose.cuirass-lxd.yml (a real LXD); a plain "up" does not start it
+    profiles: ["lxd"]
     user: "16740:16740"   # pkg/uids
     secrets: [svc_key_unheaded-daemon]   # ADR-103: own Ed25519 key at /run/secrets/svc_key_unheaded-daemon (scripts/gen-dev-keys.sh)
     restart: unless-stopped
@@ -1415,7 +1417,7 @@ services:
       - data
       - observe
     depends_on:
-      cuirass:
+      cuirass:   # needs --profile lxd as well
         condition: service_healthy
       postgres:
         condition: service_started

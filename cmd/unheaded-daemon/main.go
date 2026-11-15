@@ -226,7 +226,7 @@ type LXDClient interface {
 	ListContainers(ctx context.Context) (map[string]*ContainerState, error)
 }
 
-// MockLXDClient is the default LXDClient (LXD_BACKEND unset or "mock"):
+// MockLXDClient is the LXDClient for LXD_BACKEND=mock (tests and dev runs):
 // container operations are tracked in memory only. lxdREST is the real one.
 type MockLXDClient struct {
 	mu         sync.RWMutex
@@ -411,8 +411,9 @@ type Config struct {
 	// for game-day windows only. Off by default.
 	Chaos bool
 
-	// LXDBackend is "mock" (the default), "unix" (LXDSocket) or "https"
-	// (LXDURL with a client certificate and the pinned server certificate).
+	// LXDBackend is "https" (LXDURL with a client certificate and the pinned
+	// server certificate), "unix" (LXDSocket) or "mock" (tests and dev runs).
+	// It has no default: unset, Cuirass refuses to start (ADR-147).
 	LXDBackend    string
 	LXDSocket     string
 	LXDURL        string
@@ -1282,7 +1283,7 @@ func (d *Daemon) SetLogPublisher(p *logagg.Publisher) error {
 func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
 	backend := d.config.LXDBackend
 	if backend == "" {
-		backend = "mock"
+		backend = "unset" // main refuses to start like this; a test daemon can still answer
 	}
 	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		// Which LXD and which modes are live: mock and real look alike
@@ -1679,7 +1680,7 @@ func loadConfig(path string) *Config {
 		NodeName:         getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
 		HTTPAddr:         getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
 		GRPCAddr:         getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
-		LXDBackend:       getEnvOrDefault("LXD_BACKEND", "mock"),
+		LXDBackend:       os.Getenv("LXD_BACKEND"), // no default: newLXDClient refuses an unset backend (ADR-147)
 		LXDSocket:        getEnvOrDefault("LXD_SOCKET", "/var/snap/lxd/common/lxd/unix.socket"),
 		LXDURL:           os.Getenv("LXD_URL"),
 		LXDProject:       os.Getenv("LXD_PROJECT"),

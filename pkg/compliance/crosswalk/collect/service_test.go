@@ -362,7 +362,7 @@ func TestHostServices_DefaultTable(t *testing.T) {
 			srcs = append(srcs, svcSrc("west:"+name))
 		}
 	}
-	if len(srcs) < 7 { // 12 until the five role services left (ADR-147 decision 7)
+	if len(srcs) < 6 { // 12 until the five role services left and Cuirass went behind a profile (ADR-147 decisions 7, 14)
 		t.Fatalf("only %d west services in the table", len(srcs))
 	}
 	ran := 0

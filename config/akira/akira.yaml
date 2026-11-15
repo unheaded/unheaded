@@ -1,10 +1,9 @@
-# Akira targets for the compose stack: the five services on the `data`
+# Akira targets for the compose stack: the four services on the `data`
 # network, by compose DNS name and in-container port. (Akira's built-in
 # defaults are for a bare-metal host: localhost and the Doom Range ports.)
 targets:
   - {name: wotan,        host: wotan,             port: 18000}
   - {name: timeguru,     host: timeguru,          port: 19000}
-  - {name: cuirass,      host: cuirass,           port: 19006}
   - {name: dashboard,    host: dashboard-backend, port: 20000}
   - {name: kanban,       host: kanban-app,        port: 20001}
 # S-IRON-GATE Phase 10 (ADR-034 Phase 7): cert expiry as an exec check, run on

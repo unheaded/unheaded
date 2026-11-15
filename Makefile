@@ -382,7 +382,7 @@ deploy-restart: ## Restart all deployed services
 deploy-health: ## Verify all deployed services are healthy
 	@echo "Checking service health..."
 	@# `docker compose port` needs the container port; without it the URL had no port.
-	@rc=0; for pair in wotan:18000 timeguru:19000 cuirass:19006; do \
+	@rc=0; for pair in wotan:18000 timeguru:19000; do \
 		svc=$${pair%%:*}; port=$${pair#*:}; \
 		printf "%-16s " "$$svc:"; \
 		curl -sf http://localhost:$$(docker compose port $$svc $$port 2>/dev/null | cut -d: -f2)/health > /dev/null 2>&1 && echo "healthy" || { echo "UNHEALTHY"; rc=1; }; \

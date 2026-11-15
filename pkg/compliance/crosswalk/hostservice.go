@@ -76,7 +76,9 @@ func onWest(container string) map[string]ServiceRun {
 var HostServices = map[string]HostService{
 	"wotan":    {Port: ports.WotanHTTP, Method: "GET", Route: "/api/v1/admin/pending", Runs: onWest("unheaded-wotan")},
 	"timeguru": {Port: ports.Timeguru, Method: "GET", Route: "/api/v1/timeline", Runs: onWest("unheaded-timeguru")},
-	"cuirass":  {Port: ports.Cuirass, Method: "GET", Route: "/api/v1/containers", Runs: onWest("unheaded-cuirass")},
+	// Compose profile "lxd": not run on west until a tenant is placed
+	// (ADR-147 decisions 7 and 14), so it has no ref, as sword.
+	"cuirass": {Port: ports.Cuirass, Method: "GET", Route: "/api/v1/containers"},
 	"akira": {Port: ports.Akira, Method: "GET", Route: "/",
 		Why:  "Akira's one API route is an open read (cmd/akira apiHandler); every other path is refused before the mux",
 		Runs: onWest("unheaded-akira")},

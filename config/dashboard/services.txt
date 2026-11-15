@@ -2,7 +2,6 @@
 # Format: name=host:port (Docker DNS resolves container names)
 timeguru=timeguru:19000
 wotan=wotan:18000
-cuirass=cuirass:19006
 # First-party names above (and kanban) go https with the dev CA when the
 # dashboard runs with UNHEADED_TLS_ENABLED (internal/health.FirstParty); the
 # certificate names the compose service, so reach them by that name.
