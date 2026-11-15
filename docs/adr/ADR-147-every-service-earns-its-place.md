@@ -101,3 +101,34 @@ Requests in 7 days that were not a health check or a scrape:
 ## Decision
 
 None. Parked under ADR-112. Nothing is removed or stopped on this ADR's word.
+
+## Update 2026-11-15 (the stress run: pitched, not started)
+
+Stevie, later the same day, verbatim:
+
+> id like to stress test the severs running as a cluster at 80-90% load for a prolonged period with real applications, work load, iops, memmory utilization - i'd like to fine tune not only the unheaded and bellistech applications but also the performance of east and west as well
+
+> that was meant to be appended to adr not done right now
+
+No load was run. What was read to ground it, on both hosts, changing nothing:
+
+- **West:** Ryzen 5 7600X, 12 threads, 14 GiB. Root is on the 1 TB NVMe. **`/var` is the 2 TB spinning disk** (`sdb`, ST2000DM001), and Docker's data lives there: ClickHouse, Postgres, VictoriaMetrics, Vector's buffer. A 512 GB SATA SSD and a 500 GB spinning disk hold nothing mounted.
+- **West already stalls on I/O at idle.** Pressure (`/proc/pressure/io`): some task was waiting on I/O 7.0% of the last five minutes, all tasks 6.6%. Over 10 s `sdb` took 9 writes a second, 0.3 MB/s, 12 ms a write, 10% busy. The cgroups that wait are Postgres, Vector, VictoriaMetrics and ClickHouse, in that order. CPU pressure was 1.3%, memory 0.2%.
+- **East:** AMD A8-5500, 4 cores, 7 GiB, root on a SATA SSD, swappiness 60 (west: 10). CPU pressure 2.4%, which is the trace collector.
+- **Between them:** 1 Gb/s full duplex on `enp16s0`, and WireGuard.
+- **Load tools present:** west has `fio`, `hey`, `perf` and `bpftrace`; east has `perf`. In the repository: `scripts/stress-cannon.py` (Monad packets through Shield), `cmd/perf-benchmark` (HTTP, HTTP/3, containers, end to end), `cmd/chaos-controller`. `stress-ng`, `sysbench`, `pgbench` and `iperf3` are not installed; each is a third-party addition and needs Stevie's yes.
+
+**To settle, continuing the list above:**
+
+12. **Which real applications are the load.** Which of Stevie's programs run on the cluster for the test (netbox, the blog and site, vor, orb, the rss and weather daemons, raven, Zhen with its model server, others), and what drives them: replayed requests, a recorded day, or written clients.
+13. **What 80 to 90% means:** of CPU, of memory, of disk throughput, or all three at once. Pressure is read beside utilisation: west stalls on I/O with its disk 10% busy.
+14. **How long,** and who attends: hours, a day, a week.
+15. **Rails.** The load runs in its own cgroup slice with CPU, memory and I/O limits, so the stack and sshd keep a reserve. Swap is not counted as memory. Stop marks are set before the start: all tasks stalled on memory, an SLO burning, a unit killed for memory, a disk too hot. Not during an evidence window (the log store week ends about 2026-11-17). East is attended.
+16. **What passes:** the SLOs (ADR-100) hold under load; every alert that should fire does; every service restarts clean under load; nothing grows without bound; the 99th percentile latency of each service is on record.
+17. **Tuning order after the first run,** one change at a time, each with a before and an after: where the data lives (the databases on the NVMe or the SSD instead of the spinning disk: expected to be the largest gain, not measured), then the I/O scheduler, swappiness and dirty ratios, cgroup weights, the Go runtime (GOMAXPROCS, GOGC, the memory limit), Postgres, ClickHouse and VictoriaMetrics settings, the NIC and WireGuard.
+18. **What "cluster" means for the test.** Today: two hosts joined by BGP and WireGuard, Wotan in memory, one Well with no replica. What the run should prove about losing a host.
+19. **Which generators:** `fio` and `hey` are present; the others need a yes.
+20. **Where:** on east and west as they are, or on the larger lab first.
+
+**Status:** unchanged, Proposed (parked).
+
