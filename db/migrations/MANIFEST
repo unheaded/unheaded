@@ -70,6 +70,7 @@ unheaded_app     047_app_zhen_actions_gate_status.sql
 postgres         048_ops_log_events.sql
 unheaded_ops     048_ops_log_events.sql
 unheaded_app     049_app_kanban_zhen_optin.sql
+unheaded_app     050_app_timeline_milestones.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

@@ -24,6 +24,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/critalert"
+	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -42,7 +43,6 @@ import (
 const (
 	defaultPort         = "19000"
 	defaultWotanAddr    = "localhost:18000" // HTTP control plane
-	defaultDBPath       = "./data/timeguru.db"
 	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second
 	fileWatchInterval   = 5 * time.Second
@@ -58,7 +58,6 @@ type Config struct {
 	Port          string
 	WotanAddr     string // HTTP control plane (subscribe, publish)
 	WotanGRPCAddr string // gRPC data plane (streaming) — preferred for perf
-	DBPath        string
 	TimelinePath  string
 	SyncDir       string // directory for synced timeline files (JSON/TOML/YAML/MD)
 }
@@ -80,18 +79,16 @@ func main() {
 		Str("port", config.Port).
 		Str("wotan_http", config.WotanAddr).
 		Str("wotan_grpc", config.WotanGRPCAddr).
-		Str("db_path", config.DBPath).
 		Str("timeline_path", config.TimelinePath).
 		Str("sync_dir", config.SyncDir).
 		Msg("configuration loaded")
 
-	// Initialize storage
-	store, err := storage.NewStore(config.DBPath)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize storage")
-	}
+	// The timeline lives in memory, built from the file, with the Well's
+	// timeline_milestones as its one home (ADR-147, migration 050). The Well
+	// is connected in the background below; until then timeguru serves the
+	// file read-only.
+	store := storage.New()
 	defer store.Close()
-	log.Info().Msg("storage initialized (Crystal Grotto connected)")
 
 	// Try to load timeline from markdown file on startup
 	timelineLoaded := false
@@ -143,6 +140,7 @@ func main() {
 
 	// Initialize HTTP handler
 	handler := api.NewHandler(store)
+	handler.SetWellHealth(func() any { return store.WellState() })
 	// crit is set once the subscriptions start (below), after serving
 	// begins, so /health reads it through an atomic pointer.
 	var crit atomic.Pointer[critalert.Tracker]
@@ -267,6 +265,10 @@ func main() {
 		crit.Store(startWotanSubscriptions(ctx, wotan, onJoined))
 	}
 
+	// The Well: retried every 1 s, doubling to 30 s, until it answers with
+	// migration 050 applied; a Well without it is fatal, as kanban's is.
+	go store.Connect(ctx, connectWell, time.Second, 30*time.Second)
+
 	// Start file watcher for timeline.md auto-reload + sync
 	if config.TimelinePath != "" {
 		go watchTimelineFile(ctx, config.TimelinePath, store, wotan, handler)
@@ -311,7 +313,6 @@ func loadConfig() Config {
 		Port:          getEnv("PORT", defaultPort),
 		WotanAddr:     getEnv("WOTAN_ADDR", defaultWotanAddr),
 		WotanGRPCAddr: getEnv("WOTAN_GRPC_ADDR", "localhost:18001"),
-		DBPath:        getEnv("DB_PATH", defaultDBPath),
 		TimelinePath:  getEnv("TIMELINE_PATH", defaultTimelinePath),
 		SyncDir:       os.Getenv("SYNC_DIR"), // empty = disabled
 	}
@@ -322,9 +323,6 @@ func loadConfig() Config {
 	}
 	if config.WotanAddr == "" {
 		config.WotanAddr = defaultWotanAddr
-	}
-	if config.DBPath == "" {
-		config.DBPath = defaultDBPath
 	}
 
 	// Default sync dir to the directory containing timeline.md
@@ -343,6 +341,22 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// connectWell opens timeguru's connection to the Well as app_timeguru. A
+// Well without migration 050 stops the process: retrying cannot fix it.
+func connectWell(ctx context.Context) (storage.Backend, error) {
+	db, err := database.Connect(ctx, database.AppTimeguruConfig())
+	if err != nil {
+		log.Warn().Err(err).Msg("the Well is not answering; serving timeline.md read-only, retrying")
+		return nil, err
+	}
+	if err := database.RequireMigrations(ctx, db, database.TimelineMigration); err != nil {
+		_ = db.Close()
+		log.Fatal().Err(err).Msg("the Well lacks timeguru's migration (db/migrations/050)")
+	}
+	log.Info().Msg("connected to the Well (timeline_milestones)")
+	return database.NewTimelineStore(db), nil
+}
+
 // loadTimelineFromFile parses timeline.md and stores it
 func loadTimelineFromFile(filePath string, store *storage.Store) error {
 	p, err := parser.NewMarkdownParser(filePath)
@@ -358,8 +372,8 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := store.SaveTimeline(ctx, tl); err != nil {
-		return fmt.Errorf("save timeline: %w", err)
+	if err := store.Load(ctx, tl, fileModTime(filePath)); err != nil {
+		return fmt.Errorf("load timeline: %w", err)
 	}
 
 	log.Info().
@@ -369,6 +383,16 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 		Msg("loaded timeline from file")
 
 	return nil
+}
+
+// fileModTime is the file's modification time, or now when it cannot be
+// read (then the file wins over every row).
+func fileModTime(path string) time.Time {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return time.Now()
+	}
+	return fi.ModTime()
 }
 
 // watchTimelineFile watches for changes to timeline.md and reloads + syncs
@@ -406,10 +430,10 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 				}
 
 				saveCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				if err := store.SaveTimeline(saveCtx, tl); err != nil {
-					log.Error().Err(err).Msg("save error on reload")
-					cancel()
-					continue
+				if err := store.Load(saveCtx, tl, fileModTime(filePath)); err != nil {
+					// The file is served either way; the Well catches up
+					// on the next change.
+					log.Error().Err(err).Msg("the Well did not take the reloaded timeline")
 				}
 				cancel()
 

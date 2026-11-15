@@ -6,7 +6,6 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -17,11 +16,7 @@ import (
 // /api/v1/milestones/{id}/update answered 400 "milestone ID required" for
 // every request: only "/milestones/" was trimmed from the path.
 func TestMilestoneRoutes_APIPrefix(t *testing.T) {
-	st, err := storage.NewStore(filepath.Join(t.TempDir(), "timeguru.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
+	st := storage.New() // no Well: reads serve, writes answer 503
 	h := handleMilestoneRoutes(api.NewHandler(st))
 	for _, path := range []string{"/milestones/m1/update", "/api/v1/milestones/m1/update"} {
 		w := httptest.NewRecorder()

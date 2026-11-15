@@ -827,7 +827,14 @@ services:
       PORT: "19000"
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-      DB_PATH: "/data/timeguru.db"
+      # ADR-147: one home, the Well (migration 050); needs app_timeguru's password (Step 340)
+      WELL_HOST: "postgres"
+      WELL_PORT: "5432"
+      WELL_USER: "app_timeguru"
+      WELL_PASSWORD: "${APP_TIMEGURU_PASSWORD:?set APP_TIMEGURU_PASSWORD in .env (credentials are not stored in this repo)}"
+      WELL_DB: "unheaded_app"
+      WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
+      WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
       # The timeline IS the Meta Moment: kanban renders what timeguru publishes
       # on timeline.updates. Until 2026-09-21 nothing was mounted here, so the
       # container logged "timeline file not found", served INTERNAL_ERROR on
@@ -839,6 +846,7 @@ services:
       SYNC_DIR: "/data/sync"
     volumes:
       - ./configs/certs/dev/timeguru:/etc/unheaded/tls:ro   # Phase 8: this service's cert, key and the CA
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}/ca.crt:/etc/unheaded/well-tls/ca.crt:ro   # The Well's CA, the certificate only
       - ./configs/trust.d/dev:/etc/unheaded/trust.d:ro   # ADR-103: every service's public key
       - ./references:/references:ro
     ports:
@@ -848,6 +856,8 @@ services:
       - data
     depends_on:
       wotan:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     labels:
       kingdom.armor: "oracle"

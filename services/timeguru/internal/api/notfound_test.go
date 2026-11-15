@@ -6,7 +6,6 @@ package api
 import (
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"testing"
 
 	"unheaded/services/timeguru/internal/storage"
@@ -16,11 +15,7 @@ import (
 // answered 500: api.ErrNotFound was its own errors.New and never matched
 // the store's. And readiness has to say there is nothing to serve.
 func TestNoTimeline_404AndNotReady(t *testing.T) {
-	st, err := storage.NewStore(filepath.Join(t.TempDir(), "timeguru.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
+	st := storage.New() // no Well: reads serve, writes answer 503
 	h := NewHandler(st)
 
 	w := httptest.NewRecorder()
@@ -42,11 +37,7 @@ func TestNoTimeline_404AndNotReady(t *testing.T) {
 
 // Sync and import write; a GET used to run them.
 func TestSyncImport_RequirePost(t *testing.T) {
-	st, err := storage.NewStore(filepath.Join(t.TempDir(), "timeguru.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
+	st := storage.New() // no Well: reads serve, writes answer 503
 	h := NewHandler(st)
 	for name, fn := range map[string]http.HandlerFunc{"sync": h.HandleSync, "import": h.HandleImport} {
 		w := httptest.NewRecorder()
