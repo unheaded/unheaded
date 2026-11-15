@@ -38,6 +38,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/critalert"
+	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
