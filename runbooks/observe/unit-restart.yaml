@@ -25,22 +25,22 @@ notes: |
 
 steps:
   - name: status
-    action: shell
+    action: manual
     command: |
       systemctl status <unit> --no-pager
-    description: "Put the alert's unit label in place of <unit>. Active, the last exit, and the last log lines"
+    description: "MANUAL (read only). Put the alert's unit label in place of <unit>. Active, the last exit, and the last log lines"
 
   - name: journal
-    action: shell
+    action: manual
     command: |
       journalctl -u <unit> -n 50 --no-pager
-    description: "The last 50 lines: the reason it exits is usually the line before 'Main process exited'"
+    description: "MANUAL (read only). The last 50 lines: the reason it exits is usually the line before 'Main process exited'"
 
   - name: restarts
-    action: shell
+    action: manual
     command: |
       systemctl status <unit> --no-pager | grep -E 'Active:|Main PID'
-    description: "How long since the last start"
+    description: "MANUAL (read only). How long since the last start"
 
   - name: start-again
     action: manual

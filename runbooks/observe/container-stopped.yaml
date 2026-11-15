@@ -38,22 +38,22 @@ steps:
     description: "Which container and which alert (no output: nothing is firing now)"
 
   - name: exit-state
-    action: shell
+    action: manual
     command: |
       docker inspect -f '{{.Name}} exit={{.State.ExitCode}} oom={{.State.OOMKilled}} finished={{.State.FinishedAt}}' <name>
-    description: "Put the container name in place of <name>. exit 137 with oom=true is a memory kill (runbooks/observe/memory-kill.yaml); 137 without it is a kill from outside; 0 is a clean stop (a person or compose)"
+    description: "MANUAL (read only). Put the container name in place of <name>. exit 137 with oom=true is a memory kill (runbooks/observe/memory-kill.yaml); 137 without it is a kill from outside; 0 is a clean stop (a person or compose)"
 
   - name: last-log
-    action: shell
+    action: manual
     command: |
       docker logs --tail 50 <name> 2>&1
-    description: "Its last 50 lines: the reason it stopped is usually here"
+    description: "MANUAL (read only). Its last 50 lines: the reason it stopped is usually here"
 
   - name: health
-    action: shell
+    action: manual
     command: |
       docker inspect -f '{{json .State.Health}}' <name>
-    description: "For ContainerUnhealthy: the last healthcheck runs and their output"
+    description: "MANUAL (read only). For ContainerUnhealthy: the last healthcheck runs and their output"
 
   - name: start-it
     action: manual
