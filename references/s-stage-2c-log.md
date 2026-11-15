@@ -7,6 +7,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 
 | Change | OFF | ON | delta | net vs 921,036 | gate |
 |---|---|---|---|---|---|
+| priv3 + D6 | 889941 | 893507 | +3566 | 27529 | d6-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -50,3 +51,8 @@ Red run (Step 27, new probe on the object before the fix, D6 off): no `HR:` line
 - Priv-3 test on both arms, D6 off: 890279 (delta +338 against 889941). Under the +3,000 line of Step 33, so Step 34's hoist was not needed.
 - Step 35, D6 off: `mret-refused=yes`, `sret-refused=yes`, `own-slice-intact=yes`, `table-reached=yes`, `heap-intact=yes`, `note-refused=yes`, `note-forged=yes`, `sret-forged=no`, `done`.
 - Step 36, mutant (no test on `SRET` only): `sret-refused=no`, `sret-forged=yes`, `kill-init-refused=yes`; `mret-refused=yes` holds. Restored: count back at 890279.
+- D6 on: 893507 (delta +3228 on the opcode test; +3566 against 889941); `BUDGET-OK`, headroom 6493.
+- Step 39, D6 on: `hostile_reply`: `mret-refused=yes`, `sret-refused=yes`, `own-slice-intact=yes`, `table-reached=no`, `route=closed`, `heap-intact=yes`, `done`; no `forged=yes`. `hostile_pgd`: `child=stored`, `pgd=same`, `tables=same`, `done`. Corpus sweep 8 of 8 SAME.
+- Step 43, mutant (`d6_user_miss` forced false): `hostile_pgd` reads `pgd=changed`. Restored: 893507.
+- Step 40: the commit of the opcode test alone has D6 off and counts 890279.
+- Gate `d6-after`: `same=12 diff=0 rc=0 doom=1 ascend=893507`; harness lines `hostile_reply: D6 closes the route to the reply word`, `hostile_pgd: a child's stores outside its slice are dropped (D6)`, `hostile_slot`, `hostile_tf` all PASS.

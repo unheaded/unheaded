@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-109: The owned kernel gets a process row per BPF slot
 
-**Status**: Accepted except D6 (2026-10-28). Revised after the four-lens review the same day; rung 0 gate `d4b75b73`, rung 1 `9c9face1`. D6 is implemented behind `UPC_D6_MISS_FAULT` (off) and waits on a decision (OUTSTANDING M-247).
+**Status**: Accepted except D6 (2026-10-28). Revised after the four-lens review the same day; rung 0 gate `d4b75b73`, rung 1 `9c9face1`. D6 is implemented behind `UPC_D6_MISS_FAULT` (off) and waits on a decision (OUTSTANDING M-247). **2026-11-15: D6 is on** (Stevie's answer A-60 of 2026-11-12; S-STAGE-2C Phase 2), see the section of that date; the acceptance of D6 as a decision stays Stevie's.
 **Context sprint**: EVOLUTION-1 Stage 2, rung 0 (`docs/battle-plans/EVOLUTION-1-STAGE-2-battle-plan.md`)
 **Relates to**: ADR-067 (MBC ISA v2, UPC ABI v1), ADR-074 (per-pid page directories), ADR-075 (process model),
 ADR-080 (programmatic API), EVOLUTION-1 (`docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md`)
@@ -279,6 +279,13 @@ sites (`trampoline_mbc.S`, `kernelvec_mbc.S`) run at priv 1, entered through the
 runs one `mret` and one `sret` at U-mode, each in its own child: both print `refused=yes`, and the old `sret` route
 through a forged PDE no longer forges (`sret-forged=no`). With the test removed from the `SRET` arm alone, the probe
 prints `sret-refused=no` and the forgery lands again.
+
+**D6 on since 2026-11-15** (`UPC_D6_MISS_FAULT = true`, S-STAGE-2C Phase 2). Cost: +3,228 verified instructions
+on top of the opcode test (890,279 to 893,507); the two together are +3,566 against 889,941, leaving 6,493 under
+the 900,000 line. With D6 on: `hostile_pgd` stores to slot 0's pgd and to the tables and neither changes;
+`hostile_reply` ends at `table-reached=no`, `route=closed`; the 12 goldens are SAME and the harness is green with Doom
+at 758,199 (gate `d6-after`). With `d6_user_miss` forced false, `hostile_pgd` reads `pgd=changed` again. M-247 is closed
+by this; the trust model for init (slot 0, identity directory) is unchanged.
 
 ## Alternatives considered
 

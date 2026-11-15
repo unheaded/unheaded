@@ -401,6 +401,11 @@ One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`
   route and wants `mret-refused=yes` and `sret-refused=yes` in every build; with D6 off, `sret-forged` now says no and
   the forged KILL, which rode the same `sret`, is not tried. The fork-note forgery still needs D6 on to close.
 
+- **Closed 2026-11-15 (S-STAGE-2C Phase 2): ADR-109 D6 is on, and `MRET`/`SRET` at priv 3 are NOPs.**
+  `hostile_reply` closes on every route: the PDE store is dropped (`table-reached=no`, `route=closed`), and a U-mode
+  `mret` or `sret` does nothing. R-F1, R-F2's `sret` route and R-S1 are closed; F1's live-to-live heap route is closed.
+  R-F5 (unbounded `open` and `exec` paths) remains until S-STAGE-2C Phase 3.
+
 ## Review
 
 Plan Step 119 asks for a separate read-only review. The agent that wrote this ADR reviewed it first, which was not
@@ -416,7 +421,7 @@ disposition. Text fixes are in this ADR. A code fix named below is outside the r
 
 | Id | Severity | Finding | Disposition |
 |---|---|---|---|
-| R-F1 | High, pre-existing | `MRET` and `SRET` have no privilege check, so D6 does not confine a child | Accepted. Claim restated in Security notes. Fix (reject at priv 3) open, For Stevie: it must pair with any D6 flip |
+| R-F1 | High, pre-existing | `MRET` and `SRET` have no privilege check, so D6 does not confine a child | Accepted. Claim restated in Security notes. Fix (reject at priv 3) open, For Stevie: it must pair with any D6 flip. **Closed 2026-11-15, S-STAGE-2C Phase 2** |
 | R-F2 | Medium | The wipe has three bypasses, and a forger gets more than the channel's three flags | Fixed in D1 and Security notes. "Exactly one flag" is now "at most one", stated as unenforced. No code: the `sret` route closes with R-F1 |
 | R-F3 | Low | "Fork overwrites the whole low band" is false with D6 off | Fixed in Security notes. Tagged-cursor fix open, For Stevie |
 | R-F4 | Low, pre-existing | Exec does not scrub | Fixed in Security notes as a fourth bullet |
@@ -425,7 +430,7 @@ disposition. Text fixes are in this ADR. A code fix named below is outside the r
 | R-F7 | Low | D3's `vmfault` and D6's first-page statements do not match `uvm.c` | Fixed in D3 and D6 |
 | R-F8 | Low to Medium, plan conflict | D14's bare tag can lose a reply | Fixed as a D1 rule that Step 220 must follow. Plan text unchanged, For Stevie |
 | R-F9 | Low | The hostile probes never reach the real table | Recorded in Security notes for Phase 21. Correction: the plan does have such a step, 258, and it has this gap |
-| R-S1 | Suspected | `main`'s prologue after `mret` gives a chosen-address write | Open, not booted. Rides with R-F1 |
+| R-S1 | Suspected | `main`'s prologue after `mret` gives a chosen-address write | Open, not booted. Rides with R-F1. **Closed with R-F1, 2026-11-15** |
 | R-S2 | Suspected | R-F5 as a byte oracle | Open, leak rate unmeasured. Rides with R-F5 |
 | R-S3 | Suspected | First-page refusal only matters for a kernel-routed pointer from slot 0 | Checked: real but unreached today. Stated in D6 |
 | R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie |

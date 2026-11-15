@@ -433,7 +433,7 @@ const GETPID_INJECT: bool = true;
 const UPC_RUNG0: bool = true;
 // ADR-109 D6: a U-mode page-walk miss resolves outside RAM_MAP (loads 0, stores
 // dropped) instead of falling through to the physical address.
-const UPC_D6_MISS_FAULT: bool = false;
+const UPC_D6_MISS_FAULT: bool = true;
 // Probe builds only (EVOLUTION-1 Stage 2 plan Step 100): also inject xv6
 // syscall 22, which no handler has, to show a7 reaching the kernel per slot.
 const UPC_PROBE_INJECT22: bool = false;
