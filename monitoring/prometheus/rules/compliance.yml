@@ -136,3 +136,17 @@ groups:
           summary: "Compliance {{ $labels.kind }} served from fallback ({{ $labels.source }})"
           description: "The Well served compliance {{ $labels.kind }} in the last 24h; the dashboard has read it from the repo files for 15m, so changes made in The Well are not shown"
           runbook_url: "runbooks/observe/compliance-well-fallback.yaml"
+
+      # pkg/auth could not write an audit line (ADR-147, BlackMage F11;
+      # NIST AU-5: response to an audit logging failure). Every service's
+      # audit logger counts it; one failure is enough to say so.
+      - alert: AuditWriteFailing
+        expr: sum by (job) (increase(unheaded_auth_audit_write_failures_total[15m])) > 0
+        for: 0m
+        labels:
+          severity: warning
+          urgency: ticket
+        annotations:
+          summary: "An audit line could not be written (NIST AU-5)"
+          description: "{{ $labels.job }} failed to write an audit line in the last 15m (unheaded_auth_audit_write_failures_total): disk, pipe or journal"
+          runbook_url: "runbooks/security/security-audit.yaml"

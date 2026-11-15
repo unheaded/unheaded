@@ -100,3 +100,22 @@ tests:
         alertname: ComplianceWellFallback
         exp_alerts: []
 
+  # An audit line that could not be written alerts at once; none, silence.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_auth_audit_write_failures_total{job="wotan"}'
+        values: '0x10 1x10'
+      - series: 'unheaded_auth_audit_write_failures_total{job="kanban-app"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: AuditWriteFailing
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: AuditWriteFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: ticket, job: wotan}
+            exp_annotations:
+              summary: "An audit line could not be written (NIST AU-5)"
+              description: "wotan failed to write an audit line in the last 15m (unheaded_auth_audit_write_failures_total): disk, pipe or journal"
+              runbook_url: "runbooks/security/security-audit.yaml"
