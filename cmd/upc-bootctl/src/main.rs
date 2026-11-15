@@ -24,6 +24,7 @@ mod bootparams;
 mod freeze;
 mod geometry;
 mod netns;
+mod opscan;
 mod runner;
 mod rv2mbc;
 mod tty_bridge;
@@ -1118,6 +1119,8 @@ fn cmd_boot(
         allow_unverified_rv2mbc,
         dry_run,
     )?;
+    // ADR-135 D17: no atomic and no privileged return in a user image.
+    opscan::scan_user_images(userland.as_deref(), &rv)?;
 
     println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
     println!("instance:      0x{:02X}", instance);
@@ -1428,6 +1431,8 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
         false,
         false,
     )?;
+    // ADR-135 D17: no atomic and no privileged return in a user image.
+    opscan::scan_user_images(o.userland.as_deref(), &rv)?;
     let stop = install_stop_flag();
     let (mut runner, _cpu_initial) = boot_prepare(
         &o.kernel,

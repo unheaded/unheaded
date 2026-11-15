@@ -195,8 +195,8 @@ fi
 
 # S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
 rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
-probe_lines() { # $1 program, $2 triggers, $3 token prefix
-  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
+probe_lines() { # $1 program, $2 triggers, $3 token prefix, then VAR=value pairs for the boot's environment
+  (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "${@:4}" "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
     --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
     | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
 rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
@@ -258,8 +258,11 @@ want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: g
 # S-STAGE-2C Phase 2 (ADR-135 R-F1): MRET and SRET are refused at priv 3 in every
 # build, so both branches want a U-mode mret and a U-mode sret to do nothing, and
 # with D6 off the sret route through the alias must no longer forge.
+# hostile_reply holds an mret and two srets on purpose, which upc-bootctl's opcode
+# scan refuses in a user image (ADR-135 D17); UPC_ALLOW_USER_PRIVRET=1 is the
+# probe hatch for exactly that (returns only, never an atomic).
 if rung_on UPC_REPLY; then
-  HRL="$(probe_lines hostile_reply 3000000 HR)"
+  HRL="$(probe_lines hostile_reply 3000000 HR UPC_ALLOW_USER_PRIVRET=1)"
   if rung_on UPC_D6_MISS_FAULT; then
     want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
       "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
@@ -278,6 +281,35 @@ if rung_on UPC_REPLY; then
 else
   note "hostile_reply gate skipped: UPC_REPLY is off"
 fi
+
+# S-STAGE-2C Phase 4, ADR-135 D17 (R-S4): upc-bootctl refuses a user image that
+# holds an atomic. The translator emits none, so the image is made here: one LD
+# of hostile_atomic rewritten to XCHG in a copy. Never booted: a dry run reaches
+# the scan and stops there. Without the hatch hostile_reply is refused too, and
+# the hatch does not admit the atomic.
+OPD="$(mktemp -d)"
+if python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --word-of-marker 0x1D000400 \
+     --marker-mask 0xFF00FFFF --from 0x30 --to 0x3D --out "$OPD/hostile_atomic_x.mbc" >/dev/null 2>&1 \
+   && cp "$K/hostile_atomic.rv2mbc" "$OPD/hostile_atomic_x.rv2mbc" \
+   && cp "$K/hostile_atomic.rv2mbc.sha256" "$OPD/hostile_atomic_x.rv2mbc.sha256"; then
+  scan_of() { (cd "$EBPF" && env "${@:2}" "$BC" boot --kernel "$K/xv6-mbc.mbc" --userland "$1" --dry-run 2>&1); }
+  SX="$(scan_of "$OPD/hostile_atomic_x.mbc")"
+  SH="$(scan_of "$OPD/hostile_atomic_x.mbc" UPC_ALLOW_USER_PRIVRET=1)"
+  SR="$(scan_of "$K/hostile_reply.mbc")"
+  SC="$(scan_of "$K/hostile_atomic.mbc")"
+  if grep -q 'UserImageOpcode: hostile_atomic_x: word [0-9]* (0x3D[0-9A-F]*) is XCHG' <<<"$SX" \
+     && grep -q 'UserImageOpcode: .* is XCHG' <<<"$SH" \
+     && grep -q 'UserImageOpcode: hostile_reply: .* is [MS]RET' <<<"$SR" \
+     && ! grep -q 'UserImageOpcode' <<<"$SC"; then
+    pass "opcode scan refuses a user image with XCHG (hatch or not) and one with MRET/SRET"
+  else
+    fail "opcode scan (a user image with XCHG or MRET/SRET was not refused, or a clean one was)"
+    note "$(grep -h UserImageOpcode <<<"$SX$SH$SR$SC" | head -3 | tr '\n' ' ')"
+  fi
+else
+  fail "opcode scan (could not make the patched image from $K/hostile_atomic.mbc)"
+fi
+rm -rf "$OPD"
 
 # S26: xv6 usertests bodies as probes (user/ut_*.c) against BPF fork/exit/wait.
 # forktest and reparent2 need wait() to return -1 once every child is reaped.

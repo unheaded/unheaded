@@ -343,7 +343,9 @@ Two parts were decided (Stevie's answer A-61: fix it, plus an opcode scan):
 1. **The load-time scan (landed).** bootctl reads the `--userland` image and every resident program word by word and
    refuses the boot on any of `XCHG` 0x3D, `CAS` 0x3E, `MRET` 0x47, `SRET` 0x48, `LR_W` 0x49, `SC_W` 0x4A
    (`UserImageOpcode`, naming the image, the word and the opcode). The kernel image is not scanned: it needs `MRET` and
-   `SRET`. This closes the one way such an opcode reaches a child: an image that did not come from the translator.
+   `SRET`. One probe holds privileged returns on purpose (`hostile_reply`: an `mret` and two `sret`s, which is how it
+   shows they do nothing at U-mode), so `UPC_ALLOW_USER_PRIVRET=1` admits `MRET` and `SRET`, says so in the boot
+   output, and never admits an atomic; the harness sets it for that probe alone. This closes the one way such an opcode reaches a child: an image that did not come from the translator.
 2. **Translation in BPF (not landed: verifier budget).** The design is `translate_address(cpu, addr)` for each atomic
    under `cfg!(feature = "ascend-linux")`, the reservation keeping the virtual address. Measured against 895,768 with
    4,232 of headroom: four inlined translations +20,993; one ascend-only arm for all four with a single translation
@@ -481,7 +483,7 @@ disposition. Text fixes are in this ADR. A code fix named below is outside the r
 | R-S1 | Suspected | `main`'s prologue after `mret` gives a chosen-address write | Open, not booted. Rides with R-F1. **Closed with R-F1, 2026-11-15** |
 | R-S2 | Suspected | R-F5 as a byte oracle | Open, leak rate unmeasured. Rides with R-F5. **Closed with R-F5, 2026-11-15** |
 | R-S3 | Suspected | First-page refusal only matters for a kernel-routed pointer from slot 0 | Checked: real but unreached today. Stated in D6 |
-| R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie |
+| R-S4 | Suspected | `LR_W`, `SC_W`, `XCHG`, `CAS` skip translation | Translator read, emits none. Stated in Security notes. Opcode scan open, For Stevie. **2026-11-15, S-STAGE-2C Phase 4 (D17): the load-time scan landed and closes the reachable route; translation in BPF did not (verifier budget) and stays open** |
 | R-NC | Not checked by the review | Whether exec zeroes `.bss` | Checked: it does not. D5 narrowed, stated in Security notes, For Stevie |
 
 Plan Step 221 reviewed D10-D14 independently at `1dda0be8` plus the uncommitted text, nothing built or booted, and found

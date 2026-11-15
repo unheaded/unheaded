@@ -9,6 +9,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 |---|---|---|---|---|---|
 | priv3 + D6 | 889941 | 893507 | +3566 | 27529 | d6-after |
 | bounded paths | 893507 | 895768 | +2261 | 25268 | paths-after |
+| atomics: scan only (translate stuck) | 895768 | 895768 | +0 | 25268 | atomics-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -92,3 +93,6 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 77: `hostile_atomic` is built and sidecarred with the gate programs, not put in fs.img (the plan's "userland program" would have moved the `ls` golden).
 - Step 78 as written (four `translate_address` calls): 916,761, +20,993 against 895768: BUDGET-FAIL. One ascend-only arm with a single translation: 912,623, +16,855: BUDGET-FAIL. Two shapes, so Steps 78 and 81 are `[STUCK]` on the verifier budget; `main.rs` is back at 895768. For information, not landed: the bounded linear map (`user_phys`, a miss to `D6_MISS_ADDR`) measured 899,031, +3,263, headroom 969.
 - Step 80 on the object without translation (the red state, kept as the proof): the unpatched probe prints `xchg-translated=yes`, `done`; the patched copy prints `xchg-translated=no`, `done` (`xxd -s 0x400 -l 4 fs.img`: `40 30 20 10`, the superblock magic). The `.rv2mbc` hash gate passed the patched image: it hashes the map, not the words. Once the scan lands this cannot be booted from a stock tree.
+- Steps 83-85: `cmd/upc-bootctl/tests/opcode_scan.rs` red first (3 of 4 failed with no scan), then green; all bootctl test results ok; fmt and clippy clean. The built bootctl on the patched image: `UserImageOpcode: hostile_atomic_x: word 16 (0x3DDD0000) is XCHG (opcode 0x3D)`.
+- Found while building the scan: `hostile_reply.mbc` itself holds SRET at words 22 and 120 and MRET at word 62, so the scan as planned would have refused the probe that proves Phase 2. Hence the hatch `UPC_ALLOW_USER_PRIVRET=1` (returns only). No other built image holds any of the six opcodes except the kernel (MRET at 156, SRET at 11165 and 12781), which is not scanned.
+- Gate `atomics-after`: `same=12 diff=0 rc=0 doom=1 ascend=895768` (unchanged: no BPF change landed); harness lines `opcode scan refuses a user image with XCHG (hatch or not) and one with MRET/SRET` and `hostile_reply: D6 closes the route to the reply word` PASS. No corpus image is refused.
