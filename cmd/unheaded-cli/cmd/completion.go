@@ -84,12 +84,13 @@ _unheaded_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="container service config secret network status version completion apikey"
+    local commands="container service config secret network status version completion generate observe apikey token hop"
     local container_commands="list create start stop delete exec inspect"
     local service_commands="list deploy status logs restart scale"
     local config_commands="get set list validate current-context use-context view init"
     local secret_commands="get set delete list rotate generate"
     local apikey_commands="create list revoke"
+    local hop_commands="rules mode"
     local network_commands="policy route inspect"
     local policy_commands="list create delete apply"
     local route_commands="list add delete"
@@ -117,6 +118,10 @@ _unheaded_completions() {
             ;;
         apikey|apikeys)
             COMPREPLY=($(compgen -W "${apikey_commands}" -- "${cur}"))
+            return 0
+            ;;
+        hop)
+            COMPREPLY=($(compgen -W "${hop_commands}" -- "${cur}"))
             return 0
             ;;
         network|net)
@@ -163,6 +168,7 @@ _unheaded() {
     local -a config_commands
     local -a secret_commands
     local -a network_commands
+    local -a hop_commands
 
     commands=(
         'container:Manage containers'
@@ -173,7 +179,11 @@ _unheaded() {
         'status:Show system status overview'
         'version:Show version information'
         'completion:Generate shell completion scripts'
+        'generate:Generate IaC artifacts'
+        'observe:Manage observability backends'
         'apikey:Create, list and revoke API keys'
+        'token:Print a 5-minute service token for one service (for curl)'
+        "hop:Manage hop-ebpf's checks"
     )
 
     container_commands=(
@@ -221,6 +231,11 @@ _unheaded() {
         'inspect:Inspect network configuration'
     )
 
+    hop_commands=(
+        "rules:Write hop check rules to hop-ebpf's maps"
+        "mode:Set hop-ebpf's check mode: off or observe (enforce is refused here and by the packaged object)"
+    )
+
     _arguments -C \
         '-o[Output format]:format:(table json yaml wide)' \
         '--output[Output format]:format:(table json yaml wide)' \
@@ -264,6 +279,11 @@ _unheaded() {
                         _describe -t commands 'network command' network_commands
                     fi
                     ;;
+                hop)
+                    if (( CURRENT == 2 )); then
+                        _describe -t commands 'hop command' hop_commands
+                    fi
+                    ;;
             esac
             ;;
         contexts)
@@ -295,6 +315,12 @@ complete -c unheaded -f -n "__fish_use_subcommand" -a "network" -d "Manage netwo
 complete -c unheaded -f -n "__fish_use_subcommand" -a "status" -d "Show system status overview"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "version" -d "Show version information"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion scripts"
+complete -c unheaded -f -n "__fish_use_subcommand" -a "generate" -d "Generate IaC artifacts"
+complete -c unheaded -f -n "__fish_use_subcommand" -a "observe" -d "Manage observability backends"
+complete -c unheaded -f -n "__fish_use_subcommand" -a "token" -d "Print a 5-minute service token for one service (for curl)"
+complete -c unheaded -f -n "__fish_use_subcommand" -a "hop" -d "Manage hop-ebpf's checks"
+complete -c unheaded -f -n "__fish_seen_subcommand_from hop" -a "rules" -d "Write hop check rules to hop-ebpf's maps"
+complete -c unheaded -f -n "__fish_seen_subcommand_from hop" -a "mode" -d "Set hop-ebpf's check mode: off or observe (enforce is refused here and by the packaged object)"
 
 # Container subcommands
 complete -c unheaded -f -n "__fish_seen_subcommand_from container ct containers" -a "list" -d "List containers"
