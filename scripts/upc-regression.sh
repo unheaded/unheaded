@@ -228,6 +228,25 @@ else
   note "sleepprobe gate skipped: UPC_RUNG_SLEEP is off"
 fi
 
+# S-STAGE-2C Phase 10, ADR-135 D20 (rung 4): read on the console is the owned
+# kernel's. crprobe needs typed input, so it is not a rung_gate line: two lines
+# go in the keyboard ring, each must come back whole from one read, a bad
+# pointer must answer -1 with nothing left to wait for, and tty_r must count
+# the twelve bytes the kernel took, as it counted BPF's deliveries.
+if rung_on UPC_RUNG4; then
+  CRO="$( (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/crprobe.mbc" --triggers 4000000 --instance 111 --input $'hello\nagain\n' 2>&1) )"
+  CRL="$(grep -a 'ascii:' <<<"$CRO" | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE 'CR: [a-z0-9-]+(=[a-z0-9]+)?')"
+  if [ "$(grep -c '=yes$' <<<"$CRL")" = 3 ] && ! grep -q '=no$' <<<"$CRL" && grep -qx 'CR: done' <<<"$CRL" \
+     && grep -aq 'tty_r=12\b' <<<"$CRO"; then
+    pass "crprobe: 3 checks, two lines read whole, tty_r=12 (UPC_RUNG4)"
+  else
+    fail "crprobe (UPC_RUNG4)"; note "$(tr '\n' ' ' <<<"$CRL") $(grep -aoE 'tty_r=[0-9]+' <<<"$CRO" | tail -1)"
+  fi
+else
+  note "crprobe gate skipped: UPC_RUNG4 is off"
+fi
+
 # S-STAGE-2C Phase 8 (A-62): the rung 0 asserter (ADR-109 I1-I8) against a
 # probe kernel. The kernel is built with -DUPC_STAGE2_PROBE from a copy in a
 # temp dir (the make rules write objects beside the sources, so the copy keeps

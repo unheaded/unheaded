@@ -37,6 +37,8 @@
 
 // uconsole.c: the console's write, called directly for a slot row (ADR-135 D19).
 int consolewrite(int user_src, uint64 src, int n);
+// uconsole.c: the console's polled read for a slot row (ADR-135 D20).
+int upc_consoleread(uint64 dst, int n);
 
 // ADR-135 D10: an ofile index as the user sees it. Slot rows number kernel fds
 // from 16, above BPF's table, so neither allocator sees the other.
@@ -111,6 +113,14 @@ sys_read(void)
 
   argaddr(1, &p);
   argint(2, &n);
+  // ADR-135 D20 (rung 4): a slot row's fd below 16 is BPF's number, and BPF
+  // sends a read on one here only when its table calls the fd the console.
+  if(upc_slot_active()){
+    int fd;
+    argint(0, &fd);
+    if(fd >= 0 && fd < UPC_KFD_BASE)
+      return upc_consoleread(p, n);
+  }
   if(argfd(0, 0, &f) < 0)
     return -1;
   return fileread(f, p, n);

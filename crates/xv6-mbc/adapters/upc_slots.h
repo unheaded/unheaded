@@ -19,15 +19,18 @@
 #define UPC_ST_REPLY_OFF        0x00000814 // UPC_TAG_REPLY | flags, kernel; BPF reads at SRET (ADR-135 D1)
 #define UPC_ST_REPLY_ARG_OFF    0x00000818 // the reply flag's one argument, kernel
 #define UPC_ST_CWD_MASK_OFF     0x0000081C // bit s: row s is off the root inode, kernel; BPF reads at open (ADR-135 D15)
-#define UPC_ST_SIZE             0x00000820
+#define UPC_ST_KBD_IN_OFF       0x00000820 // UPC_TAG_KBD | byte, or 0: the next console byte, BPF at a console read's injection (ADR-135 D20)
+#define UPC_ST_SIZE             0x00000824
 #define UPC_TAG_SLOT            0x51070000
 #define UPC_TAG_A7              0xA7000000
 #define UPC_TAG_REPLY           0x52500000
+#define UPC_TAG_KBD             0x4B420000 // ADR-135 D20
 #define UPC_TAG_MASK            0xFFFF0000
 #define UPC_REPLY_SET_BRK       1
 #define UPC_REPLY_YIELD         2
 #define UPC_REPLY_KILL          4
 #define UPC_REPLY_EXIT          8 // ADR-135 D13
+#define UPC_REPLY_KBD           16 // ADR-135 D20: the kernel took the byte BPF offered; BPF advances the ring
 #define UPC_RETRY_RC            (-2) // a retrying handler's return; syscall() leaves a0 alone (ADR-135 D7)
 #define UPC_KFD_BASE            16 // ADR-135 D10: kernel fd = 16 + ofile index; BPF's NOFILE
 #define UPC_HEAP_BASE           0x00010000 // ADR-135 D2: VA window, inside fork's low copy band
@@ -58,6 +61,7 @@ struct upc_slot_tables {
   uint32 reply;
   uint32 reply_arg;
   uint32 cwd_mask;
+  uint32 kbd_in;
 };
 
 struct proc;
@@ -75,6 +79,7 @@ void upc_retry(void);
 int  upc_retry_pending(void);
 uint64 upc_pause(int n);
 uint64 upc_user_pa(uint64 va);
+int  upc_kbd_take(void);
 void upc_cwd_mark(struct proc *p, int off_root);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
@@ -87,5 +92,6 @@ _Static_assert(__builtin_offsetof(struct upc_slot_tables, brk_in) == UPC_ST_BRK_
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, reply) == UPC_ST_REPLY_OFF, "reply offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, reply_arg) == UPC_ST_REPLY_ARG_OFF, "reply_arg offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, cwd_mask) == UPC_ST_CWD_MASK_OFF, "cwd_mask offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, kbd_in) == UPC_ST_KBD_IN_OFF, "kbd_in offset");
 
 #endif

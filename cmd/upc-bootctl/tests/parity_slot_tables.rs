@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 22] = [
+const NAMES: [&str; 25] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -52,15 +52,18 @@ const NAMES: [&str; 22] = [
     "UPC_ST_REPLY_OFF",
     "UPC_ST_REPLY_ARG_OFF",
     "UPC_ST_CWD_MASK_OFF",
+    "UPC_ST_KBD_IN_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",
     "UPC_TAG_REPLY",
+    "UPC_TAG_KBD",
     "UPC_TAG_MASK",
     "UPC_REPLY_SET_BRK",
     "UPC_REPLY_YIELD",
     "UPC_REPLY_KILL",
     "UPC_REPLY_EXIT",
+    "UPC_REPLY_KBD",
     "UPC_HEAP_BASE",
     "UPC_HEAP_TOP",
 ];
@@ -124,17 +127,20 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_ST_BRK_IN_OFF"), slots * stride + 16);
     assert_eq!(rust_const(&rs, "UPC_ST_REPLY_OFF"), slots * stride + 20);
     assert_eq!(rust_const(&rs, "UPC_ST_REPLY_ARG_OFF"), slots * stride + 24);
-    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 32);
+    assert_eq!(rust_const(&rs, "UPC_ST_KBD_IN_OFF"), slots * stride + 32);
+    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 36);
     let mask = rust_const(&rs, "UPC_TAG_MASK");
     assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_REPLY") & !mask, 0);
+    assert_eq!(rust_const(&rs, "UPC_TAG_KBD") & !mask, 0);
     // The reply flags live below the tag.
     for f in [
         "UPC_REPLY_SET_BRK",
         "UPC_REPLY_YIELD",
         "UPC_REPLY_KILL",
         "UPC_REPLY_EXIT",
+        "UPC_REPLY_KBD",
     ] {
         assert_eq!(rust_const(&rs, f) & mask, 0, "{f}");
         assert!(rust_const(&rs, f).is_power_of_two(), "{f}");

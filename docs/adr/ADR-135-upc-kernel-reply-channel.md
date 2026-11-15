@@ -418,6 +418,41 @@ Under `UPC_RUNG3`, `write` on a fd below 16 goes to the owned kernel unless BPF'
   `.rodata` cannot be the buffer of a kernel-routed `write`. Init and `uinit` print through `printf`, whose byte is on
   the stack; every other corpus program runs in a child slot. `conprobe` keeps its buffers in `.bss`.
 
+### D20. Rung 4: console read is the kernel's (2026-11-15, S-STAGE-2C Phase 10)
+
+Under `UPC_RUNG4`, `read` on a fd below 16 goes to the owned kernel when BPF's table says the fd is the console.
+
+- **Routing.** `kernel_routed_alias`: `5 if ascend && UPC_RUNG4 && fd_kind(pid, a0) == FD_CONSOLE => 11`. Unlike D19
+  the test is "is the console": a read on a free fd below 16 answered -1 in BPF before the rung and still does.
+- **How the byte gets there.** The keyboard ring is BPF's (`KBD_MAP`, `KBD_HEAD`, `KBD_TAIL`); the kernel's
+  `uartgetc` reads the Doom-era keyboard word, not the ring, and a ring pop inside the load path would cost every
+  load. So the hand-over rides the trap. At the injection of a console read (`a7 == 5`, fd below 16), `inject_strap`
+  writes the next ring byte, tagged `UPC_TAG_KBD`, into a new slot-table word `kbd_in` (0 when the ring is empty) and
+  does **not** advance the ring. The kernel takes the byte only when it needs one (`upc_kbd_take`); taking sets
+  `UPC_REPLY_KBD` in the reply at the return, and BPF advances `KBD_TAIL` when it reads that flag, nowhere else. A
+  byte that is not taken is offered again at the next console read. The table grows by one word (0x820, size 0x824);
+  the parity test covers the offset, the tag and the flag.
+- **Kernel.** `sys_read` on a slot row with a fd in 0-15 calls `upc_consoleread(addr, n)`. The pointer is judged
+  first (`upc_user_pa`), so a bad one answers -1 with or without input. With no complete line in the console buffer,
+  the trap's byte goes through `consoleintr` (the stock line discipline: `^H`, `^U`, `^D`, a full buffer) with echo
+  off; if there is still no line the handler takes the retry hand-off (D7) and never sleeps. With a line buffered it
+  copies out as `consoleread` does: up to n bytes, stopping after a newline, 0 at `^D`. One byte per trap, so a line
+  of k bytes costs k traps before its first byte is returned.
+- **Polling, not an interrupt.** The skeleton had the KBD ring as an interrupt source. There is no UART interrupt on
+  the UPC; the read path polls on each (re)run of the ecall. Recorded as a departure.
+- **No echo.** BPF never echoed typed input and the goldens hold what is printed, so the polled path sets a flag
+  that keeps `consoleintr` from printing the character or a backspace. The interrupt path (`uartintr`), dead on the
+  UPC, keeps stock echo.
+- **`tty_r`.** `STAT_TTY_READS` is bumped where the ring advances, once per byte the kernel took. Before the rung it
+  was bumped once per byte BPF delivered. A reader that consumes its input reads the same number either way; a read
+  blocked on an empty ring bumps nothing, as before. (The plan put the bump at routing; a read left blocked at the
+  prompt at the end of every boot would then count one more than the goldens.)
+- **What changes for a reader.** A read returns a line (or n bytes of one), not one byte: stock xv6 behaviour.
+  `sh`'s `gets` asks for one byte at a time and sees no difference. Control characters are now the line
+  discipline's: `^H` and `^U` edit the pending line, `^D` is end-of-file, `^P` runs `procdump`. BPF passed them
+  through as bytes. No corpus input holds one.
+- **BPF.** The console branch of the read arm is the `!UPC_RUNG4` branch, so the on object does not hold it.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,

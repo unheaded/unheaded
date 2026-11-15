@@ -217,3 +217,11 @@ No BPF change: `vcount` 885,529 before and after (`bpf-unchanged`).
 
 Gate `probes-after`: `same=12 diff=0 rc=0 doom=1 ascend=885529` at `25d39563`; `rmprobe: 11 checks`, `lnprobe: 12 checks`, `hostile_ptr: 9 checks`, `bigprobe: 3 checks`, sleepprobe and the asserter PASS, ALL GREEN.
 
+## Phase 10, rung 4 (2026-11-15)
+
+Before gate: `probes-after` stands in for `rung4-before` (same code; only docs and the ledger changed between `25d39563` and Stop D `7fca9618`): `same=12 diff=0 rc=0 doom=1 ascend=885529`. `offv` 885,529.
+
+Step 188, what was read: BPF's console read pops one ring byte per call, decodes `(raw >> 1) & 0xFF`, bumps `STAT_TTY_READS` per byte delivered, and on an empty ring rewinds the PC and ends the tick. It does not echo: the `echo hello` golden prints `$ hello`, not the typed line. The goldens' `tty_r` equals the input's byte count (`ls` 3, `echo hello` 11, `multi` 22, `blank` 15). The kernel's `uartgetc` reads the status word in RAM and `KBD_MAP[0]` (the Doom-era keyboard word), not the ring, so it cannot feed the read; D20's hand-over rides the trap instead (ADR-135 D20).
+
+Const off (`UPC_RUNG4 = false`): `kbuild; gbuild; ebuild; bbuild`, `vcount` 885,529 = `offv` (`off-equal`), `sweep` 8 of 8 SAME, `parity_slot_tables` and `parity_surface` pass. The slot table is one word longer (`kbd_in` at 0x820, size 0x824); the kernel's `.bss` grew by it and the goldens did not move.
+

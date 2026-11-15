@@ -522,6 +522,13 @@ const UPC_RUNG_PIPE: bool = true;
 // of the arm answers -1, which is T-F3's interim for a file fd. Needs UPC_RUNG_FD.
 // Rollback = this const off.
 const UPC_RUNG3: bool = true;
+// EVOLUTION-1 Stage 2 rung 4, ADR-135 D20: read on a console fd is the owned
+// kernel's (sys_read, upc_consoleread, consoleintr's line buffer). At the trap's
+// injection BPF offers the next keyboard-ring byte in the slot table, without
+// advancing the ring; the kernel's reply says whether it took it, and the ring
+// advances then. The console branch of the read arm below is the off branch, so
+// the on object does not hold it. Needs UPC_RUNG_FD. Rollback = this const off.
+const UPC_RUNG4: bool = false;
 const EXIT_SLOT_NONE: u32 = u32::MAX; // no slot exited or was killed this tick
 const SWITCH_NONE: u8 = 0;
 const SWITCH_YIELD: u8 = 1; // wait retry, pause
@@ -3272,7 +3279,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                     }
                     cpu.regs[8] = ret;
-                } else if kind == fdtable::FD_CONSOLE {
+                } else if !UPC_RUNG4 && kind == fdtable::FD_CONSOLE {
                     let tail = match KBD_TAIL.get(0) {
                         Some(v) => *v,
                         None => 0,
@@ -3582,6 +3589,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 mem_write_word(w, 0);
                 if r & phase12::UPC_REPLY_SET_BRK != 0 {
                     cpu.program_break = mem_read_word((base + phase12::UPC_ST_REPLY_ARG_OFF) >> 2);
+                }
+                // ADR-135 D20: the kernel took the offered console byte. The ring
+                // moves here and nowhere else, and this is the byte tty_r counts.
+                if UPC_RUNG4 && r & phase12::UPC_REPLY_KBD != 0 {
+                    if let Some(p) = KBD_TAIL.get_ptr_mut(0) {
+                        unsafe {
+                            *p = (*p).wrapping_add(1);
+                        }
+                    }
+                    increment_stat(STAT_TTY_READS);
                 }
                 // ADR-135 D7: the handler left epc on the ecall; yield, and the slot
                 // runs it again when next scheduled. Alone, it runs it again at once.
@@ -3982,7 +3999,8 @@ const OPEN_KERNEL_FLAGS: u32 = 0x001 | 0x200 | 0x400;
 /// 22 in probe builds only. Under UPC_RUNG_FD (ADR-135 D11-D13): exit 2 and the
 /// fork note 24 always; read 5, fstat 8, dup 10, write 16 and close 21 for a fd at
 /// 16 or above, the compare unsigned so a negative fd goes too; write 16 on a fd
-/// below 16 that is not a file, under UPC_RUNG3 (ADR-135 D19); open 15 with a
+/// below 16 that is not a file, under UPC_RUNG3 (ADR-135 D19); read 5 on a
+/// console fd, under UPC_RUNG4 (ADR-135 D20); open 15 with a
 /// masked flag. Under UPC_RUNG_CHDIR (ADR-135 D15): chdir 9 always, and open 15 from a
 /// process off the root. Pipe 4 under UPC_RUNG_PIPE.
 #[inline(always)]
@@ -3999,6 +4017,12 @@ fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
         16 if cfg!(feature = "ascend-linux")
             && UPC_RUNG3
             && fd_kind(cpu.current_pid, cpu.regs[8]) != fdtable::FD_INODE =>
+        {
+            11
+        }
+        5 if cfg!(feature = "ascend-linux")
+            && UPC_RUNG4
+            && fd_kind(cpu.current_pid, cpu.regs[8]) == fdtable::FD_CONSOLE =>
         {
             11
         }
@@ -4084,6 +4108,29 @@ fn inject_strap(cpu: &MbcCpuState) {
     if UPC_REPLY {
         mem_write_word((base + phase12::UPC_ST_BRK_IN_OFF) >> 2, cpu.program_break);
         // ADR-135 D3
+    }
+    // ADR-135 D20: a read on a fd below 16 gets here only for the console
+    // (kernel_routed_alias). Offer the next ring byte; the ring does not move.
+    if cfg!(feature = "ascend-linux") && UPC_RUNG4 && cpu.regs[1] == 5 && cpu.regs[8] < 16 {
+        let tail = match KBD_TAIL.get(0) {
+            Some(v) => *v,
+            None => 0,
+        };
+        let head = match KBD_HEAD.get(0) {
+            Some(v) => *v,
+            None => 0,
+        };
+        let offer = if tail < head {
+            // (scancode << 1) | pressed, as the host wrote it: the byte is bits 1-8.
+            let raw = match KBD_MAP.get(tail & 63) {
+                Some(v) => *v,
+                None => 0,
+            };
+            phase12::UPC_TAG_KBD | ((raw >> 1) & 0xFF)
+        } else {
+            0
+        };
+        mem_write_word((base + phase12::UPC_ST_KBD_IN_OFF) >> 2, offer);
     }
 }
 

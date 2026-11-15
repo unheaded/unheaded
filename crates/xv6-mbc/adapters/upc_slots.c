@@ -28,6 +28,7 @@ static struct upc_slot_tables upc_st __attribute__((aligned(UPC_TF_STRIDE)));
 #define UPC_PER_SLOT_PGD(s) (0x00F00000u + (uint32)(s) * 4096u)
 
 static int upc_active; // inside a tagged trap: upc_slot_enter to upc_slot_leave
+static int upc_kbd_taken; // this trap took the console byte BPF offered (ADR-135 D20)
 
 int
 upc_slot_active(void)
@@ -42,6 +43,10 @@ upc_slot_leave(void)
 {
   if(upc_active && upc_st.reply == 0)
     upc_st.reply = UPC_TAG_REPLY;
+  // ADR-135 D20: whatever else the handler replied, say the offered byte was taken.
+  if(upc_active && upc_kbd_taken)
+    upc_st.reply |= UPC_REPLY_KBD;
+  upc_kbd_taken = 0;
   upc_active = 0;
 }
 
@@ -147,6 +152,21 @@ upc_pause(int n)
   }
   upc_retry();
   return n;   // a0 stays n for the re-run
+}
+
+// ADR-135 D20 (rung 4). The byte BPF offered at this trap's injection, or -1.
+// BPF only looks at its keyboard ring (it does not advance it) and leaves the
+// next byte here, tagged; taking it sets the reply's KBD flag at the return,
+// and BPF advances the ring then. A byte not taken is offered again.
+int
+upc_kbd_take(void)
+{
+  uint32 w = upc_st.kbd_in;
+  upc_st.kbd_in = 0;
+  if((w & UPC_TAG_MASK) != UPC_TAG_KBD)
+    return -1;
+  upc_kbd_taken = 1;
+  return (int)(w & 0xFF);
 }
 
 // ADR-135 D6. A slot row's user VA to its physical address, 0 when refused.
@@ -296,6 +316,7 @@ upc_slot_enter(void)
   upc_st.trap_a7 = 0;
   upc_st.reply = 0;     // ADR-135 D1: no word written in U-mode survives entry
   upc_st.reply_arg = 0;
+  upc_kbd_taken = 0;
   if((cs & UPC_TAG_MASK) != UPC_TAG_SLOT)
     return;
 
