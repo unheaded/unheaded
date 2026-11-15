@@ -80,6 +80,25 @@ def test_guard(fx, listens, total, named):
     assert not [p.name for p in fx["tf"].iterdir() if p.name.startswith(".")]
 
 
+def test_ss_failing_keeps_the_old_textfile(fx):
+    """REV-4 (independent review 2026-11-15): when ss fails, the guard fails
+    and writes nothing, so the old textfile stays and its last-run timestamp
+    ages: ModuleListenerGuardNotRunning fires instead of a fresh public=0."""
+    r = run(fx, ["0.0.0.0:20103"])
+    assert r.returncode == 0, r.stderr
+    prom = fx["tf"] / "module_listeners.prom"
+    before = prom.read_text()
+    os.utime(prom, (1, 1))
+    (pathlib.Path(fx["env"]["PATH"].split(os.pathsep)[0]) / "ss").write_text(
+        '#!/bin/sh\necho "ss: netlink: Operation not permitted" >&2\nexit 1\n')
+    r = run(fx, [])
+    assert r.returncode != 0
+    assert "ss" in r.stderr
+    assert prom.read_text() == before
+    assert prom.stat().st_mtime == 1
+    assert not [p.name for p in fx["tf"].iterdir() if p.name.startswith(".")]
+
+
 def test_missing_argument(fx):
     r = subprocess.run(["bash", str(GUARD), str(fx["src"])], env=fx["env"], capture_output=True,
                        text=True, timeout=30, check=False)

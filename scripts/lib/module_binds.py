@@ -138,10 +138,24 @@ def check_units(root):
     return 0
 
 
+def read_listeners():
+    """ss -ltnH's output. A failed ss raises: the guard then writes nothing,
+    the old textfile stays and its last-run timestamp ages, so
+    ModuleListenerGuardNotRunning fires rather than a fresh public=0 (REV-4)."""
+    r = subprocess.run(["ss", "-ltnH"], capture_output=True, text=True, check=False, timeout=30)
+    if r.returncode != 0:
+        raise RuntimeError(f"ss -ltnH exited {r.returncode}: {r.stderr.strip()[:200]}")
+    return r.stdout
+
+
 def guard(src, textfile, host):
     lines = []
     total = {}
-    ss = subprocess.run(["ss", "-ltnH"], capture_output=True, text=True, check=False, timeout=30).stdout
+    try:
+        ss = read_listeners()
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as e:
+        print(f"module-listener-guard: {e}; textfile left as it was", file=sys.stderr)
+        return 1
     listening = [ln.split()[3] for ln in ss.splitlines() if len(ln.split()) >= 4]
     for name, m in modules_of(src):
         ports = {str(p) for p in m.get("ports") or []}
