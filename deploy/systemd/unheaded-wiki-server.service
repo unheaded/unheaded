@@ -3,10 +3,12 @@ Description=Unheaded wiki server: the wiki over TLS, behind the dashboard's logi
 Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Microservices.md
 After=network-online.target
 Wants=network-online.target
-# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
-# UnitFailed mails, instead of restarting for ever.
-StartLimitIntervalSec=15min
-StartLimitBurst=10
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (90 starts x RestartSec 10s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 100 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=90
 
 [Service]
 Type=simple

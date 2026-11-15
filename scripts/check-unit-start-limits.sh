@@ -13,6 +13,17 @@
 # so the limit trips, the unit stays failed, and UnitFailed mails.
 # StartLimitIntervalSec=0 or infinity means "never trips" and fails.
 #
+# It must not trip too soon either. A unit failing at every start gives up
+# after about StartLimitBurst x RestartSec, so a pass also needs
+#
+#   StartLimitBurst x RestartSec >= BOOT_WINDOW (900 s)
+#
+# the 15 minutes the plan gave a dependency to come up after boot (dockerd
+# took 3 minutes on 2026-11-12; the Well, wg0 and the compose bridge come
+# after it). 10 starts at 5 s gave up after 50 s (review 2026-11-15, REV-3).
+# Sizing: StartLimitBurst = 900 / RestartSec, StartLimitIntervalSec=30min.
+# Named exceptions below carry a ruling.
+#
 # Usage: scripts/check-unit-start-limits.sh [UNIT_FILE...]
 #   default: systemd/*.service deploy/systemd/*.service
 # Units with no Restart= or Restart=no are not checked.
@@ -48,6 +59,11 @@ secs() {
 # last <key> <file>: the value of the last Key= line (later lines win in systemd).
 last() { grep -E "^$1=" "$2" | tail -1 | cut -d= -f2- | sed 's/[[:space:]]*$//' || true; }
 
+BOOT_WINDOW=900
+# Units that may give up sooner than BOOT_WINDOW, each with its ruling.
+declare -A SHORT_RIDE=(
+    [unheaded-trace-collector.service]="Stevie 2026-11-09: 60 tries in ten minutes, every 5 s (its header)"
+)
 checked=0
 failed=0
 for f in "${files[@]}"; do
@@ -72,11 +88,16 @@ for f in "${files[@]}"; do
     if ! awk -v i="$i" -v b="$b" -v r="$r" 'BEGIN{exit !(i > b*r)}'; then
         echo "[FAIL] $f: interval ${i}s <= burst ${b} x RestartSec ${r}s"
         failed=$((failed + 1))
+        continue
+    fi
+    if [[ -z "${SHORT_RIDE[$(basename "$f")]:-}" ]] && ! awk -v b="$b" -v r="$r" -v w="$BOOT_WINDOW" 'BEGIN{exit !(b*r >= w)}'; then
+        echo "[FAIL] $f: gives up after burst ${b} x RestartSec ${r}s, under the ${BOOT_WINDOW}s boot window"
+        failed=$((failed + 1))
     fi
 done
 
 if [[ "$failed" -gt 0 ]]; then
-    echo "[FAIL] ${failed} of ${checked} restarting units can never trip their start limit (add StartLimitIntervalSec=15min and StartLimitBurst=10 to [Unit]; ADR-147 SS3)"
+    echo "[FAIL] ${failed} of ${checked} restarting units either never trip their start limit or trip inside the boot window (in [Unit]: StartLimitBurst = ${BOOT_WINDOW} / RestartSec, StartLimitIntervalSec=30min; ADR-147 SS3)"
     exit 1
 fi
-echo "[PASS] ${checked} restarting units can trip their start limit"
+echo "[PASS] ${checked} restarting units can trip their start limit, none before ${BOOT_WINDOW}s"

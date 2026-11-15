@@ -22,10 +22,12 @@ After=network-online.target
 Wants=network-online.target
 # Wotan is optional: publishing waits for it, polling does not.
 After=unheaded-wotan.service
-# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
-# UnitFailed mails, instead of restarting for ever.
-StartLimitIntervalSec=15min
-StartLimitBurst=10
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (30 starts x RestartSec 30s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 300 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=30
 
 [Service]
 Type=simple

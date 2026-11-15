@@ -10,10 +10,12 @@ Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/timeguru
 After=network-online.target unheaded-wotan.service
 Wants=network-online.target
 Requires=unheaded-wotan.service
-# ADR-147 (SS3): after 10 starts in 15 minutes the unit stays failed, and
-# UnitFailed mails, instead of restarting for ever.
-StartLimitIntervalSec=15min
-StartLimitBurst=10
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (180 starts x RestartSec 5s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 50 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=180
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
