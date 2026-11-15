@@ -72,6 +72,14 @@ Before readings of 2026-11-15T21:41Z (VictoriaMetrics on `127.0.0.1:8428`, cgrou
   - W-30: Postgres memory `max` 81,873 (seat 52,740): it has risen, not fallen.
   - Reproduced: Wotan GET 68.86/s, members 63, rooms 25, streams 17, 429s 367; Prometheus 13,829 series; Akira throttling 44.4%; role services 14-15.5 MB each and 0.966 req/s; log lines 247/min; `/health` 6.46/s.
 - Step 13: the Vector request counter Phase 21 reads is `vector_http_client_requests_sent_total` (present for `component_id="clickhouse"`).
+- Phase 2 (Steps 22-32): archive `/home/govan/tmp/projects/unheaded-role-services`, HEAD `f82e827` (README, signed), source commit `8d35785d83683d1d5d9e7db5a9b4b38bab942cd6`, 236 commits, 112 files (N), no remote. Its history is unsigned (filter-branch).
+- Phase 3 (Steps 33-58), commits `7154b791`, `3162eaa0` and the Steps 50-53 commit. 112 files deleted (Step 33). Found while grounding and fixed beyond the plan's list (the plan's rule "no file that builds, starts, scrapes, probes or allows" them): `nix/flake.nix`, `nixos/modules/services/default.nix`, `nix/packages/{architect,captain,micromanager}.nix` (deleted), `scripts/build-binaries.sh`, `scripts/build.sh`, `scripts/lib/deb-packages.sh`, `scripts/deploy-alpha.sh`, `scripts/kingdom-shutdown.sh`, `scripts/three-crowns/*`, `lxd/hosts/host-a/launch-all.sh`, `scripts/bare-metal/validate-host-{a,b}.sh`, `config/supervisor/all-in-one.ini`, `compliance/catalog/controls.yaml` (UH-AUTHN-01 host-service refs), `cmd/crypto-inventory` (the sophia HKDF own-primitive row and fixture; CBOM regenerated), `runbooks/` (14 files; manifest rewritten), `services/wotan/cmd/wotan/allowlist_test.go`, two crosswalk thresholds (12 → 7 west host-service refs).
+- Step 40: no compile error, but `cmd/upc-cartridgectl`'s Sophia HTTP registry was a client of the removed service: the backend and its two tests are deleted, `--sophia` is refused by name (`TestSophiaFlagRefused`), man page regenerated.
+- Step 37, `config/logging/sources.yaml`: west's compose entries and `unit/unheaded-{monad,sophia}` are deleted. **Deviation:** `east/unheaded-{architect,captain,micromanager}` stay, with a note: east still runs those units until plan 6 removes them; a source inventory that drops a running unit would be false. They are the only G2 hits left in a non-Markdown file, with `nix/yggdrasil/overlay/patches/*` ("by unheaded-architect": the skill, not the service) and `scripts/firewall/setup-ipfire.sh` (`unheaded-monad.nft`: the Monad wire format's HbH passthrough, not the service).
+- Step 50, G2 ran on non-Markdown files only; Markdown under `docker/`, `deploy/`, `nix/` is Phase 4's.
+- Step 52: `check-prometheus-rules.sh` **not run** (it starts a container: lane brief, evidence week); `wotan_test.yml`'s caller fixture changed from sophia to timeguru, unchecked by promtool until after the E-GATE. PASS: compose-hardening, compose-publish-bind, compose-log-caps, compose-bind-nesting, image-digests, unit-ceilings, check-service-auth, log-sources, crypto-inventory, version-flag (57 binaries), gen-man (one page rewritten).
+- Steps 54-57: `check-gates-can-fail --only check-systemd-units` PASS on `unheaded-timeguru.service`; gosec ratchet PASS; `check-sbom-trend` OK (python 71, baseline 72: not this plan's; baseline not lowered).
+- Phase 3 exit gate: build, vet, the listed tests (plus `pkg/logsources`, `cmd/crypto-inventory`, `services/wotan`) green under `-race`; G1 and G3 empty; G2 as above.
 - Lanes: the plan's lanes (`-docs`, `-wotan`, `-mon`, `-dash`, `-ebpf`) exist for parallel agents. This lane is one executor and the brief forbids spawning agents, so their phases run in order in `WT` on `sprint/s-waste-out` itself; there is nothing to merge back.
 
 ## Handoffs
@@ -79,5 +87,8 @@ Before readings of 2026-11-15T21:41Z (VictoriaMetrics on `127.0.0.1:8428`, cgrou
 ## For Stevie
 
 1. D1 to D8 were not asked (lane brief). D1-D7 are taken on the plan's recommendation (table "Decisions"); confirm or overturn. D8 (Postgres's budget, Phase 22) waits for you.
+2. `unheaded-role-services` (`~/tmp/projects`) has no remote; create one and push if you want it public.
+3. `runbooks/MANIFEST.sha256` was rewritten (Step 44: 14 runbooks lost the five); it needs your seal again.
+4. Default without a question (plan): health probes every 30 s with 3 retries, so a dead service is `unhealthy` after 90 s where it is 50 s today (Phase 14).
 
 ## Blocked
