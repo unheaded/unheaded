@@ -209,7 +209,7 @@ rung_gate UPC_RUNG_KILL killprobe 3000000 KL 12
 rung_gate UPC_RUNG_MKDIR mkprobe 4000000 MK 7
 rung_gate UPC_RUNG_UNLINK rmprobe 4000000 RM 8
 rung_gate UPC_RUNG_LINK lnprobe 4000000 LN 9
-rung_gate UPC_RUNG_FD fdprobe 5000000 FD 49
+rung_gate UPC_RUNG_FD fdprobe 5000000 FD 51
 rung_gate UPC_RUNG_CHDIR chdirprobe 5000000 CD 24
 rung_gate UPC_RUNG_PIPE pipeprobe 8000000 PI 20
 rung_gate UPC_RUNG_MKDIR hostile_ptr 3000000 HU 5

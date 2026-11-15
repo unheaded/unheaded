@@ -172,6 +172,8 @@ Limits:
 - `open(path, O_RDWR)` on a regular file stays in BPF (D11), which ignores the flags and hands back a fd below 16.
   BPF `write` never looks at the fd, so a write there prints to the TTY, returns n and leaves the file alone. Pre-existing,
   and it is the one way left to lose a file write silently: a caller that wants one passes `O_WRONLY` or `O_CREATE`.
+  **Interim 2026-11-15 (S-STAGE-2C Phase 7, D19):** with `UPC_RUNG3` on, BPF refuses a write to a file fd (-1); the
+  write lands in the kernel at rung 6 (Phase 12).
 
 ### D11. Routing
 
@@ -553,7 +555,7 @@ their numbers overlap both sets above. Each was re-read in the tree before its d
 |---|---|---|---|
 | T-F1 | Medium | D12 sets the note's a0 where finalize then overwrites it, so the note reads slot + 1 and refuses | Fixed in D12: finalize records that a note is due and chooses at the a0 write |
 | T-F2 | Medium, forward | `fdalloc` returning `16 + i` makes `sys_pipe` index past `ofile` | Fixed in D10: `fdalloc` keeps the index, `fduser()` translates, `sys_pipe` included, so Phase 20 inherits it right |
-| T-F3 | Low to Medium, pre-existing | Plain `O_RDWR` on a regular file loses writes silently; `write` does not refuse a negative fd today | Stated in D10 and D11. No code: BPF `open` cannot tell a file from the console before the walk. For Stevie |
+| T-F3 | Low to Medium, pre-existing | Plain `O_RDWR` on a regular file loses writes silently; `write` does not refuse a negative fd today | Stated in D10 and D11. No code: BPF `open` cannot tell a file from the console before the walk. For Stevie. **Interim 2026-11-15, S-STAGE-2C Phase 7 (D19): BPF refuses a write to a file fd below 16 while `UPC_RUNG3` is on (`fdprobe` `rdwr-file-write-refused`, `readme-intact`); the write lands in the kernel at rung 6 (Phase 12)** |
 | T-F4 | Low to Medium | D12's claims have no test | `fdprobe` gains the tokens, and the `fresh_mask` check gets a mutant. The cwd drop can be booted, not observed, until chdir: the row's reference is always root |
 | T-F5 | Low, D6 off only | D12 and D13 assume `ofile` is empty, which a forged reply breaks | Fixed: the note closes what it finds; D12 and D13 restated |
 | T-F6 | Low | ADR-109's `fresh_mask` line goes stale, and `upc-rung0-assert.awk` would fail with the rung on | ADR-109 amended (I3, D5 note, Security notes) and the asserter updated together |

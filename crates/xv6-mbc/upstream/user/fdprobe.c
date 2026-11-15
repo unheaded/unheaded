@@ -216,6 +216,21 @@ forge(void)
   close(fd);
 }
 
+// T-F3 interim (ADR-135 D19, S-STAGE-2C Phase 7). Plain O_RDWR on a regular file
+// carries no masked flag, so the open is BPF's and the fd is below 16. A write
+// on it used to print its bytes on the TTY and answer n, with the file untouched.
+// It answers -1 until rung 6 gives such a fd a file to write.
+static void
+rdwr(void)
+{
+  char before[8], after[8];
+  int nb = slurp("README", before, 8);
+  int fd = open("README", O_RDWR);
+  SAY("FD: rdwr-file-write-refused", fd >= 0 && fd < 16 && write(fd, "zz", 2) == -1);
+  close(fd);
+  SAY("FD: readme-intact", nb == 8 && slurp("README", after, 8) == 8 && memcmp(before, after, 8) == 0);
+}
+
 int
 main(void)
 {
@@ -224,6 +239,7 @@ main(void)
     inherit();
     lastref();
     forge();
+    rdwr();
     exit(0);
   }
   wait(0);

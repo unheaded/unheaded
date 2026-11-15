@@ -14,6 +14,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | fork key + I9 tripwire | 895767 | 895936 | +169 | 25100 | fork-after |
 | RV-1 block guard (fork mark off) | 895936 | 899906 | +3970 | 21130 | review-after |
 | rung 3 console write | 899906 | 885354 | -14552 | 35682 | rung3-after2 |
+| T-F3 interim (by rung 3's arm) | 885354 | 885354 | +0 | 35682 | rdwr-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -165,4 +166,12 @@ Run under Step 30's override, ahead of Phase 7 and with the fork mark off: the o
 - Gate `rung3-after2`: `same=12 diff=0 rc=0 doom=1 ascend=885354`; `conprobe: 4 checks`, `devprobe`, `fdprobe: 49 checks` PASS, ALL GREEN.
 - Run cost after (same three boots, 4,000,000 triggers): `ls` insn_count 6,271,580 (+783,397); `cat BIGFILE` 8,157,219 (+3,027,808); `echo peace and love` 5,168,583 (+72,318). A tick that waits counts one instruction and a working tick up to 16, so the work added is about 16/15 of each delta. That gives about 3,000 MBC instructions per `write` call (trap, `sys_write`, `copyin`, return; from `echo`: 26 calls) and about 220 per byte inside a call (from `cat BIGFILE`: 14,570 bytes in 512-byte calls). Before the rung a byte cost one tick.
 - Step 179 [DECIDE]: all 12 corpus boots finish inside the harness's 4,000,000 triggers (12 SAME), so the recommendation holds: proceed. No budget changed.
+
+## Phase 7 after rung 3 (2026-11-15)
+
+- The refusal is rung 3's own arm: with `UPC_RUNG3` on, the alias has taken every `write` whose fd is not a file, so what reaches BPF's arm is a file fd below 16 and the arm answers -1. No kind test in the arm, no instruction added: `vcount` 885,354 before and after. Measured alone on the pre-rung object it was +622 (900,528, BUDGET-FAIL).
+- `fdprobe` 49 → 51: `rdwr-file-write-refused=yes` (plain `O_RDWR` on README gives a fd below 16; `write` answers -1), `readme-intact=yes` (the first 8 bytes read back the same).
+- Mutant (Step 134): the arm answering n instead of -1: `rdwr-file-write-refused=no`, 50 yes, 1 no. Restored; `vcount` 885,354.
+- Gate `rdwr-after`: `same=12 diff=0 rc=0 doom=1 ascend=885354`; `fdprobe: 51 checks` PASS, ALL GREEN.
+- With `UPC_RUNG3` off the old behaviour is back (the bytes print, n is answered): the off object has no room for a refusal of its own.
 
