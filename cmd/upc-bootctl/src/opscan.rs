@@ -101,6 +101,35 @@ pub fn scan_user_images(userland: Option<&Path>, rv: &Rv2mbcSet) -> Result<()> {
     Ok(())
 }
 
+/// S-STAGE-2C Phase 5 (A-61): the `.data` sidecar of the `--userland` image
+/// and of every resident program must be there and must parse. A program with
+/// a bad or missing sidecar would run with whatever is in memory where its
+/// strings, globals and `.bss` should be. An empty TLV (count 0) is a sidecar.
+/// Runs before the eBPF object is opened, in a dry run too.
+pub fn check_user_sidecars(userland: Option<&Path>, rv: &Rv2mbcSet) -> Result<()> {
+    let Some(up) = userland else {
+        return Ok(());
+    };
+    let mut checked = 0usize;
+    for mbc in std::iter::once(up).chain(rv.programs.iter().flatten().map(|(m, _)| m.as_path())) {
+        let data = mbc.with_extension("data");
+        if !data.exists() {
+            bail!(
+                "UserSidecarMissing: no .data sidecar at {} for {}; rebuild it with the \
+                 userland Makefile (the sidecar carries .rodata, .data and .bss)",
+                data.display(),
+                mbc.display()
+            );
+        }
+        let blob = std::fs::read(&data).with_context(|| format!("read {}", data.display()))?;
+        crate::runner::BootRunner::parse_data_regions(&blob, &data.display().to_string())
+            .map_err(|e| anyhow::anyhow!("UserSidecarBad: {e}"))?;
+        checked += 1;
+    }
+    println!("  ✓ .data sidecars: {checked} user image(s), each present and well-formed");
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

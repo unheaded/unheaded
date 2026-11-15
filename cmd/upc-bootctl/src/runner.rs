@@ -432,7 +432,7 @@ impl BootRunner {
     /// format `load_data_image` consumes, but returned to the caller instead
     /// of written at the linked VAs. Used by `stage_program_data` to build a
     /// flat exec-staging image for a non-pid-0 program (ADR-077 Gate B).
-    fn parse_data_regions(blob: &[u8], what: &str) -> Result<Vec<(u32, Vec<u8>)>> {
+    pub(crate) fn parse_data_regions(blob: &[u8], what: &str) -> Result<Vec<(u32, Vec<u8>)>> {
         if blob.len() < 4 {
             bail!("{what}: data image too short ({} bytes)", blob.len());
         }

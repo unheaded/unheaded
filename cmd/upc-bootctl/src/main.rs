@@ -539,11 +539,15 @@ fn load_resident_program(
 
     // Stage .data flat for exec to re-copy into the running pid's slice.
     let data_path = mbc_path.with_extension("data");
-    let (data_dst_va, data_len_words) = if data_path.exists() {
-        runner.stage_program_data(&data_path, data_stage_va)?
-    } else {
-        (0, 0)
-    };
+    // S-STAGE-2C Phase 5 (A-61): a missing sidecar used to mean an empty data
+    // region, in silence. check_user_sidecars refuses it before the object opens.
+    if !data_path.exists() {
+        bail!(
+            "UserSidecarMissing: {name}: no .data sidecar at {}",
+            data_path.display()
+        );
+    }
+    let (data_dst_va, data_len_words) = runner.stage_program_data(&data_path, data_stage_va)?;
 
     // entry = RV word 0 (user.ld links _start at RV byte 0) → ROM slot rom_base.
     let row: [u32; 8] = [
@@ -946,20 +950,25 @@ fn boot_prepare(
         // and user .rodata/.data start past the IVT/BootParams region. RAM_MAP is
         // a distinct map from ROM_MAP/RV2MBC_MAP, so loading it after the shared
         // image load is order-independent.
+        // S-STAGE-2C Phase 5 (A-61): fatal. check_user_sidecars has already
+        // refused a missing or malformed file; a failure here is the map write.
         let user_data_path = up.with_extension("data");
-        if user_data_path.exists() {
-            match runner.load_data_image(&user_data_path) {
-                Ok(()) => println!(
-                    "  Userland data: loaded {} (.rodata/.data into RAM_MAP)",
-                    user_data_path.display()
-                ),
-                Err(e) => println!(
-                    "  ⚠ userland data at {} failed to load: {}",
-                    user_data_path.display(),
-                    e
-                ),
-            }
+        if !user_data_path.exists() {
+            bail!(
+                "UserSidecarMissing: no .data sidecar at {}",
+                user_data_path.display()
+            );
         }
+        runner.load_data_image(&user_data_path).with_context(|| {
+            format!(
+                "UserSidecarBad: userland data at {} failed to load",
+                user_data_path.display()
+            )
+        })?;
+        println!(
+            "  Userland data: loaded {} (.rodata/.data into RAM_MAP)",
+            user_data_path.display()
+        );
     }
 
     // ── Phase 1.7 Gate B (ADR-077): resident programs for exec(7) ──
@@ -1121,6 +1130,8 @@ fn cmd_boot(
     )?;
     // ADR-135 D17: no atomic and no privileged return in a user image.
     opscan::scan_user_images(userland.as_deref(), &rv)?;
+    // A-61: a bad or missing user .data sidecar refuses the boot.
+    opscan::check_user_sidecars(userland.as_deref(), &rv)?;
 
     println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
     println!("instance:      0x{:02X}", instance);
@@ -1433,6 +1444,8 @@ fn cmd_console(o: ConsoleOpts) -> Result<()> {
     )?;
     // ADR-135 D17: no atomic and no privileged return in a user image.
     opscan::scan_user_images(o.userland.as_deref(), &rv)?;
+    // A-61: a bad or missing user .data sidecar refuses the boot.
+    opscan::check_user_sidecars(o.userland.as_deref(), &rv)?;
     let stop = install_stop_flag();
     let (mut runner, _cpu_initial) = boot_prepare(
         &o.kernel,

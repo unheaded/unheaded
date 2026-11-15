@@ -41,11 +41,13 @@ impl Fixture {
     fn path(&self, name: &str) -> PathBuf {
         self.dir.join(format!("{name}.mbc"))
     }
-    /// `<name>.mbc` with these words, plus a `.rv2mbc` (unverified: dry run).
+    /// `<name>.mbc` with these words, a `.rv2mbc` (unverified: dry run) and a `.data`.
     fn image(&self, name: &str, words: &[u32]) {
         let bytes: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
         std::fs::write(self.path(name), bytes).unwrap();
         std::fs::write(self.dir.join(format!("{name}.rv2mbc")), RV).unwrap();
+        // An empty but valid .data sidecar: a missing one refuses the boot.
+        std::fs::write(self.dir.join(format!("{name}.data")), [0u8; 4]).unwrap();
     }
     /// A clean image with one word replaced.
     fn image_with(&self, name: &str, at: usize, word: u32) {
