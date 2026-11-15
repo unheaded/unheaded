@@ -483,6 +483,16 @@ provoke_prometheus_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_module_rules() {
+    # Contract (ADR-149): a module's rules are checked like the platform's.
+    # Make the module's rule test expect a label the alert does not carry.
+    local f="modules/zhen/prometheus/rules/tests/zhen_test.yml"
+    backup "${f}"
+    sed -i '0,/reason: absent/s//reason: absentX/' "${REPO_ROOT}/${f}"
+    grep -q 'reason: absentX' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -1367,6 +1377,7 @@ well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
+check-prometheus-rules|provoke_module_rules|slow|a module rule test expects the wrong label (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
