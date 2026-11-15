@@ -80,6 +80,25 @@ The reference reading of 2026-11-12 22:50Z was 0.81 core on west at 19 h up and 
 
 | 2026-11-15 | 213-216, 218-220 | Phase 10, the parts that do not wait on the soak. 36 commits on develop name this sprint. `scripts/ci-local.sh` on develop `d674f317` in a clean worktree, CI venv last on PATH: **29 passed, 0 failed, 2 skipped** (the two that need the live Well's password and `CI_LOCAL_PERF=1`). gosec and govulncheck pass (go1.27.4). The run rewrites tracked files under `sbom/`; restored, not committed. Wiki ripple `d674f317`: `Alerting.md` (heimdall and sword removed; the refusal alert, the two `ZhenSchedulerStalled` rules, host events), `Observability-Backends.md` (25 targets, none down), `Systemd-Units.md` (the baseline unit's textfile and its ACL). No wiki page calls heimdall a scrape target or says "two readers". |
 
+| 2026-11-15 | 103-104 (third deploy) | **6 h reading (12:40:07Z, 6 h 02 min after the restart; same process, 0 restarts).** Against the bar. CPU `rate(...[1h])` **0.0163 core** (30 min 0.0165, 10 min 0.0166, 6 h mean 0.0127), bar 0.05: **met**. Growth, 0.0163 ÷ 0.0076: **2.15, bar 1.5: not met**. `bpf()` 137 calls in 10 s, **13.7/s**, bar 2,000: met (every call that returned an error returned `ENOENT`: the end of a batch pass or an absent key). Latency published: `traces.latency` 880,489 events, 40.1 a second over the last 30 min (40.8 a second in the first hour): met. Decode errors 0: met. `map_insert_failed` present, 0: met. Latency map 64,812 entries, bar 65,536: met. Also: events dropped 0, stats read errors 0, no warn, error or fallback line since the start. The 1 h rate at each hour mark: 0.0076, 0.0100, 0.0120, 0.0143, 0.0158, 0.0163. The hourly step fell from 0.0024 to 0.0006 as the latency map filled (10 new entries in the last hour). The publish rate did not move, so the climb is map size, not load. Now, over 30 min: latency sweep 0.0075 s a second (15 ms a sweep), flow poll 0.0030 s a second (3.0 ms a poll at 11,106 entries, growing 1,644 an hour). |
+
+| 2026-11-15 | 105-110 | **Growth row: `[STUCK]`** (Step 105: over the bar after the one change, `57727a90`). What is left is the kernel's pass over entries that did not change; it grows with a map until the map is full. The latency map is full now. `FLOWS` is at 11,106 of 65,536 and fills in about 33 h; its poll at a full map is between 0.009 s a second (the root benchmark, 8.4 ms a pass) and 0.018 (today's rate, scaled). Expected ceiling: **0.025 to 0.03 core, under the 0.05 bar. Not measured:** a reading after 2026-11-17 00:00Z shows it. The parked fix that removes the per-entry pass is ADR-144's ring-buffer reader. Step 107: no dashboard names a trace collector series. The one repo query on one is the alert `TraceCollectorHighLatency` (`monitoring/prometheus/rules/collector.yml`), on `trace_collector_batch_latency_seconds`: the series exists and **nothing has ever observed it** (count 0 on west for the 14 days VictoriaMetrics holds), so the alert cannot fire. Not from this sprint; under "For Stevie". Step 108: under "For Stevie". Step 109: FND-044's plan line says west met its verify line on 2026-11-15 and east waits on Phase 4B (the finding's verify line has no growth row). **Step 110, Phase 4 exit gate: six of seven rows met, the growth row stuck. The rollback copies are kept.** |
+
+| 2026-11-15 | 217, 221-225 | Closing table below. Timeline entry and its three mirrors. The lane worktree is removed. `~/tmp/next.md` written. |
+
+## Closing table (Step 217)
+
+The sweep (`docs/sweeps/BACKLOG-SWEEP-2026-11-12.md`) is a dated record and is not edited. Its rows D-13 to D-18 ended as follows.
+
+| Row | Outcome | Commits |
+|---|---|---|
+| D-13 | Closed. The sword and heimdall scrape jobs and heimdall's rule group are gone; `ZhenSchedulerStalled` is two rules (`reason: absent`, `reason: stale`). Live on west since 01:39Z: VictoriaMetrics 25 targets, Prometheus 17, none down. | `9541ae6f`, merge `6d2c7c7c` |
+| D-14 | Closed. The two idempotency targets are removed; `unheaded-baseline` writes its textfile and VictoriaMetrics has `unheaded_baseline_*` for west; Step 169's three checks pass. | `aa70745a`, merge `6d2c7c7c` |
+| D-15 | Closed except one step. Eight load-balancer images pinned and the digest gate reads their file; `lxd/telemetry` deleted; the untracked override file read and recorded (18 services, the key `restart` only; nothing changed, the file is Stevie's). **Step 178 `[STUCK]`:** the Loki pull and the `loki` sink in `scripts/bootstrap-llm-lab.sh`. | `0ca0bcb8`, merge `6d2c7c7c` |
+| D-16 | Closed. `WotanTopicPermissionRefused`, its tests, its policy entry; the counter names the caller. The runbook is a draft: approval and the manifest seal are Stevie's. Live on west since 02:00Z, quiet. | `961942bb`, `fcf3240a`, `612da211`, merge `46f1fe20` |
+| D-17 | West: fixed and live (three deploys; the binary from `fc387040`, the probe from `10586d9e`). 0.93 core → 0.016 at 6 h; about 108,000 `bpf()` calls a second → 14; latency published. Six of seven rows of the pass bar met; **the growth row is `[STUCK]`** (2.15 against 1.5, bounded by map size). **East: `[BLOCKED]`** on Phase 4B, attended. FND-044 stays open. | `10586d9e`, `c29043a3`, `57727a90`, merge `fc387040` |
+| D-18 | Closed for west. Vector counts account changes, sudo commands, crontab edits and kernel events; the IOC audit reads them; a line from a process that exited before journald read it is still counted. East cannot be audited until B-22, as the sweep says. | `4ff4939a`, `5f4442d5`, `7eaf7ca0`, merge `46f1fe20`; `39a1755f`, merge `d2b24376` |
+
 ## For Phase 4 (deploy on west)
 
 - **Ship together.** Build both from one commit of this branch and install both before the restart: `go build -o /tmp/trace-collector-go ./cmd/trace-collector-go`, and in `ebpf/`, `CARGO_TARGET_DIR=target/load-gate/default cargo build --release -p packet-marker -p flow-tracker -p latency-probe`. Objects are in `ebpf/target/load-gate/default/bpfel-unknown-none/release/`. Never a plain `cargo build` in `ebpf/`.
@@ -93,7 +112,7 @@ The reference reading of 2026-11-12 22:50Z was 0.81 core on west at 19 h up and 
 
 - **Loki in `scripts/bootstrap-llm-lab.sh` (Step 178, stuck):** the script pulls Loki and writes a Vector config with a `loki` sink. Drop both (Loki left with ADR-117), or leave the script as a record? It also pulls promtail, alertmanager, victoria-metrics, alloy and clickhouse on `:latest`.
 - **Housekeeping (Step 108):** `sudo rm -r /var/backups/trace-collector-2026-11-15` after east is done, or after three days of the bar holding.
-- **East (Phase 4B):** attended. The pair to copy is the one built from `10586d9e`.
+- **East (Phase 4B):** attended. The pair to copy is the one built from `10586d9e`. Superseded 2026-11-15 12:40Z: the binary is the one built from `fc387040` (go1.27.4); the probe object has not changed since `10586d9e`.
 - **IOC audit, expected first card:** the next scheduled run shows `crontab edit on west: govan changed the crontab of govan (2)` and sudo notes. That is this sprint's canary (2026-11-15 02:11Z); it leaves the window after two days.
 - **`spl` (ZFS) loads at every boot on west**, so the W5 default makes the audit fail for two days after each reboot. `IOC_KNOWN_MODULES` exists (default empty); set it to `spl`?
 - An account created by an install (sysusers) is an indicator by design.
@@ -101,5 +120,7 @@ The reference reading of 2026-11-12 22:50Z was 0.81 core on west at 19 h up and 
 - `CLAUDE.md` says 90 runbooks; there are 91.
 - `ComplianceFindingsOverdue` is firing on west (seen 01:40Z, not looked into).
 - The ADR-INDEX summary for ADR-144 still says "two readers".
+- **The growth row of the pass bar is not met on west** (2.15 against 1.5 at 6 h; CPU 0.016 core against 0.05). The growth is the maps filling and ends at about 0.03 core. Accept it and read once more after 2026-11-17 00:00Z, or build ADR-144's ring-buffer reader (parked)?
+- **`TraceCollectorHighLatency` cannot fire:** nothing observes `trace_collector_batch_latency_seconds` (count 0 for 14 days). Point the rule at `trace_publisher_flush_duration_seconds`, feed the histogram, or drop the rule?
 
 Nothing yet.

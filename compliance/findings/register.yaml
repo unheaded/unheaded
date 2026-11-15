@@ -2068,4 +2068,6 @@ findings:
       4B, attended. Fixed on develop first (ADR-089): LATENCY_MAP is an LRU hash and a refused insert is counted
       (LATENCY_STATS key 9); the collector reads the map in batches of 4,096 every 2 s, refuses an object whose
       LATENCY_MAP is not the LRU 24/40 layout before loading it, and exports the map's size, decode errors, sweep time
-      and the probe's own counters. Open until both hosts run the new pair and the verify line holds
+      and the probe's own counters. Open until both hosts run the new pair and the verify line holds. West met the
+      verify line on 2026-11-15, 6 h after the third deploy (06:38:07 UTC, binary from fc387040): 0.016 core,
+      64,812 entries, 0 decode errors, the installed object accepted. East waits on Phase 4B (attended)
