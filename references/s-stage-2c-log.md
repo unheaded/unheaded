@@ -12,6 +12,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | atomics: scan only (translate stuck) | 895768 | 895768 | +0 | 25268 | atomics-after |
 | bss + sidecar (SRET mask) | 895768 | 895767 | -1 | 25269 | bss-after |
 | fork key + I9 tripwire | 895767 | 895936 | +169 | 25100 | fork-after |
+| RV-1 block guard (fork mark off) | 895936 | 899906 | +3970 | 21130 | review-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -141,3 +142,4 @@ Findings, each verified here before it was acted on (ADR-135, section of this da
 - **RV-2 (Medium).** `PUSH` 0x1A, `POP` 0x1B, `INT` 0x17, `IRET` 0x18 added to bootctl's scan; test red first (1 of 5 failed), then green; all bootctl results ok. No built user image holds one (every `.mbc` dry-run-scanned).
 - **RV-3 (Low).** Recorded For Stevie.
 - Seen while verifying RV-2, not acted on: the translator turns `ebreak` into `HALT`, and `HALT` has no privilege test, so a user program that executes `ebreak` halts the machine. No built user image holds a `HALT`. For Stevie.
+- Gate `review-after`: `same=12 diff=0 rc=0 doom=1 ascend=899906`; `hostile_block: 3 checks`, `hostile_fork: 3 checks`, the opcode scan line and `hostile_reply` PASS. The kernel's own block calls are unaffected: all 12 corpus boots read the ramdisk.

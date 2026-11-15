@@ -41,4 +41,5 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - Review finding RV-2 fixed: the opcode scan also refuses PUSH, POP, INT and IRET in a user image. The interpreter itself still runs them at U-mode; the scan is the control, as for the atomics.
 - Review finding RV-3 (Low, open): the host engine crates/monad-mbc/src/execute.rs has neither the priv-3 refusal nor D6; refusals and D6 misses count nothing. A counter needs instructions the object does not have.
 - Seen, not acted on: a user program's ebreak becomes HALT, and HALT has no privilege test, so any user program can halt the machine. Refuse HALT at U-mode (cost unmeasured), or leave it?
+- ascend baseline row now 899906 (net vs 921036: 21130)
 
