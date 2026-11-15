@@ -20,7 +20,7 @@ make dev              # compose dev stack    make deploy        # build, test, c
 make ebpf-monad-cpu-ascend   # UPC CPU with the ASCEND-LINUX opcodes (needed for the xv6 kernel)
 ```
 
-Toolchain pins follow `go.mod` and latest releases everywhere (Docker, CI, Jenkins in sync).
+Toolchain pins follow `go.mod` and latest releases everywhere (Docker and CI in sync).
 
 ## Every service
 

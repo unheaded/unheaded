@@ -190,8 +190,7 @@ def auth_listeners():
 # L22. What CI fetches and runs is decided in the repo, not by whatever was
 # newest that day. @latest, a bare `cargo install`, an install whose failure is
 # swallowed and an install script read from a branch all let it move unseen.
-CI_FILES = sorted(glob.glob(".github/workflows/*.yml") + glob.glob("jenkins/Jenkinsfile.*")
-                  + glob.glob("jenkins/vars/*.groovy") + ["Jenkinsfile", "nix/yggdrasil/Jenkinsfile", "Makefile"])
+CI_FILES = sorted(glob.glob(".github/workflows/*.yml") + ["Makefile"])
 FETCH_MODULE = re.compile(r"\bgo (?:install|run)\b[^|;&]*?\s([a-z0-9.-]+\.[a-z]+/\S+?)@(\S+)")
 CARGO_INSTALL = re.compile(r"\bcargo install (?:--\S+ )*([A-Za-z0-9_-]+)(@\S+)?(.*)")
 FETCH_TO_SHELL = re.compile(r"\b(?:curl|wget)\b.*\|\s*(?:sudo\s+)?(?:sh|bash)\b")
@@ -205,7 +204,7 @@ def shell_lines(lines):
     start, parts = None, []
     for n, line in enumerate(lines, 1):
         text = line.strip()
-        if text.startswith(("#", "//")):
+        if text.startswith("#"):
             continue
         text = re.split(r"\s#\s", text, maxsplit=1)[0].rstrip()
         start = start or n
@@ -222,9 +221,6 @@ def shell_lines(lines):
 
 def tool_fetches():
     seen = {}
-    with open("scripts/lib/tool-pins.sh", encoding="utf-8") as f:
-        if not re.search(r'^TRIVY_SHA256="[0-9a-f]{64}"', f.read(), re.M):
-            bad("tool-fetch", "no TRIVY_SHA256 in scripts/lib/tool-pins.sh for install-trivy.sh to check")
     for path in CI_FILES:
         with open(path, encoding="utf-8") as f:
             lines = f.readlines()
@@ -235,7 +231,7 @@ def tool_fetches():
                 bad("tool-fetch", f"{path}:{n}: an archive piped to tar is unpacked before anything checks it")
         for n, line in enumerate(lines, 1):
             text = line.strip()
-            if text.startswith(("#", "//")):
+            if text.startswith("#"):
                 continue
             text = re.split(r"\s#\s", text, maxsplit=1)[0]
             where = f"{path}:{n}"
@@ -257,36 +253,9 @@ def tool_fetches():
                 for arg in m.group(1).split():
                     if not arg.startswith("-") and not PIP_EXACT.fullmatch(arg):
                         bad("tool-fetch", f"{where}: pip install {arg} is not an exact version")
-            if re.match(r"GO_VERSION\s*=", text):
-                bad("tool-fetch", f"{where}: GO_VERSION is read by nothing; the agent image sets Go")
     for tool, versions in sorted(seen.items()):
         if len(versions) > 1:
             bad("tool-fetch", f"{tool}: more than one version in CI: {sorted(versions)}")
-
-# A Jenkins pipeline that does not compile, or whose agent cannot build the
-# module, fails with nothing scanned. The declarative validator rejects an
-# empty environment block, and the golang images set GOTOOLCHAIN=local, so the
-# image's Go must be the one go.mod names.
-def jenkins_agents():
-    with open("go.mod", encoding="utf-8") as f:
-        go = re.search(r"^toolchain go(\S+)$", f.read(), re.M)
-    if not go:
-        bad("jenkins", "go.mod names no toolchain")
-        return
-    for path in CI_FILES:
-        if "Jenkinsfile" not in path and not path.endswith(".groovy"):
-            continue
-        with open(path, encoding="utf-8") as f:
-            text = re.sub(r"(?m)^\s*//.*$", "", f.read())
-        if "docker.sock" in text:
-            bad("jenkins", f"{path}: mounts the docker socket into an agent; that socket is root on the host")
-        if "Jenkinsfile" not in path:
-            continue
-        if re.search(r"\benvironment\s*\{\s*\}", text):
-            bad("jenkins", f"{path}: an empty environment block does not compile")
-        for image in re.findall(r"\bimage\s+'golang:([^']+)'", text):
-            if image != go.group(1) and not image.startswith(go.group(1) + "-"):
-                bad("jenkins", f"{path}: golang:{image} is not go.mod's toolchain {go.group(1)}")
 
 # M4. A required check that no job reports leaves every merge waiting, and a
 # summary job nothing requires blocks nothing. This reads the documented list;
@@ -562,7 +531,6 @@ bpf_linker()
 trivy_steps()
 auth_listeners()
 tool_fetches()
-jenkins_agents()
 branch_protection()
 rust_targets()
 workflow_paths()

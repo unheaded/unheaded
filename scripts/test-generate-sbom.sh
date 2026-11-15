@@ -495,7 +495,7 @@ PATH="$F/nogo:$PATH" SBOM_DIR="$F/nogo-out" "$REPO_ROOT/scripts/generate-sbom.sh
 ok "a failed go list fails the run" [ $? -ne 0 ]
 ok "and leaves no SBOM.md behind" [ ! -e "$F/nogo-out/SBOM.md" ]
 
-# A run on a host with no Zhen venv: it still finishes, for Jenkins and make, but
+# A run on a host with no Zhen venv: it still finishes, for CI and make, but
 # the freeze stays, its packages stay named, and nothing reads as covered.
 mkdir -p "$F/quietgo" "$F/novenv-out"
 cat >"$F/quietgo/go" <<'EOF'

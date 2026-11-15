@@ -164,9 +164,9 @@ func TestPhase3_CICD(t *testing.T) {
 		fileContains(t, path, "ci-local:", "ci-security:", "sbom-verify:")
 	})
 
-	t.Run("JenkinsfileLicenseCheck", func(t *testing.T) {
-		path := filepath.Join(root, "Jenkinsfile")
-		fileContains(t, path, "License Check", "verify-gpl-boundary")
+	t.Run("GPLBoundaryCheck", func(t *testing.T) {
+		path := filepath.Join(root, ".github/workflows/gpl-boundary.yml")
+		fileContains(t, path, "verify-gpl-boundary")
 	})
 }
 

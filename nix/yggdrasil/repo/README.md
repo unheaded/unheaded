@@ -2,7 +2,7 @@
 
 **Status**: SCAFFOLD — directory + publish script in place; real reprepro init lights up at task #65 implementation.
 
-This directory holds the artifacts needed to publish a Debian apt repository for the UPC tooling that ships with every Yggdrasil image (task #71). The Jenkins pipeline (`../Jenkinsfile`) calls `publish.sh` on tag builds.
+This directory holds the artifacts needed to publish a Debian apt repository for the UPC tooling that ships with every Yggdrasil image (task #71). No runner calls `publish.sh` today: the Jenkins pipeline that ran it on tag builds was removed 2026-11-15.
 
 ## Repository layout (reprepro-managed)
 
@@ -51,8 +51,7 @@ The repo is signed with the Yggdrasil ML-DSA-65 build key (per `pkg/gungnir/`). 
 # Manual (operator)
 nix/yggdrasil/repo/publish.sh "$VERSION"
 
-# CI (Jenkins, on tag)
-# Runs via the "Publish to apt repo" stage in Jenkinsfile.
+# CI: none today (the Jenkinsfile stage "Publish to apt repo" was removed 2026-11-15).
 ```
 
 ## Verify (operator-side)
@@ -66,7 +65,6 @@ apt-cache madison upc-bootctl  # Shows versions available
 
 ## See also
 
-- `../Jenkinsfile` — the CI pipeline that calls `publish.sh`
 - `../overlay/upc/README.md` — what the apt source patches look like in the image
 - `../evidence-pack/README.md` — the signed-manifest evidence pack for each build
 - `docs/OS-FORK-DISCIPLINE.md` §7.5 — Pillar 5 UPC integration requirement

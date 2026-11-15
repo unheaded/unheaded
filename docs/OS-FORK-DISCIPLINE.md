@@ -42,7 +42,7 @@ All Yggdrasil-specific changes against upstream Debian live as **quilt-format pa
 4. Is named `NNNN-short-description.patch` where NNNN is a four-digit sequence number (0001, 0002, ...).
 5. Is reviewed under the same SBOM/license discipline as in-tree code (SPDX header, GPL-2.0-or-later for kernel/glibc derivatives).
 
-**No ad-hoc edits to vendored upstream files.** Every divergence is a numbered, headed, reviewed patch. The packer/Jenkins pipeline (Phase 1, task #65) applies the patch series in numeric order and fails the build if any patch fails to apply.
+**No ad-hoc edits to vendored upstream files.** Every divergence is a numbered, headed, reviewed patch. The packer pipeline (Phase 1, task #65) applies the patch series in numeric order and fails the build if any patch fails to apply.
 
 `series` file at `nix/yggdrasil/overlay/patches/series` lists the patches in apply order. Adding/removing patches updates this file in the same commit as the patch itself.
 

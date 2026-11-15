@@ -3,8 +3,8 @@
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
 # Maintainer scripts for the per-service .deb packages (ADR-026, ADR-085
-# Phase 2), used by scripts/build-all-debs.sh (which the Jenkinsfile and
-# release.yml call) so there is one copy. Source it, then:
+# Phase 2), used by scripts/build-all-debs.sh (which release.yml
+# calls) so there is one copy. Source it, then:
 #
 #   deb_postinst --pkg unheaded-wotan --unit unheaded-wotan.service \
 #       --identity wotan --owner unheaded-wotan \

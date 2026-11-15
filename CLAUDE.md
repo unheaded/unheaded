@@ -851,7 +851,7 @@ Doom lives in `unheaded-doom` since 2026-11-04 (DP-305): runner, demos, docs, ru
 - UPC Dream Ladder: All Level 4 OS primitives + Level 5 boot + Level 6 arch/mbc (37 files)
 - The Well: PostgreSQL 16 on west (3 databases: unheaded_app/ops/config; least-privilege login roles + a NOLOGIN owner per DB; TLS 1.3 only; migrations via cmd/well-migrate; nightly backups on the other disk + east while the Well runs; `host-probe:west:db-backup-recent` says whether they are current). Where everything lives: `wiki/The-Well.md`, `wiki/Well-Backups.md`
 - SBOM: generated inventory in `sbom/` (`scripts/generate-sbom.sh`), verdict in `sbom/SBOM.md` (today REVIEW, with licenses still to read); SPDX checks integrated
-- CI/CD: GHA + Jenkins hardened, SPDX checks; run `make install-hooks` to install the local pre-commit hook (gofmt + go vet on staged changes)
+- CI/CD: GitHub Actions hardened (Jenkins removed 2026-11-15: no JVM, no Java), SPDX checks; run `make install-hooks` to install the local pre-commit hook (gofmt + go vet on staged changes)
 - S-WEST: Bootstrap complete (kernel 6.17.0-19, 0 failed services)
 - All 4 P1 bugs fixed (#20 Nix TLS, #36 log forwarding, #29 Kanban logging, E2E smoke)
 

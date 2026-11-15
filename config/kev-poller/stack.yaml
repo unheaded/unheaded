@@ -65,4 +65,3 @@ categories:
     title: Source control and CI
     match:
       - {vendor: Git}
-      - {vendor: Jenkins}

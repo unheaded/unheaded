@@ -40,10 +40,8 @@ HADOLINT_IMAGE_DIGEST="sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3
 # bundle: trivy downloads the newest bundle of its major version on every run
 # unless told otherwise. security.yml reads all three from here. Bump them
 # together and re-seed docs/policy/trivy-misconfig-baseline.tsv (--update only
-# drops rows; a new check that fires is a reviewed decision). The Jenkins files
-# install the release tarball through scripts/install-trivy.sh, sha256-checked.
+# drops rows; a new check that fires is a reviewed decision).
 TRIVY_VERSION="0.76.2"
-TRIVY_SHA256="bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf" # trivy_<v>_Linux-64bit.tar.gz
 TRIVY_IMAGE_DIGEST="sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb" # aquasec/trivy:<v>
 TRIVY_CHECKS_BUNDLE="mirror.gcr.io/aquasec/trivy-checks@sha256:b591e9190cff4aa4e385b1a25bccfd9ecf178d3c77fd194e1410b7ce7e1df058" # trivy-checks:2, 2026-10-28
 

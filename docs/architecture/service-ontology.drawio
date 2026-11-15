@@ -671,7 +671,7 @@
         <mxCell id="p6_apt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="apt repo / snap / Docker Hub" vertex="1">
           <mxGeometry height="44" width="220" x="510" y="330" as="geometry" />
         </mxCell>
-        <mxCell id="p6_ygg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Yggdrasil image builder (Jenkins)&#xa;Debian 12 + CIS/STIG + SELinux" vertex="1">
+        <mxCell id="p6_ygg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Yggdrasil image builder (no runner)&#xa;Debian 12 + CIS/STIG + SELinux" vertex="1">
           <mxGeometry height="56" width="280" x="800" y="282" as="geometry" />
         </mxCell>
         <mxCell id="p6_pxe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="ISO / cloud / qcow2 → PXE boot" vertex="1">
@@ -719,7 +719,7 @@
         <mxCell id="p6_s3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="debian/" vertex="1">
           <mxGeometry height="40" width="160" x="560" y="490" as="geometry" />
         </mxCell>
-        <mxCell id="p6_s4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="Jenkinsfile (.deb CI)" vertex="1">
+        <mxCell id="p6_s4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="release.yml (.deb CI)" vertex="1">
           <mxGeometry height="40" width="220" x="750" y="490" as="geometry" />
         </mxCell>
         <mxCell id="p6_s5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="pkg/baremetal (HW inventory)" vertex="1">

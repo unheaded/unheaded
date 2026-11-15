@@ -285,10 +285,10 @@ expect "zhen-ui-front's postinst requires its cert and key, and no CA" \
 	"/etc/unheaded/tls/zhen-ui-front/zhen-ui-front.pem /etc/unheaded/tls/zhen-ui-front/zhen-ui-front-key.pem "
 expect "the front's unit holds no capability and names no CA or profile" \
 	"$(grep -cE '^(AmbientCapabilities=|CapabilityBoundingSet=.+|Environment=UNHEADED_TLS_(PROFILE|CA_CERT|MTLS_ENABLED)=)' "$REPO_ROOT/deploy/systemd/unheaded-zhen-ui-front.service" || true)" "0"
-expect "the Jenkinsfile packages through build-all-debs.sh (one copy)" \
-	"$(grep -c '^ *DEB_OUTPUT_DIR=build/deb \./scripts/build-all-debs\.sh ' "$REPO_ROOT/Jenkinsfile")" "1"
-expect "the Jenkinsfile writes no maintainer scripts of its own" \
-	"$(grep -cE 'deb_(postinst|prerm|preinst)' "$REPO_ROOT/Jenkinsfile" || true)" "0"
+expect "the release workflow packages through build-all-debs.sh (one copy)" \
+	"$(grep -c '^ *\./scripts/build-all-debs\.sh ' "$REPO_ROOT/.github/workflows/release.yml")" "1"
+expect "the release workflow writes no maintainer scripts of its own" \
+	"$(grep -cE 'deb_(postinst|prerm|preinst)' "$REPO_ROOT/.github/workflows/release.yml" || true)" "0"
 
 # East's 1.0.0 packages: runbooks/deploy/apt-repo-publish.yaml's east-side
 # steps, run against stand-ins, with /etc/unheaded, /etc/apt and /var/backups

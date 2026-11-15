@@ -8,7 +8,7 @@ Operational procedures. `runbooks/` holds YAML runbooks that Zhen's Champion can
 |------|----------|
 | `data/` | postgresql-backup-restore, postgresql-migration, conversation-memory-maintenance, faiss-index-status, well-pg18-upgrade, well-restore-from-east-offsite |
 | `deploy/` | full-stack-deploy, canary-deploy, rolling-upgrade, emergency-rollback, start-east-services, branch-promotion-develop-staging-main, resign-unpushed-commits |
-| `infra/` | west-startup-order, host-bootstrap, service-deploy, systemd-service-debug, docker-compose-stack, lxd-container-lifecycle, kernel-upgrade, package-management, storage-health, ntp-time-sync, user-audit, akira-health-daemon, apt-repo-server, jenkins-server, netbox-setup, kanban-git-link, east-nat-internet |
+| `infra/` | west-startup-order, host-bootstrap, service-deploy, systemd-service-debug, docker-compose-stack, lxd-container-lifecycle, kernel-upgrade, package-management, storage-health, ntp-time-sync, user-audit, akira-health-daemon, apt-repo-server, netbox-setup, kanban-git-link, east-nat-internet |
 | `network/` | west-east-network, wireguard-overlay, firewall-rules, dns-pihole-lxd, network-diagnostics, vpn-status, bpf-flow-graph, air-gap-egress-validation, bgp-bfd-session-down |
 | `observe/` | service-health-sweep, dashboard-restart, prometheus-scrape-check, slo-error-budget-burn, gpu-monitoring, swap-monitoring, log-rotation, load-test, compliance-well-fallback, chaos-game-day, wotan-topic-refused |
 | `pki/` | generate-kingdom-certs, rotate-service-cert, akira-cert-expiry-check, ca-compromise-root-rotation |

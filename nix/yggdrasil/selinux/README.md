@@ -74,7 +74,7 @@ nix/yggdrasil/selinux/
 - `docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md` §"Feature B" Barrister §"License compatibility" — SELinux policy is GPL-2.0, compatible with Yggdrasil's GPL-3.0-or-later
 - `docs/OS-FORK-DISCIPLINE.md` Pillar 4 — adding 5+ MAC-policy patches will likely require reviewing the 50-patch budget; document an exemption or split the policy into a separate source tree
 - `provisioners/05-cis-hardening.sh` — current AppArmor-default baseline that task #66 builds on (does not replace; the two coexist via packer variants)
-- `nix/yggdrasil/Jenkinsfile` — pipeline that task #66 will plug a second variant into
+- The image pipeline task #66 will plug a second variant into has no runner today (the Jenkinsfile was removed 2026-11-15).
 
 ---
 

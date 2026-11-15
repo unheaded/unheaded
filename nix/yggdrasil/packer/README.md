@@ -65,7 +65,7 @@ Every build environment variable that affects file content gets pinned via `SOUR
 ## See also
 
 - `../README.md` — directory-level Yggdrasil overview
-- `../Jenkinsfile` — CI pipeline that drives both templates
+- No runner drives the templates today (the Jenkinsfile was removed 2026-11-15).
 - `../tests/smoke-boot.sh` — qemu smoke harness (local template only; cloud variants smoke via provider-side launch tests)
 - `cloud-amd64.pkr.hcl` — cloud template (task #67)
 - `template.pkr.hcl` — qemu template (task #65)

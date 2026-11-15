@@ -18,16 +18,13 @@ FAILED=0
 
 ci_verdict_fresh_copy() {
 	rm -rf "${WORK}/tree"
-	mkdir -p "${WORK}/tree/.github" "${WORK}/tree/scripts/lib" "${WORK}/tree/nix/yggdrasil"
+	mkdir -p "${WORK}/tree/.github"
 	cp -r "${REPO_ROOT}/.github/workflows" "${WORK}/tree/.github/workflows"
-	cp -r "${REPO_ROOT}/jenkins" "${WORK}/tree/jenkins"
 	mkdir -p "${WORK}/tree/docker"
 	cp -r "${REPO_ROOT}/docker/services" "${WORK}/tree/docker/services"
 	cp "${REPO_ROOT}/docker/Makefile" "${WORK}/tree/docker/"
-	cp "${REPO_ROOT}/Jenkinsfile" "${REPO_ROOT}/Makefile" "${REPO_ROOT}/go.mod" "${WORK}/tree/"
+	cp "${REPO_ROOT}/Makefile" "${WORK}/tree/"
 	cp "${REPO_ROOT}/.github/BRANCH_PROTECTION.md" "${WORK}/tree/.github/"
-	cp "${REPO_ROOT}/nix/yggdrasil/Jenkinsfile" "${WORK}/tree/nix/yggdrasil/"
-	cp "${REPO_ROOT}/scripts/lib/tool-pins.sh" "${WORK}/tree/scripts/lib/"
 	mkdir -p "${WORK}/tree/compliance/catalog" "${WORK}/tree/compliance/findings"
 	cp "${REPO_ROOT}/compliance/catalog/controls.yaml" "${WORK}/tree/compliance/catalog/"
 	cp "${REPO_ROOT}/compliance/findings/register.yaml" "${WORK}/tree/compliance/findings/"
@@ -134,38 +131,29 @@ ci_verdict_expect_bite "the listener check replaced by a note" auth-listeners "$
 	's/run: \.\/scripts\/check-http-auth\.sh/run: echo manual review the servers/'
 
 echo "--- tool fetches (L22) ---"
+SBOM_WF=".github/workflows/sbom-audit.yml"
 ci_verdict_expect_bite "@latest in a workflow" tool-fetch "${SEC}" \
 	's/(govulncheck)@v[0-9.]+/\1@latest/'
 ci_verdict_expect_bite "@latest behind a flag" tool-fetch "${SEC}" \
 	's/go install (golang\.org\/x\/vuln\/cmd\/govulncheck)@v[0-9.]+/go install -v \1@latest/'
-ci_verdict_expect_bite "@latest in the Jenkinsfile" tool-fetch "Jenkinsfile" \
+ci_verdict_expect_bite "@latest in the Makefile" tool-fetch "Makefile" \
 	's/(go-licenses)@v[0-9.]+/\1@latest/'
-ci_verdict_expect_bite "@latest in jenkins/vars" tool-fetch "jenkins/vars/unheadedPipeline.groovy" \
-	's/(govulncheck)@v[0-9.]+/\1@latest/'
 ci_verdict_expect_bite "a bare cargo install" tool-fetch "${SEC}" \
 	's/cargo install cargo-audit@[0-9.]+ --locked/cargo install cargo-audit/'
-ci_verdict_expect_bite "cargo install without --locked" tool-fetch "jenkins/Jenkinsfile.protocol" \
+ci_verdict_expect_bite "cargo install without --locked" tool-fetch "${SEC}" \
 	's/(cargo install cargo-audit@[0-9.]+) --locked/\1/'
 ci_verdict_expect_bite "an install whose failure is swallowed" tool-fetch ".github/workflows/gpl-boundary.yml" \
 	's/(cargo install cargo-license@[0-9.]+ --locked)/\1 || true/'
 ci_verdict_expect_bite "two versions of one tool" tool-fetch "${SEC}" \
 	's/(govulncheck)@v[0-9.]+/\1@v1.8.0/'
-ci_verdict_expect_bite "an install script piped to a shell" tool-fetch "jenkins/Jenkinsfile.security" \
-	's#^( +)\./scripts/install-trivy\.sh .*$#\1curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/v0.76.1/contrib/install.sh | sh -s -- -b /usr/local/bin v0.76.1#'
-ci_verdict_expect_bite "no sha256 for the trivy tarball" tool-fetch "scripts/lib/tool-pins.sh" \
-	'/^TRIVY_SHA256=/d'
+ci_verdict_expect_bite "an install script piped to a shell" tool-fetch "${SBOM_WF}" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* grype$#\1curl -sSfL https://example.invalid/install.sh | sh -s -- -b /usr/local/bin#'
 ci_verdict_expect_bite "a pip version that floats" tool-fetch ".github/workflows/raft-python.yml" \
 	's/pytest==[0-9.]+/pytest==8.*/'
 ci_verdict_expect_bite "pip upgraded to whatever is newest" tool-fetch ".github/workflows/raft-python.yml" \
 	's/pip install pip==[0-9.]+/pip install --upgrade pip/'
-ci_verdict_expect_bite "a Go version nothing reads" tool-fetch "Jenkinsfile" \
-	"s/^( +)GOFLAGS = /\1GO_VERSION = '1.24'\n\1GOFLAGS = /"
 
 echo "--- what stops a job before it scans anything ---"
-ci_verdict_expect_bite "an empty environment block" jenkins "jenkins/Jenkinsfile.security" \
-	's/^  stages \{$/  environment {\n    \/\/ nothing left\n  }\n\n&/'
-ci_verdict_expect_bite "an agent older than go.mod" jenkins "jenkins/Jenkinsfile.protocol" \
-	"s/image 'golang:[^']+'/image 'golang:1.25'/"
 ci_verdict_expect_bite "a target rustup cannot install" rust-target ".github/workflows/release.yml" \
 	's/^( +)components: rust-src$/&\n\1targets: bpfel-unknown-none/'
 
@@ -263,23 +251,17 @@ ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker
 ci_verdict_expect_bite "a service Dockerfile the Makefile does not build" docker-services \
 	"docker/Makefile" 's/^SERVICES := monad sophia /SERVICES := monad /'
 
-echo "--- Jenkins agents and fetches ---"
-for f in Jenkinsfile jenkins/Jenkinsfile.protocol; do
-	ci_verdict_expect_bite "the docker socket back in ${f}" jenkins "${f}" \
-		"s#^      image 'golang:.*\$#&\n      args '-v /var/run/docker.sock:/var/run/docker.sock'#"
-done
-ci_verdict_expect_bite "the docker socket in the shared library" jenkins "jenkins/vars/unheadedPipeline.groovy" \
-	's#^// Go setup and caching$#def mounted = "-v /var/run/docker.sock:/var/run/docker.sock"#'
-ci_verdict_expect_bite "an archive unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
-	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz | tar xz#'
-ci_verdict_expect_bite "wget unpacked as it downloads" tool-fetch "jenkins/Jenkinsfile.protocol" \
-	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/buf.tar.gz | tar xz#'
-ci_verdict_expect_bite "the download and tar on two lines, by backslash" tool-fetch "jenkins/Jenkinsfile.protocol" \
-	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz \\\n\1  | tar xz#'
-ci_verdict_expect_bite "the download and tar on two lines, by a trailing pipe" tool-fetch "jenkins/Jenkinsfile.protocol" \
-	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1curl -sSfL https://example.invalid/buf.tar.gz |\n\1  tar xz#'
-ci_verdict_expect_bite "wget piped to a shell" tool-fetch "jenkins/Jenkinsfile.protocol" \
-	's#^( +)\./scripts/ci-install-tools\.sh .* buf$#\1wget -qO- https://example.invalid/install.sh | sh#'
+echo "--- downloads unpacked or run as they arrive ---"
+ci_verdict_expect_bite "an archive unpacked as it downloads" tool-fetch "${SBOM_WF}" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* grype$#\1curl -sSfL https://example.invalid/grype.tar.gz | tar xz#'
+ci_verdict_expect_bite "wget unpacked as it downloads" tool-fetch "${SBOM_WF}" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* grype$#\1wget -qO- https://example.invalid/grype.tar.gz | tar xz#'
+ci_verdict_expect_bite "the download and tar on two lines, by backslash" tool-fetch "${SBOM_WF}" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* grype$#\1curl -sSfL https://example.invalid/grype.tar.gz \\\n\1  | tar xz#'
+ci_verdict_expect_bite "the download and tar on two lines, by a trailing pipe" tool-fetch "${SBOM_WF}" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* grype$#\1curl -sSfL https://example.invalid/grype.tar.gz |\n\1  tar xz#'
+ci_verdict_expect_bite "wget piped to a shell" tool-fetch "${SBOM_WF}" \
+	's#^( +)\./scripts/ci-install-tools\.sh .* grype$#\1wget -qO- https://example.invalid/install.sh | sh#'
 
 echo "--- no unattended apply (plan.yml and apply.yml deleted 2026-11-09) ---"
 ci_verdict_expect_bite "an apply with -auto-approve in a workflow" no-auto-apply "${SEC}" \

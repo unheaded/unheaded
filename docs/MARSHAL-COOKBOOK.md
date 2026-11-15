@@ -118,7 +118,7 @@ For multi-phase work that's blocked on a distant horizon (Q4 2026, etc.):
 2. **Author the configuration/schema** (Cargo.toml features, JSON Schema, YAML schema).
 3. **Author the runbooks** (build-X.md, verify-X.md, operator-X.md).
 4. **Author the script skeletons** with `TODO(task #N)` comments for the real implementation gates.
-5. **Wire the CI** (GHA + Jenkinsfile stub) so any new addition immediately ratchets against the discipline.
+5. **Wire the CI** (GHA) so any new addition immediately ratchets against the discipline.
 6. **Cross-link** so the discovery path is clear: top-level README → component READMEs → scripts → schemas.
 
 The scaffold IS the contract for what the implementation will execute. Marshal-safe because nothing runs in production; everything is documented intent.

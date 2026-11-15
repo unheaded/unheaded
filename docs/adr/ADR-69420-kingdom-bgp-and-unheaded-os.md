@@ -736,3 +736,7 @@ resurrect. The name IS the contract.
 formally promoted: a term-by-term mapping, an integration table against the existing pillars, and a
 `wish-egyptian-naming` entry added to the kanban wish pool + the 12-pool roadmap table above (which
 becomes 13). Egyptian terms are public-domain (ancient theology) and require no IP audit.
+
+## Update 2026-11-15: Jenkins removed
+
+Stevie, 2026-11-15: no JVM, no Java, no Jenkins anywhere in the stack or the workflow. The repository's Jenkins files are deleted (`Jenkinsfile`, `jenkins/`, `nix/yggdrasil/Jenkinsfile`, `runbooks/infra/jenkins-server.yaml`, `scripts/install-trivy.sh`). The Yggdrasil image pipeline (packer build, smoke boot, apt and image publish) has no runner now: its driver was `nix/yggdrasil/Jenkinsfile`. The pre-merge gate `yggdrasil-verify.yml` still runs. Which runner replaces it is an open question for Stevie. The text above is kept as the record of what was decided then.

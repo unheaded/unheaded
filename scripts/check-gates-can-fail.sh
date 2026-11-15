@@ -557,15 +557,6 @@ provoke_test_http_auth() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
-provoke_install_trivy() {
-    # Contract: the Jenkins agents run only the tarball the pin names. Skip the check.
-    local f="scripts/install-trivy.sh"
-    backup "${f}"
-    sed -i '/sha256sum -c/d' "${REPO_ROOT}/${f}"
-    ! grep -q 'sha256sum -c' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
-}
-
-# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_upc_regression_build() {
     # Contract: a failed cargo build is a FAIL in the harness. Restore the
     # shape that hid it, a pipe into grep that pipefail skips.
@@ -1335,7 +1326,6 @@ check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in 
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-http-auth|provoke_http_auth|fast|an untracked HTTP listener in a package without pkg/auth
 test-check-http-auth|provoke_test_http_auth|fast|check-http-auth.sh no longer looking for pkg/tls's wrappers
-test-install-trivy|provoke_install_trivy|fast|install-trivy.sh with its sha256 check removed
 test-upc-regression-build|provoke_upc_regression_build|fast|the ascend build verdict back to a pipe into grep, which pipefail skips on a failed build
 check-ci-verdicts|provoke_ci_verdicts|fast|Security Gate's body recording a failed need and carrying on
 test-check-ci-verdicts|provoke_test_ci_verdicts|fast|one rule of check-ci-verdicts.sh switched off, so its cases see the gate pass
@@ -1414,7 +1404,6 @@ check-gates-can-fail|SELF|self|this script — see the self-exemption note
 # someone made on purpose.
 # ---------------------------------------------------------------------------
 NOT_A_GATE="
-install-trivy|installs the pinned trivy on Jenkins agents, a tool not a gate; its sha256 refusal is proven by test-install-trivy
 generate-sbom|emits an SBOM; failure surfaces in the jobs that consume it
 build-all-debs|produces .deb artifacts
 build-sealed-cask|produces a sealed image
@@ -1424,9 +1413,9 @@ qa-smoke|prints a score for a human to compare against the previous batch
 ci-python-lock|regenerates .github/ci-python/requirements.txt (uv in a throwaway container); no verdict of its own: check-tool-freshness and the --require-hashes installs are the gates
 ci-install-tools|installs pinned syft/grype/cosign for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
-lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
+lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs); proven by test-deb-maintscripts
 rolling-previous|records what rolling-upgrade moves and puts it back; no verdict of its own, proven by tests/runbooks/test_rolling_rollback.py
-apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml, Jenkinsfile); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
+apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
 lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
 lib/tool-pins|version, sha256 and digest pins sourced by lib/fetch-tool, the check-* scripts and security.yml's trivy step; no verdict of its own (check-tool-freshness is the gate on it)
@@ -1470,7 +1459,7 @@ list_lookup() {
     printf '%s\n' "$2" | awk -F'|' -v k="$1" '$1==k {print $2; exit}'
 }
 
-# Every scripts/*.sh a workflow, Jenkinsfile, runbook or smoke script invokes,
+# Every scripts/*.sh a workflow, runbook or smoke script invokes,
 # plus every check-*.sh by convention.
 #
 # Discovery is deliberately NOT a filename glob. The first version globbed
@@ -1482,7 +1471,7 @@ list_lookup() {
 discover_candidates() {
     {
         grep -rhoE '(\./)?scripts/[A-Za-z0-9._/-]+\.sh' \
-            .github/workflows/ Jenkinsfile jenkins/ runbooks/ scripts/*smoke*.sh 2>/dev/null \
+            .github/workflows/ runbooks/ scripts/*smoke*.sh 2>/dev/null \
             | sed 's|^\./||' | sed 's|^scripts/||' | sed 's|\.sh$||'
         find scripts -maxdepth 1 -name 'check-*.sh' -printf '%f\n' 2>/dev/null | sed 's|\.sh$||'
     } | sort -u
