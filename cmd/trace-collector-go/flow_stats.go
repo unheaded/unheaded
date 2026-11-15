@@ -18,10 +18,14 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // FlowStats holds flow_tracker's FLOW_STATS counters under the names
-// ebpf/flow-tracker/src/main.rs gives their keys (STAT_*; key 9 is unused).
+// ebpf/flow-tracker/src/main.rs gives their keys (STAT_*; key 9 is unused,
+// 7 and 8, FLOW_EVENTS sent and dropped, retired with the ring: ADR-147 D6).
 // Until 2026-11-08 they went out as packets_total, bytes_total,
 // traces_created, traces_updated and errors, packet_marker-style names that
 // matched neither program's keys.
@@ -33,8 +37,6 @@ type FlowStats struct {
 	TCPSyns          uint64 `json:"tcp_syns"`
 	TCPFins          uint64 `json:"tcp_fins"`
 	TCPRsts          uint64 `json:"tcp_rsts"`
-	EventsSent       uint64 `json:"events_sent"`
-	EventsDropped    uint64 `json:"events_dropped"`
 	Migrations       uint64 `json:"migrations"`
 	MigrationExpired uint64 `json:"migration_expired"`
 	Cancelled        uint64 `json:"cancelled"`
@@ -64,10 +66,6 @@ func collectFlowStats(statsMap MapReader) (FlowStats, error) {
 			stats.TCPFins = val
 		case 6:
 			stats.TCPRsts = val
-		case 7:
-			stats.EventsSent = val
-		case 8:
-			stats.EventsDropped = val
 		case 10:
 			stats.Migrations = val
 		case 11:
@@ -83,6 +81,49 @@ func collectFlowStats(statsMap MapReader) (FlowStats, error) {
 // statsSource has flow_tracker's FLOW_STATS map; every BPFLoader is one.
 type statsSource interface {
 	GetStatsMap() MapReader
+}
+
+// packetMarkerStatsSource also has packet_marker's STATS map (the native
+// loader; the mock has none).
+type packetMarkerStatsSource interface {
+	GetPacketMarkerStatsMap() MapReader
+}
+
+// statFlowStateInsertFailed is packet_marker's STATS key for a FLOW_STATE
+// insert that failed (ebpf/packet-marker STAT_FLOW_STATE_INSERT_FAILED).
+const statFlowStateInsertFailed = 8
+
+// flowStateInsertFailures is packet_marker's failed FLOW_STATE inserts
+// since the program loaded (ADR-147 decision 19: FLOW_STATE is an LRU and
+// a failed insert is counted, not ignored). No series without the map.
+var flowStateInsertFailures = auto.NewGaugeVec(prom.GaugeOpts{
+	Name: "trace_collector_flow_state_insert_failures",
+	Help: "packet_marker FLOW_STATE inserts that failed since the program loaded (STATS key 8)",
+}, []string{"program"})
+
+// observeFlowStateFailures sets flowStateInsertFailures from packet_marker's
+// STATS, when src has that map; otherwise it sets nothing.
+func observeFlowStateFailures(src any) {
+	pm, ok := src.(packetMarkerStatsSource)
+	if !ok {
+		return
+	}
+	m := pm.GetPacketMarkerStatsMap()
+	if m == nil {
+		return
+	}
+	key := make([]byte, 4)
+	binary.LittleEndian.PutUint32(key, statFlowStateInsertFailed)
+	v, err := m.Lookup(key)
+	if err != nil {
+		readerErrors.WithLabelValues("flow_state_failures").Inc()
+		return
+	}
+	var n uint64
+	if len(v) >= 8 {
+		n = binary.LittleEndian.Uint64(v[:8])
+	}
+	flowStateInsertFailures.WithLabelValues("packet_marker").Set(float64(n))
 }
 
 // statsSink takes one FLOW_STATS snapshot as JSON; TracePublisher is one.
@@ -102,6 +143,7 @@ func runFlowStats(ctx context.Context, src statsSource, sink statsSink, tick <-c
 		case <-ctx.Done():
 			return
 		case <-tick:
+			observeFlowStateFailures(src)
 			op, err := publishFlowStats(src, sink)
 			switch {
 			case op != "":

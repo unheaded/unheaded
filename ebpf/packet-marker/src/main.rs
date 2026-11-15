@@ -20,7 +20,7 @@ mod common;
 use aya_ebpf::{
     bindings::xdp_action,
     macros::{map, xdp},
-    maps::{HashMap, RingBuf},
+    maps::{HashMap, LruHashMap, RingBuf},
     programs::XdpContext,
 };
 use unheaded_common::{
@@ -30,8 +30,9 @@ use unheaded_common::{
 };
 
 /// Flow state map: 5-tuple -> flow state with trace ID.
+/// LRU (ADR-147 decision 19): written per flow, read by nothing; eviction bounds it, a failed insert is counted (STATS key 8).
 #[map]
-static FLOW_STATE: HashMap<FlowKey, FlowState> = HashMap::with_max_entries(MAX_FLOWS, 0);
+static FLOW_STATE: LruHashMap<FlowKey, FlowState> = LruHashMap::with_max_entries(MAX_FLOWS, 0);
 
 /// Trace ID injection map: 5-tuple -> trace ID to mark on egress.
 /// Set by userspace when a trace should be propagated.
@@ -56,6 +57,7 @@ const STAT_TRACE_EXTRACTED: u32 = 4;
 const STAT_TRACE_INJECTED: u32 = 5;
 const STAT_EVENTS_SENT: u32 = 6;
 const STAT_EVENTS_DROPPED: u32 = 7;
+const STAT_FLOW_STATE_INSERT_FAILED: u32 = 8;
 
 /// Ethernet header structure.
 #[repr(C, packed)]
@@ -338,7 +340,9 @@ fn update_flow_state(flow_key: &FlowKey, trace_id: &TraceId) {
             state: unheaded_common::ConnectionState::Unknown,
             _pad: [0; 7],
         };
-        let _ = FLOW_STATE.insert(flow_key, &state, 0);
+        if FLOW_STATE.insert(flow_key, &state, 0).is_err() {
+            increment_stat(STAT_FLOW_STATE_INSERT_FAILED);
+        }
     }
 }
 
