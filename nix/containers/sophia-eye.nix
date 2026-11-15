@@ -96,7 +96,6 @@ in
         environment.variables = {
           ROCM_HOME = "${pkgs.rocmPackages.rocm-core}";
           HIP_PLATFORM = "amd";
-          VLLM_WORKER_MULTIPROC_METHOD = "spawn";
           TORCH_HIP_USER_DEVICE_MEMORY = "100G";
         };
 
@@ -161,12 +160,21 @@ in
             SOPHIA_GATEWAY_PORT = "20105";
             METRICS_PORT = "9090";
             LOG_LEVEL = "info";
+            # `go run` needs a build cache and a home it can write.
+            GOCACHE = "/var/cache/sophia-gateway";
+            HOME = "/var/lib/sophia-gateway";
           };
 
           serviceConfig = {
             Type = "simple";
-            User = "root";
-            WorkingDirectory = "/var/lib/sophia-eye";
+            # Its own account, not root. The state directory is the unit's own:
+            # /var/lib/sophia-eye is a bind mount from the host, and systemd
+            # cannot hand a mount point to a dynamic user.
+            DynamicUser = true;
+            StateDirectory = "sophia-gateway";
+            CacheDirectory = "sophia-gateway";
+            WorkingDirectory = "/var/lib/sophia-gateway";
+            NoNewPrivileges = true;
             ExecStart = "${pkgs.go}/bin/go run ${sophia-gateway-src}/main.go";
             Restart = "on-failure";
             RestartSec = "15s";
@@ -184,10 +192,21 @@ in
           after = [ "network.target" ];
           wantedBy = [ "multi-user.target" ];
 
+          environment = {
+            HOME = "/var/lib/embeddings-bge";
+          };
+
           serviceConfig = {
             Type = "simple";
-            User = "root";
-            WorkingDirectory = "/var/lib/sophia-eye";
+            # Its own account, not root, and not the gateway's: two dynamic
+            # users cannot share one state directory.
+            DynamicUser = true;
+            StateDirectory = "embeddings-bge";
+            WorkingDirectory = "/var/lib/embeddings-bge";
+            NoNewPrivileges = true;
+            # It reads the model and may use the GPU.
+            SupplementaryGroups = [ "render" "video" ];
+            ReadOnlyPaths = [ "/data/models" ];
             ExecStart = ''
               ${pkgs.python3}/bin/python -m text_embeddings_inference.server \
                 --model-id /data/models/bge-m3 \

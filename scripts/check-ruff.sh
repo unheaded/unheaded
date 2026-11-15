@@ -63,6 +63,8 @@ if ! command -v "${RUFF}" >/dev/null 2>&1; then
     echo "check-ruff: ${RUFF} not found on PATH." >&2
     echo "  CI pins ruff (.github/ci-python/requirements.in); an unpinned ruff moves the baseline between" >&2
     echo "  minor releases because its default rule set changes." >&2
+    # shellcheck disable=SC2016  # the reader pastes this line: $PATH stays literal
+    echo '  On west ruff and pip-audit are in /var/tmp/unheaded-sprint/civenv/bin: PATH=$PATH:/var/tmp/unheaded-sprint/civenv/bin' >&2
     exit 127
 fi
 

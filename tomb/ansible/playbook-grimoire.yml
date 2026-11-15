@@ -37,15 +37,6 @@
         label: "{{ item.name }}"
       failed_when: false
 
-    - name: "Deploy grimoire-search.sh"
-      ansible.builtin.copy:
-        src: "files/grimoire-search.sh"
-        dest: "{{ grimoire_root }}/grimoire-search.sh"
-        owner: "{{ tomb_user }}"
-        group: "{{ tomb_user }}"
-        mode: "0755"
-      failed_when: false
-
     - name: "Deploy zhen-codeindex"
       ansible.builtin.copy:
         src: "{{ packages_src }}/grimoire/bin/zhen-codeindex"

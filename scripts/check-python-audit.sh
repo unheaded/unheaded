@@ -25,7 +25,12 @@ cd "$REPO_ROOT" || exit 2
 # shellcheck source=scripts/lib/sets.sh
 source "${REPO_ROOT}/scripts/lib/sets.sh"
 
-command -v "$PIP_AUDIT" >/dev/null || { echo "[FAIL] $PIP_AUDIT not found; this gate does not pass by skipping" >&2; exit 2; }
+if ! command -v "$PIP_AUDIT" >/dev/null; then
+    echo "[FAIL] $PIP_AUDIT not found; this gate does not pass by skipping" >&2
+    # shellcheck disable=SC2016  # the reader pastes this line: $PATH stays literal
+    echo '  On west ruff and pip-audit are in /var/tmp/unheaded-sprint/civenv/bin: PATH=$PATH:/var/tmp/unheaded-sprint/civenv/bin' >&2
+    exit 2
+fi
 [[ -f "$ACCEPTED" ]] || { echo "[FAIL] ${ACCEPTED#"$REPO_ROOT"/} is missing" >&2; exit 1; }
 
 files=()

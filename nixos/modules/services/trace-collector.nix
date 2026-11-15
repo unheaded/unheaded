@@ -10,18 +10,6 @@ let
 in {
   options.services.unheaded.traceCollector = {
     enable = mkEnableOption "Unheaded trace collector service";
-    
-    port = mkOption {
-      type = types.port;
-      default = 9411;
-      description = "HTTP listening port (Zipkin-compatible)";
-    };
-    
-    logLevel = mkOption {
-      type = types.enum [ "debug" "info" "warn" "error" ];
-      default = "info";
-      description = "Log level";
-    };
   };
 
   config = mkIf cfg.enable {
@@ -55,11 +43,10 @@ in {
         AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
         CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
       };
-      
-      environment = {
-        TRACE_PORT = toString cfg.port;
-        TRACE_LOG_LEVEL = cfg.logLevel;
-      };
+
+      # No environment block: the binary reads only UNHEADED_EBPF_OBJ_DIR from
+      # the environment and takes its listeners from flags (--http-addr,
+      # --metrics-addr; loopback 16670 and 16671 unless told).
     };
     
     # State directory
@@ -67,8 +54,8 @@ in {
       "d /var/lib/unheaded/traces 0750 unheaded unheaded -"
       "d /var/log/unheaded        0750 unheaded unheaded -"
     ];
-    
-    # Firewall
-    networking.firewall.allowedTCPPorts = [ cfg.port ];
+
+    # No firewall rule: the collector binds loopback, and a rule for a loopback
+    # service guards nothing (tests/scripts/test_nix_firewall.py, same rule).
   };
 }
