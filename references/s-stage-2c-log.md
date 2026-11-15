@@ -318,3 +318,24 @@ Before gate (Step 215), on the committed tree at `0c66f515`: `gate rung56-before
 
 Step 220: `kbuild; gbuild; ebuild; bbuild`: `vcount` 883,522 = `offv` (`off-equal`); `sweep` 8 of 8 SAME. With the const off the changed probes still pass: `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20, `hostile_path` 6, `crprobe` 4 with `tty_r=17` (a slot 0 console read works today through `sys_read`'s shortcut), `devprobe` both tokens; `uinit_echo` SAME.
 
+**Step 223, the rung on** (`flip UPC_RUNG56 false true` and `#define UPC_RUNG56 1`): **529,305, delta -354,217** against 883,522. BUDGET-OK, headroom 370,695. Object file 897,784 → 729,216 bytes. `readelf -r` on the on object: the only relocations against `FD_TABLE` and `FD_INODE_MAP` are in `.rel.debug_info` and `.rel.BTF`; no instruction refers to either (review F3). The map definitions themselves stay in the object (a `#[map]` static is always emitted).
+
+**Found on the way: a header change rebuilt nothing.** `Makefile.mbc` has `%.o: %.c` and generates no dependency files, so the first `kbuild` after the define changed relinked the old objects. The rung-on object then ran against a kernel still numbering fds from 16: `dup(1)` answered -1, opens answered 16, 17, 18 (a throwaway `rwprobe` printed the numbers), and six probe lines read `no`. `Makefile.mbc` now names `upc_slots.h` as a prerequisite of the ten objects that include it; after that the same throwaway read `dup(1)=3`, opens 3, 4, 5, `close(0)=0`, `dup=0`. `parity_slot_tables` reads the two source lines, so it cannot see a stale kernel build; the Makefile line is the control.
+
+**Step 225, with the kernel really on.** `rwprobe` 5 of 5 (`write-lands`, `read-back`, `restored`, `console-fstat`, `dup-to-zero`), `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20, `bigprobe` 3: no `=no` line, every `done`.
+
+**Step 226 fails: `sweep12` is 0 of 12 SAME.** Each of the twelve boots was kept (`$S/r56on/`) and compared with its golden byte by byte:
+
+| Boot | Outside the 100-PC trace | `forks`, `waitpid`, `tty_r` | First trace PC that differs |
+|---|---|---|---|
+| `ls`, `cat README`, `cat BIGFILE`, `cat sub/NOTE`, `ls sub`, `echo hello`, `echo peace and love`, `wc README`, `nosuch`, `multi`, `blank` | identical | identical | the 21st |
+| `uinit_echo` | differs (1,093 bytes against 1,016) | differ | the 20th |
+
+Every boot finished inside 4,000,000 triggers and ended at the prompt; `insn_count` for the eight single-command boots is 63.54 M to 63.57 M (rung 4: `ls` 63.26 M), so the fd calls going to the kernel cost about 0.3 M instructions a boot and no trigger budget changes.
+
+What moves is the Phase 1.4 PC tracer's output. `TRACE_HEAD` is armed with 100 at the first return to U-mode and the dispatch loop prints every PC while it counts down, whatever the privilege; the bytes are in the TTY and so in every golden (the `ls` golden's trace is exactly 100 PCs, all init's). Until this rung nothing inside that window trapped to the kernel: init's `open` and two `dup`s were BPF's. Under the rung the `open` is the 21st instruction: the golden reads `... 41E5 41E6 4011 4012 ...`, the boot reads `... 41E5 3435 3436 ...` (kernel PCs) to the end of the window. The open also answers -1, because init's `"console"` literal is in the first page the kernel's copy-in refuses for slot 0, so init goes through `mknod` and a second `open`; its output is the same, its path through the code is not. `uinit` exits when both opens fail, which is the larger difference in its row. (Its console name was moved to `.data` in Step 216 and taken back: that edit alone shifted its code and moved `uinit_echo` with the const off.)
+
+**Steps 227-228.** This is not a kernel `stat` layout or a trigger problem, and no second attempt at the code changes it: a golden moves, which the rules make a stop. A7: the const and the define back to off, `kbuild; gbuild; ebuild; bbuild`: `vcount` 883,522 = `offv`. Stop F stands. The wiring stays in the tree, off.
+
+**Measured for the decision, not committed.** With two further changes the rung is on and nothing moves: (a) `copyinstr` accepts slot 0's first page (reads only; the "slot 0 literal" question already filed), so init's and uinit's own `open("console")` succeed and their user-mode path is the golden's; (b) under the rung the tracer prints U-mode PCs only. Booted: `sweep12` **12 of 12 SAME** (`uinit_echo` among them, `init.c` and `uinit.c` untouched), `vcount` 532,152 (+2,847 for the tracer test over 529,305). Both changes were reverted before any commit: (a) is Stevie's to decide and was not to be landed by this lane.
+

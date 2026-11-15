@@ -495,8 +495,10 @@ off, a console write or read would fall into a BPF arm that asks `FD_TABLE` what
    an object from different settings fail the parity test, not a boot. How it follows the flip (review F5):
    `upc_slots.h` carries `#define UPC_RUNG56 0` or `1`, `UPC_KFD_BASE` is derived from it, and everything the
    kernel does only under the rung (the console name match, the kernel-given console of point 4, the device
-   branches of `fileread` and `filewrite`) is `#if UPC_RUNG56`. A header, not a compiler flag, so `make` rebuilds
-   what includes it. Turning the rung on or off is two lines, the const in `main.rs` and the define in the
+   branches of `fileread` and `filewrite`) is `#if UPC_RUNG56`. A header, not a compiler flag; `Makefile.mbc`
+   names it as a prerequisite of the ten objects that include it (found in Phase 12: the kernel build generates
+   no dependency files, so without that line a flip of the define rebuilt nothing, and an object with the rung
+   on booted against a kernel with it off). Turning the rung on or off is two lines, the const in `main.rs` and the define in the
    header, then the kernel, the userland and the object rebuilt; `parity_slot_tables` reads both lines and fails
    when they differ. `NOFILE` is 16 on both sides, so a process
    has 16 fds where it had up to 32 (16 of BPF's and 16 of the kernel's). Probe lines that say "at or above 16"
@@ -632,6 +634,43 @@ by the lane before its disposition (file and line are the reviewer's, checked). 
 | Q6 | No problem | Reference counts across fork, exec, kill | Balanced: fork's -1 precedes any note, exec is BPF-only and keeps the row, kill closes the target's row |
 | Q7 | Noted | Which goldens can move | `fs.img` holds init, sh, ls, cat, echo and wc; the probes are outside it, so the claim that `fs.img` and the `ls` golden stay holds. What could move: `ls` and `cat BIGFILE` by trigger exhaustion; `ls` rows by `stati`'s layout; `uinit`'s `echo hello` if its `.data` edit is missed; all twelve without stdio. A moved golden is a stop, not a recapture |
 | Q8 | No problem beyond F2 | Isolation with fds no longer offset and `dup` onto 0-2 | `argfd` is bounded to the caller's own row; copies are page-checked per slot |
+
+**Built and measured (Phase 12, 2026-11-15): the rung works, and the goldens' PC trace stops it.** The wiring
+is in the tree with the const off (`cf11267b`): the off object is 883,522, equal to before, and the eight corpus
+boots are SAME. Turned on (the const and the define, nothing else; not committed):
+
+- **Verifier:** 529,305 verified instructions, **-354,217** against 883,522 (headroom 370,695). The object file
+  goes from 897,784 to 729,216 bytes. No instruction of the on object refers to `FD_TABLE` or `FD_INODE_MAP`
+  (the only relocations against them are debug info and BTF); the two map definitions stay declared, because a
+  `#[map]` static is always emitted, so the loader still creates two maps nothing reads.
+- **Probes, all pass:** `rwprobe` 5 (a plain `O_RDWR` file is written, read back and restored; `dup` lands on
+  0; `fstat` on the console answers -1 and the kernel goes on), `fdprobe` 51, `chdirprobe` 24, `pipeprobe` 20,
+  `bigprobe` 3.
+- **Run cost:** all twelve corpus boots finish inside the existing 4,000,000 triggers. A boot's instruction count
+  is where rung 4 left it (`ls` 63.57 M against 63.26 M): the prompt's wait is what it counts, not the opens.
+- **Goldens:** eleven of the twelve boots are byte for byte their golden **outside the 100-PC trace**, and their
+  `forks`, `waitpid` and `tty_r` are the golden's. Inside the trace every one differs from the 21st PC on.
+  `uinit_echo` differs outside it too: `uinit.c` exits when both its console opens fail.
+
+Why the trace moves, which neither this design nor its review saw: the Phase 1.4 tracer (`TRACE_HEAD`) is armed
+for 100 instructions at the first return to U-mode and prints every PC it executes, the kernel's included, and
+those bytes are part of every golden's TTY. Until this rung no trap inside that window went to the kernel: init's
+`open` and its two `dup`s were BPF's, and its first `write` traps after the window has closed. Under the rung init's
+`open("console")` is the 21st instruction and traps into the kernel, so kernel PCs fill the rest of the window;
+and the open answers -1 (the literal sits in the first page), so init takes its `mknod` path and its user-mode
+PCs differ as well. Point 4's sentence that this rung does not wait on the slot 0 literal decision does not hold
+for the goldens.
+
+A moved golden is a stop, not a recapture. The const and the define went back to off (A7); the off object reads
+883,522 again; Stop F stands, with the wiring left in the tree. Two ways on, both measured, for Stevie:
+
+| Way | What it takes | Measured |
+|---|---|---|
+| No recapture | (a) The kernel's `copyinstr` may read slot 0's first page (reads only): the slot 0 literal question already filed, answered yes. (b) Under the rung the tracer prints U-mode PCs only | Booted, not committed: **12 of 12 SAME**, `uinit_echo` included, with `init.c` and `uinit.c` untouched. 532,152 verified instructions (the tracer test is +2,847) |
+| One named recapture | The twelve goldens' trace segment recaptured once, by name and with its reason, as the plan allows for Phase 15's `ls`; `uinit.c` takes its console name from `.data` (which moves its own trace) | Eleven boots identical outside the trace; nothing else needed |
+
+A third, larger change is to retire the tracer from the ascend build (it is a Phase 1.4 bisect aid): also a
+recapture.
 
 ## Guards
 
