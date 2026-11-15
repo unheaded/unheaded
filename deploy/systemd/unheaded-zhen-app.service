@@ -1,0 +1,120 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Zhen web UI's app (raft/zhen_app.py) under its own account
+# (S-ZHEN-FRONT, D-05). It listens on a Unix socket and nowhere else;
+# unheaded-zhen-ui-front.service is the only way to it from a browser
+# (ADR-138). Until this unit the app was started by raft/start-zhen.sh and ran
+# as the person who started it, out of that person's home.
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   the app's code, outside any home:
+#     sudo install -d -m 0755 /usr/local/lib/unheaded/zhen-app /usr/local/share/unheaded/zhen
+#     git archive develop raft | sudo tar -x -C /usr/local/lib/unheaded/zhen-app
+#     git archive develop runbooks skills | sudo tar -x -C /usr/local/share/unheaded/zhen
+#   its Python environment, /usr/local/lib/unheaded/zhen-app/venv
+#   the memory embedder's snapshot in /var/lib/unheaded-zhen-app/hf/hub (the
+#     unit is offline: nothing is fetched at run time)
+#   the socket directory: sudo install -m 0644 deploy/tmpfiles.d/unheaded-zhen-ui.conf /etc/tmpfiles.d/
+#     && sudo systemd-tmpfiles --create /etc/tmpfiles.d/unheaded-zhen-ui.conf
+#   the environment file, written unseen: sudo scripts/write-zhen-app-env.sh --db-host HOST:PORT
+#   sudo cp deploy/systemd/unheaded-zhen-app.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-zhen-app.service
+#
+# Shipped disabled and not started; enabling it at boot is the operator's call.
+
+[Unit]
+Description=Unheaded Zhen web UI app (Unix socket; the TLS front is zhen-ui-front)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md
+# Ordering only. The app starts without the model, the daemon or vor and
+# answers 503 for what needs them, so none of them is required. Wants= pulls
+# the model in when the app is started, and does not stop the app if it fails.
+After=network-online.target unheaded-llama.service zhen-agentd.service unheaded-vor.service
+Wants=network-online.target unheaded-llama.service
+
+[Service]
+Type=simple
+User=unheaded-zhen-app
+Group=unheaded-zhen-app
+# The socket is 0660 in a setgid 2750 directory whose group is the front's
+# (deploy/tmpfiles.d/unheaded-zhen-ui.conf, deploy/systemd/README.md#zhen-ui-front).
+UMask=0007
+
+WorkingDirectory=/usr/local/lib/unheaded/zhen-app/raft
+ExecStart=/usr/local/lib/unheaded/zhen-app/venv/bin/python3 /usr/local/lib/unheaded/zhen-app/raft/zhen_app.py
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=20s
+
+# Where the project is, with no home directory to read (raft/zhen_app.py
+# _project_root): runbooks and skills are a root-owned copy.
+Environment=ZHEN_PROJECT_ROOT=/usr/local/share/unheaded/zhen
+Environment=ZHEN_UI_SOCKET=/run/unheaded-zhen-ui/app.sock
+# The memory embedder is read from the state directory and never fetched.
+Environment=HOME=/var/lib/unheaded-zhen-app
+Environment=HF_HOME=/var/lib/unheaded-zhen-app/hf
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+# Login: the built-in issuer, over TLS with the deployment CA.
+Environment=AUTH_ISSUER_URL=https://auth:19020
+Environment=UNHEADED_TLS_ENABLED=true
+Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
+ReadOnlyPaths=-/etc/unheaded/tls/ca.pem
+# The three things it talks to, all on this host.
+Environment=VOR_URL=http://127.0.0.1:20110
+Environment=ZHEN_INFERENCE_URL=http://127.0.0.1:8081
+Environment=ZHEN_AGENTD_URL=http://127.0.0.1:20111
+# The Well's password, the allowed Host names and the embedder pin: a file
+# root writes unseen (scripts/write-zhen-app-env.sh), 0640 root:unheaded-zhen-app.
+# Keys: deploy/systemd/zhen-app.env.example. Its values win over the
+# Environment= lines above. No leading "-": without the file the unit fails,
+# loudly, instead of running with no Well and no allowed Host.
+EnvironmentFile=/etc/unheaded/zhen-app.env
+
+StateDirectory=unheaded-zhen-app
+StateDirectoryMode=0700
+
+# torch and the embedder take about 1.5 GB once loaded. No swap.
+MemoryMax=3G
+MemoryHigh=2700M
+MemorySwapMax=0
+TasksMax=256
+LimitNOFILE=4096
+
+# Sandbox (deploy/systemd/README.md#isolation).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ReadWritePaths=/run/unheaded-zhen-ui
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+# MemoryDenyWriteExecute is left off: torch maps code at run time on some
+# CPUs. Turn it on in a drop-in if the app starts with it.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+# Loopback only. vor, the model, the daemon, the issuer and the Well's
+# published port are all on this host. A Well or an issuer on another host
+# needs its address added to IPAddressAllow in a drop-in. The app binds no TCP
+# port: it listens on the Unix socket alone.
+IPAddressDeny=any
+IPAddressAllow=localhost
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+# @resources is not denied, unlike the Go units: torch sets thread affinity.
+SystemCallFilter=~@privileged @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target
