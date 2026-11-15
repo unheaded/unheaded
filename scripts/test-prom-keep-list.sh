@@ -12,10 +12,20 @@ gen=scripts/gen-prom-keep-list.py
 data=scripts/testdata/prom-keep
 fail=0
 
-got="$(python3 "$gen" --rules "$data/rules" --print 2>&1)"
+got="$(python3 "$gen" --rules "$data/rules" --runbooks "$data/none" --print 2>&1)"
 want="$(printf '%s\n' bar_seconds_count baz foo_total)"
 if [[ "$got" != "$want" ]]; then
     echo "FAIL: names from the fixture:" >&2
+    diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") >&2
+    fail=1
+fi
+
+# REV-6: a runbook that queries Prometheus' API (127.0.0.1:9090) is a
+# reader: its series are kept. VictoriaMetrics' (8428) are not.
+got="$(python3 "$gen" --rules "$data/rules" --runbooks "$data/runbooks" --print 2>&1)"
+want="$(printf '%s\n' bar_seconds_count baz foo_total other_gauge runbook_only_total)"
+if [[ "$got" != "$want" ]]; then
+    echo "FAIL: names from the rules and the runbooks:" >&2
     diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") >&2
     fail=1
 fi

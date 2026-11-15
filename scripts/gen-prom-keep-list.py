@@ -6,9 +6,11 @@
 ADR-147 decisions 9 and 10, D4 = A: Prometheus keeps 30 days, of only the
 series a rule in monitoring/prometheus/rules/*.yml reads; everything else is
 VictoriaMetrics' alone. This script reads every rule's `expr`, takes the
-metric names out of it, adds monitoring/prometheus/keep-extra.txt (series a
-reader of Prometheus' own API needs, one per line, `# reader: <file>`), and
-writes:
+metric names out of it, adds the series each runbook under runbooks/ reads
+from Prometheus' API (a `curl ... 127.0.0.1:9090/api/v1/query` line with
+`query=`: a runbook check that reads a dropped series reads nothing) and
+monitoring/prometheus/keep-extra.txt (any other reader of Prometheus' own
+API, one per line, `# reader: <file>`), and writes:
 
   monitoring/prometheus/rule-series.txt   the sorted list (generated)
   monitoring/prometheus/prometheus.yml    the text between the markers
@@ -20,6 +22,7 @@ writes:
   --print   print the names, write nothing
   --check   regenerate in memory; exit 1 with a diff when a file differs
   --rules D read rule files from D (default monitoring/prometheus/rules)
+  --runbooks D read runbooks from D, recursively (default runbooks)
 
 A rule that names a series by regex (`__name__=~`) cannot be listed: the
 script exits 1 naming the file, never guesses. Recorded series (a colon in
@@ -98,6 +101,25 @@ def rule_series(rules_dir):
     return names
 
 
+PROM_QUERY_LINE = re.compile(r"(?:127\.0\.0\.1|localhost):9090/api/v1/query")
+QUERY_ARG = re.compile(r"""--data-urlencode\s+'query=([^']*)'|\?query=([^'"\s]*)""")
+
+
+def runbook_series(runbooks_dir):
+    """Series the runbooks read from Prometheus' API (127.0.0.1:9090)."""
+    names = set()
+    root = pathlib.Path(runbooks_dir)
+    if not root.is_dir():
+        return names
+    for f in sorted(root.rglob("*.yaml")):
+        for n, line in enumerate(f.read_text().splitlines(), 1):
+            if not PROM_QUERY_LINE.search(line):
+                continue
+            for m in QUERY_ARG.finditer(line):
+                names |= names_in(m.group(1) or m.group(2), f"{f.name}:{n}")
+    return names
+
+
 def extra_series(path):
     out = set()
     if not path.exists():
@@ -148,11 +170,12 @@ def render_prometheus(text, names):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--rules", default=str(PROM_DIR / "rules"))
+    ap.add_argument("--runbooks", default=str(ROOT / "runbooks"))
     ap.add_argument("--print", action="store_true", dest="do_print")
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
     try:
-        names = rule_series(a.rules) | extra_series(PROM_DIR / "keep-extra.txt")
+        names = rule_series(a.rules) | runbook_series(a.runbooks) | extra_series(PROM_DIR / "keep-extra.txt")
         if a.do_print:
             print("\n".join(sorted(names)))
             return 0
@@ -175,7 +198,7 @@ def main():
         else:
             path.write_text(text)
     if a.check and bad:
-        print("gen-prom-keep-list: FAIL: a rule reads a series the keep-list lacks, or the list is stale; run scripts/gen-prom-keep-list.py", file=sys.stderr)
+        print("gen-prom-keep-list: FAIL: a rule or a runbook reads a series the keep-list lacks, or the list is stale; run scripts/gen-prom-keep-list.py", file=sys.stderr)
         return 1
     if a.check:
         print(f"gen-prom-keep-list: OK ({len(names)} series)")

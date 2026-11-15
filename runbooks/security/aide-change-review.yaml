@@ -88,8 +88,17 @@ verification:
   - name: nothing-pending
     command: |
       set -euo pipefail
-      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum(unheaded_aide_changed_entries) or vector(0)' |
-        python3 -c 'import json,sys; v=float(json.load(sys.stdin)["data"]["result"][0]["value"][1]); print("entries waiting for a review:", int(v)); sys.exit(v != 0)'
+      # No "or vector(0)": a missing series is not a clean tree.
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum(unheaded_aide_changed_entries)' |
+        python3 -c '
+      import json, sys
+      r = json.load(sys.stdin)["data"]["result"]
+      if not r:
+          print("unheaded_aide_changed_entries is missing: no check has reported, so nothing says the tree is clean")
+          sys.exit(1)
+      v = float(r[0]["value"][1])
+      print("entries waiting for a review:", int(v))
+      sys.exit(v != 0)'
 
 rollback:
   - name: none
