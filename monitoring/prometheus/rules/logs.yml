@@ -49,15 +49,20 @@ groups:
           description: "The sink is slow or down; at 100 % Vector stops reading the journal (journald keeps it). Check clickhouse."
           runbook_url: "runbooks/observe/log-pipeline.yaml"
 
+      # Any sink that discards (BlackMage F13, ADR-147 SSV-13). Until
+      # 2026-11-15 this read component_id="clickhouse" only, whose buffer
+      # blocks and so never discards; well_logs (when_full: drop_newest) is
+      # the sink that can. Vector makes the counter on the first discard, so
+      # no series is the normal state.
       - alert: VectorSinkDroppingEvents
-        expr: sum by (instance) (increase(vector_buffer_discarded_events_total{job="vector",component_id="clickhouse"}[5m])) > 0
+        expr: sum by (instance, component_id) (increase(vector_buffer_discarded_events_total{job="vector"}[5m])) > 0
         for: 0m
         labels:
           severity: critical
           urgency: none
         annotations:
-          summary: "Vector on {{ $labels.instance }} discarded journal rows bound for ClickHouse"
-          description: "The audit sink is configured to block, never drop; a discard means its buffer config changed. Check config/vector."
+          summary: "Vector on {{ $labels.instance }}: sink {{ $labels.component_id }} discarded events"
+          description: "Sink {{ $labels.component_id }} discarded events: a buffer with when_full: drop_newest is full (well_logs today; the ClickHouse sink blocks instead). Check config/vector."
           runbook_url: "runbooks/observe/log-pipeline.yaml"
 
       - alert: VectorDown

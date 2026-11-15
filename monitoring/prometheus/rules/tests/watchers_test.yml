@@ -1,0 +1,97 @@
+# promtool test rules watchers_test.yml (from this directory)
+# ADR-147: the watchers are watched (S-SEE-AND-SURVIVE Phase 7).
+rule_files:
+  - ../watchers.yml
+evaluation_interval: 1m
+tests:
+  # 1 to 3. VictoriaMetrics, huginn and the mailer stop answering at 0m:
+  # firing after 5m; the ones that answer stay quiet.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="victoria",instance="[fd00:dead:beef::1]:8428"}'
+        values: '0x10'
+      - series: 'up{job="huginn",instance="[fd00:dead:beef::1]:9110"}'
+        values: '0x10'
+      - series: 'up{job="alert-mailer",instance="alert-mailer:19130"}'
+        values: '0x10'
+      - series: 'up{job="huginn",instance="[fd00:dead:beef::2]:9110"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: VictoriaMetricsDown
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: VictoriaMetricsDown
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: victoria, instance: "[fd00:dead:beef::1]:8428"}
+            exp_annotations:
+              summary: "VictoriaMetrics ([fd00:dead:beef::1]:8428) does not answer"
+              description: "The SLO window and huginn's series live in VictoriaMetrics; while it is down the stop marks and SLOs read nothing."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"
+      - eval_time: 6m
+        alertname: HuginnDown
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: huginn, instance: "[fd00:dead:beef::1]:9110"}
+            exp_annotations:
+              summary: "huginn on [fd00:dead:beef::1]:9110 does not answer"
+              description: "Host, cgroup and host-state series (ContainerStopped, MemoryKill, UnitFailed) all come through huginn."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"
+      - eval_time: 6m
+        alertname: AlertMailerDown
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, job: alert-mailer, instance: "alert-mailer:19130"}
+            exp_annotations:
+              summary: "alert-mailer (alert-mailer:19130) does not answer"
+              description: "No alert can be mailed while it is down, this one included: it shows on Alertmanager's page only."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+  # 4a. Remote write refuses samples: firing after 15m.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_remote_storage_samples_failed_total{job="prometheus",instance="localhost:9090",remote_name="x",url="y"}'
+        values: '0+10x30'
+    alert_rule_test:
+      - eval_time: 26m
+        alertname: PrometheusRemoteWriteFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: prometheus, instance: "localhost:9090", remote_name: x, url: y}
+            exp_annotations:
+              summary: "Prometheus's remote write (localhost:9090) is failing or behind"
+              description: "Samples are refused, or the queue is over 5 minutes behind: VictoriaMetrics, where the SLO window lives, is missing data."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+  # 4b. Remote write stalls: ingested time runs on, sent time stays at 0.
+  # Over 300 s behind from 6m; firing at 21m.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_remote_storage_highest_timestamp_in_seconds{job="prometheus",instance="localhost:9090"}'
+        values: '0+60x30'
+      - series: 'prometheus_remote_storage_queue_highest_sent_timestamp_seconds{job="prometheus",instance="localhost:9090",remote_name="x",url="y"}'
+        values: '0x30'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: PrometheusRemoteWriteFailing
+        exp_alerts: []
+      - eval_time: 26m
+        alertname: PrometheusRemoteWriteFailing
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: prometheus, instance: "localhost:9090", remote_name: x, url: y}
+            exp_annotations:
+              summary: "Prometheus's remote write (localhost:9090) is failing or behind"
+              description: "Samples are refused, or the queue is over 5 minutes behind: VictoriaMetrics, where the SLO window lives, is missing data."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+  # 5. No Alertmanager discovered: firing after 10m.
+  - interval: 1m
+    input_series:
+      - series: 'prometheus_notifications_alertmanagers_discovered{job="prometheus",instance="localhost:9090"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: AlertmanagerNotReached
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: prometheus, instance: "localhost:9090"}
+            exp_annotations:
+              summary: "Prometheus (localhost:9090) cannot reach Alertmanager"
+              description: "Notifications fail or no Alertmanager is discovered: firing alerts go nowhere. The mailer's pipeline mail follows after 20 minutes."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"

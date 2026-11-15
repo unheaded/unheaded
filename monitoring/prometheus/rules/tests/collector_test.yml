@@ -24,43 +24,31 @@ tests:
               description: "[fd00:dead:beef::2]:16671 has failed every scrape for 5 minutes: no eBPF events reach Wotan from east"
               runbook_url: "runbooks/observe/trace-collector-down.yaml"
 
-  # West's batches all land between 1s and 2.5s; east's under 5ms; a third
-  # collector publishes nothing. Only west fires, and only after 15m.
+  # West: 5% of flushes over 100 ms; east: 0.2%; a third collector flushes
+  # nothing. Only west fires, and only after 15m (ADR-147 SSV-12).
   - interval: 1m
     input_series:
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="0.005"}'
+      - series: 'trace_publisher_flush_duration_seconds_count{job="trace-collector",instance="w",host="west",topic="traces.flow"}'
+        values: '0+100x40'
+      - series: 'trace_publisher_flush_duration_seconds_bucket{job="trace-collector",instance="w",host="west",topic="traces.flow",le="0.1"}'
+        values: '0+95x40'
+      - series: 'trace_publisher_flush_duration_seconds_count{job="trace-collector",instance="e",host="east",topic="traces.flow"}'
+        values: '0+1000x40'
+      - series: 'trace_publisher_flush_duration_seconds_bucket{job="trace-collector",instance="e",host="east",topic="traces.flow",le="0.1"}'
+        values: '0+998x40'
+      - series: 'trace_publisher_flush_duration_seconds_count{job="trace-collector",instance="i",host="idle",topic="traces.flow"}'
         values: '0x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="1"}'
-        values: '0x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="2.5"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="w",host="west",le="+Inf"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_count{job="trace-collector",instance="w",host="west"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="0.005"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="1"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="2.5"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="e",host="east",le="+Inf"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_count{job="trace-collector",instance="e",host="east"}'
-        values: '0+10x40'
-      - series: 'trace_collector_batch_latency_seconds_bucket{job="trace-collector",instance="i",host="idle",le="+Inf"}'
-        values: '0x40'
-      - series: 'trace_collector_batch_latency_seconds_count{job="trace-collector",instance="i",host="idle"}'
+      - series: 'trace_publisher_flush_duration_seconds_bucket{job="trace-collector",instance="i",host="idle",topic="traces.flow",le="0.1"}'
         values: '0x40'
     alert_rule_test:
       - eval_time: 10m
         alertname: TraceCollectorHighLatency
         exp_alerts: []
-      - eval_time: 25m
+      - eval_time: 26m
         alertname: TraceCollectorHighLatency
         exp_alerts:
           - exp_labels: {severity: warning, urgency: none, job: trace-collector, instance: w, host: west}
             exp_annotations:
-              summary: "Trace collector on west: batches take over 1s to reach Wotan"
-              description: "p99 batch publish latency 2.485s over 10m; Wotan is slow or the collector is backlogged"
+              summary: "Trace collector on west: over 1% of flushes to Wotan take over 100 ms"
+              description: "Over 10m, more than 1% of w's flushes to Wotan were slower than 100 ms; Wotan is slow or the collector is backlogged"
               runbook_url: "runbooks/observe/high-latency.yaml"

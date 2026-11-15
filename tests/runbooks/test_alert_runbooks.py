@@ -40,6 +40,14 @@ RUNBOOKS = {
     "runbooks/observe/ci-red.yaml": (),
     # The mailer's own pipeline mail (ADR-116 R4, S-SEE-AND-SURVIVE Phase 2), no rule.
     "runbooks/observe/alert-pipeline-silent.yaml": (),
+    # ADR-147 Phase 7 (S-SEE-AND-SURVIVE): containers, memory, pressure, heat,
+    # units and the monitoring path.
+    "runbooks/observe/container-stopped.yaml": ("ContainerStopped", "ContainerUnhealthy"),
+    "runbooks/observe/memory-kill.yaml": ("MemoryKill", "HostOOMKill", "ContainerMemoryNearLimit"),
+    "runbooks/observe/host-pressure.yaml": ("HostMemoryPressure", "HostSwapping", "HostSwapNearFull", "HostIOPressure", "HostCPUPressure", "ContainerCPUThrottled"),
+    "runbooks/observe/host-temperature.yaml": ("HostTemperatureNearCritical",),
+    "runbooks/observe/unit-restart.yaml": ("UnitFailed", "UnitRestartLoop"),
+    "runbooks/observe/monitoring-path.yaml": ("VictoriaMetricsDown", "HuginnDown", "AlertMailerDown", "PrometheusRemoteWriteFailing", "AlertmanagerNotReached", "HostStateStale"),
 }
 
 READ_ONLY = {

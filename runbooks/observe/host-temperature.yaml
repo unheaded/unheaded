@@ -1,0 +1,52 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: host-temperature
+  description: A sensor reads within 5 C of its critical mark (HostTemperatureNearCritical)
+  owner: zhenai
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147 (S-SEE-AND-SURVIVE Phase 7). node_exporter reads hwmon; only
+  sensors with a critical mark (node_hwmon_temp_crit_celsius) are judged.
+  East's CPU sensor (k10temp, pci0000:00_0000:00:18_3) has read 60.75 C and
+  68 C against a 70 C mark; its known load is the trace collector, which
+  used 1.99 cores on east before the S-WATCH-TRUE fix (deployed on west
+  only so far). A small case and dust do the rest.
+
+steps:
+  - name: sensors-now
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=node_hwmon_temp_celsius and on (instance, chip, sensor) node_hwmon_temp_crit_celsius' |
+        python3 -c 'import json,sys; [print(r["metric"].get("instance", "-"), r["metric"].get("chip", "-"), r["metric"].get("sensor", "-"), r["value"][1], "C") for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Every sensor that has a critical mark, now"
+
+  - name: cpu-by-cgroup
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=topk(5, rate(process_cpu_seconds_total[10m]))' |
+        python3 -c 'import json,sys; [print(r["metric"].get("job", "-"), r["metric"].get("instance", "-"), "%.2f cores" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "What burns CPU now (the heat source is almost always CPU)"
+
+  - name: east-collector
+    action: shell
+    command: |
+      ssh govan@east 'systemctl status unheaded-trace-collector --no-pager | head -5'
+    description: "On east: the trace collector's state (read only)"
+
+  - name: decide
+    action: manual
+    command: |
+      echo "Load explained (a run, the collector on east): reduce it or let it finish."
+      echo "No load: airflow (fans, dust, the case) is Stevie's hands."
+    description: "MANUAL. Nothing is stopped from this runbook"
