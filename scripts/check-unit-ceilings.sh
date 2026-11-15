@@ -40,14 +40,11 @@ done
 (( checked == 0 )) && { echo "FAIL: no unit runs a Go binary (wrong directory?)"; exit 1; }
 
 # The compose files: one line per checked service, "FAIL <file>: ..." or "ok".
+# The parser runs in a command substitution, not a process substitution, so
+# its exit code is seen: a file it cannot read or parse fails the check.
 read -r -a compose_files <<<"${COMPOSE_FILES:-docker-compose.yml monitoring/docker-compose.yml}"
 services=0
-while IFS= read -r line; do
-	case $line in
-		ok) services=$((services + 1)) ;;
-		*) echo "$line"; fail=1 ;;
-	esac
-done < <(python3 -c '
+out=$(python3 -c '
 import re, sys, yaml
 units = {"": 1, "b": 1, "k": 1024, "m": 1024**2, "g": 1024**3, "t": 1024**4}
 def compose_bytes(v):
@@ -57,11 +54,18 @@ go_units = {"B": 1, "KiB": 1024, "MiB": 1024**2, "GiB": 1024**3, "TiB": 1024**4}
 def go_bytes(v):
     m = re.fullmatch(r"(\d+(?:\.\d+)?)(B|KiB|MiB|GiB|TiB)?", str(v).strip())
     return None if not m else float(m.group(1)) * go_units[m.group(2) or "B"]
+bad = False
 for f in sys.argv[1:]:
     try:
-        services = (yaml.safe_load(open(f)) or {}).get("services") or {}
+        with open(f) as fh:
+            doc = yaml.safe_load(fh) or {}
     except OSError as e:
-        print(f"FAIL {f}: {e.strerror}"); continue
+        print(f"FAIL {f}: {e.strerror}"); bad = True; continue
+    except yaml.YAMLError as e:
+        print(f"FAIL {f}: not YAML: {str(e).splitlines()[0]}"); bad = True; continue
+    services = doc.get("services") if isinstance(doc, dict) else None
+    if not isinstance(services, dict):
+        print(f"FAIL {f}: no services mapping"); bad = True; continue
     for name, svc in services.items():
         b = svc.get("build")
         if not isinstance(b, dict) or not b.get("target"):
@@ -82,7 +86,15 @@ for f in sys.argv[1:]:
             print(f"FAIL {f}: {name} GOMEMLIMIT {g} is not below its memory limit {limit}")
         else:
             print("ok")
-' "${compose_files[@]}")
+sys.exit(1 if bad else 0)
+' "${compose_files[@]}") || { printf '%s\n' "$out" | grep '^FAIL' || true; echo "FAIL: the compose files could not be checked (${compose_files[*]})"; exit 1; }
+while IFS= read -r line; do
+	[[ -z $line ]] && continue
+	case $line in
+		ok) services=$((services + 1)) ;;
+		*) echo "$line"; fail=1 ;;
+	esac
+done <<<"$out"
 (( services == 0 )) && { echo "FAIL: no compose service built from this repository has a memory limit (wrong files?)"; exit 1; }
 (( fail )) && exit 1
 echo "OK: ${checked} Go units carry MemoryMax and GOMEMLIMIT; ${services} compose services set GOMEMLIMIT below their memory limit"
