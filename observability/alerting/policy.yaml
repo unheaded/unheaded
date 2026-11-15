@@ -83,6 +83,11 @@ promote:
       indicator and when it cannot see. One failed day is a card in Review;
       three days with no success means nobody read the card or the audit is
       blind, and no SLO shows either.
+  - alert: ZhenBackupStale
+    urgency: ticket
+    reason: >-
+      Zhen is a production application with its own data and backup scope
+      (ADR-147 decision 15 (b)); a day without a set is a ticket.
   - alert: ModuleListenerPublic
     urgency: page
     reason: >-

@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 // ERDA 5.4's partition trigger (WELL-ERDA-AUDIT-2026-10-13.md §5.4).
@@ -72,9 +74,11 @@ func partitionVerdict(now time.Time, rows, bytes int64, oldest *time.Time, onlin
 	return v
 }
 
-// runner executes classes against the two databases and records each.
+// runner executes classes against the databases and records each.
 type runner struct {
 	app, ops    *sql.DB
+	zhen        *sql.DB // unheaded_zhen (ADR-149); nil when no class needs it or it does not exist
+	logLine     func(string, ...any)
 	dryRun      bool
 	batch       int
 	stmtTimeout time.Duration
@@ -83,10 +87,63 @@ type runner struct {
 }
 
 func (r *runner) db(name string) *sql.DB {
-	if name == dbApp {
+	switch name {
+	case dbApp:
 		return r.app
+	case dbZhen:
+		return r.zhen
 	}
 	return r.ops
+}
+
+// heldCards returns the cards a Zhen run names: such a card is never
+// purged (runs are never deleted, and the run is the record). read is the
+// query on unheaded_zhen. No Zhen database or no runs table means the module
+// is not installed (or not yet moved, ADR-149): no card is held, with one
+// line in logf. Any other failure is an error, never an empty hold.
+func heldCards(ctx context.Context, read func(context.Context) ([]string, error), logf func(string, ...any)) ([]string, error) {
+	ids, err := read(ctx)
+	if err == nil {
+		return ids, nil
+	}
+	msg := err.Error()
+	if strings.Contains(msg, "does not exist") && (strings.Contains(msg, `database "`) || strings.Contains(msg, "zhen_agent_runs")) {
+		logf("well-retention: no Zhen runs to hold cards (%s): the Zhen module is not installed here", msg)
+		return []string{}, nil
+	}
+	return nil, fmt.Errorf("read the cards Zhen runs name: %w", err)
+}
+
+// logf writes one diagnostic line (stderr in main); quiet when unset.
+func (r *runner) logf(format string, args ...any) {
+	if r.logLine != nil {
+		r.logLine(format, args...)
+	}
+}
+
+// readHeldCards is heldCards' query on r.zhen; nil r.zhen reads as a missing
+// database.
+func (r *runner) readHeldCards(ctx context.Context) ([]string, error) {
+	if r.zhen == nil {
+		return nil, fmt.Errorf(`database "%s" does not exist (not connected)`, dbZhen)
+	}
+	rows, err := r.zhen.QueryContext(ctx, `SELECT DISTINCT card_id FROM zhen_agent_runs`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	if ids == nil {
+		ids = []string{}
+	}
+	return ids, rows.Err()
 }
 
 // runClass runs one class and records it in retention_runs; a failure to
@@ -119,17 +176,32 @@ func (r *runner) do(ctx context.Context, c Class, res *result) error {
 	}
 	cut := cutoff(res.Started, c.OnlineDays)
 	res.Cutoff = &cut
+	var held []string
+	if tg.heldCards {
+		ids, err := heldCards(ctx, r.readHeldCards, r.logf)
+		if err != nil {
+			return err
+		}
+		held = ids
+	}
 	var err error
-	if c.Action == actionPurgeFunction {
+	switch {
+	case c.Action == actionPurgeFunction:
 		err = db.QueryRowContext(ctx, tg.count).Scan(&res.Eligible)
-	} else {
+	case tg.heldCards:
+		err = db.QueryRowContext(ctx, tg.count, cut, pq.Array(held)).Scan(&res.Eligible)
+	default:
 		err = db.QueryRowContext(ctx, tg.count, cut).Scan(&res.Eligible)
 	}
 	if err != nil {
 		return fmt.Errorf("count: %w", err)
 	}
 	if tg.held != "" {
-		if err := db.QueryRowContext(ctx, tg.held, cut).Scan(&res.Held); err != nil {
+		args := []any{cut}
+		if tg.heldCards {
+			args = append(args, pq.Array(held))
+		}
+		if err := db.QueryRowContext(ctx, tg.held, args...).Scan(&res.Held); err != nil {
 			return fmt.Errorf("count held: %w", err)
 		}
 	}
@@ -149,7 +221,7 @@ func (r *runner) do(ctx context.Context, c Class, res *result) error {
 			return tx.QueryRowContext(ctx, tg.purgeFn).Scan(&res.Deleted)
 		})
 	case actionArchivePurge:
-		return r.archivePurge(ctx, db, c, tg, cut, res)
+		return r.archivePurge(ctx, db, c, tg, cut, held, res)
 	}
 	return fmt.Errorf("action %q has no executor", c.Action)
 }
@@ -231,13 +303,13 @@ type archived struct {
 // retention_archive and commits the copy, and only then commits the
 // delete. A failed copy rolls the delete back; a failed delete commit
 // leaves extra copies of rows that are still live, never a lost row.
-func (r *runner) archivePurge(ctx context.Context, db *sql.DB, c Class, tg target, cut time.Time, res *result) error {
+func (r *runner) archivePurge(ctx context.Context, db *sql.DB, c Class, tg target, cut time.Time, held []string, res *result) error {
 	for {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
-		batch, err := r.deleteBatch(ctx, tx, tg, cut)
+		batch, err := r.deleteBatch(ctx, tx, tg, cut, held)
 		if err != nil {
 			_ = tx.Rollback() // the batch error is the one returned
 			return fmt.Errorf("archive batch after %d rows: %w", res.Deleted, err)
@@ -264,11 +336,15 @@ func (r *runner) archivePurge(ctx context.Context, db *sql.DB, c Class, tg targe
 	}
 }
 
-func (r *runner) deleteBatch(ctx context.Context, tx *sql.Tx, tg target, cut time.Time) ([]archived, error) {
+func (r *runner) deleteBatch(ctx context.Context, tx *sql.Tx, tg target, cut time.Time, held []string) ([]archived, error) {
 	if err := r.setTimeout(ctx, tx); err != nil {
 		return nil, err
 	}
-	rows, err := tx.QueryContext(ctx, tg.archive, cut, r.batch)
+	args := []any{cut, r.batch}
+	if tg.heldCards {
+		args = append(args, pq.Array(held))
+	}
+	rows, err := tx.QueryContext(ctx, tg.archive, args...)
 	if err != nil {
 		return nil, err
 	}

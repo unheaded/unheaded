@@ -23,7 +23,8 @@
 // WELL_PASSWORD or WELL_PASSWORD_FILE (not both), else the systemd
 // credential well-password (no default, FND-007),
 // WELL_SSLMODE (require; disable only for this host), WELL_APP_DB
-// (unheaded_app), WELL_OPS_DB (unheaded_ops). -metrics-dir (or
+// (unheaded_app), WELL_OPS_DB (unheaded_ops), WELL_ZHEN_DB (unheaded_zhen,
+// ADR-149). -metrics-dir (or
 // WELL_METRICS_DIR) writes well_retention.prom for node_exporter.
 //
 // Exit: 0 every class done, 1 a class or the connection failed, 2 usage
@@ -154,11 +155,13 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		SSLMode:     getenv("WELL_SSLMODE", "require"),
 		SSLRootCert: getenv("WELL_SSLROOTCERT", ""),
 	}
-	appCfg, opsCfg := base, base
+	appCfg, opsCfg, zhenCfg := base, base, base
 	appCfg.DBName = getenv("WELL_APP_DB", dbApp)
 	opsCfg.DBName = getenv("WELL_OPS_DB", dbOps)
+	zhenCfg.DBName = getenv("WELL_ZHEN_DB", dbZhen)
 
-	r := &runner{dryRun: *dryRun, batch: *batch, stmtTimeout: *stmtTimeout, now: time.Now, host: hostName()}
+	r := &runner{dryRun: *dryRun, batch: *batch, stmtTimeout: *stmtTimeout, now: time.Now, host: hostName(),
+		logLine: func(format string, args ...any) { fmt.Fprintf(stderr, format+"\n", args...) }}
 	if r.runID, err = newRunID(); err != nil {
 		fmt.Fprintf(stderr, "well-retention: %v\n", err)
 		return 1
@@ -177,6 +180,21 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				return 1
 			}
 			defer r.app.Close()
+			break
+		}
+	}
+	// unheaded_zhen (ADR-149) when a class lives there or holds cards by
+	// Zhen's runs. A Well without the Zhen module has no such database:
+	// its classes fail ("no connection") and no card is held.
+	for _, c := range classes {
+		tg := targets[c.Table]
+		if tg.db == dbZhen || tg.heldCards {
+			if r.zhen, err = database.Connect(ctx, zhenCfg); err != nil {
+				fmt.Fprintf(stderr, "well-retention: %s: %v (Zhen classes skipped; no card held by a run)\n", zhenCfg.DBName, err)
+				r.zhen = nil
+			} else {
+				defer r.zhen.Close()
+			}
 			break
 		}
 	}

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Zhen module's backup set every night, 30 minutes after the platform's
+# (unheaded-well-backup.timer, 03:30), while the switch is on (ADR-149).
+
+[Unit]
+Description=Zhen module: nightly backup set of unheaded_zhen
+PartOf=unheaded-zhen.target
+
+[Timer]
+OnCalendar=*-*-* 04:00:00
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=unheaded-zhen.target

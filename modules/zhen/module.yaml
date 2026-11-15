@@ -11,6 +11,8 @@ units:
   - {unit: unheaded-zhen-app.service,      memory_max: 3G,   tasks_max: 256}
   - {unit: unheaded-llama.service,         memory_max: 6G,   tasks_max: 256}
 ports: [8081, 20103, 20111, 20112]
+# Timers in the switch: they fire only while the module is on.
+timers: [unheaded-zhen-backup.timer]
 database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 12}
 # Per host, private prefixes only (pkg/modules.ParseBindAllow, ADR-149): the
 # addresses a Zhen listener may hold besides loopback. The house LAN address

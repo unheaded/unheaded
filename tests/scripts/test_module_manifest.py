@@ -81,3 +81,14 @@ def test_bind_allow_is_private_and_matches_the_dropins():
             vals = [ln.split("=", 2)[2] for ln in conf.read_text(encoding="utf-8").splitlines()
                     if ln.startswith("Environment=UNHEADED_MODULE_BIND_ALLOW=")]
             assert vals == [want], (conf, vals, want)
+
+
+def test_timers_belong_to_the_switch():
+    for name in manifest().get("timers") or []:
+        timer = UNITS / name
+        assert timer.is_file(), name
+        lines = timer.read_text(encoding="utf-8").splitlines()
+        assert "PartOf=unheaded-zhen.target" in lines and "WantedBy=unheaded-zhen.target" in lines, name
+        service = UNITS / name.replace(".timer", ".service")
+        assert service.is_file(), service
+        assert "PartOf=unheaded-zhen.target" in service.read_text(encoding="utf-8").splitlines(), service

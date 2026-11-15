@@ -49,3 +49,18 @@ groups:
           summary: "Zhen's scheduler has not ticked for over 15 minutes"
           description: "zhen-agentd still answers /metrics but its last scheduler tick is over 15 minutes old: scheduled runbooks are not running (the ticker is stuck; the daemon is up)"
           runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
+
+      # Zhen's own backup set (ADR-149, D6): unheaded-zhen-backup.timer runs
+      # nightly while the switch is on and writes zhen_backup.prom. A day
+      # and two hours without a set is stale.
+      - alert: ZhenBackupStale
+        expr: |
+          time() - max by (host) (unheaded_zhen_backup_last_success_timestamp_seconds) > 26 * 3600
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Zhen's database has had no backup set for over a day"
+          description: "No complete set of unheaded_zhen from unheaded-zhen-backup.service for 26 hours: read journalctl -u unheaded-zhen-backup and /srv/backups/unheaded-zhen/LATEST"
+          runbook_url: "wiki/Well-Backups.md"
