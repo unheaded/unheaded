@@ -123,6 +123,60 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
+// copyRules puts the repo's hand-written rules into a temp tree.
+func copyRules(t *testing.T, root string) {
+	t.Helper()
+	matches, _ := filepath.Glob(filepath.Join("..", "..", rulesDir, "*.yml"))
+	for _, m := range matches {
+		b, _ := os.ReadFile(m)
+		_ = os.WriteFile(filepath.Join(root, rulesDir, filepath.Base(m)), b, 0o644)
+	}
+}
+
+// mailer.run_days (ADR-147 decision 2): the generator knows the block and
+// refuses what the mailer refuses.
+func TestValidateRunDays(t *testing.T) {
+	block := func(day, hour int, date string) func(string) string {
+		return func(s string) string {
+			re := regexp.MustCompile(`(?m)^  timezone: .*$`)
+			if !re.MatchString(s) {
+				t.Fatalf("no mailer timezone line in policy")
+			}
+			s = regexp.MustCompile(`(?m)^  run_days:\n(    .*\n)+`).ReplaceAllString(s, "")
+			return re.ReplaceAllStringFunc(s, func(l string) string {
+				return l + "\n  run_days:\n    max_per_day: " + strconv.Itoa(day) + "\n    max_per_hour: " + strconv.Itoa(hour) + "\n    dates: [\"" + date + "\"]"
+			})
+		}
+	}
+	for _, c := range []struct {
+		name  string
+		edit  func(string) string
+		wants string
+	}{
+		{"valid", block(24, 6, "2026-12-01"), ""},
+		{"bad date", block(24, 6, "2026-13-01"), "mailer.run_days.dates"},
+		{"below normal", block(3, 3, "2026-12-01"), "at least mailer.max_per_day"},
+		{"over 50", block(51, 6, "2026-12-01"), "1..50"},
+		{"hour over day", block(24, 30, "2026-12-01"), "1..run_days.max_per_day"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			root := tree(t, c.edit, "")
+			copyRules(t, root)
+			var all []string
+			for _, e := range run(root, false) {
+				all = append(all, e.Error())
+			}
+			got := strings.Join(all, "\n")
+			if c.wants == "" && got != "" {
+				t.Fatalf("want no error, got %s", got)
+			}
+			if !strings.Contains(got, c.wants) {
+				t.Fatalf("want an error containing %q, got %q", c.wants, got)
+			}
+		})
+	}
+}
+
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
 	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")

@@ -53,6 +53,13 @@ type Policy struct {
 		MaxPerHour int    `yaml:"max_per_hour"`
 		DigestAt   string `yaml:"digest_at"`
 		Timezone   string `yaml:"timezone"`
+		// RunDays raises the caps on listed dates (ADR-147 decision 2). The
+		// mailer alone reads it; the generated files do not change with it.
+		RunDays *struct {
+			MaxPerDay  int      `yaml:"max_per_day"`
+			MaxPerHour int      `yaml:"max_per_hour"`
+			Dates      []string `yaml:"dates"`
+		} `yaml:"run_days,omitempty"`
 	} `yaml:"mailer"`
 	Page struct {
 		GroupWait      string `yaml:"group_wait"`
@@ -138,6 +145,24 @@ func (p *Policy) validate() []error {
 	}
 	if p.Mailer.MaxPerHour < 1 || p.Mailer.MaxPerHour > p.Mailer.MaxPerDay {
 		bad("mailer.max_per_hour %d: want 1..max_per_day", p.Mailer.MaxPerHour)
+	}
+	// Same rules as cmd/alert-mailer's loadRunDays.
+	if rd := p.Mailer.RunDays; rd != nil {
+		if rd.MaxPerDay < 1 || rd.MaxPerDay > 50 {
+			bad("mailer.run_days.max_per_day %d: want 1..50", rd.MaxPerDay)
+		} else if rd.MaxPerDay < p.Mailer.MaxPerDay {
+			bad("mailer.run_days.max_per_day %d: want at least mailer.max_per_day (%d)", rd.MaxPerDay, p.Mailer.MaxPerDay)
+		}
+		if rd.MaxPerHour < 1 || rd.MaxPerHour > rd.MaxPerDay {
+			bad("mailer.run_days.max_per_hour %d: want 1..run_days.max_per_day", rd.MaxPerHour)
+		} else if rd.MaxPerHour < p.Mailer.MaxPerHour {
+			bad("mailer.run_days.max_per_hour %d: want at least mailer.max_per_hour (%d)", rd.MaxPerHour, p.Mailer.MaxPerHour)
+		}
+		for _, d := range rd.Dates {
+			if _, err := time.Parse("2006-01-02", d); err != nil {
+				bad("mailer.run_days.dates %q: want YYYY-MM-DD", d)
+			}
+		}
 	}
 	if !clockRE.MatchString(p.Mailer.DigestAt) {
 		bad("mailer.digest_at %q: want HH:MM", p.Mailer.DigestAt)

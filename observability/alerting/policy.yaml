@@ -24,12 +24,11 @@
 #   curl -s localhost:19130/v1/outbox                     what the mailer sent / would send
 
 mailer:
-  # dry-run: decide and log every mail, send none. Run a week like this,
-  # read the outbox, tune, then switch to send.
-  # 2026-11-10 (Stevie): dry-run while the kingdom runs as a test cut on west.
-  # An Alertmanager silence does not hold back the daily digest; this does.
-  # Back to send at S-E1-LIVE Steps 81-83 and 102-109, with Stevie.
-  mode: dry-run
+  # dry-run: decide and log every mail, send none.
+  # 2026-11-10 (Stevie): dry-run while the kingdom ran as a test cut on west.
+  # 2026-11-15 (Stevie, ADR-147 decision 2): mail on. A stopped container and
+  # a memory kill each mail (promote: below). S-SEE-AND-SURVIVE Phase 15.
+  mode: send
   # Hard cap across everything, per calendar day in timezone. The last
   # allowed mail says so; past it nothing is sent until midnight, and the
   # next digest counts what was held back.
@@ -39,6 +38,13 @@ mailer:
   max_per_hour: 3
   digest_at: "09:00"
   timezone: America/Chicago
+  # Run days (ADR-147 decision 2): the caps above are raised on these dates
+  # (YYYY-MM-DD in timezone) so a stop mark that fires late in a load run is
+  # still mailed. Add a date before the run; delete it after.
+  run_days:
+    max_per_day: 24
+    max_per_hour: 6
+    dates: []
 
 # Alertmanager timing for urgency=page. Alertmanager passes every change in
 # the set of firing pages to the mailer within group_interval; the mailer
