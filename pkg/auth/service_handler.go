@@ -74,6 +74,16 @@ func remoteIn(remoteAddr string, allow []netip.Prefix) bool {
 	return false
 }
 
+// GatesRequest reports whether r is a source-gated request from outside
+// AnonymousFrom: AnonymousFrom is set, r's path is canonical and under one of
+// SourceGated, and r.RemoteAddr is in none of AnonymousFrom. Such a request
+// needs a credential whatever else would open it. A caller that serves some
+// reads before the chain (dashboard-backend's UI) asks this first.
+func (routes ServiceRoutes) GatesRequest(r *http.Request) bool {
+	return len(routes.AnonymousFrom) > 0 && canonicalPath(r.URL) &&
+		underAny(r.URL.Path, routes.SourceGated) && !remoteIn(r.RemoteAddr, routes.AnonymousFrom)
+}
+
 // writeMethods are what a write role guards wherever no policy is more
 // specific.
 var writeMethods = []string{http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch}
@@ -143,8 +153,10 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 
 	open := append([]string(nil), routes.OpenPaths...)
 	reads := append([]string(nil), routes.OpenReads...)
-	anonymous := append([]netip.Prefix(nil), routes.AnonymousFrom...)
-	gated := append([]string(nil), routes.SourceGated...)
+	gate := ServiceRoutes{
+		AnonymousFrom: append([]netip.Prefix(nil), routes.AnonymousFrom...),
+		SourceGated:   append([]string(nil), routes.SourceGated...),
+	}
 	strictAuthn := Middleware(authed) // no SkipAuthPaths: /metrics included
 	return func(h http.Handler) http.Handler {
 		guarded := authn(rbac(h))
@@ -153,7 +165,7 @@ func NewServiceChain(cfg ServiceAuthConfig, routes ServiceRoutes) (func(http.Han
 			// A source-gated route from outside AnonymousFrom always needs a
 			// credential. A non-canonical path is never opened below, so it
 			// needs one anyway.
-			if len(anonymous) > 0 && canonicalPath(r.URL) && underAny(r.URL.Path, gated) && !remoteIn(r.RemoteAddr, anonymous) {
+			if gate.GatesRequest(r) {
 				strict.ServeHTTP(w, r)
 				return
 			}

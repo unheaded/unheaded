@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"strings"
 	"testing"
 
@@ -94,6 +95,53 @@ func TestAuthBFF_KanbanBoardLogin(t *testing.T) {
 	if c := kanbanDo(h, http.MethodPost, "/api/v1/tasks", task("by-dash"),
 		map[string]string{"Authorization": f.Bearer("dashboard-backend", "kanban-app")}, nil).Code; !authtest.Authorized(c) {
 		t.Fatalf("dashboard-backend token write: %d", c)
+	}
+}
+
+// S-WEST-GROUND Phase 3 (ADR-147 decision 16): with AUTH_ANONYMOUS_FROM set,
+// the task list and /metrics need a credential from outside those networks;
+// the page itself still loads so a person can log in.
+func TestTaskListNeedsCredentialFromOutside(t *testing.T) {
+	t.Setenv("AUTH_ISSUER_URL", "")
+	t.Setenv("RATE_LIMIT_ENABLED", "false")
+	f := authtest.New(t, "kanban-app", "dashboard-backend")
+	s := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	t.Cleanup(s.cancel)
+	cfg := f.Config("kanban-app", "dashboard-backend")
+	cfg.AnonymousFrom = []netip.Prefix{netip.MustParsePrefix("127.0.0.0/8")}
+	h, err := s.buildHandler(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	from := func(target, remote, authz string) int {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		req.RemoteAddr = remote
+		if authz != "" {
+			req.Header.Set("Authorization", authz)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec.Code
+	}
+	cases := []struct {
+		target, remote string
+		want           int
+	}{
+		{"/api/v1/tasks", "192.168.69.50:1", http.StatusUnauthorized},
+		{"/api/v1/tasks", "127.0.0.1:1", http.StatusOK},
+		{"/", "192.168.69.50:1", http.StatusOK},
+		{"/metrics", "192.168.69.50:1", http.StatusUnauthorized},
+		{"/metrics", "127.0.0.1:1", http.StatusOK},
+		{"/health", "192.168.69.50:1", http.StatusOK},
+	}
+	for _, c := range cases {
+		if got := from(c.target, c.remote, ""); got != c.want {
+			t.Errorf("GET %s from %s: %d, want %d", c.target, c.remote, got, c.want)
+		}
+	}
+	// A service token from outside still reads the task list.
+	if got := from("/api/v1/tasks", "192.168.69.50:1", f.Bearer("dashboard-backend", "kanban-app")); got != http.StatusOK {
+		t.Errorf("GET /api/v1/tasks from the LAN with a token: %d, want 200", got)
 	}
 }
 
