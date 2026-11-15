@@ -151,3 +151,33 @@ So items 12 to 20 are not settled in one pass by one reader. Each has an owner a
 
 **Status:** unchanged, Proposed (parked).
 
+## Update 2026-11-15 (a project, worked by a round table)
+
+Stevie, verbatim:
+
+> all 3, deep dive analaysisd for ADR 147 will require a full blown multi skilled  /unheaded-scientist /unheaded-architect /unheaded-archimedes /unheaded-librarian /anthropic-skills:unheaded-developer /anthropic-skills:unheaded-micromanager /anthropic-skills:unheaded-busboy round table to then forge a /anthropic-skills:unheaded-warmonger battle plan. This will be a project not a quick task - detailed planned and coordinated steps, documentation, recommendations, notations, observations, and fixes. we don't need anything flash or wordy - we are going for a fine tuned machine(application stack) at the end of the day not a pretty gui - we have spent a lot of work on getting the UI going but it's not my passion - system engineering and network enginering are - unheaded and bellistech should showcase that and be a reflection of that.
+
+> probaly include /anthropic-skills:unheaded-blackmage too
+
+**Item 13 is answered: all three.** The load is 80 to 90% of CPU, of memory and of disk throughput at once. ("all 3" is read as the answer to item 13; if it meant something else, this line is corrected by a dated note.)
+
+**What the project is.** Not a task and not one sprint. Its outputs are coordinated steps, a record of observations and notations as they are made, recommendations with the number behind each, and fixes. Its end is a tuned machine: the application stack and the two hosts under it. No new interface is built for it; results are read from the metrics that exist and from a terminal. Systems engineering and network engineering are what Unheaded and the bellistech programs are meant to show, so the hosts, the kernel, storage and the network between east and west are in scope as much as the services. The writing is plain: tables and numbers, no more words than the reading needs.
+
+**The table.** This replaces the owner table in the update above.
+
+| Skill | Its part |
+|---|---|
+| Scientist | The experiment (items 13, 14, 16): what is held fixed, what is varied, how the load is stepped to 80 to 90% of all three, how long a run must be to tell a change from noise, the pass marks |
+| Archimedes | The numbers: what 80 to 90% is in units on each host (cores, bytes, IOPS, MB/s), a capacity model per service, run length and variance, growth forecasts; every figure with its bounds and the command that made it |
+| Architect | The hosts and the network (items 15, 17, 18, 20): storage layout, kernel and cgroup settings, the link, BGP and WireGuard between east and west, what "cluster" must prove, the rails, which lab |
+| Developer | The load and the code (items 12, 19, and the Go runtime in 17): clients that drive each real application, the generators, runtime settings measured per service, the fixes the run turns up |
+| BlackMage | The run as an attack: what breaks first, what a load can exhaust or amplify, whether limits, alerts and security controls still hold at 90%, whether the load can leave its rails |
+| Micromanager | Items 1 to 11 in order, one reliability row per service (item 8), and the lists of what must be true to start, to continue and to call it done |
+| Librarian | The record: where observations, notations, recommendations and fixes are written as they happen (this ADR, a progress file, the wiki for facts about our hosts, vor sheets for general system knowledge), and that every document says the same thing |
+| Busboy | The handoffs: who waits on whom, and what else on the hosts the project must not disturb (the log store week, the attended east steps, the larger lab) |
+| Warmonger | The battle plan, forged last from the table's answers, on Stevie's word |
+
+Not named by Stevie and so not at the table: Erda. The database part of item 17 sits with Architect unless he adds her.
+
+**Status:** unchanged, Proposed (parked). No load run, nothing changed on a host.
+
