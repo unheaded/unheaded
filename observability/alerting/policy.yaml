@@ -83,6 +83,15 @@ promote:
       indicator and when it cannot see. One failed day is a card in Review;
       three days with no success means nobody read the card or the audit is
       blind, and no SLO shows either.
+  - alert: ModuleListenerPublic
+    urgency: page
+    reason: >-
+      ADR-147 decision 15 (c): a module is never reachable from the public
+      side; the guard saw it happen.
+  - alert: ModuleListenerGuardNotRunning
+    urgency: ticket
+    reason: >-
+      The guard above is the only live check of that rule.
   - alert: HealthSweepNotSucceeding
     urgency: ticket
     reason: >-

@@ -1,0 +1,48 @@
+# promtool test rules modules_test.yml (from this directory)
+rule_files:
+  - ../modules.yml
+evaluation_interval: 1m
+tests:
+  # The guard sees nothing public: quiet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_module_listener_public_total{job="huginn",host="west",module="zhen"}'
+        values: '0x10'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: ModuleListenerPublic
+        exp_alerts: []
+
+  # One public listener for two minutes: it fires past the 1m hold.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_module_listener_public_total{job="huginn",host="west",module="zhen"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: ModuleListenerPublic
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, host: west, module: zhen}
+            exp_annotations:
+              summary: "A module listens where the public side can reach it"
+              description: "Read unheaded_module_listener_public for the port and address; stop the module by its switch (systemctl disable --now unheaded-<module>.target) before anything else"
+              runbook_url: "runbooks/security/module-listener-public.yaml"
+
+  # The guard last ran at t=0 and stopped: quiet at 20 minutes, firing at 45
+  # (30 minutes stale plus the 10m hold).
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_module_listener_guard_last_run_timestamp_seconds{job="huginn",host="west"}'
+        values: '0x50'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: ModuleListenerGuardNotRunning
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: ModuleListenerGuardNotRunning
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "The module listener guard has not run for over 30 minutes"
+              description: "unheaded-module-guard.timer stopped writing module_listeners.prom: a module listener on a public address would go unseen. Read systemctl list-timers unheaded-module-guard.timer and journalctl -u unheaded-module-guard"
+              runbook_url: "runbooks/security/module-listener-public.yaml"

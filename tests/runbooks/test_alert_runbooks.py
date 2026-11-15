@@ -36,13 +36,15 @@ RUNBOOKS = {
     # the alerts again when the rules return with their producer.
     "runbooks/infra/heimdall-drift-publish-failing.yaml": (),
     "runbooks/infra/heimdall-hook-events-lost.yaml": (),
+    # A module listener on the public side, and the guard that sees it (ADR-149).
+    "runbooks/security/module-listener-public.yaml": ("ModuleListenerPublic", "ModuleListenerGuardNotRunning"),
     # The ci-develop SLO's own runbook (policy.yaml runbook:), no hand rule.
     "runbooks/observe/ci-red.yaml": (),
 }
 
 READ_ONLY = {
     "curl", "python3", "ping", "ssh", "docker", "systemctl", "journalctl",
-    "grep", "tail", "head", "jq", "bpftool", "echo", "ls", "cat", "date", "wc",
+    "grep", "tail", "head", "jq", "bpftool", "echo", "ls", "cat", "date", "wc", "ss",
 }
 CHANGES_STATE = re.compile(r"\b(restart|start|stop|kill|enable|disable|rm|chmod|chown|up -d|down)\b")
 
@@ -81,7 +83,10 @@ def test_state_changes_are_manual(path):
 
 @pytest.mark.parametrize("path", sorted(RUNBOOKS))
 def test_named_alerts_exist_and_point_here(path):
-    rules = "\n".join(p.read_text() for p in (harness.REPO / "monitoring/prometheus/rules").glob("*.yml"))
+    # A module's rules (ADR-149) live under modules/<name>/prometheus/rules.
+    files = sorted((harness.REPO / "monitoring/prometheus/rules").glob("*.yml"))
+    files += sorted(harness.REPO.glob("modules/*/prometheus/rules/*.yml"))
+    rules = "\n".join(p.read_text() for p in files)
     for alert in RUNBOOKS[path]:
         m = re.search(r"- alert: " + alert + r"\n(?:(?!\n      - (?:alert|record):).)*", rules, re.DOTALL)
         assert m, f"no alert {alert}"

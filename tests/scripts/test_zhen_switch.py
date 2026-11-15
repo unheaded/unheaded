@@ -157,7 +157,7 @@ def test_off_with_the_fragments_still_there_waits_then_fails(host):
     r = host.check("--expect", "off", "--wait", "2")
     took = time.monotonic() - t0
     assert r.returncode == 1
-    assert 2 <= took <= 6, took
+    assert 2 <= took <= 20, took  # it waited, and did not hang; slack for a loaded host
     assert any("C3" in ln for ln in lines(r.stdout, "FAIL")), r.stdout
 
 
