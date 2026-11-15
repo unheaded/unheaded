@@ -103,6 +103,19 @@ type ClientOption func(*clientOptions)
 type clientOptions struct {
 	minter     tokenMinter
 	insecureOK bool
+	// pollStreams lets a client with no gRPC address stream by HTTP
+	// polling (WithHTTPPollStreams).
+	pollStreams bool
+}
+
+// WithHTTPPollStreams lets a client built with no gRPC address (NewClient,
+// NewClientWithTLS) stream by HTTP polling. Without it StreamMessages on
+// such a client returns ErrNoStreamTransport: a first-party service streams
+// over gRPC and polls only while gRPC is down (ADR-147 Phase 6; a policy
+// test refuses this option under cmd/ and services/*/cmd/). Tools that must
+// poll ask for it.
+func WithHTTPPollStreams() ClientOption {
+	return func(o *clientOptions) { o.pollStreams = true }
 }
 
 // WithServiceToken makes the client present m's tokens instead of the

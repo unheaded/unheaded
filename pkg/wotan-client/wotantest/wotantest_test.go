@@ -15,7 +15,7 @@ import (
 // publishes and streams through the fake.
 func TestFake_LateStartRoundTrip(t *testing.T) {
 	f := Reserve(t)
-	c, err := wotanClient.NewClient(f.Addr)
+	c, err := wotanClient.NewClient(f.Addr, wotanClient.WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}

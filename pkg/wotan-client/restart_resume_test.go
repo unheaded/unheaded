@@ -381,7 +381,7 @@ func TestTopicStreamClient_LiveStartHTTPFallback(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"messages": msgs, "last_seq": 8})
 	}))
 	defer ts.Close()
-	hc, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	hc, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"), WithHTTPPollStreams())
 	c := &TopicStreamClient{httpClient: hc, liveStart: true}
 	as := &activeStream{sc: newSafeChannel(10)}
 	as.lastSeq.Store(-1)
@@ -605,7 +605,7 @@ func receiveN(t *testing.T, ch <-chan *Message, n int, d time.Duration) {
 func TestHTTPPollers_FullPageFetchesOnAtOnce(t *testing.T) {
 	const n = 350 // four pages: 2 s at one page per interval
 	t.Run("Client", func(t *testing.T) {
-		c, _ := NewClient(pagingWotan(t, "traces.packet", n))
+		c, _ := NewClient(pagingWotan(t, "traces.packet", n), WithHTTPPollStreams())
 		t.Cleanup(func() { c.Close() })
 		c.subscribers["traces.packet"] = &Subscriber{SubscriberID: "s", Status: "approved"}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -617,7 +617,7 @@ func TestHTTPPollers_FullPageFetchesOnAtOnce(t *testing.T) {
 		receiveN(t, ch, n, 1200*time.Millisecond)
 	})
 	t.Run("TopicStreamClient fallback", func(t *testing.T) {
-		httpc, _ := NewClient(pagingWotan(t, "traces.packet", n))
+		httpc, _ := NewClient(pagingWotan(t, "traces.packet", n), WithHTTPPollStreams())
 		lis := startMockServer(t, newMockServer())
 		client, err := newTopicStreamClientWithDialer(lis, WithHTTPFallback(httpc))
 		if err != nil {
@@ -645,7 +645,7 @@ func TestHTTPPollers_FullPageFetchesOnAtOnce(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{"messages": msgs, "last_seq": pollPageSize})
 		}))
 		t.Cleanup(hs.Close)
-		c, _ := NewClient(strings.TrimPrefix(hs.URL, "http://"))
+		c, _ := NewClient(strings.TrimPrefix(hs.URL, "http://"), WithHTTPPollStreams())
 		t.Cleanup(func() { c.Close() })
 		c.subscribers["t"] = &Subscriber{SubscriberID: "s", Status: "approved"}
 		ctx, cancel := context.WithCancel(context.Background())
@@ -692,7 +692,7 @@ func TestGetMessages_WotanErrorIsNotEmpty(t *testing.T) {
 	t.Run("TopicStreamClient with fallback", func(t *testing.T) {
 		srv := newMockServer()
 		srv.streamErr = status.Error(codes.Unavailable, "wotan down")
-		httpc, _ := NewClient(pagingWotan(t, "tasks.created", 3))
+		httpc, _ := NewClient(pagingWotan(t, "tasks.created", 3), WithHTTPPollStreams())
 		client, err := newTopicStreamClientWithDialer(startMockServer(t, srv), WithHTTPFallback(httpc))
 		if err != nil {
 			t.Fatal(err)

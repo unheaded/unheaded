@@ -770,9 +770,15 @@ func streamCursor(requested, cursor, got int64) int64 {
 	return cursor
 }
 
-// StreamMessages opens a channel for receiving messages.
-// Uses the active transport: gRPC (primary) or HTTP polling (circuit-breaker fallback).
-// The channel will be closed when context is cancelled.
+// StreamMessages opens a channel for receiving messages on topic, closed
+// when ctx is cancelled or the client closes.
+//
+// With a gRPC address (NewClientWithGRPC) the stream is a gRPC stream. If
+// gRPC fails it polls over HTTP from the last delivered seq, and it returns
+// to gRPC from the last delivered seq when the re-probe answers: one loop
+// for the stream's whole life (streamLoop). Without a gRPC address it
+// returns ErrNoStreamTransport, unless the client was built
+// WithHTTPPollStreams; then it polls for good.
 func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Message, error) {
 	if topic == "" {
 		return nil, errors.New("topic cannot be empty")
@@ -788,73 +794,21 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 	if sub.Status != "approved" {
 		return nil, ErrSubscriptionPending
 	}
-
-	// Use gRPC if it's the active transport and configured
-	c.transportMu.RLock()
-	activeTransport := c.transport
-	c.transportMu.RUnlock()
-
-	if activeTransport == TransportGRPC && c.grpcAddr != "" {
-		grpcCl, err := c.getOrCreateGRPCClient()
-		if err == nil {
-			_, _ = grpcCl.Subscribe(ctx, topic, sub.DisplayName)
-			ch, err := grpcCl.StreamMessages(ctx, topic)
-			if err == nil {
-				sc := newSafeChannel(100)
-				c.chanMu.Lock()
-				c.channels[topic] = sc
-				c.chanMu.Unlock()
-				go c.relayGRPC(ctx, topic, ch, sc)
-				return sc.ch, nil
-			}
-		}
-		// gRPC failed at runtime — trip circuit breaker, degrade to HTTP
-		c.degradeToHTTP()
+	if c.grpcAddr == "" && !collectOptions(c.opts).pollStreams {
+		return nil, ErrNoStreamTransport
 	}
 
-	// HTTP polling — either primary (no gRPC configured) or circuit-breaker fallback
 	sc := newSafeChannel(100)
-
 	c.chanMu.Lock()
 	c.channels[topic] = sc
 	c.chanMu.Unlock()
 
-	go c.pollMessages(ctx, topic, sc)
+	if c.grpcAddr == "" {
+		go c.pollMessages(ctx, topic, sc)
+		return sc.ch, nil
+	}
+	go c.streamLoop(ctx, topic, sub.DisplayName, sc)
 	return sc.ch, nil
-}
-
-// relayGRPC forwards a gRPC stream to sc and, when the gRPC client gives up
-// on it, carries on by HTTP polling from the last seq delivered.
-//
-// The gRPC client ends a stream after maxRetries reconnects within one
-// outage (about 11 s of backoff) or on any non-transient error, and the
-// caller's channel used to close with it: a Wotan restart longer than that
-// ended a service's subscription for good (timeguru's listeners log
-// "channel closed" and return).
-func (c *Client) relayGRPC(ctx context.Context, topic string, in <-chan *Message, sc *safeChannel) {
-	var lastSeq int64
-	for msg := range in {
-		if msg == nil {
-			continue
-		}
-		if !sc.send(ctx, msg) {
-			c.endStream(topic, sc)
-			return
-		}
-		c.streamMessage(topic)
-		lastSeq = msg.Seq
-	}
-	select {
-	case <-ctx.Done():
-		c.endStream(topic, sc)
-		return
-	case <-sc.done:
-		c.endStream(topic, sc) // Close
-		return
-	default:
-	}
-	c.degradeToHTTP()
-	c.pollMessagesFrom(ctx, topic, sc, lastSeq)
 }
 
 // endStream closes sc and removes it from the channels map unless a later
@@ -902,6 +856,7 @@ func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
 		return nil, fmt.Errorf("create gRPC client: %w", err)
 	}
 	client.onStreamState = c.setStreamUp
+	client.onMessage = c.streamMessage
 	client.upAfter = c.streamUpAfterOr()
 	c.grpcClient = client
 	return client, nil
@@ -920,17 +875,21 @@ func backoff(failures int) time.Duration {
 	return delay
 }
 
-// pollMessages polls for new messages (fallback when gRPC not available).
-// Uses exponential backoff on errors: 500ms -> 1s -> 2s -> ... -> 30s max.
+// pollMessages is a stream that only polls: a client built
+// WithHTTPPollStreams with no gRPC address. Exponential backoff on errors:
+// 500ms -> 1s -> 2s -> ... -> 30s max.
 func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel) {
-	c.pollMessagesFrom(ctx, topic, sc, 0)
+	defer c.endStream(topic, sc)
+	var cursor int64
+	c.pollUntil(ctx, topic, sc, &cursor, nil)
 }
 
-// pollMessagesFrom is pollMessages resuming after seq lastSeq.
-func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeChannel, lastSeq int64) {
-	// Remove from the channels map so Close() won't try again.
-	defer c.endStream(topic, sc)
-
+// pollUntil polls topic from *cursor, delivering to sc and advancing
+// *cursor, until ctx ends or sc closes (false) or back reports true before a
+// poll (true: the caller resumes gRPC from *cursor). back nil polls for
+// good. Every poll counts on unheaded_wotan_client_polls_total.
+func (c *Client) pollUntil(ctx context.Context, topic string, sc *safeChannel, cursor *int64, back func() bool) bool {
+	c.setStreamTransport(topic, streamPoll)
 	var consecutiveFailures int
 
 	timer := time.NewTimer(pollBackoffMin)
@@ -939,14 +898,18 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return false
 		case <-sc.done:
 			// Close closed the channel. Without this a poller on a quiet
 			// topic noticed only when a message came, and otherwise kept
 			// polling Wotan every 500 ms for as long as its ctx lived.
-			return
+			return false
 		case <-timer.C:
-			msgs, serverLast, err := c.getMessagesPage(ctx, topic, lastSeq, pollPageSize)
+			if back != nil && back() {
+				return true
+			}
+			wotanClientPolls.WithLabelValues(topic).Inc()
+			msgs, serverLast, err := c.getMessagesPage(ctx, topic, *cursor, pollPageSize)
 			if err != nil {
 				if ctx.Err() == nil {
 					c.setStreamUp(topic, false)
@@ -959,22 +922,22 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 			// is a live stream, messages or not.
 			c.setStreamUp(topic, true)
 			consecutiveFailures = 0
-			lastSeq = nextCursor(lastSeq, serverLast)
-			polledFrom := lastSeq
+			*cursor = nextCursor(*cursor, serverLast)
+			polledFrom := *cursor
 			for _, msg := range msgs {
 				// Never deliver at or below the cursor, whatever the server sent.
-				if msg == nil || msg.Seq <= lastSeq {
+				if msg == nil || msg.Seq <= *cursor {
 					continue
 				}
 				if !sc.send(ctx, msg) {
-					return
+					return false
 				}
 				c.streamMessage(topic)
-				lastSeq = msg.Seq
+				*cursor = msg.Seq
 			}
 			// A full page that moved the cursor: more are waiting. (One
 			// that did not is a server ignoring after_seq; no tight loop.)
-			if len(msgs) >= pollPageSize && lastSeq > polledFrom {
+			if len(msgs) >= pollPageSize && *cursor > polledFrom {
 				timer.Reset(0)
 			} else {
 				timer.Reset(pollBackoffMin)

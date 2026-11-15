@@ -247,8 +247,8 @@ func TestHealthServer_HTTPHealthEndpoint_DegradedFields(t *testing.T) {
 	if resp.Service != "svc-degraded" {
 		t.Errorf("service = %q, want svc-degraded", resp.Service)
 	}
-	if !resp.GRPC {
-		t.Error("GRPC should be true")
+	if resp.GRPC != nil {
+		t.Errorf("GRPC = %v, want null: nothing set it (ADR-147, Developer D18)", *resp.GRPC)
 	}
 	if resp.HTTP {
 		t.Error("HTTP should be false")

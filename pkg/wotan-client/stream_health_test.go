@@ -154,7 +154,7 @@ func TestStreamHealth_HTTPPollingFollowsWotan(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"messages": []any{}, "last_seq": 0})
 	}))
 	t.Cleanup(hs.Close)
-	c, err := NewClient(strings.TrimPrefix(hs.URL, "http://"))
+	c, err := NewClient(strings.TrimPrefix(hs.URL, "http://"), WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}

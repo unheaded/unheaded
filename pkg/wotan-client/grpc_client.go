@@ -53,6 +53,9 @@ type GRPCClient struct {
 	// or Recv). upAfter 0 means defaultStreamUpAfter.
 	onStreamState func(topic string, up bool)
 	upAfter       time.Duration
+	// onMessage, when set (by Client), hears each message a topic stream
+	// delivers (Client.Health's last message age).
+	onMessage func(topic string)
 }
 
 func (gc *GRPCClient) reportStream(topic string, up bool) {
@@ -230,7 +233,7 @@ func (gc *GRPCClient) GetMessages(ctx context.Context, topic string, afterSeq in
 		SinceSeq:     afterSeq,
 	}
 
-	stream, err := gc.client.StreamTopics(queryCtx, req)
+	stream, err := openTopicStream(queryCtx, gc.client, req)
 	if err != nil {
 		return nil, fmt.Errorf("stream topics: %w", err)
 	}
@@ -368,7 +371,7 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 		SinceSeq:     requested,
 	}
 
-	stream, err := gc.client.StreamTopics(ctx, req)
+	stream, err := openTopicStream(ctx, gc.client, req)
 	if err != nil {
 		if ctx.Err() == nil {
 			gc.reportStream(topic, false)
@@ -422,6 +425,9 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 			return delivered, ctx.Err()
 		}
 		delivered++
+		if gc.onMessage != nil {
+			gc.onMessage(topic)
+		}
 	}
 }
 

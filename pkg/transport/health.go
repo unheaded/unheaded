@@ -24,8 +24,11 @@ type HealthServer struct {
 	ServiceName string
 	mu          sync.RWMutex
 	status      HealthStatus
-	grpcOK      bool
-	httpOK      bool
+	// grpcOK is nil until SetGRPCStatus is called: a server nobody told
+	// about gRPC says nothing ("grpc": null) instead of claiming it
+	// (ADR-147, Developer D18; it said true by default).
+	grpcOK *bool
+	httpOK bool
 }
 
 // NewHealthServer creates a new health server for the named service.
@@ -33,7 +36,6 @@ func NewHealthServer(serviceName string) *HealthServer {
 	return &HealthServer{
 		ServiceName: serviceName,
 		status:      StatusHealthy,
-		grpcOK:      true,
 		httpOK:      true,
 	}
 }
@@ -49,7 +51,7 @@ func (h *HealthServer) SetStatus(status HealthStatus) {
 func (h *HealthServer) SetGRPCStatus(ok bool) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	h.grpcOK = ok
+	h.grpcOK = &ok
 	h.updateStatus()
 }
 
@@ -62,11 +64,13 @@ func (h *HealthServer) SetHTTPStatus(ok bool) {
 }
 
 // updateStatus derives status from transport states. Must be called with lock held.
+// An unknown gRPC state is not a failure.
 func (h *HealthServer) updateStatus() {
+	grpcUp := h.grpcOK == nil || *h.grpcOK
 	switch {
-	case h.grpcOK && h.httpOK:
+	case grpcUp && h.httpOK:
 		h.status = StatusHealthy
-	case !h.grpcOK && !h.httpOK:
+	case !grpcUp && !h.httpOK:
 		h.status = StatusDown
 	default:
 		h.status = StatusDegraded
@@ -84,7 +88,7 @@ func (h *HealthServer) Status() HealthStatus {
 type healthResponse struct {
 	Status  string `json:"status"`
 	Service string `json:"service"`
-	GRPC    bool   `json:"grpc"`
+	GRPC    *bool  `json:"grpc"` // null until the service sets it
 	HTTP    bool   `json:"http"`
 }
 
@@ -98,7 +102,11 @@ func (h *HealthServer) RegisterHTTP(mux *http.ServeMux) {
 func (h *HealthServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	h.mu.RLock()
 	status := h.status
-	grpc := h.grpcOK
+	var grpc *bool
+	if h.grpcOK != nil {
+		v := *h.grpcOK
+		grpc = &v
+	}
 	httpOK := h.httpOK
 	h.mu.RUnlock()
 

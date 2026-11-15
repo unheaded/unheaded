@@ -81,7 +81,7 @@ func (fw *fakeWotan) serve(w http.ResponseWriter, r *http.Request) {
 // (pkg/logagg joins once at startup) were dropping logs live on 2026-09-29.
 func TestPublish_RejoinsAfterWotanRestart(t *testing.T) {
 	fw, addr := newFakeWotan(t)
-	c, err := NewClient(addr)
+	c, err := NewClient(addr, WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,7 +120,7 @@ func TestPublish_RejoinsAfterWotanRestart(t *testing.T) {
 // not a loop.
 func TestPublish_RejoinNotApproved(t *testing.T) {
 	fw, addr := newFakeWotan(t)
-	c, _ := NewClient(addr)
+	c, _ := NewClient(addr, WithHTTPPollStreams())
 	ctx := context.Background()
 	if _, err := c.Subscribe(ctx, "logs.svc.info", "svc"); err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestPublish_PendingIsRechecked(t *testing.T) {
 	newPending := func(t *testing.T) (*fakeWotan, *Client) {
 		fw, addr := newFakeWotan(t)
 		fw.status = "pending"
-		c, _ := NewClient(addr)
+		c, _ := NewClient(addr, WithHTTPPollStreams())
 		if sub, err := c.Subscribe(context.Background(), "threats.kev", "kev"); err != nil || sub.Status != "pending" {
 			t.Fatalf("subscribe: %v %v", sub, err)
 		}
@@ -226,7 +226,7 @@ func TestSubscribe_NoSubscriberInResponse(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	t.Cleanup(ts.Close)
-	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"), WithHTTPPollStreams())
 	if _, err := c.Subscribe(context.Background(), "t", "svc"); err == nil {
 		t.Fatal("subscribe succeeded without a subscriber")
 	}
@@ -246,7 +246,7 @@ func TestClose_StopsPollers(t *testing.T) {
 		_, _ = w.Write([]byte(`{"messages":[],"last_seq":0}`))
 	}))
 	t.Cleanup(ts.Close)
-	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"), WithHTTPPollStreams())
 	c.subscribers["quiet"] = &Subscriber{SubscriberID: "s", Status: "approved"}
 
 	ctx1, cancel1 := context.WithCancel(context.Background())
@@ -318,7 +318,7 @@ func TestTopicPathIsEscaped(t *testing.T) {
 		}
 	}))
 	defer ts.Close()
-	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"), WithHTTPPollStreams())
 	ctx := context.Background()
 	if _, err := c.Subscribe(ctx, "logs.#", "svc"); err != nil {
 		t.Fatal(err)
@@ -360,7 +360,7 @@ func TestPollers_SkipAlreadyDelivered(t *testing.T) {
 		}
 	}
 
-	c, _ := NewClient(addr)
+	c, _ := NewClient(addr, WithHTTPPollStreams())
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	if _, err := c.Subscribe(ctx, "t.x", "svc"); err != nil {
@@ -398,7 +398,7 @@ func TestFallbackPoller_FilteredMessagesAdvanceCursor(t *testing.T) {
 		_, _ = w.Write([]byte(`{"messages":[],"last_seq":3}`))
 	}))
 	defer ts.Close()
-	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"), WithHTTPPollStreams())
 	tc := &TopicStreamClient{httpClient: c}
 	as := &activeStream{sc: newSafeChannel(10)}
 	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)

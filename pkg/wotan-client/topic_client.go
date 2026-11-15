@@ -405,7 +405,7 @@ func (c *TopicStreamClient) GetMessages(ctx context.Context, topic string, after
 		Metadata:     c.metadata,
 	}
 
-	stream, err := c.client.StreamTopics(queryCtx, req)
+	stream, err := openTopicStream(queryCtx, c.client, req)
 	if err != nil {
 		c.recordFailure()
 		if c.httpClient != nil {
@@ -628,7 +628,7 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 		Metadata:     c.metadata,
 	}
 
-	stream, err := c.client.StreamTopics(ctx, req)
+	stream, err := openTopicStream(ctx, c.client, req)
 	if err != nil {
 		return 0, fmt.Errorf("open stream: %w", err)
 	}
