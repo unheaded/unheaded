@@ -40,12 +40,13 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 | Date | Steps | Note |
 |---|---|---|
+| 2026-11-15 | 17-27 | E-01: FND-043 `resolved` added (register test `ok`). E-02: Step 24 is attended, not run; Steps 25-26 blocked on it. |
 | 2026-11-15 | 1-16 | Phase 0. Decisions copied; baseline green; findings report before written to the host (`var/compliance/findings-s-evidence-runs-before.md`). The worktree has no `var/`, so the report reads the main checkout's `var/compliance/evidence.json` through `-evidence`. |
 
 ## E-row outcomes
 
-- E-01:
-- E-02:
+- E-01: **closed.** FND-043 has a `resolved` block dated 2026-11-15. Nine refusal tests pass under `-race`; `configs/wotan.yaml` reads `unlisted: deny`, `mode: enforce`; live refusals over 24 h read 0 on west. Wotan was recreated at 02:00:35Z today (S-WATCH-TRUE Phase 5), so the refusal series start at zero for every listed caller.
+- E-02: **open, waits on Stevie** (Step 24, attended root rerun of `tests/hopchecks` at HEAD). The pre-check differs from the plan's grounding: one commit since `60c4bb23` touches `ebpf/` (`33fb3754`, S-WATCH-TRUE, `latency-probe` only; nothing under `ebpf/hop-ebpf`, `crates/` or `tests/hopchecks`). The rerun at HEAD covers it. Steps 25-26 are `[BLOCKED]` on Step 24.
 - E-03:
 - E-04:
 - E-05:
@@ -60,7 +61,7 @@ The AIDE design that DE1's answer asks for is the plan's section "AIDE, quiet by
 
 ## For Stevie
 
-Nothing yet.
+- **Step 24 (E-02, FND-025):** run `tests/hopchecks` as root at HEAD (command from FND-033's plan text and `tests/hopchecks/README*`). 46 cases passed on 2026-11-09. A pass lets Step 26 add FND-025's `resolved` block.
 
 ## Stuck
 

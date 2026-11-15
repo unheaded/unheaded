@@ -2015,6 +2015,14 @@ findings:
       default deny once the file names a service; the first list written from what each service subscribes to today
       (grep of Subscribe calls per cmd/ and services/), so nothing live breaks; tests that a wrong pattern and a bare
       "#" are refused. Fixed on develop first (ADR-089)
+    resolved:
+      on: 2026-11-15
+      evidence: >-
+        24025056 enforces topics.permissions (unlisted: deny, mode: enforce); 90e45458 closed the first list's gaps
+        (sophia knowledge.shared, gateway and upc-cartridgectl approved). Rerunnable: go test ./services/wotan/...
+        -run 'TestPermissions|TestShippedAllowlistCoversDeployedSubscribers|TestEveryWotanClientIdentityIsAllowedAndApproved'
+        (nine tests pass under -race at a36a8190); live refusals over 24 h read 0 on 2026-11-15 (west, VictoriaMetrics,
+        sum(increase(unheaded_wotan_topic_permission_refusals_total[24h])))
 
   - id: FND-044
     title: >-
