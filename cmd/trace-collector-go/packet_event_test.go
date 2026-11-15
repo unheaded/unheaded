@@ -52,9 +52,10 @@ func TestDecodeKernelPacketEvent(t *testing.T) {
 	}
 }
 
-// ebpf.packet.events is parsed by the dashboard as its PacketEvent schema;
-// it used to receive the traces.packet shape (trace_id as a hex string,
-// src_ip/dst_ip, no flow_key), which the dashboard cannot parse.
+// traces.packet is parsed by the dashboard as its PacketEvent schema. Its
+// mirror (ebpf.packet.events, gone since ADR-147 Phase 10) once carried the
+// flat shape (trace_id as a hex string, src_ip/dst_ip, no flow_key), which
+// the dashboard's ingestor cannot parse.
 func TestMarshalDashboardPacket(t *testing.T) {
 	te, _ := DecodeKernelPacketEvent(kernelPacketEvent())
 	raw, err := marshalDashboardPacket(te)

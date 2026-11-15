@@ -52,11 +52,9 @@ const (
 	// snapshot per --stats-interval.
 	TopicTracesStats = "traces.stats"
 
-	// Mirror topics for dashboard ingestor compatibility.
-	// The dashboard eBPF ingestor subscribes to ebpf.*.events topics.
-	TopicEBPFPacket  = "ebpf.packet.events"
-	TopicEBPFFlow    = "ebpf.flow.events"
-	TopicEBPFLatency = "ebpf.latency.events"
+	// The ebpf.{packet,flow,latency}.events mirrors are gone (ADR-147
+	// Phase 10): each event is published once, on traces.*, in the shape
+	// the dashboard's ingestor parses; its trace view reads the same topic.
 )
 
 // ── Prometheus metrics for publisher ──────────────────────────────────────
@@ -179,20 +177,17 @@ func (tp *TracePublisher) Connect(wc topicPublisher) error {
 	return nil
 }
 
-// PublishPacketEvent queues a packet marker event for publishing.
+// PublishPacketEvent queues a packet marker event on traces.packet, once,
+// in the dashboard's PacketEvent shape (trace_id {high, low}, flow_key).
+// The flat shape it used to carry beside it (trace_id hex, src_ip/dst_ip,
+// flags, hop_count) went with the ebpf.packet.events mirror: a kernel
+// packet record sets neither flags nor hop_count.
 func (tp *TracePublisher) PublishPacketEvent(entry *TraceEntry) error {
-	payload, err := marshalTraceEntry(entry)
+	payload, err := marshalDashboardPacket(entry)
 	if err != nil {
 		return fmt.Errorf("marshal packet event: %w", err)
 	}
-	// The dashboard parses ebpf.packet.events as its own PacketEvent schema;
-	// it used to receive this traces.packet shape, which it cannot parse.
-	dash, err := marshalDashboardPacket(entry)
-	if err != nil {
-		return fmt.Errorf("marshal dashboard packet event: %w", err)
-	}
 	tp.enqueue(TopicTracesPacket, payload)
-	tp.enqueue(TopicEBPFPacket, dash)
 	atomic.AddUint64(&tp.stats.PacketEvents, 1)
 	return nil
 }
@@ -213,14 +208,12 @@ func (tp *TracePublisher) PublishAnamnesisEvent(ev *ebpf.AnamnesisEvent) error {
 // PublishFlowEvent queues a flow tracker event for publishing.
 func (tp *TracePublisher) PublishFlowEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesFlow, payload)
-	tp.enqueue(TopicEBPFFlow, payload)
 	atomic.AddUint64(&tp.stats.FlowEvents, 1)
 }
 
 // PublishLatencyEvent queues a latency probe event for publishing.
 func (tp *TracePublisher) PublishLatencyEvent(payload json.RawMessage) {
 	tp.enqueue(TopicTracesLatency, payload)
-	tp.enqueue(TopicEBPFLatency, payload)
 	atomic.AddUint64(&tp.stats.LatencyEvents, 1)
 }
 
@@ -377,35 +370,6 @@ func (tp *TracePublisher) sendBatch(ctx context.Context, topic string, messages 
 
 	tp.connected.Store(true)
 	return nil
-}
-
-// marshalTraceEntry converts a TraceEntry to JSON.
-func marshalTraceEntry(te *TraceEntry) (json.RawMessage, error) {
-	type jsonEntry struct {
-		TraceID     string `json:"trace_id"`
-		TimestampNS uint64 `json:"timestamp_ns"`
-		SrcIP       string `json:"src_ip"`
-		DstIP       string `json:"dst_ip"`
-		SrcPort     uint16 `json:"src_port"`
-		DstPort     uint16 `json:"dst_port"`
-		Protocol    string `json:"protocol"`
-		Flags       uint8  `json:"flags"`
-		PacketLen   uint16 `json:"packet_len"`
-		HopCount    uint8  `json:"hop_count"`
-	}
-
-	return json.Marshal(jsonEntry{
-		TraceID:     te.TraceIDHex(),
-		TimestampNS: te.TimestampNS,
-		SrcIP:       te.SrcIPAddr().String(),
-		DstIP:       te.DstIPAddr().String(),
-		SrcPort:     te.SrcPort,
-		DstPort:     te.DstPort,
-		Protocol:    te.ProtocolName(),
-		Flags:       te.Flags,
-		PacketLen:   te.PacketLen,
-		HopCount:    te.HopCount,
-	})
 }
 
 // anamnesisTopicForEvent maps an Anamnesis event type to its Wotan topic.

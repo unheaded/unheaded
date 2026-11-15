@@ -1137,10 +1137,10 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 			topic := topicForEvent(ev.EventType)
 			batches[topic] = append(batches[topic], ev)
 
-			// Also publish as dashboard-compatible flow events so the
-			// dashboard ingestor can display them (it expects ebpf.*.events).
+			// Also publish as a flow event in the dashboard's shape, on
+			// traces.flow (the one flow topic since ADR-147 Phase 10).
 			if dashPayload := anamnesisToFlowJSON(ev); dashPayload != nil {
-				_ = publisher.PublishRaw(ctx, "ebpf.flow.events", dashPayload)
+				_ = publisher.PublishRaw(ctx, TopicTracesFlow, dashPayload)
 			}
 
 			// Flush if batch full

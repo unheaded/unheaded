@@ -202,15 +202,15 @@ func TestTracePublisher_Flush(t *testing.T) {
 	}
 
 	// Flush manually (tsc nil → sendBatch drops gracefully, stats still count)
-	// Dual-publish: each packet event → traces.packet + ebpf.packet.events = 2 batches
+	// One topic per event (ADR-147 Phase 10): 5 packet events → one batch on traces.packet.
 	pub.Flush(context.Background())
 
 	stats := pub.Stats()
-	if stats.BatchesSent != 2 {
-		t.Errorf("BatchesSent = %d, want 2 (dual-publish)", stats.BatchesSent)
+	if stats.BatchesSent != 1 {
+		t.Errorf("BatchesSent = %d, want 1 (traces.packet only)", stats.BatchesSent)
 	}
-	if stats.EventsSent != 10 {
-		t.Errorf("EventsSent = %d, want 10 (5 events × 2 topics)", stats.EventsSent)
+	if stats.EventsSent != 5 {
+		t.Errorf("EventsSent = %d, want 5 (5 events, one topic)", stats.EventsSent)
 	}
 	if stats.FlushCycles != 1 {
 		t.Errorf("FlushCycles = %d, want 1", stats.FlushCycles)
@@ -276,16 +276,15 @@ func TestTracePublisher_MultiTopicFlush(t *testing.T) {
 	latencyPayload, _ := json.Marshal(map[string]interface{}{"rtt_ns": 1000})
 	pub.PublishLatencyEvent(latencyPayload)
 
-	// Flush all
-	// Dual-publish: packet→2, flow→2, latency→2 = 6 batches, 6 events
+	// Flush all: one batch per event type, on traces.* only.
 	pub.Flush(context.Background())
 
 	stats := pub.Stats()
-	if stats.BatchesSent != 6 {
-		t.Errorf("BatchesSent = %d, want 6 (2 per event type: traces.* + ebpf.*)", stats.BatchesSent)
+	if stats.BatchesSent != 3 {
+		t.Errorf("BatchesSent = %d, want 3 (one per event type, traces.* only)", stats.BatchesSent)
 	}
-	if stats.EventsSent != 6 {
-		t.Errorf("EventsSent = %d, want 6", stats.EventsSent)
+	if stats.EventsSent != 3 {
+		t.Errorf("EventsSent = %d, want 3", stats.EventsSent)
 	}
 }
 
@@ -311,36 +310,6 @@ func TestTracePublisher_NotConnectedWithoutConnect(t *testing.T) {
 	// Still not "connected" — sendBatch doesn't set connected when tsc is nil
 	if pub.IsConnected() {
 		t.Error("should not be connected after flush without Connect()")
-	}
-}
-
-// ── marshalTraceEntry tests ─────────────────────────────────────────────
-
-func TestMarshalTraceEntry(t *testing.T) {
-	te := makeTraceEntry(
-		net.ParseIP("10.10.10.1"),
-		net.ParseIP("10.10.10.2"),
-		8080, 443, 6, 1234567890,
-	)
-
-	data, err := marshalTraceEntry(te)
-	if err != nil {
-		t.Fatalf("marshalTraceEntry: %v", err)
-	}
-
-	var decoded map[string]interface{}
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
-	}
-
-	if decoded["protocol"] != "TCP" {
-		t.Errorf("protocol = %v, want \"TCP\"", decoded["protocol"])
-	}
-	if decoded["src_port"] != float64(8080) {
-		t.Errorf("src_port = %v, want 8080", decoded["src_port"])
-	}
-	if decoded["dst_port"] != float64(443) {
-		t.Errorf("dst_port = %v, want 443", decoded["dst_port"])
 	}
 }
 
@@ -605,7 +574,7 @@ func TestTracePublisher_FlushViaHTTPFallback(t *testing.T) {
 	}
 
 	// Flush — gRPC will fail, should fall through to HTTP fallback or error gracefully
-	// Dual-publish: 5 packet events → traces.packet + ebpf.packet.events = 2 batches
+	// 5 packet events → one batch on traces.packet.
 	pub.Flush(context.Background())
 
 	stats := pub.Stats()
@@ -614,8 +583,8 @@ func TestTracePublisher_FlushViaHTTPFallback(t *testing.T) {
 	}
 	// Each topic batch either succeeds via HTTP fallback or errors — both are valid
 	total := stats.BatchesSent + stats.Errors
-	if total != 2 {
-		t.Errorf("BatchesSent(%d) + Errors(%d) = %d, want 2 (dual-publish)", stats.BatchesSent, stats.Errors, total)
+	if total != 1 {
+		t.Errorf("BatchesSent(%d) + Errors(%d) = %d, want 1 (traces.packet only)", stats.BatchesSent, stats.Errors, total)
 	}
 }
 
@@ -695,11 +664,11 @@ func TestFlush_LogsOncePerOutage(t *testing.T) {
 		pub.PublishFlowEvent(json.RawMessage(`{"n":1}`))
 		pub.Flush(ctx)
 	}
-	if got := strings.Count(buf.String(), "failed to publish batch"); got != 2 {
-		t.Fatalf("5 failed batches on each of 2 topics logged %d times, want 2 (once per topic):\n%s", got, buf.String())
+	if got := strings.Count(buf.String(), "failed to publish batch"); got != 1 {
+		t.Fatalf("5 failed batches on traces.flow logged %d times, want 1 (once per outage):\n%s", got, buf.String())
 	}
-	if got := pub.Stats().Errors; got != 10 {
-		t.Errorf("Stats().Errors = %d, want 10 (every failure still counted)", got)
+	if got := pub.Stats().Errors; got != 5 {
+		t.Errorf("Stats().Errors = %d, want 5 (every failure still counted)", got)
 	}
 	if n := pub.noteSuccess(TopicTracesFlow); n != 5 {
 		t.Errorf("failure run = %d, want 5", n)
@@ -729,19 +698,19 @@ func TestPublishRaw_LogsOncePerOutage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	for i := 0; i < 5; i++ {
-		if err := wp.PublishRaw(ctx, "ebpf.flow.events", []byte(`{"n":1}`)); err == nil {
+		if err := wp.PublishRaw(ctx, "traces.flow", []byte(`{"n":1}`)); err == nil {
 			t.Fatal("publish to a dead Wotan succeeded")
 		}
 	}
 	if got := strings.Count(buf.String(), "best-effort publish failed"); got != 1 {
 		t.Fatalf("5 failed publishes logged %d times, want 1:\n%s", got, buf.String())
 	}
-	wp.notePublish("ebpf.flow.events", nil)
+	wp.notePublish("traces.flow", nil)
 	if !strings.Contains(buf.String(), "best-effort publishing recovered") {
 		t.Errorf("recovery not logged:\n%s", buf.String())
 	}
 	buf.Reset()
-	wp.notePublish("ebpf.flow.events", errors.New("down again"))
+	wp.notePublish("traces.flow", errors.New("down again"))
 	if got := strings.Count(buf.String(), "best-effort publish failed"); got != 1 {
 		t.Errorf("first failure after recovery logged %d times, want 1", got)
 	}
