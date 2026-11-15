@@ -26,4 +26,5 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - D6 on and MRET/SRET at priv 3 are NOPs (not an illegal-instruction kill; Step 250 revisits at rung 7). Cost: 3566. hostile_reply closed on every route.
 - Stop A reached 2026-11-15: gate d6-after same=12 diff=0 rc=0 doom=1 ascend=893507.
 - ascend baseline row now 895768 (net vs 921036: 25268)
+- [STUCK] Steps 78, 81 (atomics through translate_address): over the verifier budget. Four inlined translations +20,993, one shared arm +16,855, against 4,232 of headroom. The load-time scan lands instead and refuses any user image holding an atomic, MRET or SRET. Options for the BPF half: (1) the decided design after rung 3 frees instructions; (2) the slice's linear map (user_phys), measured +3,263; (3) refuse atomics at U-mode as MRET/SRET are, a few hundred. Which?
 

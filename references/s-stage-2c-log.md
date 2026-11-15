@@ -84,3 +84,11 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 61: six `=yes`, no `=no`, `done`; corpus sweep 8 of 8 SAME.
 - Step 63 mutants, each rebuilt, booted and restored: guard without open → `open-wild-refused=no` and `open-ceiling-refused=no`; slot 0 window removed → `slot0-kernel-name-refused=no` and `slot0-copyout-refused=no`; `pipewrite`'s -1 removed → `pipe-badbuf-refused=no`. After restoring: 895768, six `=yes`.
 - Gate `paths-after`: `same=12 diff=0 rc=0 doom=1 ascend=895768`; `hostile_path: 6 checks (UPC_D6_MISS_FAULT)` PASS, `hostile_ptr: 5 checks` PASS.
+
+## Phase 4 measurements (2026-11-15)
+
+- Step 74: the translator emits none of `XCHG`, `CAS`, `LR_W`, `SC_W` (no hit in `translator.rs`). Opcodes: LD 0x30, XCHG 0x3D, CAS 0x3E, MRET 0x47, SRET 0x48, LR_W 0x49, SC_W 0x4A.
+- Step 76: `scripts/upc-mbc-patch-opcode.py` and its test were written together (seven cases pass); the red-first order was not kept. The marker is an instruction, not a literal: the compiler builds 0x00800400 as `MOVI`, `SHL`, `MOV`, `ADDI r13, 0x0400`, then `LD r13, [r13]`, so the tool takes `--marker-mask` (`--word-of-marker 0x1D000400 --marker-mask 0xFF00FFFF`). Patched word 16: `0x30DD0000` to `0x3DDD0000`.
+- Step 77: `hostile_atomic` is built and sidecarred with the gate programs, not put in fs.img (the plan's "userland program" would have moved the `ls` golden).
+- Step 78 as written (four `translate_address` calls): 916,761, +20,993 against 895768: BUDGET-FAIL. One ascend-only arm with a single translation: 912,623, +16,855: BUDGET-FAIL. Two shapes, so Steps 78 and 81 are `[STUCK]` on the verifier budget; `main.rs` is back at 895768. For information, not landed: the bounded linear map (`user_phys`, a miss to `D6_MISS_ADDR`) measured 899,031, +3,263, headroom 969.
+- Step 80 on the object without translation (the red state, kept as the proof): the unpatched probe prints `xchg-translated=yes`, `done`; the patched copy prints `xchg-translated=no`, `done` (`xxd -s 0x400 -l 4 fs.img`: `40 30 20 10`, the superblock magic). The `.rv2mbc` hash gate passed the patched image: it hashes the map, not the words. Once the scan lands this cannot be booted from a stock tree.

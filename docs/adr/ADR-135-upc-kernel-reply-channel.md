@@ -330,6 +330,29 @@ Three places took a user pointer further than its owner's memory. Each now refus
 Init's trust model is otherwise unchanged: its own loads and stores still reach all of low memory through the identity
 directory. This narrows what the kernel will do on init's behalf, not what init can do by itself.
 
+### D17. User images carry no privileged or untranslated opcode; atomics translate (2026-11-15, S-STAGE-2C Phase 4)
+
+`XCHG`, `CAS`, `LR_W` and `SC_W` take their address with no translation, so at U-mode they reach physical memory
+(R-S4). The translator emits none of them and the kernel uses libcalls, so no compiled image has one. Booted on
+2026-11-15 with a patched image (one `LD` rewritten to `XCHG` by `scripts/upc-mbc-patch-opcode.py`): a child's `XCHG` at
+VA 0x800400 read the ramdisk's superblock word and stored over it. The `.rv2mbc` hash gate does not see this: it covers
+the address map, not the image's words.
+
+Two parts were decided (Stevie's answer A-61: fix it, plus an opcode scan):
+
+1. **The load-time scan (landed).** bootctl reads the `--userland` image and every resident program word by word and
+   refuses the boot on any of `XCHG` 0x3D, `CAS` 0x3E, `MRET` 0x47, `SRET` 0x48, `LR_W` 0x49, `SC_W` 0x4A
+   (`UserImageOpcode`, naming the image, the word and the opcode). The kernel image is not scanned: it needs `MRET` and
+   `SRET`. This closes the one way such an opcode reaches a child: an image that did not come from the translator.
+2. **Translation in BPF (not landed: verifier budget).** The design is `translate_address(cpu, addr)` for each atomic
+   under `cfg!(feature = "ascend-linux")`, the reservation keeping the virtual address. Measured against 895,768 with
+   4,232 of headroom: four inlined translations +20,993; one ascend-only arm for all four with a single translation
+   +16,855. Both pass 900,000. A bounded form, the slice's linear map through `user_phys` with a miss resolving where a
+   D6 miss does, measured +3,263 and was not landed either: it is not the decided design, and it leaves 969 for the
+   fork and file-fd fixes that follow. The choice waits on Stevie, or on rung 3 freeing instructions.
+
+Until part 2 lands, a U-mode atomic is unreachable only because no loadable image can hold one.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,
