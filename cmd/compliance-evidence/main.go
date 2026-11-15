@@ -10,6 +10,7 @@
 //	go run ./cmd/compliance-evidence -skip-gates    # GitHub + git only
 //	go run ./cmd/compliance-evidence findings       # the findings register (ADR-098)
 //	go run ./cmd/compliance-evidence findings -out var/compliance/findings.md
+//	go run ./cmd/compliance-evidence findings -enforce-ready east  # could east be flipped to enforcing? (ADR-098 condition 3)
 //	go run ./cmd/compliance-evidence baseline       # regenerate compliance/baseline/baseline.yaml
 //	go run ./cmd/compliance-evidence ssp -out var/compliance/SSP.md  # system security plan (M-104), host only
 //	go run ./cmd/compliance-evidence well sync -dry-run  # mirror/seed The Well (ADR-099 amended)
