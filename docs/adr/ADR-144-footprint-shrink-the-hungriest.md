@@ -107,3 +107,7 @@ Stevie, 2026-11-12: fix item 1 (the freeze is lifted for that item only) and rec
 **Parked, with this ADR:** the ring buffer reader (the "better shape": the collector reads `LATENCY_EVENTS` and stops sweeping), which also ends the `events_dropped` count, and bounding `INFLIGHT` and `SOCK_TRACE`. They are the next change to the trace collector, not part of this fix.
 
 **Status:** unchanged, Proposed (parked), for items 2 to 7. Only item 1 moved.
+
+## Update 2026-11-15 (S-WATCH-TRUE, one hour after the deploy on west)
+
+- **The flow reader had the same shape and is batched too.** With the new pair running on west (restart 01:37:39 UTC), the latency sweep was 15 batch lookups in 5 s and the collector 0.039 core over the hour, but `bpf()` was still 6,583 a second against a bar of 2,000: `FlowReader` walked `FLOWS` (an LRU hash of 65,536, about 3,300 entries then) with get-next-key and lookup, two calls per entry, every second. Full, that is 131,000 calls a second, the same growth with uptime as before. Both readers now share one batched pass (`cmd/trace-collector-go/map_walk.go`), the per-entry walk is kept for a map with no batch lookup and counted in `trace_collector_map_unbatched_sweeps_total{map}`, and `trace_collector_flow_map_entries` shows the map's size. What the flow reader publishes, and when, is unchanged. The eBPF objects do not change: this deploy is the binary alone.

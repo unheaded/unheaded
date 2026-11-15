@@ -16,20 +16,18 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
 	ciliumebpf "github.com/cilium/ebpf"
-	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
 )
 
-// latencySweepBatch is how many entries one batch lookup asks the kernel for.
-// A full map (65,536 entries) is 16 batches and a final short one.
-const latencySweepBatch = 4096
+// latencySweepBatch is how many entries one batch lookup asks the kernel for
+// (map_walk.go).
+const latencySweepBatch = mapSweepBatch
 
 // minLatencySweepInterval is the shortest --latency-sweep-interval accepted.
 const minLatencySweepInterval = 500 * time.Millisecond
@@ -61,41 +59,21 @@ var (
 	})
 )
 
-// latencyMap is what a sweep needs from LATENCY_MAP. The kernel map is behind
-// ebpfLatencyMap; tests use a fake.
-type latencyMap interface {
-	// batch reads the next batch of entries and calls visit for each one.
-	// first starts a new pass over the map. done reports that the pass
-	// reached the end. The slices passed to visit are reused: copy to keep.
-	batch(first bool, visit func(key, value []byte)) (done bool, err error)
-	// walk visits every entry one at a time, for a kernel that has no batch
-	// lookup for this map type.
-	walk(visit func(key, value []byte)) error
-}
-
 // latencySweeper reads LATENCY_MAP and publishes each entry that took a new
 // sample since the last sweep. It is used from one goroutine.
 type latencySweeper struct {
-	m       latencyMap
+	w       *mapWalker // the batched pass, shared with the flow reader (map_walk.go)
 	rtts    *rttTracker
 	publish func([]byte)
 	now     func() time.Time
-
-	// noBatch is set the first time the kernel refuses a batch lookup; the
-	// sweeps after that walk the map.
-	noBatch    bool
-	onFallback func(error)
 }
 
-func newLatencySweeper(m latencyMap, publish func([]byte)) *latencySweeper {
+func newLatencySweeper(m batchedMap, publish func([]byte)) *latencySweeper {
 	return &latencySweeper{
-		m:       m,
+		w:       newMapWalker("latency", m),
 		rtts:    newRTTTracker(),
 		publish: publish,
 		now:     time.Now,
-		onFallback: func(err error) {
-			log.Warn().Err(err).Msg("this kernel has no batch lookup for LATENCY_MAP; reading it one entry at a time (two bpf() calls per entry)")
-		},
 	}
 }
 
@@ -135,7 +113,7 @@ func (s *latencySweeper) sweep(ctx context.Context) error {
 		s.publish(payload)
 	}
 
-	err := s.read(ctx, visit)
+	err := s.w.read(ctx, visit)
 	if undecodable > 0 {
 		latencyDecodeErrors.Add(float64(undecodable))
 	}
@@ -149,71 +127,9 @@ func (s *latencySweeper) sweep(ctx context.Context) error {
 	return nil
 }
 
-// read visits every entry, in batches where the kernel allows it.
-func (s *latencySweeper) read(ctx context.Context, visit func(key, value []byte)) error {
-	if s.noBatch {
-		return s.m.walk(visit)
-	}
-	first := true
-	for {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		done, err := s.m.batch(first, visit)
-		if first && errors.Is(err, ciliumebpf.ErrNotSupported) {
-			s.noBatch = true
-			s.onFallback(err)
-			return s.m.walk(visit)
-		}
-		if err != nil {
-			return err
-		}
-		if done {
-			return nil
-		}
-		first = false
-	}
-}
-
-// ebpfLatencyMap reads the kernel's LATENCY_MAP. Its buffers are allocated
-// once and reused by every sweep.
-type ebpfLatencyMap struct {
-	m      *ciliumebpf.Map
-	cursor ciliumebpf.MapBatchCursor
-	keys   [][LatencyTraceKeySize]byte
-	values [][LatencyEntrySize]byte
-}
-
-func newEBPFLatencyMap(m *ciliumebpf.Map) *ebpfLatencyMap {
-	return &ebpfLatencyMap{
-		m:      m,
-		keys:   make([][LatencyTraceKeySize]byte, latencySweepBatch),
-		values: make([][LatencyEntrySize]byte, latencySweepBatch),
-	}
-}
-
-func (e *ebpfLatencyMap) batch(first bool, visit func(key, value []byte)) (bool, error) {
-	if first {
-		e.cursor = ciliumebpf.MapBatchCursor{}
-	}
-	n, err := e.m.BatchLookup(&e.cursor, e.keys, e.values, nil)
-	// The kernel reports the end of the map as "key does not exist", together
-	// with the last entries.
-	done := errors.Is(err, ciliumebpf.ErrKeyNotExist)
-	if err != nil && !done {
-		return false, err
-	}
-	for i := range n {
-		visit(e.keys[i][:], e.values[i][:])
-	}
-	return done, nil
-}
-
-func (e *ebpfLatencyMap) walk(visit func(key, value []byte)) error {
-	iter := e.m.Iterate()
-	var key, value []byte
-	for iter.Next(&key, &value) {
-		visit(key, value)
-	}
-	return iter.Err()
+// newEBPFLatencyMap is the kernel's LATENCY_MAP as a batchedMap.
+func newEBPFLatencyMap(m *ciliumebpf.Map) batchedMap {
+	return newEBPFBatchMap(m,
+		func(k *[LatencyTraceKeySize]byte) []byte { return k[:] },
+		func(v *[LatencyEntrySize]byte) []byte { return v[:] })
 }

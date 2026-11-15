@@ -328,6 +328,11 @@ var (
 		Name: "flow_reader_errors_total",
 		Help: "Total errors during flow reading or publishing",
 	}, []string{"operation"})
+
+	flowMapEntries = auto.NewGauge(prom.GaugeOpts{
+		Name: "trace_collector_flow_map_entries",
+		Help: "Entries in flow_tracker's FLOWS map at the last complete read (the map holds at most 65536)",
+	})
 )
 
 // ── FlowReader ───────────────────────────────────────────────────────────────
@@ -384,6 +389,28 @@ type FlowReader struct {
 	mu         sync.Mutex
 	knownFlows map[string]*TrackedFlowState // key hex -> state
 	eventCh    chan *FlowEventEntry
+
+	// walker reads the flow map, in batches where it can (map_walk.go). It is
+	// made on the first poll and used only by the poll loop.
+	walker *mapWalker
+}
+
+// flowWalker returns the reader's walker over the flow map, making it on the
+// first call: the map's batched view when it has one, its Iterate otherwise.
+func (fr *FlowReader) flowWalker(flowMap MapReader) *mapWalker {
+	if fr.walker != nil {
+		return fr.walker
+	}
+	var m batchedMap = iterateOnly{mr: flowMap}
+	if src, ok := flowMap.(batchSource); ok {
+		if view, err := src.batchView(); err != nil {
+			log.Warn().Err(err).Msg("the flow map has no batched view; reading it one entry at a time")
+		} else {
+			m = view
+		}
+	}
+	fr.walker = newMapWalker("flows", m)
+	return fr.walker
 }
 
 // NewFlowReader creates a flow reader with the given loader, publisher, and config.
@@ -465,19 +492,24 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 	// Read all flow entries from the BPF map
 	var events []*FlowEventEntry
 
-	err := flowMap.Iterate(func(key, value []byte) error {
+	// One pass over the map: batch lookups where the kernel has them, the
+	// per-entry walk otherwise. key and value are reused between entries;
+	// everything kept below is a copy.
+	entries := 0
+	err := fr.flowWalker(flowMap).read(ctx, func(key, value []byte) {
+		entries++
 		fk, err := DecodeFlowKey(key)
 		if err != nil {
 			atomic.AddUint64(&fr.stats.DecodeErrors, 1)
 			flowReaderErrors.WithLabelValues("decode_key").Inc()
-			return nil // Continue despite decode errors
+			return // Continue despite decode errors
 		}
 
 		fs, err := DecodeFlowState(value)
 		if err != nil {
 			atomic.AddUint64(&fr.stats.DecodeErrors, 1)
 			flowReaderErrors.WithLabelValues("decode_state").Inc()
-			return nil
+			return
 		}
 
 		atomic.AddUint64(&fr.stats.FlowsRead, 1)
@@ -520,15 +552,15 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 			// Update existing flow state (counters may have changed)
 			existing.State = *fs
 		}
-
-		return nil
 	})
 
 	if err != nil {
+		// A partial read: nothing is expired on the strength of it.
 		flowReaderErrors.WithLabelValues("iterate").Inc()
 		log.Error().Err(err).Msg("error iterating flow map")
 		return
 	}
+	flowMapEntries.Set(float64(entries))
 
 	// Expire stale flows: flows we previously knew about but are not in the BPF map,
 	// or flows that haven't been seen recently.
