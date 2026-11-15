@@ -123,3 +123,21 @@ Init's stack is clear of every kernel range, so Step 55's override does not appl
 - Step 120, new fork code with D6 off for the experiment: `copy-complete=yes`, `pde-plant-dropped=no` (the plant landed and did not matter), `a2-ignored=yes`. D6 back on: 895936.
 - Step 121: with `TIMER_SWITCH` forced true the ascend build fails, the message naming ADR-135 I9 (2 hits); restored, 895936.
 - Gate `fork-after`: `same=12 diff=0 rc=0 doom=1 ascend=895936`; `forkloop`, `gate_nway`, `gate2`, the four `ut_*` probes and `hostile_fork: 3 checks` PASS.
+
+## Independent review of Phase 2, and its findings (2026-11-15)
+
+The independent read of Step 29 (read-only, at `10078582`) came back through the coordinator. Its answers to the plan's questions:
+
+| Question | The review's answer |
+|---|---|
+| A legitimate `MRET` or `SRET` at priv 3? | None. Sites: `start_mbc.c:180`, `upc-bootstub start.c:129`, `trampoline_mbc.S:160`, `kernelvec_mbc.S:56`, all reached at priv 0 or 1; `uentry.S` has none; the scheduler never switches while priv is not 3 (`main.rs:3724`) |
+| Is the NOP safe? | Yes: PC already advanced, priv stays 3, `reply_req` is set only inside the `SRET` arm |
+| Does D6 break a legitimate access? | No: children map VA 0-8 MiB by two leaf PDEs; fork's copy and exec use physical slice arithmetic; slot 0 is identity-mapped |
+| Did anything rely on `SRET`'s 16-bit mask as a bound? | No: PC indexes only ROM_MAP behind the range check at `main.rs:852`. `MRET` and the STVEC injection still mask, harmless while the kernel stays under 0x10000 words |
+
+Findings, each verified here before it was acted on (ADR-135, section of this date):
+
+- **RV-1 (High).** Red run of `hostile_block` on the tree at Phase 6's close, D6 on: `calls-refused=no`, `read-outside-refused=no`, `write-outside-refused=no`: a child wrote init's memory through 200 and read init's through 201 then 200. Guard in the two arms' conditions: 900,333 (+4,397). Guard as a number alias ahead of every arm: 900,081 (+4,145): both BUDGET-FAIL against 895936. With D18's mark behind `UPC_FORK_MARK` (off): 899906: BUDGET-OK, headroom 94. With the mark off and the guard removed the count is 895,767, the pre-Phase-6 object exactly. Probe with the guard: three `=yes`, `done`. Mutant (guard removed): three `=no`. `hostile_fork` still three `=yes` (D6 on).
+- **RV-2 (Medium).** `PUSH` 0x1A, `POP` 0x1B, `INT` 0x17, `IRET` 0x18 added to bootctl's scan; test red first (1 of 5 failed), then green; all bootctl results ok. No built user image holds one (every `.mbc` dry-run-scanned).
+- **RV-3 (Low).** Recorded For Stevie.
+- Seen while verifying RV-2, not acted on: the translator turns `ebreak` into `HALT`, and `HALT` has no privilege test, so a user program that executes `ebreak` halts the machine. No built user image holds a `HALT`. For Stevie.

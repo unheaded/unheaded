@@ -2,9 +2,10 @@
 //! ADR-135 D17 (S-STAGE-2C Phase 4, R-S4): a user image holds no atomic and no
 //! privileged return.
 //!
-//! The RV32I to MBC translator emits none of XCHG, CAS, LR_W, SC_W, and a user
-//! program has no use for MRET or SRET. The interpreter's atomics take their
-//! address with no translation, so at U-mode they would reach physical memory.
+//! The RV32I to MBC translator emits none of XCHG, CAS, LR_W, SC_W, PUSH, POP,
+//! INT or IRET, and a user program has no use for MRET or SRET. The interpreter's atomics take their
+//! address with no translation, and the stack and interrupt opcodes go through
+//! r15 the same way, so at U-mode they would reach physical memory.
 //! An image holding one did not come from the translator. [`scan_user_images`]
 //! reads the `--userland` image and every resident program before the eBPF
 //! object is opened and refuses the boot on the first such word.
@@ -31,6 +32,13 @@ fn forbidden(opcode: u8) -> Option<(&'static str, bool)> {
         op::CAS => Some(("CAS", false)),
         op::LR_W => Some(("LR_W", false)),
         op::SC_W => Some(("SC_W", false)),
+        // Step 29 review, RV-2 (2026-11-15): these go through r15 with no
+        // translation, so at U-mode a chosen stack pointer is a physical
+        // address. INT is refused whatever its vector.
+        op::PUSH => Some(("PUSH", false)),
+        op::POP => Some(("POP", false)),
+        op::INT => Some(("INT", false)),
+        op::IRET => Some(("IRET", false)),
         op::MRET => Some(("MRET", true)),
         op::SRET => Some(("SRET", true)),
         _ => None,
@@ -50,7 +58,8 @@ pub fn scan_user_image(name: &str, words: &[u32], allow_privret: bool) -> Result
         }
         bail!(
             "UserImageOpcode: {name}: word {i} (0x{w:08X}) is {mnemonic} (opcode 0x{opcode:02X}); \
-             a user image holds no atomic and no privileged return (ADR-135 D17)"
+             a user image holds no atomic, no stack or interrupt opcode and no privileged \
+             return (ADR-135 D17)"
         );
     }
     Ok(())
@@ -169,8 +178,18 @@ mod tests {
     #[test]
     fn the_hatch_admits_returns_only() {
         assert!(scan_user_image("p", &[insn(op::MRET), insn(op::SRET)], true).is_ok());
-        for o in [op::XCHG, op::CAS, op::LR_W, op::SC_W] {
+        for o in [
+            op::XCHG,
+            op::CAS,
+            op::LR_W,
+            op::SC_W,
+            op::PUSH,
+            op::POP,
+            op::INT,
+            op::IRET,
+        ] {
             assert!(scan_user_image("p", &[insn(o)], true).is_err());
+            assert!(scan_user_image("p", &[insn(o)], false).is_err());
         }
     }
 }

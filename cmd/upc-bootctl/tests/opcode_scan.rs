@@ -124,6 +124,32 @@ fn each_forbidden_opcode_in_the_user_image_is_refused_and_named() {
     }
 }
 
+// Step 29 review finding RV-2: PUSH, POP, INT and IRET address memory through
+// r15 with no translation, so at U-mode they reach physical memory too. The
+// translator emits none of them.
+#[test]
+fn stack_and_interrupt_opcodes_are_refused_with_or_without_the_hatch() {
+    for (opcode, name) in [
+        (op::PUSH, "PUSH"),
+        (op::POP, "POP"),
+        (op::INT, "INT"),
+        (op::IRET, "IRET"),
+    ] {
+        for envs in [&[][..], &[("UPC_ALLOW_USER_PRIVRET", "1")][..]] {
+            let f = Fixture::new(&format!("rv2-{name}-{}", envs.len()));
+            f.image_with("init", 3, insn(opcode, 1, 0, 0x21));
+            let o = dry_run(&f.path("xv6-mbc"), &f.path("init"), envs);
+            let e = out(&o);
+            assert!(!o.status.success(), "{name} must refuse: {e}");
+            assert!(
+                e.contains("UserImageOpcode") && e.contains(name),
+                "{name}: {e}"
+            );
+            assert!(e.contains("word 3"), "{name}: {e}");
+        }
+    }
+}
+
 #[test]
 fn a_resident_program_with_xchg_is_refused() {
     let f = Fixture::new("resident");

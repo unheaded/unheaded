@@ -262,6 +262,14 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
     Some(phase12::pid_phys_offset(pid).wrapping_add(va))
 }
 
+/// ADR-135 D18: fork's first entry is read from a mark in the child slot's
+/// PROC_TABLE row (true) or from the child's pde 0 (false, the form before
+/// S-STAGE-2C Phase 6). The mark costs +169 verified instructions and closes a
+/// route that ADR-109 D6 already closes; it went off on 2026-11-15 to make room
+/// for the block-syscall guard (ADR-135 RV-1), and goes back on when a rung
+/// frees the instructions. Off, the object is the pde-keyed one exactly.
+const UPC_FORK_MARK: bool = false;
+
 /// Whether the BPF timer fires and switches processes: the Doom object only.
 /// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
 /// its cursor in a2 and one reservation mark per slot, and relies on nothing
@@ -272,6 +280,10 @@ const _: () = assert!(
     !(cfg!(feature = "ascend-linux") && TIMER_SWITCH),
     "ADR-135 I9: ascend fork assumes no timer switch; add slot reservation and the tagged cursor review first"
 );
+
+/// A syscall number no arm answers: what `kernel_routed_alias` turns a refused
+/// number into (ADR-135 RV-1).
+const NO_SUCH_SYSCALL: u32 = 0xFFFF_FFFF;
 
 /// xv6 `MAXPATH` (`param.h`): the span a user path may cover. ADR-135 D16: BPF's
 /// `open` and `exec` are reached only when `user_phys(pid, a0, MAXPATH_BYTES)`
@@ -2388,15 +2400,24 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // could write while ADR-109 D6 was off: a planted present
                     // bit skipped this block and made the caller's a2 the cursor.
                     // No register and no guest memory decides it now.
+                    //
+                    // Behind UPC_FORK_MARK. Off, the first entry is read from
+                    // pde 0 as before, which is sound while D6 is on.
                     let want = phase12::PROC_FORK_RESERVED | ((cpu.current_pid as u32) << 8);
-                    let reserved = match PROC_TABLE.get(child_pid) {
-                        Some(row) => row[phase12::PROC_TABLE_STATE_SLOT] == want,
-                        None => false,
+                    let under_way = if UPC_FORK_MARK {
+                        match PROC_TABLE.get(child_pid) {
+                            Some(row) => row[phase12::PROC_TABLE_STATE_SLOT] == want,
+                            None => false,
+                        }
+                    } else {
+                        (mem_read_word(child_pgd >> 2) & mmu::PTE_PRESENT) != 0
                     };
-                    if !reserved {
-                        if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
-                            unsafe {
-                                (*p)[phase12::PROC_TABLE_STATE_SLOT] = want;
+                    if !under_way {
+                        if UPC_FORK_MARK {
+                            if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
+                                unsafe {
+                                    (*p)[phase12::PROC_TABLE_STATE_SLOT] = want;
+                                }
                             }
                         }
                         let flags =
@@ -3978,6 +3999,19 @@ fn kernel_routed_alias(n: u32, cpu: &MbcCpuState) -> u32 {
         20 if cfg!(feature = "ascend-linux") && UPC_RUNG_MKDIR => 11,
         22 if UPC_PROBE_INJECT22 => 11,
         24 if cfg!(feature = "ascend-linux") && UPC_RUNG_FD => 11,
+        // ADR-135 RV-1 (Step 29 review, 2026-11-15): 200 and 201 are the block
+        // device's calls. They copy a 512-byte block between the ramdisk and a
+        // buffer named by its PHYSICAL address, with the caller's a2 as the
+        // cursor; the owned kernel's buffer cache makes them from S-mode. From
+        // U-mode they were a read and a write of any physical memory, ADR-109
+        // D6 or not: a child overwrote init's memory with one and read init's
+        // with the two. A U-mode caller's number becomes one that has no arm,
+        // so it answers -ENOSYS (DP-503) and the arms below never see it.
+        lsys::SYS_READ_BLOCK | lsys::SYS_WRITE_BLOCK
+            if cfg!(feature = "ascend-linux") && cpu.priv_level == 3 =>
+        {
+            NO_SUCH_SYSCALL
+        }
         _ => n,
     }
 }

@@ -36,4 +36,9 @@ Skip Protocol acknowledged: skip after 3x the estimate or 2 failed debug attempt
 - Phase 6 departure: fork's first entry is keyed on a mark in the child slot's PROC_TABLE row, not on a tag in a3 as D18 was first written. a3 is the caller's register, so a forged tag would have skipped the copy with D6 on. Cost +169.
 - [STUCK] the slot scan skipping rows another parent has marked, and clearing a mark when a parent dies mid-fork (Step 116, second half): the skip alone is +11,789 against 4,064 of headroom. Unreachable while ascend has no timer switch, which is now a compile-time assertion (I9). Needed only with preemption.
 - ascend baseline row now 895936 (net vs 921036: 25100)
+- Review finding RV-1 (High) fixed: syscalls 200/201 (block device) were callable from U-mode with a physical buffer address; a child wrote and read init's memory with D6 on. A U-mode caller now gets -ENOSYS. Cost +4,139.
+- Budget reorder: the RV-1 guard did not fit (900,081). D18's fork mark (+169) is behind UPC_FORK_MARK and OFF to make room; headroom is now 94. Phase 7 and the mark need rung 3 (Phase 9) to free instructions first, as Step 30's override says.
+- Review finding RV-2 fixed: the opcode scan also refuses PUSH, POP, INT and IRET in a user image. The interpreter itself still runs them at U-mode; the scan is the control, as for the atomics.
+- Review finding RV-3 (Low, open): the host engine crates/monad-mbc/src/execute.rs has neither the priv-3 refusal nor D6; refusals and D6 misses count nothing. A counter needs instructions the object does not have.
+- Seen, not acted on: a user program's ebreak becomes HALT, and HALT has no privilege test, so any user program can halt the machine. Refuse HALT at U-mode (cost unmeasured), or leave it?
 

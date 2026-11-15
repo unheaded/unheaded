@@ -382,6 +382,11 @@ copy.
 Cost: +169 verified instructions. `hostile_fork` holds the plant, and a hand-made fork with a2 past the end of the
 copy (a3 clear, then all ones).
 
+**Off since the same day.** The mark is behind `UPC_FORK_MARK`, and that const is false: the block-syscall guard
+(RV-1, below) needed the instructions. Off, fork reads pde 0 as before, which is sound while D6 is on, and the object
+is the earlier one exactly (895,767 without the guard). The tripwire and `hostile_fork` stay; the probe passes either
+way with D6 on.
+
 ## Guards
 
 One const per step, off by default: `UPC_REPLY` for the channel, `UPC_RUNG_SBRK`, `UPC_RUNG_KILL`, `UPC_RUNG_SLEEP`,
@@ -531,6 +536,27 @@ their numbers overlap both sets above. Each was re-read in the tree before its d
 | T-S1 | Suspected | Corpus forks and exits now take injected traps from exec'd images | Answered: 12/12 SAME with them, so the path works |
 | T-S2 | Suspected | Extra trap ticks could cut off a golden with a tight trigger count | Answered: no golden was cut off. The counters did move, for another reason: see D14 |
 | T-S3 | Suspected | D11-D14 may not fit 8,192 of headroom | Answered: the on object fell to 889,100 |
+
+## Independent review of S-STAGE-2C Phase 2 (2026-11-15)
+
+S-STAGE-2C Step 29 asks for a separate read-only review of the priv-3 test and of D6 on. The lane read its own change
+first; the independent read followed at `10078582`, nothing built or booted by the reviewer. Its ids carry `RV-`.
+
+Verdict: the three diffs it was given are sound. No legitimate path runs `MRET` or `SRET` at priv 3; the NOP is safe
+(PC already advanced, privilege stays 3, the reply read is set only inside the `SRET` arm); D6 breaks no legitimate
+access; nothing relied on `SRET`'s 16-bit mask as a bound. It found a confinement hole outside the diffs, which D6
+does not close. Each finding was re-read in the tree, and RV-1 was booted, before its disposition.
+
+| Id | Severity | Finding | Disposition |
+|---|---|---|---|
+| RV-1 | High, pre-existing | The block device's syscalls, 200 and 201, had no privilege test and take a physical buffer address and the caller's cursor. A child's `ecall` copied a ramdisk block over any physical memory, and with 201 then 200 read any physical memory back | Booted: `hostile_block`'s child overwrote init's buffer and read init's secret, D6 on. **Fixed 2026-11-15:** a U-mode caller's 200 or 201 becomes a number with no arm and answers -ENOSYS; the kernel's calls (S-mode) are unchanged. +4,139 verified instructions |
+| RV-2 | Medium, pre-existing | The load-time scan (D17) listed six opcodes and missed `PUSH`, `POP`, `INT` and `IRET`, which reach memory through r15 with no translation | **Fixed 2026-11-15:** all four are refused in a user image, with or without the probe hatch. No built image holds one. As with the atomics, the interpreter itself does not refuse them at U-mode: the scan is the control |
+| RV-3 | Low | The host engine (`crates/monad-mbc/src/execute.rs`) has neither the priv-3 refusal nor D6, so differential runs diverge; refusals and D6 misses increment no counter, so hostile behaviour leaves no trace | Open, For Stevie. A counter costs verified instructions the object does not have today |
+
+**What RV-1 cost.** The guard does not fit beside everything else: with it the object read 900,081 against the 900,000
+line. It outranks D18's mark (+169, a second lock on a route D6 already closes), so the mark went behind
+`UPC_FORK_MARK`, off, and returns when a rung frees instructions. With the guard on and the mark off the object is
+899,906.
 
 ## Alternatives considered
 
