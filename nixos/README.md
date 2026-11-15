@@ -25,8 +25,8 @@ nixos/
     ├── telemetry.nix        # Prometheus + VictoriaMetrics + Loki + Grafana
     ├── wireguard.nix        # WireGuard east-west + IPv6 /48 addressing
     └── services/            # One .nix per Unheaded service
-        ├── monad.nix
-        ├── sophia.nix
+        ├── wotan.nix
+        ├── timeguru.nix
         └── ...
 ```
 
@@ -46,7 +46,7 @@ nixos/
 - All hosts import `telemetry.nix` → node_exporter, Prometheus remote_write to Host-A
 - All hosts import `wireguard.nix` → WireGuard wg0 interface
 - Host-A only: full service suite
-- Host-B only: minimal service subset (monad, wotan, anamnesis, shield, unheaded-daemon, service-discovery)
+- Host-B only: minimal service subset (wotan, anamnesis, shield, unheaded-daemon, service-discovery)
 
 ## Environment Variables (set in each service's systemd unit)
 

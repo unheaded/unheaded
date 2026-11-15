@@ -13,8 +13,6 @@
     ../../modules/observability.nix
     ../../modules/wireguard.nix
     ../../modules/frr.nix
-    ../../modules/services/monad.nix
-    ../../modules/services/sophia.nix
     ../../modules/services/wotan.nix
     ../../modules/services/anamnesis.nix
     ../../modules/services/shield.nix
@@ -25,10 +23,7 @@
     ../../modules/services/gateway.nix
     ../../modules/services/service-discovery.nix
     ../../modules/services/lich.nix
-    ../../modules/services/captain.nix
-    ../../modules/services/micromanager.nix
     ../../modules/services/timeguru.nix
-    ../../modules/services/architect.nix
     ../../modules/services/developer.nix
     ../../modules/services/kanban.nix
   ];
@@ -78,8 +73,6 @@
         8428    # VictoriaMetrics
         3100    # Loki
         9100    # node_exporter
-        50051   # gRPC (monad)
-        50052   # gRPC (sophia)
         50053   # gRPC (wotan)
         50054   # gRPC (anamnesis)
         4222    # NATS
