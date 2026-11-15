@@ -173,7 +173,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | hadolint | Dockerfile lint: a Dockerfile it cannot parse fails; (rule, file) counts may only shrink | `scripts/check-hadolint.sh` |
 | bandit | Python security lint (reporting only) | CI |
 | syft | SBOM | CI |
-| Meta-gate | Plants a violation in every gate and requires it to fail | `scripts/check-gates-can-fail.sh` |
+| Meta-gate | Plants a violation in every gate and requires it to fail. It refuses a dirty tree, untracked files included, so run it in a clean worktree. On west ruff and pip-audit are not on the default PATH (their gates then report INCONCLUSIVE): they are in the CI venv, added last: `PATH=$PATH:/var/tmp/unheaded-sprint/civenv/bin` | `scripts/check-gates-can-fail.sh` |
 | Signed releases | Every release file signed with keyless cosign (identity: `release.yml` at the tag), SBOM attested, GitHub build provenance; verify with the script ([[Releases]]) | `.github/workflows/release.yml`, `scripts/verify-release.sh`, CI `release-verify` |
 | OpenSSF Scorecard | Supply-chain posture score, published, uploaded as code scanning | `.github/workflows/scorecard.yml` |
 | CodeQL | Go, JavaScript and Python analysis on push/PR to develop, staging, main | `.github/workflows/codeql.yml` |
