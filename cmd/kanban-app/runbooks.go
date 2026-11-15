@@ -423,19 +423,28 @@ type AgentRun struct {
 	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
 }
 
-// agentRunSource is a store that can say which agent run worked a card.
-// Only the Well has zhen_agent_runs; SQLite and memory stores do not.
+// agentRunSource can say which agent run worked a card: the Zhen module's
+// runs (runsReader over unheaded_zhen), or a test's stand-in. SQLite and
+// memory boards have none.
 type agentRunSource interface {
 	LatestAgentRun(ctx context.Context, cardID string) (*AgentRun, error)
 }
 
+// runsReader is zhen_agent_runs in unheaded_zhen as app_kanban (ADR-149),
+// read through the pool zhenRuns opens while the Zhen module is on.
+type runsReader struct{ db *sql.DB }
+
 // LatestAgentRun implements agentRunSource: nil, nil when the card has no
-// run. Reads only the columns 041 grants app_kanban.
-func (p *PgStore) LatestAgentRun(ctx context.Context, cardID string) (*AgentRun, error) {
+// run. Reads only the columns 052 grants app_kanban (041's).
+func (r runsReader) LatestAgentRun(ctx context.Context, cardID string) (*AgentRun, error) {
+	return latestAgentRun(ctx, r.db, cardID)
+}
+
+func latestAgentRun(ctx context.Context, db *sql.DB, cardID string) (*AgentRun, error) {
 	var r AgentRun
 	var branch, head, note, check, reason sql.NullString
 	var reviewed sql.NullTime
-	err := p.db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		SELECT id, status, mode, family, branch, head_commit, route_summary->>'review_note',
 		       route_summary->>'check', review_reason, claimed_at, reviewed_at
 		  FROM zhen_agent_runs WHERE card_id = $1 ORDER BY claimed_at DESC LIMIT 1`, cardID).
@@ -478,7 +487,11 @@ func (s *Server) agentRunFor(ctx context.Context, cardID string) *AgentRun {
 	}
 	src, ok := s.store.(agentRunSource)
 	if !ok {
-		return nil
+		db := s.zhenRuns(ctx)
+		if db == nil {
+			return nil
+		}
+		src = runsReader{db: db}
 	}
 	ctx, cancel := context.WithTimeout(ctx, agentRunLookupLimit)
 	defer cancel()

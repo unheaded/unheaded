@@ -216,9 +216,9 @@ func TestConfirmCmd_Usage(t *testing.T) {
 
 func TestConfirmFlag_Validation(t *testing.T) {
 	noCredentials(t)
-	t.Setenv(envAppZhenDSN, "")
+	t.Setenv(envZhenDSN, "")
 	var out, errb bytes.Buffer
-	if code := run(append(baseArgs(t), "-confirm", "queue", "-p", "x"), strings.NewReader(""), &out, &errb); code != 2 || !strings.Contains(errb.String(), envAppZhenDSN) {
+	if code := run(append(baseArgs(t), "-confirm", "queue", "-p", "x"), strings.NewReader(""), &out, &errb); code != 2 || !strings.Contains(errb.String(), envZhenDSN) {
 		t.Errorf("queue without DSN: exit %d %s", code, errb.String())
 	}
 	errb.Reset()

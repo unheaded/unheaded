@@ -158,7 +158,7 @@ func parseFlags(args []string, stdout, stderr io.Writer) (*options, error) {
 	fs.BoolVar(&o.localOnly, "local-only", false, "keep this prompt on this host: ask the local model only, never Claude (implies -route auto without escalation; config local_only)")
 	fs.BoolVar(&o.auditWell, "audit-well", false, "also record every request in the Well's llm_requests and every tool decision in audit_events (DSN from env WELL_OPS_DSN); Well unreachable = read-only run")
 	fs.BoolVar(&o.auditWotan, "audit-wotan", false, "also publish the audit records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
-	fs.StringVar(&o.confirm, "confirm", "deny", "what happens to a write the gate refuses pending confirmation: deny (refuse, the default), tty (ask the human on /dev/tty with a code the model never sees), queue (queue it in the Well for `zhen-claude confirm approve <id>`; DSN from env WELL_APP_ZHEN_DSN)")
+	fs.StringVar(&o.confirm, "confirm", "deny", "what happens to a write the gate refuses pending confirmation: deny (refuse, the default), tty (ask the human on /dev/tty with a code the model never sees), queue (queue it in the Well for `zhen-claude confirm approve <id>`; DSN from env WELL_ZHEN_DSN, unheaded_zhen)")
 	fs.StringVar(&o.privacyMode, "privacy", "standard", "privacy tier for tool results bound for Claude: standard (redact; summarise large ops output locally) or strict (withhold every Kingdom-ops result; overnight mode)")
 	fs.StringVar(&o.userDataRoots, "user-data-roots", os.Getenv("ZHEN_USER_DATA_ROOTS"), "comma-separated paths whose contents never leave the host (T2, withheld; env ZHEN_USER_DATA_ROOTS)")
 	fs.StringVar(&o.secretScanner, "secret-scanner", os.Getenv("ZHEN_SECRET_SCANNER"), "secret scanner binary for the privacy tier (gitleaks 8.19+; default: gitleaks on PATH, then ~/.local/bin/gitleaks; env ZHEN_SECRET_SCANNER). Without one nothing is sent")
@@ -236,8 +236,8 @@ func parseFlags(args []string, stdout, stderr io.Writer) (*options, error) {
 	switch o.confirm {
 	case "deny", "tty":
 	case "queue":
-		if strings.TrimSpace(os.Getenv(envAppZhenDSN)) == "" {
-			return nil, fmt.Errorf("-confirm queue needs %s (unheaded_app as app_zhen); it is read from the environment only", envAppZhenDSN)
+		if strings.TrimSpace(os.Getenv(envZhenDSN)) == "" {
+			return nil, fmt.Errorf("-confirm queue needs %s (unheaded_zhen as app_zhen); it is read from the environment only", envZhenDSN)
 		}
 	default:
 		return nil, fmt.Errorf("-confirm %q: want deny, tty or queue", o.confirm)

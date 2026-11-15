@@ -19,15 +19,22 @@ import (
 // (scripts/well/test-zhen-agent-runs.sh sets the DSNs; cards are created
 // as app_kanban, the board's own writer).
 func TestWellAgentRuns_Conformance(t *testing.T) {
-	dsn, kdsn := os.Getenv("WELL_TEST_APP_DSN"), os.Getenv("WELL_TEST_KANBAN_DSN")
-	if dsn == "" || kdsn == "" {
-		t.Skip("WELL_TEST_APP_DSN / WELL_TEST_KANBAN_DSN not set (run scripts/well/test-zhen-agent-runs.sh)")
+	// Since ADR-149 the runs are in unheaded_zhen (WELL_TEST_ZHEN_DSN) and
+	// the board in unheaded_app (WELL_TEST_APP_DSN), both as app_zhen.
+	dsn, zdsn, kdsn := os.Getenv("WELL_TEST_APP_DSN"), os.Getenv("WELL_TEST_ZHEN_DSN"), os.Getenv("WELL_TEST_KANBAN_DSN")
+	if dsn == "" || zdsn == "" || kdsn == "" {
+		t.Skip("WELL_TEST_APP_DSN / WELL_TEST_ZHEN_DSN / WELL_TEST_KANBAN_DSN not set (run scripts/well/test-zhen-agent-runs.sh)")
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer func() { _ = db.Close() }()
+	zdb, err := sql.Open("postgres", zdsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = zdb.Close() }()
 	kdb, err := sql.Open("postgres", kdsn)
 	if err != nil {
 		t.Fatal(err)
@@ -47,8 +54,8 @@ func TestWellAgentRuns_Conformance(t *testing.T) {
 			}
 		}
 	}
-	conformance(t, SQLStore{DB: db}, add, "w-")
-	scheduledConformance(t, SQLStore{DB: db}, add, "w-")
+	conformance(t, SQLStore{Board: db, Runs: zdb}, add, "w-")
+	scheduledConformance(t, SQLStore{Board: db, Runs: zdb}, add, "w-")
 
 	// The card moved and kept its commits as a JSON array.
 	var status, commits string

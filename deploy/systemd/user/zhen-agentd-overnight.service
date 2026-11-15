@@ -17,7 +17,8 @@
 #
 # The environment file is Stevie's, outside the repository, mode 0600:
 #   ANTHROPIC_API_KEY=...        (the Claude leg; leave out for local only)
-#   WELL_APP_ZHEN_DSN=...        (cards and runs, unheaded_app as app_zhen)
+#   WELL_ZHEN_DSN=...            (runs, unheaded_zhen as app_zhen; ADR-149)
+#   WELL_APP_ZHEN_DSN=...        (cards, unheaded_app as app_zhen)
 #   WELL_OPS_DSN=...             (llm_requests and audit_events, ops_writer)
 #   LLAMA_URL=http://127.0.0.1:8081
 #

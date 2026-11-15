@@ -8,7 +8,7 @@
 //
 // Replaces the stderrActionStore stub that ships with the daemons —
 // production deployments wire this in with a DSN to The Well's
-// unheaded_app database.
+// unheaded_zhen database (ADR-149; it was unheaded_app until migration 052).
 //
 // The table is defined by db/migrations (009, 011, 020), applied by
 // db/init.sh or well-migrate (ADR-101), never at startup: the daemon runs

@@ -1443,6 +1443,7 @@ services:
       WELL_USER: "app_kanban"
       WELL_PASSWORD: "${APP_KANBAN_PASSWORD:?set APP_KANBAN_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_app"
+      WELL_ZHEN_DB: "unheaded_zhen"   # Zhen's runs, read only while the module is on (ADR-149)
       WELL_SSLMODE: "${WELL_SSLMODE:-require}"   # pg_hba accepts TLS only (ERDA 4.2); verify-full needs the CA below
       WELL_SSLROOTCERT: "${WELL_SSLROOTCERT:-}"   # /etc/unheaded/well-tls/ca.crt, mounted below
     volumes:
