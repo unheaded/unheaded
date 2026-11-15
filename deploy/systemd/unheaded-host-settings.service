@@ -21,7 +21,9 @@ ConditionPathExists=/home/govan/tmp/unheaded/deploy/host-settings/west.tsv
 [Service]
 Type=oneshot
 ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded --textfile /var/lib/unheaded/textfile
-SuccessExitStatus=1 3
+# 4 is drift, 3 a file it could not read: readings, not failures. 1 is a
+# command that failed (set -e), 2 a broken manifest: both fail the unit.
+SuccessExitStatus=3 4
 Nice=10
 IOSchedulingClass=idle
 
@@ -32,7 +34,6 @@ ProtectHome=read-only
 ReadWritePaths=/var/lib/unheaded/textfile
 PrivateTmp=yes
 PrivateDevices=yes
-PrivateNetwork=yes
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
@@ -43,7 +44,11 @@ RestrictNamespaces=yes
 RestrictRealtime=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+# No PrivateNetwork: net.* sysctls are per network namespace, and the check
+# must read the host's (in a private one: somaxconn 4096, keepalive 7200).
+# No sockets but AF_UNIX, and no IP traffic, instead.
 RestrictAddressFamilies=AF_UNIX
+IPAddressDeny=any
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
 MemoryMax=64M

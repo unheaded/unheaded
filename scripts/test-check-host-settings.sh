@@ -10,9 +10,14 @@
 #   6 no key or password ever reaches the output; 7 an absent row whose path
 #   exists drifts; 8 an unreadable host file is SKIP (exit 3, or 0 with
 #   --allow-skip); 9 a two-field manifest line is exit 2; 10 the repository
-#   self-check refuses huge pages and a number in a slice.
+#   self-check refuses huge pages, a number in a slice, and a drift-check unit
+#   that would read a private network namespace's sysctls or count a crash as
+#   a pass; 11 a crash is never the drift code.
+# Drift is exit 4, kept apart from 1, which is what `set -e` exits with.
 # Runtime rows (sysctl, findmnt, /proc/swaps) are not exercised: --root turns
-# them off, and they read the live host.
+# them off, and they read the live host. Case 10 stands in for them: under
+# PrivateNetwork=yes `sysctl -n net.*` reads a fresh namespace's defaults
+# (somaxconn 4096, tcp_keepalive_time 7200), not the host's (review REV-1).
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -35,6 +40,8 @@ setup() {
 		"${WORK}/repo/deploy/systemd" "${WORK}/repo/config/wireguard" \
 		"${WORK}/root/etc/sysctl.d" "${WORK}/root/etc/systemd/system" \
 		"${WORK}/root/etc/wireguard" "${WORK}/root/var"
+	printf '# SPDX-License-Identifier: GPL-3.0-or-later\n[Service]\nType=oneshot\nSuccessExitStatus=3 4\nProtectKernelTunables=yes\nRestrictAddressFamilies=AF_UNIX\nIPAddressDeny=any\n' \
+		>"${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
 	printf '# SPDX-License-Identifier: GPL-3.0-or-later\nvm.nr_hugepages = 0\nvm.swappiness = 10\n' \
 		>"${WORK}/repo/deploy/sysctl.d/99-unheaded-west.conf"
 	cp "${WORK}/repo/deploy/sysctl.d/99-unheaded-west.conf" "${WORK}/root/etc/sysctl.d/99-unheaded.conf"
@@ -98,25 +105,29 @@ if printf '%s\n' "${OUT}" | grep -v '^OK	' | grep -q .; then
 else
 	ok "1 every line starts OK"
 fi
-[ "$(printf '%s\n' "${OUT}" | grep -c '^OK	')" -eq 5 ] && ok "1 one line per row (5)" || bad "1 one line per row (5): $(printf '%s\n' "${OUT}" | grep -c .)"
+if [ "$(printf '%s\n' "${OUT}" | grep -c '^OK	')" -eq 5 ]; then
+	ok "1 one line per row (5)"
+else
+	bad "1 one line per row (5): $(printf '%s\n' "${OUT}" | grep -c .)"
+fi
 
 echo "--- 2: exact, one byte changed ---"
 setup
 sed -i 's/vm.swappiness = 10/vm.swappiness = 11/' "${WORK}/root/etc/sysctl.d/99-unheaded.conf"
 gate
-expect "2 one byte drifts" 1 "DRIFT	exact	/etc/sysctl.d/99-unheaded.conf"
+expect "2 one byte drifts" 4 "DRIFT	exact	/etc/sysctl.d/99-unheaded.conf"
 
 echo "--- 3: contains, a line missing ---"
 setup
 sed -i '/^\/dev\/x /d' "${WORK}/root/etc/fstab"
 gate
-expect "3 a missing fstab line drifts" 1 "DRIFT	contains	/etc/fstab"
+expect "3 a missing fstab line drifts" 4 "DRIFT	contains	/etc/fstab"
 setup
 printf '/srv/a /srv/b none bind,nofail 0 0 extra\n' >"${WORK}/root/etc/fstab.part"
 sed -i '/^\/srv\/a /d' "${WORK}/root/etc/fstab"
 cat "${WORK}/root/etc/fstab.part" >>"${WORK}/root/etc/fstab"
 gate
-expect "3 a line that only starts the same drifts" 1 "DRIFT	contains	/etc/fstab"
+expect "3 a line that only starts the same drifts" 4 "DRIFT	contains	/etc/fstab"
 
 echo "--- 4: redact, keys, password and comments differ ---"
 setup
@@ -128,7 +139,7 @@ echo "--- 5: redact, AllowedIPs differ ---"
 setup
 sed -i 's|AllowedIPs = fd00:dead:beef::2/128|AllowedIPs = fd00:dead:beef::/48|' "${WORK}/root/etc/wireguard/wg0.conf"
 gate
-expect "5 AllowedIPs drift" 1 "DRIFT	redact	/etc/wireguard/wg0.conf"
+expect "5 AllowedIPs drift" 4 "DRIFT	redact	/etc/wireguard/wg0.conf"
 no_secret "6 (case 5)"
 
 echo "--- 6: nothing printed from a file, with --textfile ---"
@@ -136,7 +147,7 @@ setup
 sed -i 's|Address = fd00:dead:beef::1/128|Address = fd00:dead:beef::1/64|' "${WORK}/root/etc/wireguard/wg0.conf"
 mkdir -p "${WORK}/textfile"
 gate --textfile "${WORK}/textfile"
-expect "6 drift with a textfile" 1 "DRIFT	redact	/etc/wireguard/wg0.conf"
+expect "6 drift with a textfile" 4 "DRIFT	redact	/etc/wireguard/wg0.conf"
 no_secret "6"
 if printf '%s\n' "${OUT}" | grep -qF -e 'fd00:dead:beef::1/64' -e 'Address'; then
 	bad "6 a line of the file reached the output"
@@ -168,7 +179,7 @@ echo "--- 7: absent ---"
 setup
 : >"${WORK}/root/var/swapfile9"
 gate
-expect "7 an absent path that exists drifts" 1 "DRIFT	absent	/var/swapfile9"
+expect "7 an absent path that exists drifts" 4 "DRIFT	absent	/var/swapfile9"
 
 echo "--- 8: unreadable ---"
 if [ "$(id -u)" -eq 0 ]; then
@@ -232,6 +243,40 @@ rm -rf "${WORK}/repo/deploy/host-settings"
 RC=0
 OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
 expect "10 no manifest directory is exit 2, never a pass" 2 ''
+for bad in 'PrivateNetwork=yes' 'PrivateNetwork=true' 'NetworkNamespacePath=/run/netns/x' 'JoinsNamespaceOf=other.service'; do
+	setup
+	printf '%s\n' "${bad}" >>"${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
+	RC=0
+	OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+	expect "10 the unit with ${bad%%=*} refused (net sysctls would be a private namespace's)" 1 'network namespace'
+done
+setup
+sed -i 's/^SuccessExitStatus=3 4$/SuccessExitStatus=1 3/' "${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
+RC=0
+OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+expect "10 the unit counting exit 1 (a crash) as success refused" 1 'SuccessExitStatus'
+setup
+rm "${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
+RC=0
+OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+expect "10 no drift-check unit refused" 1 'unheaded-host-settings.service'
+
+echo "--- 11: a crash is not drift ---"
+if [ "$(id -u)" -eq 0 ]; then
+	echo "  SKIP  11 (running as root: a read-only directory does not stop root)"
+else
+	setup
+	sed -i 's/vm.swappiness = 10/vm.swappiness = 11/' "${WORK}/root/etc/sysctl.d/99-unheaded.conf"
+	mkdir -p "${WORK}/ro-textfile"
+	chmod 555 "${WORK}/ro-textfile"
+	gate --textfile "${WORK}/ro-textfile"
+	if [ "${RC}" -ne 4 ] && [ "${RC}" -ne 3 ] && [ "${RC}" -ne 0 ]; then
+		ok "11 an unwritable textfile directory with drift is a failure (exit ${RC}), not drift"
+	else
+		bad "11 an unwritable textfile directory exited ${RC}, a code the unit counts as success"
+	fi
+	chmod 755 "${WORK}/ro-textfile"
+fi
 
 echo ""
 echo "test-check-host-settings: ${PASSED} passed, ${FAILED} failed"

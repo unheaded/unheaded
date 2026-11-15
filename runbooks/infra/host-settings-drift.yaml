@@ -28,7 +28,7 @@ steps:
   - name: list-drift-unprivileged
     action: shell
     command: "scripts/check-host-settings.sh --host west --allow-skip; echo rc=$?"
-    description: "From the checkout, as yourself: OK, DRIFT or SKIP, the mode, the host path (or the sysctl key, mount target, swap list). Root-only files (WireGuard, FRR) read SKIP here; the next step reads them. rc 1 = drift, 2 = a broken manifest."
+    description: "From the checkout, as yourself: OK, DRIFT or SKIP, the mode, the host path (or the sysctl key, mount target, swap list). Root-only files (WireGuard, FRR) read SKIP here; the next step reads them. rc 4 = drift, 2 = a broken manifest, 1 = the check itself failed."
 
   - name: list-drift-as-root
     action: manual

@@ -22,8 +22,10 @@
 #   check-host-settings.sh [--repo DIR]
 #       The repository self-check (CI, the meta-gate): every manifest is well
 #       formed, every repo_path exists, west's sysctl source reserves no huge
-#       pages (decision 12), and no slice named in a manifest carries a share
-#       (decision 13: plan 8 sets the shares). Exit 0 or 1; no manifest
+#       pages (decision 12), no slice named in a manifest carries a share
+#       (decision 13: plan 8 sets the shares), and the drift-check unit
+#       neither runs in its own network namespace (the net.* sysctls it reads
+#       must be the host's) nor counts exit 1 or 2 as success. Exit 0 or 1; no manifest
 #       directory, or no manifest in it, is exit 2, never a pass.
 #
 #   check-host-settings.sh --host NAME [--repo DIR] [--root DIR]
@@ -34,12 +36,14 @@
 #       Without --root it also reads the running host: every key of an exact
 #       /etc/sysctl.d row against `sysctl -n`, every bind line of the
 #       /etc/fstab row against findmnt, and the active swap list.
-#       Exit 2 on a usage error or a malformed manifest; else 1 on any DRIFT;
-#       else 3 on any SKIP without --allow-skip; else 0.
+#       Exit 2 on a usage error or a malformed manifest; else 4 on any DRIFT;
+#       else 3 on any SKIP without --allow-skip; else 0. Exit 1 is never a
+#       verdict: it is a command that failed under `set -e` (mktemp or mv in
+#       the textfile directory), so the unit counts only 3 and 4 as success.
 #       --textfile DIR writes DIR/unheaded_host_settings.prom (drift and skip
 #       counts, the time of the check) for node_exporter, whatever the exit
-#       code of a completed check (0, 1 or 3). A run that stops on exit 2
-#       writes nothing, so HostSettingsCheckStale catches it.
+#       code of a completed check (0, 3 or 4). A run that stops on exit 1 or
+#       2 writes nothing, so HostSettingsCheckStale catches it.
 #
 # It never prints a line of any file it reads: keys and passwords live in some
 # of them. Only verdicts, modes, paths and sysctl key names reach the output.
@@ -190,6 +194,7 @@ parse_manifest() {
 self_check() {
 	local dir="${REPO}/deploy/host-settings" fail=0 m problem i rp manifests=() nrows=0
 	local sysctl_src="${REPO}/deploy/sysctl.d/99-unheaded-west.conf"
+	local unit="${REPO}/deploy/systemd/unheaded-host-settings.service"
 	local share_re='^(CPUWeight|CPUQuota|MemoryMin|MemoryLow|MemoryHigh|MemoryMax|MemorySwapMax|IOWeight|TasksMax)='
 	if [[ ! -d "${dir}" ]]; then
 		echo "check-host-settings: no manifest directory ${dir}" >&2
@@ -230,6 +235,24 @@ self_check() {
 	elif ! grep -qx 'vm.nr_hugepages = 0' "${sysctl_src}"; then
 		echo "FAIL: ${sysctl_src#"${REPO}"/} must say 'vm.nr_hugepages = 0' (ADR-147 decision 12: no huge pages reserved)"
 		fail=1
+	fi
+	# The unit that runs the live check. net.* sysctls are per network
+	# namespace: in a private one `sysctl -n` reads that namespace's defaults
+	# (somaxconn 4096, tcp_keepalive_time 7200), not the host's, and every
+	# run would report drift (review REV-1). Exit 1 is what `set -e` exits
+	# with, so the unit must not count it as success (REV-2; drift is 4).
+	if [[ ! -f "${unit}" ]]; then
+		echo "FAIL: ${unit#"${REPO}"/} does not exist"
+		fail=1
+	else
+		if grep -qE '^[[:space:]]*(PrivateNetwork[[:space:]]*=[[:space:]]*(yes|true|on|1)|NetworkNamespacePath[[:space:]]*=[[:space:]]*[^[:space:]]|JoinsNamespaceOf[[:space:]]*=[[:space:]]*[^[:space:]])' "${unit}"; then
+			echo "FAIL: ${unit#"${REPO}"/} runs in its own network namespace (PrivateNetwork, NetworkNamespacePath or JoinsNamespaceOf): the net.* sysctls it reads would not be the host's; use RestrictAddressFamilies and IPAddressDeny instead"
+			fail=1
+		fi
+		if grep -qE '^[[:space:]]*SuccessExitStatus[[:space:]]*=(.*[[:space:]=])?[12]([[:space:]]|$)' "${unit}"; then
+			echo "FAIL: ${unit#"${REPO}"/} counts exit 1 or 2 as success (SuccessExitStatus): those are a crash and a broken manifest; drift is 4, a skip 3"
+			fail=1
+		fi
 	fi
 	if ((fail)); then
 		echo "check-host-settings: FAIL"
@@ -439,7 +462,7 @@ if [[ -n "${TEXTFILE}" ]]; then
 fi
 
 if ((DRIFTS > 0)); then
-	exit 1
+	exit 4
 fi
 if ((SKIPS > 0)) && [[ "${ALLOW_SKIP}" != true ]]; then
 	exit 3
