@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-147: Every service earns its place: use, cost, reliability and scale, measured
 
-**Status:** Proposed (parked). Measured 2026-11-15; no code changed, nothing stopped.
+**Status:** Proposed. The analysis started 2026-11-15 on Stevie's word (last update below); no plan yet, no load run, nothing stopped.
 **Date:** 2026-11-15
 **Related:** ADR-144 (footprint: what each part costs; this ADR continues it), ADR-142 (Wotan speed), ADR-117 (one Grafana), ADR-100 (SLOs), ADR-116 (monitor the monitors), ADR-112 (plan freeze), FND-044, `docs/battle-plans/progress/S-WATCH-TRUE-progress.md`.
 
@@ -180,4 +180,26 @@ Stevie, verbatim:
 Not named by Stevie and so not at the table: Erda. The database part of item 17 sits with Architect unless he adds her.
 
 **Status:** unchanged, Proposed (parked). No load run, nothing changed on a host.
+
+## Update 2026-11-15 (answers; the analysis starts)
+
+Stevie answered four questions. His words, verbatim:
+
+- When the round table starts: **now.** It reads the hosts and writes; it runs no load and changes no host.
+- What "all 3" meant:
+  > BOTH! also included /unheaded-erda at the table.  start item 2 - with cover all our bases - let's fan out on what-ifs, how does the system function under "all imagineable" (of course not all but a varied array of conditions maybe all three at once maybe just too much disk I/O) - included as line items for project completion is implmenting all findings, and performance  optimizations. DESIGN FLAWS - there is some weird wacky stuff conjoured up at 3am on little sleep in our stack!
+- Which programs are the real load:
+  > Blog and site, orb, vor, " i dont want to run the rss-daemon or weather-daemon here - weather was designed to keep google api key usage in free catagory, no monthly bill - and rss polls real human's websites - I dont want to generate any unessary traffic or load for them"
+- Erda: **at the table.** The database part of item 17 is hers.
+
+What follows from them:
+
+- **Item 12 is answered:** the blog and site, orb and vor. Not the rss daemon and not the weather daemon: one would spend a metered key, the other would load other people's sites. No test in this project sends traffic to a host Stevie does not own.
+- **Item 13 stands and widens.** All three resources at 80 to 90% at once is one condition among several. The run is a matrix of conditions: each resource alone, pairs, all three, and faults on top (a slow disk, a full disk, a lost link, a lost host). The table writes the matrix.
+- **The three first steps are part of the project:** the four role services (item 2), the caller behind Wotan's 68 reads a second (item 4), and the trace collector on east (item 7, attended). "start item 2" is read as: begin with the services and the Wotan caller while the matrix is designed.
+- **Done means fixed.** The project is complete when every finding is implemented or has a written reason why not, and the optimizations are in and measured. A list of recommendations is not the end.
+- **Design flaws are in scope by name.** The table looks for what was built wrong, not only for what is slow: loops on timers, queues with no bound, state with no owner, a second copy of something, a service with no caller.
+- **The freeze (ADR-112) is lifted for this ADR's analysis.** The battle plan still waits on Stevie's word after he reads the table's answers.
+
+The table's answers are written below this line as they come in, each under its skill's name, dated.
 

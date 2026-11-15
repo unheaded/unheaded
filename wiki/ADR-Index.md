@@ -168,7 +168,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [144](../docs/adr/ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west, a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east) | 2026-11-12 |
 | [145](../docs/adr/ADR-145-upc-user-image-ceiling-check.md) | UPC user images are checked against the heap window's floor | **Proposed** (parked) | 2026-11-15 |
 | [146](../docs/adr/ADR-146-upc-scrub-slice-at-reap.md) | A UPC slot's slice is scrubbed when its process is reaped | **Proposed** (parked) | 2026-11-15 |
-| [147](../docs/adr/ADR-147-every-service-earns-its-place.md) | Every service earns its place: use, cost, reliability and scale, measured | **Proposed** (parked) | 2026-11-15 |
+| [147](../docs/adr/ADR-147-every-service-earns-its-place.md) | Every service earns its place: use, cost, reliability and scale, measured; then both hosts under load, and tuned | **Proposed** (analysis started) | 2026-11-15 |
 
 ---
 
