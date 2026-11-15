@@ -78,6 +78,18 @@ const (
 	// deploy/systemd/unheaded-well-retention.service, account
 	// unheaded-well-retention. It writes only its textfile.
 	WellRetention = 16713
+	// HealthSweep runs the platform's health sweep from a timer (ADR-149),
+	// host unit unheaded-health-sweep.service only; writes only its textfile.
+	HealthSweep = 16714
+	// IOCAudit runs the daily IOC audit from a timer (ADR-149), host unit
+	// unheaded-ioc-audit.service only; writes only its textfile.
+	IOCAudit = 16715
+	// Modules publishes and withdraws a module's fragments under
+	// /run/unheaded/modules (ADR-149): unheaded-zhen-module.service.
+	Modules = 16716
+	// ModuleGuard reads listening sockets and reports a module listener on a
+	// public address (ADR-149): unheaded-module-guard.service.
+	ModuleGuard = 16717
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -138,7 +150,7 @@ const (
 	// (deploy/polkit/61-unheaded-vor-refresh.rules). With it this tier is
 	// full: 16720-16759 are all assigned. Next free, in uids.go, sysusers
 	// and the hosts' passwd on 2026-11-15: 16764 (Gnostic tier), and
-	// 16714-16719 in the telemetry tier.
+	// 16718-16719 in the telemetry tier (16714-16717: ADR-149).
 	VorRefresh = 16758
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
@@ -309,6 +321,10 @@ var Registry = map[string]int{
 	"heartbeat":         Heartbeat,
 	"ci-status":         CIStatus,
 	"well-retention":    WellRetention,
+	"health-sweep":      HealthSweep,
+	"ioc-audit":         IOCAudit,
+	"modules":           Modules,
+	"module-guard":      ModuleGuard,
 	"postgres":          Postgres,
 }
 

@@ -19,32 +19,35 @@ import (
 	"unheaded/pkg/zhenagent"
 )
 
-// PgStore.LatestAgentRun as app_kanban against a throwaway Well, the runs
-// written by pkg/zhenagent's store as app_zhen (scripts/well/test-zhen-agent-runs.sh
-// sets the DSNs; migration 041 grants the read).
+// The card modal's agent run as app_kanban against a throwaway Well, the
+// runs written by pkg/zhenagent's store as app_zhen. Since ADR-149 the runs
+// are in unheaded_zhen: WELL_TEST_ZHEN_DSN (app_zhen) and
+// WELL_TEST_KANBAN_ZHEN_DSN (app_kanban, 052's column grants) beside the
+// board's WELL_TEST_APP_DSN (app_zhen) and WELL_TEST_KANBAN_DSN (app_kanban).
 func TestWellLatestAgentRun(t *testing.T) {
-	zdsn, kdsn := os.Getenv("WELL_TEST_APP_DSN"), os.Getenv("WELL_TEST_KANBAN_DSN")
-	if zdsn == "" || kdsn == "" {
-		t.Skip("WELL_TEST_APP_DSN / WELL_TEST_KANBAN_DSN not set (run scripts/well/test-zhen-agent-runs.sh)")
+	adsn, zdsn, kdsn, kzdsn := os.Getenv("WELL_TEST_APP_DSN"), os.Getenv("WELL_TEST_ZHEN_DSN"),
+		os.Getenv("WELL_TEST_KANBAN_DSN"), os.Getenv("WELL_TEST_KANBAN_ZHEN_DSN")
+	if adsn == "" || zdsn == "" || kdsn == "" || kzdsn == "" {
+		t.Skip("WELL_TEST_APP_DSN / WELL_TEST_ZHEN_DSN / WELL_TEST_KANBAN_DSN / WELL_TEST_KANBAN_ZHEN_DSN not set (run scripts/well/test-zhen-agent-runs.sh)")
 	}
 	ctx := context.Background()
-	zdb, err := sql.Open("postgres", zdsn)
-	if err != nil {
-		t.Fatal(err)
+	open := func(dsn string) *sql.DB {
+		db, err := sql.Open("postgres", dsn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = db.Close() })
+		return db
 	}
-	defer func() { _ = zdb.Close() }()
-	kdb, err := sql.Open("postgres", kdsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer func() { _ = kdb.Close() }()
+	adb, zdb, kdb, kzdb := open(adsn), open(zdsn), open(kdsn), open(kzdsn)
 	card := func(id, typ, owner string) {
 		if _, err := kdb.ExecContext(ctx, `INSERT INTO kanban_tasks (id, title, status, type, owner) VALUES ($1, $1, 'todo', $2, $3)`, id, typ, owner); err != nil {
 			t.Fatal(err)
 		}
 	}
-	runs := zhenagent.SQLStore{DB: zdb}
+	runs := zhenagent.SQLStore{Board: adb, Runs: zdb}
 	p := &PgStore{db: kdb}
+	reader := runsReader{db: kzdb}
 	// The opt-in route as this store runs it, then the worker's view of it.
 	card("kb-optin", "task", zhenagent.Owner)
 	if o, err := p.ZhenOptInFor(ctx, "kb-optin"); err != nil || o != nil {
@@ -83,7 +86,7 @@ func TestWellLatestAgentRun(t *testing.T) {
 	}
 
 	card("kb-none", "task", "")
-	if r, err := p.LatestAgentRun(ctx, "kb-none"); err != nil || r != nil {
+	if r, err := reader.LatestAgentRun(ctx, "kb-none"); err != nil || r != nil {
 		t.Fatalf("card without runs: %+v %v", r, err)
 	}
 
@@ -107,7 +110,7 @@ func TestWellLatestAgentRun(t *testing.T) {
 	if err := runs.Review(ctx, id, zhenagent.StatusRejected, "wrong file"); err != nil {
 		t.Fatal(err)
 	}
-	r, err := p.LatestAgentRun(ctx, "kb-worked")
+	r, err := reader.LatestAgentRun(ctx, "kb-worked")
 	if err != nil || r == nil {
 		t.Fatalf("worked card: %+v %v", r, err)
 	}
@@ -125,17 +128,18 @@ func TestWellLatestAgentRun(t *testing.T) {
 		LeaseUntil: time.Now().Add(15 * time.Minute)}); err != nil {
 		t.Fatal(err)
 	}
-	if r, err := p.LatestAgentRun(ctx, "kb-sched"); err != nil || r == nil || r.Mode != "scheduled" || r.Branch != "" || r.Status != "running" {
+	if r, err := reader.LatestAgentRun(ctx, "kb-sched"); err != nil || r == nil || r.Mode != "scheduled" || r.Branch != "" || r.Status != "running" {
 		t.Errorf("scheduled run: %+v %v", r, err)
 	}
 
-	// 041 grants the columns the modal shows, not the error text or the cost.
+	// 052 (041's columns) grants the columns the modal shows, not the error
+	// text or the cost.
 	for _, col := range []string{"error", "claude_nano_usd", "lease_until", "base_commit"} {
-		if _, err := kdb.ExecContext(ctx, `SELECT `+col+` FROM zhen_agent_runs LIMIT 1`); err == nil {
+		if _, err := kzdb.ExecContext(ctx, `SELECT `+col+` FROM zhen_agent_runs LIMIT 1`); err == nil {
 			t.Errorf("app_kanban reads zhen_agent_runs.%s", col)
 		}
 	}
-	if _, err := kdb.ExecContext(ctx, `UPDATE zhen_agent_runs SET status = 'cancelled' WHERE id = $1`, sid); err == nil {
+	if _, err := kzdb.ExecContext(ctx, `UPDATE zhen_agent_runs SET status = 'cancelled' WHERE id = $1`, sid); err == nil {
 		t.Error("app_kanban updated a run")
 	}
 }

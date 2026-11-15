@@ -69,49 +69,21 @@ tests:
         alertname: ZhenSchedulerStalled
         exp_alerts: []
 
-  # ioc-audit last succeeded at t=0 and the daemon keeps exporting that. Up
-  # to three days it is quiet; past three days it waits out the 30m hold,
-  # then fires. A success at 74h (the gauge moves to then) clears it. The
-  # other job's gauge is as old and does not fire: the alarm is this job's.
+  # Zhen's backup set last succeeded at t=0: quiet at 25 hours, firing at
+  # 27 (26 hours stale plus the 30m hold).
   - interval: 1m
     input_series:
-      - series: 'zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111",schedule="ioc-audit"}'
-        values: '0x4440 266400x120'
-      - series: 'zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111",schedule="service-health-sweep"}'
-        values: '0x4560'
+      - series: 'unheaded_zhen_backup_last_success_timestamp_seconds{job="huginn",host="west"}'
+        values: '0x1700'
     alert_rule_test:
-      - eval_time: 71h
-        alertname: IOCAuditNotSucceeding
+      - eval_time: 25h
+        alertname: ZhenBackupStale
         exp_alerts: []
-      - eval_time: 72h20m
-        alertname: IOCAuditNotSucceeding
-        exp_alerts: []
-      - eval_time: 73h
-        alertname: IOCAuditNotSucceeding
+      - eval_time: 27h
+        alertname: ZhenBackupStale
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd, instance: "[fd00:dead:beef::1]:20111", schedule: ioc-audit}
+          - exp_labels: {severity: warning, urgency: none, host: west}
             exp_annotations:
-              summary: "The daily indicator-of-compromise audit has not succeeded for over 3 days"
-              description: "Every ioc-audit run since then failed or none ran: it kept finding an indicator, or it could not see (VictoriaMetrics or journal shipping down). Read the newest scheduled-run card in Review, or run the runbook by hand"
-              runbook_url: "runbooks/security/ioc-audit.yaml"
-      - eval_time: 75h
-        alertname: IOCAuditNotSucceeding
-        exp_alerts: []
-
-  # The host was off for five days: no series, no alarm. Back up, the gauge
-  # still says five days ago for the minutes until the catch-up run lands;
-  # the 30m hold keeps that from firing.
-  - interval: 1m
-    input_series:
-      - series: 'zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111",schedule="ioc-audit"}'
-        values: '0x10 _x7180 0x3 432180x60'
-    alert_rule_test:
-      - eval_time: 100h
-        alertname: IOCAuditNotSucceeding
-        exp_alerts: []
-      - eval_time: 7193m
-        alertname: IOCAuditNotSucceeding
-        exp_alerts: []
-      - eval_time: 7240m
-        alertname: IOCAuditNotSucceeding
-        exp_alerts: []
+              summary: "Zhen's database has had no backup set for over a day"
+              description: "No complete set of unheaded_zhen from unheaded-zhen-backup.service for 26 hours: read journalctl -u unheaded-zhen-backup and /srv/backups/unheaded-zhen/LATEST"
+              runbook_url: "wiki/Well-Backups.md"

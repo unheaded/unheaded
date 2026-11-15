@@ -203,6 +203,22 @@ func TestDefaultTargets_AllUseHealthPath(t *testing.T) {
 	}
 }
 
+// A module or a service no deployment runs must not be a built-in target:
+// a host without it would report a failure every sweep (ADR-147, A7).
+func TestDefaultTargets_NameNoModuleOrAbsentService(t *testing.T) {
+	t.Parallel()
+	for _, tgt := range defaultTargets {
+		switch tgt.Name {
+		case "zhenai", "inference", "gateway":
+			t.Errorf("default target %q: not part of every host", tgt.Name)
+		}
+		switch tgt.Port {
+		case 20100, 20103, 21000:
+			t.Errorf("default target %q on port %d: not part of every host", tgt.Name, tgt.Port)
+		}
+	}
+}
+
 // ─── /ready ──────────────────────────────────────────────────────────────────
 
 type fakeSweeper uint64

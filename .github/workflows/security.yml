@@ -220,6 +220,9 @@ jobs:
       # ADR-147 SS3: a unit that restarts itself can also give up (UnitFailed).
       - name: Every restarting unit can trip its start limit
         run: ./scripts/check-unit-start-limits.sh
+      # ADR-149: no module unit listens on a wildcard or public address.
+      - name: Module listeners stay off the public side
+        run: ./scripts/check-module-binds.sh
 
       # ADR-102: no new latest / major-only image tag anywhere.
       - name: Floating image tags may only shrink

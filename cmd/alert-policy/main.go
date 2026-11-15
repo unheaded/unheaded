@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -39,10 +40,13 @@ import (
 const (
 	policyPath = "observability/alerting/policy.yaml"
 	rulesDir   = "monitoring/prometheus/rules"
-	sloRules   = "monitoring/prometheus/rules/slo.yml"
-	amConfig   = "monitoring/alertmanager/alertmanager.yml"
-	repoBlob   = repolink.BlobBase
-	runbookURL = repoBlob + "runbooks/observe/slo-error-budget-burn.yaml"
+	// moduleRulesGlob is every optional module's hand-written rules
+	// (ADR-149): checked like the platform's, loaded only while on.
+	moduleRulesGlob = "modules/*/prometheus/rules/*.yml"
+	sloRules        = "monitoring/prometheus/rules/slo.yml"
+	amConfig        = "monitoring/alertmanager/alertmanager.yml"
+	repoBlob        = repolink.BlobBase
+	runbookURL      = repoBlob + "runbooks/observe/slo-error-budget-burn.yaml"
 )
 
 // Policy is observability/alerting/policy.yaml.
@@ -451,7 +455,7 @@ func renderAlertmanager(p *Policy) ([]byte, error) {
 // every promotion names one of them.
 func checkHandRules(root string, p *Policy) []error {
 	var errs []error
-	files, _ := filepath.Glob(filepath.Join(root, rulesDir, "*.yml"))
+	files := handRuleFiles(root)
 	alerts := map[string]bool{}
 	for _, f := range files {
 		if filepath.Base(f) == filepath.Base(sloRules) {
@@ -482,10 +486,20 @@ func checkHandRules(root string, p *Policy) []error {
 	}
 	for _, pr := range p.Promote {
 		if !alerts[pr.Alert] {
-			errs = append(errs, fmt.Errorf("promote: %s is not an alert in %s", pr.Alert, rulesDir))
+			errs = append(errs, fmt.Errorf("promote: %s is not an alert in %s or %s", pr.Alert, rulesDir, path.Dir(moduleRulesGlob)))
 		}
 	}
 	return errs
+}
+
+// handRuleFiles is every hand-written rule file: the platform's, then each
+// module's, each set sorted.
+func handRuleFiles(root string) []string {
+	platform, _ := filepath.Glob(filepath.Join(root, rulesDir, "*.yml"))
+	mods, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(moduleRulesGlob)))
+	sort.Strings(platform)
+	sort.Strings(mods)
+	return append(platform, mods...)
 }
 
 func rel(root, p string) string {

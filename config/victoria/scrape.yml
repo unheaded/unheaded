@@ -186,8 +186,8 @@ scrape_configs:
       - targets: ["host.docker.internal:9598"]
 
   # The two below serve on west's overlay address and are up since
-  # 2026-11-12: syslog-relay (ADR-124, installed with 8efe36e2) and
-  # zhen-agentd (-scheduler -metrics-addr on the overlay address, E4). Each
+  # 2026-11-12: syslog-relay (ADR-124, installed with 8efe36e2); zhen-agentd's
+  # job is the Zhen module's since ADR-149 (modules/zhen/victoria/scrape). Each
   # has an alert rule that reads it. No job in this file is expected to read
   # up == 0 on west. The sword and heimdall jobs were removed 2026-11-15
   # (S-WATCH-TRUE, W1 and W2, answered 2026-11-12): sword runs only during
@@ -199,8 +199,6 @@ scrape_configs:
       - targets: ["[fd00:dead:beef::1]:9599"]
         labels: {host: west}
 
-  - job_name: "zhen-agentd"
-    scrape_interval: 15s
-    static_configs:
-      - targets: ["[fd00:dead:beef::1]:20111"]
-        labels: {host: west}
+# A module's scrape jobs, present only while its switch is on (/run/unheaded/modules, ADR-149).
+scrape_config_files:
+  - /etc/unheaded-modules/*/victoria/scrape/*.yml

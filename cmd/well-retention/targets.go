@@ -6,8 +6,9 @@ package main
 import "slices"
 
 const (
-	dbApp = "unheaded_app"
-	dbOps = "unheaded_ops"
+	dbApp  = "unheaded_app"
+	dbOps  = "unheaded_ops"
+	dbZhen = "unheaded_zhen" // Zhen's own database since ADR-149 (migration 052)
 )
 
 // target is everything well-retention may do to one table, as fixed SQL.
@@ -35,6 +36,10 @@ type target struct {
 	archive string
 	// purge-function: returns the number of rows deleted.
 	purgeFn string
+	// heldCards: count and held take the cards a Zhen run names as $2, the
+	// archive batch as $3 (read from unheaded_zhen first, heldCards in
+	// run.go): one database per statement (ADR-149).
+	heldCards bool
 
 	// partition-check: the oldest value of the table's age column.
 	oldest string
@@ -45,7 +50,7 @@ func (t target) allows(action string) bool { return slices.Contains(t.actions, a
 var targets = map[string]target{
 	// Operator-typed text; no archive (policy §3.9).
 	"zhen_conversations": {
-		db:      dbApp,
+		db:      dbZhen,
 		actions: []string{actionPurge},
 		count:   `SELECT count(*) FROM zhen_conversations WHERE created_at < $1`,
 		purge: `DELETE FROM zhen_conversations WHERE id IN (
@@ -55,7 +60,7 @@ var targets = map[string]target{
 	// is the only delete path (quarantined captures go at once; a promoted
 	// one stays while an export names it). The cutoff is informational.
 	"zhen_captures": {
-		db:        dbApp,
+		db:        dbZhen,
 		actions:   []string{actionPurgeFunction},
 		fixedDays: 180,
 		fixedBy:   "033's insert trigger sets purge_after",
@@ -63,22 +68,23 @@ var targets = map[string]target{
 		purgeFn:   `SELECT zhen_captures_purge()`,
 	},
 	// Soft-deleted cards (ADR-011 Q4 amendment). A card any agent run names
-	// is held: runs are never deleted (032) and its foreign key would
-	// refuse the delete anyway. Archived cards (archived_at) are not
-	// deleted cards.
+	// is held: runs are never deleted (032, 052). The runs are in
+	// unheaded_zhen (ADR-149), so the held cards come in as a parameter.
+	// Archived cards (archived_at) are not deleted cards.
 	"kanban_tasks": {
-		db:      dbApp,
-		actions: []string{actionArchivePurge},
+		db:        dbApp,
+		actions:   []string{actionArchivePurge},
+		heldCards: true,
 		count: `SELECT count(*) FROM kanban_tasks k
 		         WHERE k.deleted_at < $1
-		           AND NOT EXISTS (SELECT 1 FROM zhen_agent_runs r WHERE r.card_id = k.id)`,
+		           AND NOT (k.id = ANY($2::text[]))`,
 		held: `SELECT count(*) FROM kanban_tasks k
 		        WHERE k.deleted_at < $1
-		          AND EXISTS (SELECT 1 FROM zhen_agent_runs r WHERE r.card_id = k.id)`,
+		          AND k.id = ANY($2::text[])`,
 		archive: `DELETE FROM kanban_tasks t WHERE t.id IN (
 		              SELECT k.id FROM kanban_tasks k
 		               WHERE k.deleted_at < $1
-		                 AND NOT EXISTS (SELECT 1 FROM zhen_agent_runs r WHERE r.card_id = k.id)
+		                 AND NOT (k.id = ANY($3::text[]))
 		               ORDER BY k.deleted_at LIMIT $2)
 		          RETURNING t.id, to_jsonb(t)`,
 	},
@@ -119,7 +125,7 @@ var targets = map[string]target{
 		oldest: `SELECT min(created_at) FROM chaos_journal`,
 	},
 	"zhen_agent_runs": {
-		db: dbApp, actions: []string{actionPartitionCheck},
+		db: dbZhen, actions: []string{actionPartitionCheck},
 		oldest: `SELECT min(claimed_at) FROM zhen_agent_runs`,
 	},
 }

@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Publishes the Zhen module's fragments (modules/zhen: Prometheus rules and
+# scrape jobs, VictoriaMetrics scrape jobs, dashboard health targets) under
+# /run/unheaded/modules/zhen while the switch (unheaded-zhen.target) is on,
+# and withdraws them when it goes off. Prometheus and VictoriaMetrics re-read
+# their globs every 30 s, dashboard-backend its targets every 30 s, the menu
+# and kanban per request (ADR-149). It also writes
+# unheaded_module_enabled{module="zhen"} to the textfile directory.
+#
+# Account unheaded-modules, uid 16716 (pkg/uids), the only writer of
+# /run/unheaded/modules (deploy/tmpfiles.d/unheaded-modules.conf). Install:
+#   sudo install -D -m 0755 scripts/modules/module-fragments.sh /usr/local/lib/unheaded/modules/module-fragments.sh
+#   sudo cp -r modules/zhen /usr/local/lib/unheaded/modules/zhen
+#   sudo setfacl -m u:unheaded-modules:rwx /var/lib/unheaded/textfile
+#   sudo cp deploy/systemd/unheaded-zhen-module.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable unheaded-zhen-module.service
+
+[Unit]
+Description=Unheaded Zhen module fragments (rules, scrape jobs, health targets)
+PartOf=unheaded-zhen.target
+After=systemd-tmpfiles-setup.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/lib/unheaded/modules/module-fragments.sh publish zhen
+ExecStop=/usr/local/lib/unheaded/modules/module-fragments.sh withdraw zhen
+User=unheaded-modules
+Group=unheaded-modules
+UMask=0022
+MemoryMax=32M
+TasksMax=16
+IPAddressDeny=any
+ReadWritePaths=/run/unheaded/modules /var/lib/unheaded/textfile
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=unheaded-zhen.target

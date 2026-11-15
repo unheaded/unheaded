@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -111,6 +112,12 @@ type Server struct {
 	// runbooks lists runbooks/ for the Runbooks view (runbooks.go); nil:
 	// the runbook routes answer 503.
 	runbooks *runbookCatalog
+
+	// The Zhen module's runs (unheaded_zhen, ADR-149): a small pool opened on
+	// the first card detail read while the module is on (zhenruns.go).
+	runsMu   sync.Mutex
+	runsDB   *sql.DB
+	openRuns func(context.Context, database.Config) (*sql.DB, error)
 }
 
 // initMetrics registers every series this service publishes. Values are read

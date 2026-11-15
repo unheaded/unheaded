@@ -381,6 +381,24 @@ class Linter:
         self.suppressed = 0
         self.conf_shared_buffers_mb = None
         self.compose_pg_mem_mb = None
+        self.manifests: dict = {}             # migrations dir -> {file name: database}
+
+    def manifest_db(self, file):
+        """The database a ledger file runs in, from the MANIFEST beside it (ADR-101):
+        `<database> <file> [notx] [superuser]`. None when there is no MANIFEST, the file
+        is not in it, is `skip`, or runs in more than one database (007_grants)."""
+        d = Path(file).parent
+        if d not in self.manifests:
+            seen: dict[str, set] = {}
+            try:
+                for raw in (d / "MANIFEST").read_text(encoding="utf-8", errors="replace").splitlines():
+                    parts = raw.split("#", 1)[0].split()
+                    if len(parts) >= 2 and parts[0] != "skip":
+                        seen.setdefault(parts[1], set()).add(parts[0])
+            except OSError:
+                pass
+            self.manifests[d] = {f: next(iter(dbs)) for f, dbs in seen.items() if len(dbs) == 1}
+        return self.manifests[d].get(Path(file).name)
 
     def add(self, sev, rule, file, line, msg, ref=""):
         if self.is_ignored(file, line, rule):
@@ -521,7 +539,7 @@ class Linter:
             self.add("P2", "psql-meta", file, metas[0][1],
                      f"psql meta-commands in migration ({sample}) — ties the file to psql and to hard-coded "
                      f"database names; let the runner choose the database", REF["ledger"])
-        db = None
+        db = self.manifest_db(file) if origin == "sql" else None   # a \c below overrides it
         created_here: dict[str, str] = {}   # short name -> "new" | "maybe" | "existing"
         created_line: dict[str, int] = {}
         fk_mark = len(self.fks)
@@ -1003,10 +1021,17 @@ class Linter:
             if len(defs) < 2 or "__dyn__" in tname:
                 continue
             shapes = {}
+            sigs = []
             for d in defs:
                 sig = tuple(sorted((c, re.sub(r"\s+", " ", v["type"])) for c, v in d.columns.items()))
                 shapes.setdefault(sig, []).append(d)
-            if len(shapes) > 1:
+                sigs.append((sig, d.db))
+            # Two definitions drift only if they can meet in one database: the same one, or
+            # either unknown. The same name in two databases (a table moved by the ledger,
+            # ADR-149's unheaded_app -> unheaded_zhen) is two tables.
+            drift = any(sa != sb and (da is None or db_ is None or da == db_)
+                        for i, (sa, da) in enumerate(sigs) for sb, db_ in sigs[i + 1:])
+            if drift:
                 in_code = any(d.origin == "code" for d in defs)
                 where = "; ".join(f"{Path(d.file).name}:{d.line}" + (f" [db {d.db}]" if d.db else "") +
                                   (" (code)" if d.origin == "code" else "") for d in defs)

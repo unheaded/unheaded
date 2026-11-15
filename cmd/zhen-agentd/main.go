@@ -28,10 +28,12 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -51,6 +53,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/modules"
 	"unheaded/pkg/retrieval"
 	"unheaded/pkg/vorclient"
 	"unheaded/pkg/vorquery"
@@ -72,20 +75,20 @@ const (
 func main() {
 	var (
 		port             = flag.Int("port", defaultPort, "HTTP listen port")
-		host             = flag.String("host", "127.0.0.1", "HTTP listen host (use 0.0.0.0 for non-loopback)")
+		host             = flag.String("host", "127.0.0.1", "HTTP listen host: loopback, or a private address on 'UNHEADED_MODULE_BIND_ALLOW (ADR-149)")
 		projectRoot      = flag.String("project-root", "", "default Champion sandbox root used when a request omits project_root (default: cwd)")
 		allowedRoots     = flag.String("allowed-roots", "", "comma-separated list of project roots requests may target; defaults to just -project-root")
-		actionStore      = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env)")
+		actionStore      = flag.String("action-store", "stderr", "audit-log backend: stderr (dev) | pg (production via The Well: unheaded_zhen.zhen_actions, DSN from env WELL_ZHEN_DSN)")
 		kanbanStore      = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; DSN from WELL_KANBAN_DSN, else WELL_DSN). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
 		rateRPS          = flag.Float64("rate-limit", defaultRateLimitRPS, "per-IP requests/sec (0 disables)")
 		rateBurst        = flag.Int("rate-burst", defaultRateBurst, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
 		noAuth           = flag.Bool("no-auth", false, "serve without authentication; only with a loopback -host and AUTH_ENABLED unset (dev). Without it, zhen-agentd exits 2 unless AUTH_ENABLED=true and AUTH_API_KEYS, AUTH_API_KEY_FILE or a trust dir (AUTH_TRUST_DIR) is set")
 		auditWell        = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
-		confirmQ         = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
+		confirmQ         = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_zhen.zhen_pending_confirmations, DSN from env WELL_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan       = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
-		memoryStore      = flag.String("memory-store", "none", "memory backend for /api/v1/memory/recall and /remember (zhen-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN)")
+		memoryStore      = flag.String("memory-store", "none", "memory backend for /api/v1/memory/recall and /remember (zhen-cli /recall, /remember): none (503) | pg (unheaded_zhen.zhen_memories, DSN from env WELL_ZHEN_DSN)")
 		askTokens        = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
-		schedOn          = flag.Bool("scheduler", false, "run approved runbooks on the schedule in -schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR-028)")
+		schedOn          = flag.Bool("scheduler", false, "run approved runbooks on the schedule in -schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR-028)")
 		schedFile        = flag.String("schedules", envOr("ZHEN_SCHEDULES", "configs/zhen-schedules.yaml"), "with -scheduler: the schedule file (env ZHEN_SCHEDULES); read-only to the daemon")
 		schedState       = flag.String("schedules-state", os.Getenv("ZHEN_SCHEDULES_STATE"), "with -scheduler: where run-time schedule changes (POST /api/v1/scheduler/add|remove|pause) persist (env ZHEN_SCHEDULES_STATE); empty keeps them until restart")
 		retrieveDeadline = flag.Duration("retrieve-deadline", 2*time.Second, "how long each retrieval waits for each backend; a backend past it is skipped, reads and answers go on, and its silence holds every mutating call (0: no deadline)")
@@ -112,6 +115,12 @@ func main() {
 		if err := applyOvernightDefaults(&wf, set, defaultStateDir()); err != nil {
 			fatal("overnight: %v", err)
 		}
+		pools.overnight = true // smaller pools beside the daemon (pools.go)
+	}
+	// The switch (ADR-149): with the module off a -worker run does nothing.
+	// Checked before any pool, listener or worktree.
+	if workerModuleOff(wf, os.Stderr) {
+		os.Exit(0)
 	}
 
 	if *schedOn && (wf.overnight || wf.once) {
@@ -122,6 +131,12 @@ func main() {
 	// -overnight and -once runs open no listener.
 	var authMW func(http.Handler) http.Handler
 	if !wf.overnight && !wf.once {
+		// The module bind rule (ADR-149): every listener on loopback or an
+		// allowlisted private address, checked before any opens.
+		if err := checkListenAddrs(*host, *port, *metricsAddr, os.Getenv(modules.EnvBindAllow)); err != nil {
+			fmt.Fprintf(os.Stderr, "zhen-agentd: %v (ADR-149: a module listens on loopback or an allowlisted private address)\n", err)
+			os.Exit(2)
+		}
 		mw, err := listenerAuth(auth.LoadServiceAuthConfig("zhen-agentd"), *noAuth, *host)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "zhen-agentd: %v\n", err)
@@ -178,6 +193,7 @@ func main() {
 		fatal("audit init: %v", err)
 	}
 	defer aud.close()
+	defer pools.close() // the shared app_zhen pools (pools.go)
 	rawStore, err := buildActionStore(*actionStore)
 	if err != nil {
 		fatal("action-store init: %v", err)
@@ -361,7 +377,7 @@ func main() {
 		handler = rl.Middleware(handler)
 	}
 
-	listenAddr := fmt.Sprintf("%s:%d", *host, *port)
+	listenAddr := net.JoinHostPort(*host, strconv.Itoa(*port))
 	httpSrv := &http.Server{
 		Addr:              listenAddr,
 		Handler:           handler,
@@ -492,30 +508,16 @@ func buildActionStore(kind string) (champion.ActionStore, error) {
 	case "stderr", "":
 		return &stderrActionStore{}, nil
 	case "pg", "postgres", "postgresql":
-		dsn := strings.TrimSpace(os.Getenv("WELL_DSN"))
-		if dsn == "" {
-			return nil, fmt.Errorf("action-store=pg requires WELL_DSN env var")
-		}
-		warnIfInsecureDSN(dsn)
-		db, err := sql.Open("postgres", dsn)
+		// zhen_actions lives in unheaded_zhen (ADR-149): the shared Zhen pool.
+		db, err := pools.zhen(context.Background(), "-action-store=pg")
 		if err != nil {
-			return nil, fmt.Errorf("open postgres: %w", err)
+			return nil, err
 		}
-		// The Well's connection budget (THE_WELL_OPERATIONS.md): one agent loop.
-		db.SetMaxOpenConns(5)
-		db.SetMaxIdleConns(2)
-		db.SetConnMaxLifetime(5 * time.Minute)
-
 		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		if err := db.PingContext(pingCtx); err != nil {
-			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
-			return nil, fmt.Errorf("ping postgres: %w", err)
-		}
 		store := pgstore.New(db)
 		if err := store.CheckSchema(pingCtx); err != nil {
-			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
-			return nil, err
+			return nil, err // the pool is shared (pools.go); main closes it
 		}
 		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL audit store; schema checked\n")
 		return store, nil

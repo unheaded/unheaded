@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The platform's daily indicator-of-compromise audit (ADR-149, ADR-147
+# decision 15 (a)): runs runbooks/security/ioc-audit.yaml through
+# scripts/monitoring/platform-schedule.sh, which leaves
+# unheaded_schedule_*{schedule="ioc-audit"} in the textfile directory;
+# IOCAuditNotSucceeding (monitoring/prometheus/rules/schedules.yml) reads it.
+# It replaces the ioc-audit job that configs/zhen-schedules.yaml held
+# commented out for zhen-agentd -scheduler: Zhen is not the platform's clock.
+#
+# The runbook is status: draft until Stevie approves it, and run-runbook.py
+# refuses a draft, so the timer is installed disabled until then.
+#
+# Account unheaded-ioc-audit, uid 16715 (pkg/uids). Install on west (users
+# first: deploy/sysusers.d/unheaded.conf):
+#   sudo install -D -m 0755 scripts/monitoring/platform-schedule.sh /usr/local/lib/unheaded/monitoring/platform-schedule.sh
+#   sudo install -D -m 0644 scripts/run-runbook.py /usr/local/lib/unheaded/schedules/run-runbook.py
+#   sudo install -D -m 0644 runbooks/security/ioc-audit.yaml /usr/local/lib/unheaded/schedules/runbooks/security/ioc-audit.yaml
+#   sudo setfacl -m u:unheaded-ioc-audit:rwx /var/lib/unheaded/textfile
+#   sudo cp deploy/systemd/unheaded-ioc-audit.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   (after approval) sudo systemctl enable --now unheaded-ioc-audit.timer
+
+[Unit]
+Description=Unheaded daily indicator-of-compromise audit (platform timer)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/runbooks/security/ioc-audit.yaml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/unheaded/monitoring/platform-schedule.sh ioc-audit /usr/local/lib/unheaded/schedules/runbooks/security/ioc-audit.yaml /var/lib/unheaded/textfile
+TimeoutStartSec=10min
+User=unheaded-ioc-audit
+Group=unheaded-ioc-audit
+UMask=0022
+MemoryMax=128M
+TasksMax=64
+IPAddressDeny=any
+IPAddressAllow=localhost
+ReadWritePaths=/var/lib/unheaded/textfile
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM

@@ -137,11 +137,12 @@ func TestBuildConfirmQueue_NeedsEnvAndWell(t *testing.T) {
 	} else {
 		closeQ()
 	}
-	t.Setenv("WELL_APP_ZHEN_DSN", "")
-	if _, _, err := buildConfirmQueue(context.Background(), true); err == nil || !strings.Contains(err.Error(), "WELL_APP_ZHEN_DSN") {
+	// The queue is a Zhen table: unheaded_zhen, WELL_ZHEN_DSN (ADR-149).
+	t.Setenv("WELL_ZHEN_DSN", "")
+	if _, _, err := buildConfirmQueue(context.Background(), true); err == nil || !strings.Contains(err.Error(), "WELL_ZHEN_DSN") {
 		t.Errorf("no env: %v", err)
 	}
-	t.Setenv("WELL_APP_ZHEN_DSN", "postgres://app_zhen:x@127.0.0.1:1/unheaded_app?sslmode=disable&connect_timeout=2")
+	t.Setenv("WELL_ZHEN_DSN", "postgres://app_zhen:x@127.0.0.1:1/unheaded_zhen?sslmode=disable&connect_timeout=2")
 	if _, _, err := buildConfirmQueue(context.Background(), true); err == nil {
 		t.Error("an unreachable queue was accepted")
 	}

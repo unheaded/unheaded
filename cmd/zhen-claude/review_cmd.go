@@ -29,20 +29,35 @@ import (
 // merged into the base already (it prints the merge command otherwise);
 // reject removes the worktree but keeps the branch (the training-data
 // flywheel needs the rejected diff). It runs as Stevie with his own Well
-// logins (WELL_APP_ZHEN_DSN for the runs and cards, WELL_OPS_DSN for the
-// audit row); nothing here is reachable by a model.
+// logins (WELL_ZHEN_DSN for the runs in unheaded_zhen, WELL_APP_ZHEN_DSN for
+// the cards in unheaded_app, ADR-149; WELL_OPS_DSN for the audit row);
+// nothing here is reachable by a model.
 
 // openReviewStore opens zhen_agent_runs. A variable so tests can stub it.
 var openReviewStore = func(ctx context.Context) (zhenagent.Store, func(), error) {
-	dsn := strings.TrimSpace(os.Getenv(envAppZhenDSN))
-	if dsn == "" {
-		return nil, func() {}, fmt.Errorf("%s is not set (unheaded_app as app_zhen); it is read from the environment only", envAppZhenDSN)
+	zdsn, bdsn := strings.TrimSpace(os.Getenv(envZhenDSN)), strings.TrimSpace(os.Getenv(envAppZhenDSN))
+	if zdsn == "" {
+		return nil, func() {}, fmt.Errorf("%s is not set (unheaded_zhen as app_zhen); it is read from the environment only", envZhenDSN)
 	}
-	db, err := openWellDB(ctx, dsn)
+	if bdsn == "" {
+		return nil, func() {}, fmt.Errorf("%s is not set (unheaded_app as app_zhen, the cards); it is read from the environment only", envAppZhenDSN)
+	}
+	runs, err := openWellDB(ctx, zdsn)
 	if err != nil {
-		return nil, func() {}, fmt.Errorf("connect to the Well: %s", redactDSN(err.Error()))
+		return nil, func() {}, fmt.Errorf("connect to the Well (runs): %s", redactDSN(err.Error()))
 	}
-	return zhenagent.SQLStore{DB: db}, func() { _ = db.Close() }, nil
+	board, err := openWellDB(ctx, bdsn)
+	if err != nil {
+		_ = runs.Close()
+		return nil, func() {}, fmt.Errorf("connect to the Well (cards): %s", redactDSN(err.Error()))
+	}
+	st, err := zhenagent.NewSQLStore(board, runs)
+	if err != nil {
+		_ = runs.Close()
+		_ = board.Close()
+		return nil, func() {}, err
+	}
+	return st, func() { _ = runs.Close(); _ = board.Close() }, nil
 }
 
 // reviewAuditor records the human decision. A variable so tests can stub it.

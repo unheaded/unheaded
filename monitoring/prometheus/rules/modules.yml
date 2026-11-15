@@ -1,0 +1,43 @@
+# Prometheus alert rules - optional modules never face the public side (ADR-149)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# A module's listener is on loopback, a Unix socket, or a private address on
+# the host's allowlist; never a wildcard or a globally routable address
+# (ADR-147 decision 15 (c)). The binaries refuse such a listener at start and
+# scripts/check-module-binds.sh refuses it in the repository; this is the
+# live check. unheaded-module-guard.timer (the platform's, whether a module
+# is on or off) reads the listening sockets every 5 minutes and writes
+# unheaded_module_listener_public_total{module} and one
+# unheaded_module_listener_public{module,port,addr} per offender to the
+# textfile directory; Huginn forwards them. Any offender is
+# ModuleListenerPublic, promoted to a page. A guard that stops writing is
+# ModuleListenerGuardNotRunning: without it the first rule cannot fire.
+
+groups:
+  - name: modules
+    interval: 1m
+    rules:
+      - alert: ModuleListenerPublic
+        expr: |
+          max by (host, module) (unheaded_module_listener_public_total) > 0
+        for: 1m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "A module listens where the public side can reach it"
+          description: "Read unheaded_module_listener_public for the port and address; stop the module by its switch (systemctl disable --now unheaded-<module>.target) before anything else"
+          runbook_url: "runbooks/security/module-listener-public.yaml"
+
+      - alert: ModuleListenerGuardNotRunning
+        expr: |
+          time() - max by (host) (unheaded_module_listener_guard_last_run_timestamp_seconds) > 1800
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "The module listener guard has not run for over 30 minutes"
+          description: "unheaded-module-guard.timer stopped writing module_listeners.prom: a module listener on a public address would go unseen. Read systemctl list-timers unheaded-module-guard.timer and journalctl -u unheaded-module-guard"
+          runbook_url: "runbooks/security/module-listener-public.yaml"

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2026 Stevie Bellis.
-"""Tests for runbooks/security/ioc-audit.yaml, the audit zhen-agentd's
-scheduler runs daily. The audit step runs for real against a stand-in for
+"""Tests for runbooks/security/ioc-audit.yaml, the audit the platform's
+unheaded-ioc-audit.timer runs daily (ADR-149). The audit step runs for real against a stand-in for
 VictoriaMetrics on loopback, so what is under test is the judgment: what
-counts as an indicator (the run fails, the card lands in Review), what is
+counts as an indicator (the run fails and its exit code is recorded), what is
 only a note, and that a blind audit never reads as a clean one. Nothing
 touches a host."""
 import http.server
@@ -19,8 +19,7 @@ import pytest
 import yaml
 
 RB = "runbooks/security/ioc-audit.yaml"
-RULES = "monitoring/prometheus/rules/zhen.yml"
-SCHEDULES = "configs/zhen-schedules.yaml"
+RULES = "monitoring/prometheus/rules/schedules.yml"
 
 
 class FakeVictoria:
@@ -345,7 +344,7 @@ def test_label_text_is_made_safe(audit):
 
 
 def test_the_verdict_fits_the_cards_tail(audit):
-    # The scheduler keeps the last 500 characters of a failed run on the card.
+    # A reader of the tail (the journal, a card when Zhen runs it) sees the verdict in the last 500 characters.
     code, out, _ = audit(unheaded_ssh_accepted_total=[login(f"203.0.113.{i}") for i in range(1, 60)])
     assert code == 1
     tail = out.strip()[-500:]
@@ -377,15 +376,10 @@ def test_the_alarm_points_here():
     assert 'schedule="ioc-audit"' in rule["expr"]
 
 
-def test_the_shipped_schedule_names_the_job_for_after_approval():
-    # A draft cannot be scheduled (the file would refuse to load), so the job
-    # ships commented out and is switched on with the approval. When the
-    # runbook is approved this test is the reminder to uncomment it.
-    text = (harness.REPO / SCHEDULES).read_text()
-    status = harness.load(RB)["metadata"]["status"]
-    live = [j for j in yaml.safe_load(text)["jobs"] if j["name"] == "ioc-audit"]
-    if status == "approved":
-        assert live and live[0]["runbook"] == "security/ioc-audit" and live[0]["every"].startswith("daily@") and live[0]["catch_up"] is True
-    else:
-        assert not live, "a draft runbook is scheduled: zhen-agentd will refuse the schedule file"
-        assert "  # - name: ioc-audit\n" in text and "  #   catch_up: true\n" in text
+def test_the_platform_owns_the_schedule():
+    jobs = yaml.safe_load((harness.REPO / "configs/zhen-schedules.yaml").read_text())["jobs"]
+    assert not [j for j in jobs if j["name"] in ("ioc-audit", "service-health-sweep")]
+    timer = (harness.REPO / "deploy/systemd/unheaded-ioc-audit.timer").read_text()
+    assert "OnCalendar=*-*-* 02:00:00" in timer and "Persistent=true" in timer
+    unit = (harness.REPO / "deploy/systemd/unheaded-ioc-audit.service").read_text()
+    assert "platform-schedule.sh ioc-audit " in unit and "User=unheaded-ioc-audit" in unit

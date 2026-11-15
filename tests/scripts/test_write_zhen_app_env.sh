@@ -38,6 +38,10 @@ grep -qx 'ZHEN_DB_HOST=127.0.0.1' "$tmp/zhen-app.env" || fail "ZHEN_DB_HOST"
 grep -qx 'ZHEN_DB_PORT=5432' "$tmp/zhen-app.env" || fail "ZHEN_DB_PORT"
 grep -qx 'ZHEN_DB_SSLMODE=verify-full' "$tmp/zhen-app.env" || fail "ZHEN_DB_SSLMODE"
 grep -qx 'ZHEN_DB_SSLROOTCERT=/etc/unheaded/well-tls/ca.crt' "$tmp/zhen-app.env" || fail "ZHEN_DB_SSLROOTCERT"
+# REV-2: Zhen's rows live in unheaded_zhen (ADR-149, migration 052); the
+# board's kanban_tasks stays in unheaded_app.
+grep -qx 'ZHEN_DB_NAME=unheaded_zhen' "$tmp/zhen-app.env" || fail "ZHEN_DB_NAME"
+grep -qx 'ZHEN_BOARD_DB_NAME=unheaded_app' "$tmp/zhen-app.env" || fail "ZHEN_BOARD_DB_NAME"
 grep -qx 'ZHEN_ALLOWED_HOSTS=west.lan,10.10.20.2' "$tmp/zhen-app.env" || fail "ZHEN_ALLOWED_HOSTS"
 grep -Eqx 'ZHEN_EMBEDDER_SHA256=[0-9a-f]{64}' "$tmp/zhen-app.env" || fail "ZHEN_EMBEDDER_SHA256"
 grep -Eqx 'ZHEN_EMBEDDER_REVISION=[0-9a-f]{40}' "$tmp/zhen-app.env" || fail "ZHEN_EMBEDDER_REVISION"

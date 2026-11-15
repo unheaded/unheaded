@@ -148,19 +148,6 @@ scrape_configs:
       - targets: ['[fd00:dead:beef::1]:18000']
         labels: {service: "wotan", __scheme__: https}
 
-  # zhen-agentd on west: its API stays on 127.0.0.1:20111; -metrics-addr
-  # (env ZHEN_METRICS_ADDR) serves /metrics alone on the WireGuard address,
-  # same port number. zhen_scheduler_heartbeat_timestamp_seconds feeds
-  # rules/zhen.yml (ZhenSchedulerStalled). The unit runs with -scheduler
-  # -metrics-addr since 2026-11-12 (S-CHAMPION-HARDENING E4).
-  - job_name: zhen-agentd
-    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)
-    metric_relabel_configs: *rule_series
-    # END rule-series
-    static_configs:
-      - targets: ['[fd00:dead:beef::1]:20111']
-        labels: {host: west}
-
   # alert-mailer (same compose network): its own counters, and the
   # dead-man's switch gauge unheaded_heartbeat_last_seen_timestamp_seconds
   # that rules/heartbeat.yml alerts on (present only with HEARTBEAT_HOSTS).
@@ -169,6 +156,10 @@ scrape_configs:
       # No host target label: the gauge's own host label names the watched
       # host, and a target label would rename it to exported_host.
       - targets: ['alert-mailer:19130']
+
+# A module's scrape jobs, present only while its switch is on (/run/unheaded/modules, ADR-149).
+scrape_config_files:
+  - '/etc/unheaded-modules/*/prometheus/scrape/*.yml'
 
 # Only what VictoriaMetrics cannot get for itself goes over: rule results
 # (recorded series all have a colon in the name; ALERTS and ALERTS_FOR_STATE
@@ -188,6 +179,8 @@ remote_write:
 
 rule_files:
   - 'rules/*.yml'
+  # A module's rules, present only while its switch is on (/run/unheaded/modules, ADR-149).
+  - '/etc/unheaded-modules/*/prometheus/rules/*.yml'
 
 # Where firing rules go. Without this block Prometheus evaluated every rule
 # and sent nothing anywhere (2026-10-20): Alertmanager, and the email path

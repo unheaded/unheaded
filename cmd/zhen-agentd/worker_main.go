@@ -5,15 +5,12 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"unheaded/pkg/audit"
@@ -79,7 +76,7 @@ func defaultAgentWTRoot() string {
 }
 
 func registerWorkerFlags(fs *flag.FlagSet, wf *workerFlags) {
-	fs.BoolVar(&wf.enabled, "worker", false, "work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a ```zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)")
+	fs.BoolVar(&wf.enabled, "worker", false, "work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a ```zhen block) into local zhen/<card> branches for review; never pushes (runs from env WELL_ZHEN_DSN, cards from WELL_APP_ZHEN_DSN)")
 	fs.BoolVar(&wf.once, "once", false, "with -worker: work at most one card, print the result as JSON and exit (no HTTP listener)")
 	fs.DurationVar(&wf.poll, "poll", 60*time.Second, "with -worker: time between polls for an eligible card")
 	fs.StringVar(&wf.base, "base", "develop", "with -worker: local branch new zhen/<card> branches start from")
@@ -102,24 +99,23 @@ func registerWorkerFlags(fs *flag.FlagSet, wf *workerFlags) {
 	fs.StringVar(&wf.localModel, "local-model", envOr("ZHEN_LOCAL_LLM_MODEL", claudebridge.DefaultLocalModel), "with -worker: local model name when the family names none")
 }
 
-// openWorkerStore opens zhen_agent_runs and the Kanban columns as app_zhen.
+// openWorkerStore opens zhen_agent_runs (unheaded_zhen) and the Kanban
+// columns (unheaded_app) as app_zhen, through the two shared pools
+// (pools.go): a claim is two steps across them (zhenagent.SQLStore.Claim).
 func openWorkerStore(ctx context.Context) (zhenagent.Store, func(), error) {
-	dsn := strings.TrimSpace(os.Getenv("WELL_APP_ZHEN_DSN"))
-	if dsn == "" {
-		return nil, func() {}, errors.New("-worker needs WELL_APP_ZHEN_DSN (unheaded_app as app_zhen); cards come from the Well")
-	}
-	db, err := sql.Open("postgres", dsn)
+	runs, err := pools.zhen(ctx, "-worker")
 	if err != nil {
 		return nil, func() {}, err
 	}
-	db.SetMaxOpenConns(3)
-	pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := db.PingContext(pctx); err != nil {
-		_ = db.Close()
-		return nil, func() {}, fmt.Errorf("the Well is unreachable: %w", err)
+	board, err := pools.boardPool(ctx, "-worker (cards come from the board)")
+	if err != nil {
+		return nil, func() {}, err
 	}
-	return zhenagent.SQLStore{DB: db}, func() { _ = db.Close() }, nil
+	st, err := zhenagent.NewSQLStore(board, runs)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	return st, func() {}, nil
 }
 
 // agentdRunEvents records worker changes: audit_events (actor_type

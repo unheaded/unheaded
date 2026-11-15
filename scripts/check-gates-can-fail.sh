@@ -493,6 +493,26 @@ provoke_prom_keep_list() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_module_rules() {
+    # Contract (ADR-149): a module's rules are checked like the platform's.
+    # Make the module's rule test expect a label the alert does not carry.
+    local f="modules/zhen/prometheus/rules/tests/zhen_test.yml"
+    backup "${f}"
+    sed -i '0,/reason: absent/s//reason: absentX/' "${REPO_ROOT}/${f}"
+    grep -q 'reason: absentX' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_module_binds() {
+    # Contract (ADR-149): no module unit listens on a public address. Put
+    # zhen-agentd's API on the wildcard.
+    local f="deploy/systemd/zhen-agentd.service"
+    backup "${f}"
+    sed -i 's|-host 127.0.0.1|-host 0.0.0.0|' "${REPO_ROOT}/${f}"
+    grep -q -- '-host 0.0.0.0' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -1425,6 +1445,7 @@ check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 check-prometheus-rules|provoke_prom_keep_list|fast|a rule reads a series the keep-list lacks
+check-prometheus-rules|provoke_module_rules|slow|a module rule test expects the wrong label (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 backup/test-store-backups|provoke_store_backups|slow|clickhouse-drill.sh's SHA256SUMS check made to always pass, so a damaged set drills clean (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
@@ -1452,6 +1473,7 @@ check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-
 check-unit-start-limits|provoke_unit_start_limits|fast|StartLimitIntervalSec removed from unheaded-kev-poller.service
 check-unit-ceilings|provoke_unit_ceilings_compose|fast|GOMEMLIMIT removed from the akira service
 check-unit-ceilings|provoke_unit_ceilings_compose_yaml|fast|monitoring/docker-compose.yml no longer parses
+check-module-binds|provoke_module_binds|fast|zhen-agentd bound to 0.0.0.0
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)

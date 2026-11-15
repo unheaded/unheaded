@@ -3,8 +3,6 @@
 targets:
   - name: wotan
     port: 18000
-  - name: inference
-    port: 20100
   # S-IRON-GATE Phase 10 (ADR-034 Phase 7): cert expiry as an exec check.
   # argv only (no shell), Akira's own uid, killed after 30 s; exit 0 healthy.
   # The runbook reads /etc/unheaded/tls/*/ (falls back to

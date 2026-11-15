@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The module listener guard (ADR-149 decision 6): reads the listening sockets
+# every 5 minutes and reports a module listener on a wildcard, link-local,
+# globally routable or unlisted private address to the textfile directory
+# (unheaded_module_listener_public*); ModuleListenerPublic pages on it. It is
+# the platform's, not the module's: it runs whether the Zhen switch is on or
+# off. It reads ss over netlink and changes nothing.
+#
+# Account unheaded-module-guard, uid 16717 (pkg/uids). Install on west (users
+# first: deploy/sysusers.d/unheaded.conf):
+#   sudo install -D -m 0755 scripts/monitoring/module-listener-guard.sh /usr/local/lib/unheaded/monitoring/module-listener-guard.sh
+#   sudo install -D -m 0644 scripts/lib/module_binds.py /usr/local/lib/unheaded/lib/module_binds.py
+#   sudo cp -r modules/zhen /usr/local/lib/unheaded/modules/zhen
+#   sudo setfacl -m u:unheaded-module-guard:rwx /var/lib/unheaded/textfile
+#   sudo cp deploy/systemd/unheaded-module-guard.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-module-guard.timer
+
+[Unit]
+Description=Unheaded module listener guard (ADR-149)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/unheaded/monitoring/module-listener-guard.sh /usr/local/lib/unheaded/modules /var/lib/unheaded/textfile
+TimeoutStartSec=60s
+User=unheaded-module-guard
+Group=unheaded-module-guard
+UMask=0022
+MemoryMax=32M
+TasksMax=16
+IPAddressDeny=any
+ReadWritePaths=/var/lib/unheaded/textfile
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+# ss reads sockets over netlink (sock_diag).
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/modules"
 	"unheaded/pkg/zhenagent"
 )
 
@@ -90,6 +91,12 @@ func (s *Server) handleZhenOptIn(w http.ResponseWriter, r *http.Request, cardID 
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// Zhen is an optional module (ADR-149): with its switch off there is no
+	// opt-in to give or take.
+	if !modules.Enabled("zhen") {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "the zhen module is off"})
+		return
+	}
 	by, ok := humanOperator(r)
 	if !ok {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "only an operator's own login opts a card in"})
@@ -147,6 +154,9 @@ func (s *Server) handleZhenOptIn(w http.ResponseWriter, r *http.Request, cardID 
 // zhenOptInFor is the card's opt-in for its detail view; nil on a board with no
 // Well, with none, or when it cannot be read: the modal then offers one.
 func (s *Server) zhenOptInFor(ctx context.Context, t *Task) *ZhenOptIn {
+	if !modules.Enabled("zhen") {
+		return nil // the module is off: the modal shows no Zhen section (ADR-149)
+	}
 	src, ok := s.store.(zhenOptInSource)
 	if !ok {
 		return nil

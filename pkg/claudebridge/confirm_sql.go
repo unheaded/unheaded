@@ -12,7 +12,7 @@ import (
 	"regexp"
 )
 
-// SQLConfirmQueue is the Well's unheaded_app.zhen_pending_confirmations
+// SQLConfirmQueue is the Well's unheaded_zhen.zhen_pending_confirmations
 // (migration 031), written as app_zhen. The table's triggers enforce the
 // one-way states, the immutable call, the expiry and the cap; this type
 // checks the same things first so errors read well.

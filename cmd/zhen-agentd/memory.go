@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -197,8 +196,9 @@ func (p *pgMemoryStore) Recall(ctx context.Context, query string, k int) ([]cham
 }
 
 // buildMemoryStore selects the memory backend per -memory-store: "none"
-// (default; /recall and /remember answer 503) or "pg" (WELL_APP_ZHEN_DSN,
-// unheaded_app as app_zhen). Asked for and unreachable fails startup.
+// (default; /recall and /remember answer 503) or "pg" (WELL_ZHEN_DSN,
+// unheaded_zhen as app_zhen, the shared pool of pools.go). Asked for and
+// unreachable fails startup.
 func buildMemoryStore(ctx context.Context, kind string) (champion.MemoryStore, func(), error) {
 	switch kind {
 	case "none", "":
@@ -207,26 +207,16 @@ func buildMemoryStore(ctx context.Context, kind string) (champion.MemoryStore, f
 	default:
 		return nil, func() {}, fmt.Errorf("unknown memory-store %q (supported: none, pg)", kind)
 	}
-	dsn := strings.TrimSpace(os.Getenv("WELL_APP_ZHEN_DSN"))
-	if dsn == "" {
-		return nil, func() {}, fmt.Errorf("-memory-store pg needs WELL_APP_ZHEN_DSN (unheaded_app as app_zhen)")
-	}
-	warnIfInsecureDSN(dsn)
-	db, err := sql.Open("postgres", dsn)
+	db, err := pools.zhen(ctx, "-memory-store pg")
 	if err != nil {
 		return nil, func() {}, err
 	}
-	db.SetMaxOpenConns(2)
 	pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	if err := db.PingContext(pctx); err != nil {
-		_ = db.Close()
-		return nil, func() {}, fmt.Errorf("the Well is unreachable: %w", err)
-	}
 	st, err := newPGMemoryStore(pctx, db)
 	if err != nil {
-		_ = db.Close()
 		return nil, func() {}, err
 	}
-	return st, func() { _ = db.Close() }, nil
+	// The pool is shared (pools.go); main closes it.
+	return st, func() {}, nil
 }

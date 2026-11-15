@@ -169,6 +169,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [145](../docs/adr/ADR-145-upc-user-image-ceiling-check.md) | UPC user images are checked against the heap window's floor | **Proposed** (parked) | 2026-11-15 |
 | [146](../docs/adr/ADR-146-upc-scrub-slice-at-reap.md) | A UPC slot's slice is scrubbed when its process is reaped | **Proposed** (parked) | 2026-11-15 |
 | [147](../docs/adr/ADR-147-every-service-earns-its-place.md) | Every service earns its place: use, cost, reliability and scale, measured; then both hosts under load, and tuned | **Proposed** (round table reported; plan waits on decisions) | 2026-11-15 |
+| [149](../docs/adr/ADR-149-zhen-is-a-module-behind-one-switch.md) | Zhen is a module behind one switch | **Proposed** | 2026-11-15 |
 
 ---
 

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Zhen (Zhenai): the optional AI module (ADR-149). The platform runs whole
+# without it. One switch: the systemd target named below. Limits are
+# restated from the unit files; tests/scripts/test_module_manifest.py
+# fails when the two differ.
+name: zhen
+switch: unheaded-zhen.target
+units:
+  - {unit: zhen-agentd.service,            memory_max: 512M, tasks_max: 512}
+  - {unit: unheaded-zhen-ui-front.service, memory_max: 128M}
+  - {unit: unheaded-zhen-app.service,      memory_max: 3G,   tasks_max: 256}
+  - {unit: unheaded-llama.service,         memory_max: 6G,   tasks_max: 256}
+ports: [8081, 20103, 20111, 20112]
+# Timers in the switch: they fire only while the module is on.
+timers: [unheaded-zhen-backup.timer]
+database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 20}
+# Per host, private prefixes only (pkg/modules.ParseBindAllow, ADR-149): the
+# addresses a Zhen listener may hold besides loopback. The house LAN address
+# is added when S-ZHEN-FRONT opens 20103 (A-16). The drop-ins under
+# hosts/<host>/ carry the same list as UNHEADED_MODULE_BIND_ALLOW.
+bind_allow:
+  west: ["fd00:dead:beef::1/128"]
+fragments:
+  - prometheus/rules/zhen.yml
+  - prometheus/scrape/zhen.yml
+  - victoria/scrape/zhen.yml
+  - dashboard/services.txt

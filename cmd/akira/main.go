@@ -182,17 +182,7 @@ var defaultTargets = []health.ServiceTarget{
 	{Name: "timeguru", Host: "localhost", Port: 19000, HealthPath: "/health"},
 	{Name: "dashboard", Host: "localhost", Port: 20000, HealthPath: "/health"},
 	{Name: "kanban", Host: "localhost", Port: 20001, HealthPath: "/health"},
-	// The Zhen web UI is https whatever UNHEADED_TLS_ENABLED says:
-	// zhen-ui-front has no plaintext mode (ADR-138). The check goes through
-	// the front to the app's own /health, so it needs the CA that issued the
-	// front's certificate (UNHEADED_TLS_CA_CERT, as for the first-party
-	// targets).
-	{Name: "zhenai", Host: "localhost", Port: 20103, HealthPath: "/health", Scheme: "https"},
-	// Not first-party Go listeners: they never serve pkg/tls, so they stay
-	// plain http when the host turns UNHEADED_TLS_ENABLED on.
-	{Name: "inference", Host: "localhost", Port: 20100, HealthPath: "/health", Scheme: "http"},
 	{Name: "daemon", Host: "localhost", Port: 17000, HealthPath: "/health"},
-	{Name: "gateway", Host: "localhost", Port: 21000, HealthPath: "/health", Scheme: "http"},
 }
 
 func systemctlRestart(unit string) ([]byte, error) {

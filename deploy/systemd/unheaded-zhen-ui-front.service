@@ -12,7 +12,7 @@
 #   tmpfiles.d line that names the account the app runs as
 #   sudo cp deploy/systemd/unheaded-zhen-ui-front.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now unheaded-zhen-ui-front.service
+#   sudo systemctl enable unheaded-zhen-ui-front.service (the switch starts it: unheaded-zhen.target, ADR-149)
 #
 # A LAN listener is a host's drop-in: a second --listen with the interface's
 # address, its subnet in IPAddressAllow, and the firewall rule (Stevie's).
@@ -29,6 +29,8 @@ Wants=network-online.target
 # after 300 s).
 StartLimitIntervalSec=30min
 StartLimitBurst=30
+# The Zhen module's switch (ADR-149): stopping the target stops this unit.
+PartOf=unheaded-zhen.target
 
 [Service]
 Type=simple
@@ -104,4 +106,4 @@ IPAddressDeny=any
 IPAddressAllow=localhost
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=unheaded-zhen.target

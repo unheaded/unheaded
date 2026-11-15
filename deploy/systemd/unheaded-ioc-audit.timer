@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The platform's IOC audit, daily (ADR-149). Installed disabled until the
+# runbook is approved (runbooks/security/ioc-audit.yaml, status: approved):
+# run-runbook.py refuses a draft. A missed day runs at the next boot
+# (Persistent=).
+
+[Unit]
+Description=Unheaded IOC audit, daily; a missed day runs at the next boot
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+RandomizedDelaySec=10min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

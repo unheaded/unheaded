@@ -195,7 +195,8 @@ const RunbookView = (function() {
         const text = document.getElementById('detailZhenOptIn');
         const button = document.getElementById('detailZhenOptInButton');
         if (!section || !text || !button) return;
-        section.hidden = !detail || detail.owner !== 'zhen';
+        // zhen_module: the Zhen module is on (ADR-149); off, there is no opt-in.
+        section.hidden = !detail || detail.owner !== 'zhen' || !detail.zhen_module;
         if (section.hidden) return;
         const opt = detail.zhen_opt_in;
         const live = opt && opt.current;

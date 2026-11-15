@@ -22,7 +22,6 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -31,11 +30,10 @@ import (
 var blobRE = regexp.MustCompile(`^https://github\.com/[^/]+/[^/]+/blob/[^/]+/(.+)$`)
 
 func checkRunbookURLs(root string) []error {
-	files, err := filepath.Glob(filepath.Join(root, rulesDir, "*.yml"))
-	if err != nil || len(files) == 0 {
+	files := handRuleFiles(root)
+	if len(files) == 0 {
 		return []error{fmt.Errorf("no rule files under %s", rulesDir)}
 	}
-	sort.Strings(files)
 	pages := map[string]bool{}
 	for _, d := range []string{"runbooks", "wiki"} {
 		_ = filepath.WalkDir(filepath.Join(root, d), func(_ string, e fs.DirEntry, err error) error {

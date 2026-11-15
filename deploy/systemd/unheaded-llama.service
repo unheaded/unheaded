@@ -11,6 +11,9 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl start unheaded-llama.service
 #
+# Enabled, it is WantedBy= unheaded-zhen.target, so the Zhen module's
+# switch starts and stops it (ADR-149).
+#
 # Shipped disabled and not started. Enabling it at boot is the operator's
 # call: the model takes the GPU and about 5 GB of memory from the moment it
 # starts.
@@ -29,6 +32,8 @@ After=network.target
 # after 100 s).
 StartLimitIntervalSec=30min
 StartLimitBurst=90
+# The Zhen module's switch (ADR-149): stopping the target stops this unit.
+PartOf=unheaded-zhen.target
 
 [Service]
 Type=simple
@@ -108,4 +113,4 @@ SystemCallFilter=~@privileged @reboot @module @swap
 SystemCallErrorNumber=EPERM
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=unheaded-zhen.target

@@ -6,11 +6,66 @@ package bff
 import (
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"unheaded/pkg/modules"
 )
 
+// withZhen points pkg/modules at a fresh directory holding zhen/ (the module
+// on) and returns that directory.
+func withZhen(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv(modules.EnvDir, dir)
+	if err := os.Mkdir(filepath.Join(dir, "zhen"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func navBodyNow(t *testing.T) string {
+	t.Helper()
+	w := httptest.NewRecorder()
+	ServeNavJS(w, httptest.NewRequest(http.MethodGet, "/auth/nav.js", nil))
+	return w.Body.String()
+}
+
+func hasZhenai(apps []NavApp) bool {
+	for _, a := range apps {
+		if a.ID == "zhenai" {
+			return true
+		}
+	}
+	return false
+}
+
+// The Zhenai entry is in the menu only while the Zhen module is on
+// (ADR-149), and the served script follows the switch in the same process.
+func TestKingdomNav_ZhenOnlyWhileItsModuleIsOn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv(modules.EnvDir, dir)
+	if hasZhenai(KingdomNav()) || strings.Contains(navBodyNow(t), "zhenai") {
+		t.Fatal("zhenai in the menu with no module on")
+	}
+	if err := os.Mkdir(filepath.Join(dir, "zhen"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if !hasZhenai(KingdomNav()) || !strings.Contains(navBodyNow(t), "zhenai") {
+		t.Fatal("zhenai missing with the module on")
+	}
+	if err := os.Remove(filepath.Join(dir, "zhen")); err != nil {
+		t.Fatal(err)
+	}
+	if hasZhenai(KingdomNav()) || strings.Contains(navBodyNow(t), "zhenai") {
+		t.Fatal("zhenai still in the menu after the module went off")
+	}
+}
+
 func TestServeNavJS(t *testing.T) {
+	withZhen(t)
 	w := httptest.NewRecorder()
 	ServeNavJS(w, httptest.NewRequest(http.MethodGet, "/auth/nav.js", nil))
 	if w.Code != http.StatusOK || !strings.HasPrefix(w.Header().Get("Content-Type"), "text/javascript") {

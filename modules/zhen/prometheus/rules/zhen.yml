@@ -17,17 +17,6 @@
 # as job zhen-agentd (prometheus.yml). On a host where the unit runs without
 # -scheduler (E4) the series is absent and reason="absent" fires: that is
 # the truth (no Zhen schedule runs), not noise.
-#
-# One job has an alarm of its own. ioc-audit (runbooks/security/ioc-audit.yaml)
-# reads SSH logins and authentication failures daily; its run fails when it
-# finds an indicator and when it could not see. The scheduler keeps each
-# job's last success across restarts and exports it
-# (zhen_scheduler_job_last_success_timestamp_seconds{schedule}); for a job
-# that has never succeeded it is the time the job was first loaded. Three
-# days without a success is IOCAuditNotSucceeding (Stevie, 2026-11-12:
-# "alarm if fails for n+ days"; n = 3). A host that was off has no series
-# and does not fire; back up, the job catches up at the first tick, and the
-# 30m hold is there so that run can land first.
 
 groups:
   - name: zhen
@@ -61,14 +50,17 @@ groups:
           description: "zhen-agentd still answers /metrics but its last scheduler tick is over 15 minutes old: scheduled runbooks are not running (the ticker is stuck; the daemon is up)"
           runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
 
-      - alert: IOCAuditNotSucceeding
+      # Zhen's own backup set (ADR-149, D6): unheaded-zhen-backup.timer runs
+      # nightly while the switch is on and writes zhen_backup.prom. A day
+      # and two hours without a set is stale.
+      - alert: ZhenBackupStale
         expr: |
-          time() - max by (job, instance, schedule) (zhen_scheduler_job_last_success_timestamp_seconds{job="zhen-agentd",schedule="ioc-audit"}) > 3 * 86400
+          time() - max by (host) (unheaded_zhen_backup_last_success_timestamp_seconds) > 26 * 3600
         for: 30m
         labels:
           severity: warning
           urgency: none
         annotations:
-          summary: "The daily indicator-of-compromise audit has not succeeded for over 3 days"
-          description: "Every ioc-audit run since then failed or none ran: it kept finding an indicator, or it could not see (VictoriaMetrics or journal shipping down). Read the newest scheduled-run card in Review, or run the runbook by hand"
-          runbook_url: "runbooks/security/ioc-audit.yaml"
+          summary: "Zhen's database has had no backup set for over a day"
+          description: "No complete set of unheaded_zhen from unheaded-zhen-backup.service for 26 hours: read journalctl -u unheaded-zhen-backup and /srv/backups/unheaded-zhen/LATEST"
+          runbook_url: "wiki/Well-Backups.md"

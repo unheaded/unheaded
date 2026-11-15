@@ -6,7 +6,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -908,27 +907,19 @@ func (s *scheduler) persistLocked() error {
 	return nil
 }
 
-// openScheduledStore records runs in the Well as app_zhen when
-// WELL_APP_ZHEN_DSN is set and answers; otherwise in memory (logged).
+// openScheduledStore records runs in unheaded_zhen as app_zhen (the Zhen
+// pool, pools.go) when WELL_ZHEN_DSN is set and answers; otherwise in memory
+// (logged). Scheduled runs touch no board table: the cards are app_kanban's
+// (WELL_KANBAN_DSN), so the store has no board pool.
 func openScheduledStore(ctx context.Context, log *slog.Logger) (zhenagent.ScheduledStore, func()) {
-	dsn := strings.TrimSpace(os.Getenv("WELL_APP_ZHEN_DSN"))
-	if dsn == "" {
-		log.Warn("scheduler_runs_in_memory", "reason", "WELL_APP_ZHEN_DSN not set")
+	if strings.TrimSpace(pools.getenv("WELL_ZHEN_DSN")) == "" {
+		log.Warn("scheduler_runs_in_memory", "reason", "WELL_ZHEN_DSN not set")
 		return nil, func() {}
 	}
-	warnIfInsecureDSN(dsn)
-	db, err := sql.Open("postgres", dsn)
+	db, err := pools.zhen(ctx, "-scheduler")
 	if err != nil {
 		log.Warn("scheduler_runs_in_memory", "reason", err.Error())
 		return nil, func() {}
 	}
-	db.SetMaxOpenConns(2)
-	pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := db.PingContext(pctx); err != nil {
-		_ = db.Close()
-		log.Warn("scheduler_runs_in_memory", "reason", "the Well is unreachable: "+err.Error())
-		return nil, func() {}
-	}
-	return zhenagent.SQLStore{DB: db}, func() { _ = db.Close() }
+	return zhenagent.SQLStore{Runs: db}, func() {}
 }

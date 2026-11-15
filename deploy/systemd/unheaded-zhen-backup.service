@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Zhen module's own backup set (ADR-149; S-ZHEN-SWITCH D6): only
+# unheaded_zhen, into /srv/backups/unheaded-zhen, writing zhen_backup.prom
+# (unheaded_zhen_backup_*; ZhenBackupStale). Part of the switch: it runs only
+# while unheaded-zhen.target is on. Local only (no OnSuccess= offsite copy)
+# until ADR-147 plan 7 gives Zhen its instance. A copy of
+# unheaded-well-backup.service otherwise: scripts/db-backup.sh dumps
+# as the read-only role well_backup (db/migrations/023) through
+# `docker exec` into the Postgres container; no superuser, no password
+# hashes in the set. Root because the docker socket is root-equivalent
+# anyway; the files it runs are root-owned copies, never the repo's.
+# Install (S-ZHEN-SWITCH Step 284, attended):
+#   sudo install -d -m 0700 /srv/backups/unheaded-zhen
+#   sudo install -m 0755 scripts/db-backup.sh /usr/local/lib/unheaded/well/db-backup.sh
+#   sudo cp deploy/systemd/unheaded-zhen-backup.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable unheaded-zhen-backup.timer
+
+[Unit]
+Description=Zhen module: backup set of unheaded_zhen (ADR-149)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/battle-plans/WELL-ERDA-AUDIT-2026-10-13.md
+After=docker.service
+Requires=docker.service
+PartOf=unheaded-zhen.target
+
+[Service]
+Type=oneshot
+Environment=WELL_BACKUP_DIR=/srv/backups/unheaded-zhen
+Environment=WELL_BACKUP_DATABASES=unheaded_zhen
+Environment=WELL_BACKUP_EXCLUDE=
+Environment=WELL_BACKUP_SET=zhen
+Environment=WELL_BACKUP_KEEP=14
+Environment=WELL_BACKUP_OTHER_DISK=1
+Environment=WELL_CONTAINER=unheaded-postgres
+Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
+Environment=DOCKER_CONFIG=/run/unheaded-zhen-backup
+RuntimeDirectory=unheaded-zhen-backup
+ExecStart=/usr/local/lib/unheaded/well/db-backup.sh
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/srv/backups/unheaded-zhen /var/lib/unheaded/textfile
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

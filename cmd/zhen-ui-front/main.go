@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/cmdline"
 	svchttp "unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/modules"
 	"unheaded/pkg/ports"
 	pqtls "unheaded/pkg/tls"
 )
@@ -167,10 +168,19 @@ func parseFlags(args []string, stdout, stderr io.Writer) (config, error) {
 	if len(listens) == 0 {
 		listens = repeated{defaultListen}
 	}
+	// The module bind rule (ADR-149): off loopback, only a private address
+	// on this host's allowlist, never a global one.
+	allow, err := modules.ParseBindAllow(os.Getenv(modules.EnvBindAllow))
+	if err != nil {
+		return c, err
+	}
 	for _, l := range listens {
 		a, err := parseBindAddr(l)
 		if err != nil {
 			return c, fmt.Errorf("--listen %s: %w", l, err)
+		}
+		if err := modules.CheckBind(a.String(), allow); err != nil {
+			return c, fmt.Errorf("--listen %w (ADR-149: a module listens on loopback or an allowlisted private address)", err)
 		}
 		if slices.Contains(c.listens, a) {
 			return c, fmt.Errorf("--listen %s is given twice", l)

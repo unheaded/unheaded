@@ -96,6 +96,27 @@ promote:
       indicator and when it cannot see. One failed day is a card in Review;
       three days with no success means nobody read the card or the audit is
       blind, and no SLO shows either.
+  - alert: ZhenBackupStale
+    urgency: ticket
+    reason: >-
+      Zhen is a production application with its own data and backup scope
+      (ADR-147 decision 15 (b)); a day without a set is a ticket.
+  - alert: ModuleListenerPublic
+    urgency: page
+    reason: >-
+      ADR-147 decision 15 (c): a module is never reachable from the public
+      side; the guard saw it happen.
+  - alert: ModuleListenerGuardNotRunning
+    urgency: ticket
+    reason: >-
+      The guard above is the only live check of that rule.
+  - alert: HealthSweepNotSucceeding
+    urgency: ticket
+    reason: >-
+      The platform's own sweep of this host's services, every 6 hours. A day
+      with no success means a service is down and stayed down, or the timer
+      stopped: with restart `no` (ADR-147 decision 1) nothing brings either
+      back.
   - alert: WotanTopicPermissionRefused
     urgency: ticket
     reason: >-

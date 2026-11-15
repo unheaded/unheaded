@@ -17,7 +17,8 @@
 #
 # The environment file is Stevie's, outside the repository, mode 0600:
 #   ANTHROPIC_API_KEY=...        (the Claude leg; leave out for local only)
-#   WELL_APP_ZHEN_DSN=...        (cards and runs, unheaded_app as app_zhen)
+#   WELL_ZHEN_DSN=...            (runs, unheaded_zhen as app_zhen; ADR-149)
+#   WELL_APP_ZHEN_DSN=...        (cards, unheaded_app as app_zhen)
 #   WELL_OPS_DSN=...             (llm_requests and audit_events, ops_writer)
 #   LLAMA_URL=http://127.0.0.1:8081
 #
@@ -35,6 +36,11 @@ Documentation=file:%h/tmp/unheaded/wiki/Zhen-Agents.md
 Type=exec
 WorkingDirectory=%h/tmp/unheaded
 EnvironmentFile=%h/.config/unheaded/zhen-agentd.env
+# The Zhen module's switch (ADR-149). This user unit sits outside
+# unheaded-zhen.target, so stopping the target cannot stop it. While the
+# switch is off its runtime directory is absent and the run is skipped (not
+# failed); zhen-agentd -worker checks the same directory itself and exits 0.
+ExecCondition=/bin/sh -c 'test -d /run/unheaded/modules/zhen && test ! -L /run/unheaded/modules/zhen'
 # The env file holds the Claude key: refuse to start unless it is the
 # operator's own and 0600 (or 0400).
 ExecStartPre=/bin/sh -c 'f=%h/.config/unheaded/zhen-agentd.env; [ -O "$f" ] && case "$(stat -c %%a "$f")" in 600|400) exit 0;; esac; echo "zhen-agentd-overnight: $f must be yours and mode 0600" >&2; exit 1'

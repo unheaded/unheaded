@@ -49,6 +49,30 @@ func tree(t *testing.T, policyEdit func(string) string, extraRule string) string
 
 func same(s string) string { return s }
 
+// copyHandRules copies the repo's hand-written rules, the platform's and every
+// module's (ADR-149), into root at the same relative paths.
+func copyHandRules(t *testing.T, root string) {
+	t.Helper()
+	repo := filepath.Join("..", "..")
+	for _, m := range handRuleFiles(repo) {
+		rel, err := filepath.Rel(repo, m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(m) // #nosec G304 -- repo file
+		if err != nil {
+			t.Fatal(err)
+		}
+		dst := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(dst, b, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 // promoteRE finds the promote: key, empty ("promote: []") or a list.
 var promoteRE = regexp.MustCompile(`(?m)^promote:( \[\])?$`)
 
@@ -106,11 +130,7 @@ func TestRefusals(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			root := tree(t, c.edit, c.rule)
 			// Hand rules from the repo, so promote: can name real alerts.
-			matches, _ := filepath.Glob(filepath.Join("..", "..", rulesDir, "*.yml"))
-			for _, m := range matches {
-				b, _ := os.ReadFile(m)
-				_ = os.WriteFile(filepath.Join(root, rulesDir, filepath.Base(m)), b, 0o644)
-			}
+			copyHandRules(t, root)
 			errs := run(root, false)
 			var all []string
 			for _, e := range errs {
@@ -333,11 +353,7 @@ func TestValidatePipeline(t *testing.T) {
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
 	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")
-	matches, _ := filepath.Glob(filepath.Join("..", "..", rulesDir, "*.yml"))
-	for _, m := range matches {
-		b, _ := os.ReadFile(m)
-		_ = os.WriteFile(filepath.Join(root, rulesDir, filepath.Base(m)), b, 0o644)
-	}
+	copyHandRules(t, root)
 	if errs := run(root, false); len(errs) > 0 {
 		t.Fatal(errs)
 	}

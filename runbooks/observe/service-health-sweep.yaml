@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: service-health-sweep
-  description: Health check every Kingdom HTTP service and report status
+  description: Health check the HTTP services this host runs (targets file) and report status
   owner: micromanager
   estimated_duration: 2m
   risk: low
@@ -19,44 +19,37 @@ steps:
       UNHEALTHY=0
       TOTAL=0
 
-      # HTTP /health ports from pkg/ports/ports.go. gRPC ports (17001,
-      # 18001) and TLS ports cannot answer a plain-HTTP /health and are not
-      # listed. trace-collector-go --unified serves /health on 16671.
-      SERVICES="
-        trace-collector:16671
-        unheaded-daemon:17000
-        protocol-api:17100
-        wotan:18000
-        timeguru:19000
-        cuirass:19006
-        akira:19100
-        kev-poller:19120
-        dashboard-backend:20000
-        kanban-app:20001
-        zhen-inference:20100
-        zhen-ui-front:20112
-        gateway-http:21000
-      "
-
-      for entry in $SERVICES; do
-        NAME=$(echo $entry | cut -d: -f1)
-        PORT=$(echo $entry | cut -d: -f2)
+      # What this host runs comes from a file, one "name port scheme" per
+      # line (configs/health-sweep-<host>.targets, installed as
+      # /etc/unheaded/health-sweep.targets). First-party listeners are TLS
+      # under UNHEADED_TLS_ENABLED, so the scheme is per target and https
+      # is verified against the deployment CA. No module is listed here:
+      # a module's health is its own alert (ADR-149).
+      TARGETS="${SWEEP_TARGETS_FILE:-/etc/unheaded/health-sweep.targets}"
+      CA="${UNHEADED_TLS_CA_CERT:-/etc/unheaded/tls/ca.pem}"
+      [ -r "$TARGETS" ] || { echo "no targets file: $TARGETS"; exit 1; }
+      while read -r NAME PORT SCHEME _; do
+        case "$NAME" in ''|'#'*) continue ;; esac
         TOTAL=$((TOTAL + 1))
-        STATUS=$(curl -sf -o /dev/null -w "%{http_code}" --max-time 2 http://localhost:$PORT/health 2>/dev/null)
+        case "$SCHEME" in
+          http|https) ;;
+          *) echo "  [FAIL] $NAME: scheme '$SCHEME' is not http or https"; UNHEALTHY=$((UNHEALTHY + 1)); continue ;;
+        esac
+        STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 --cacert "$CA" "$SCHEME://localhost:$PORT/health" 2>/dev/null)
         if [ "$STATUS" = "200" ]; then
-          LATENCY=$(curl -sf -o /dev/null -w "%{time_total}" --max-time 2 http://localhost:$PORT/health 2>/dev/null)
-          echo "  [OK]   $NAME (:$PORT) — ${LATENCY}s"
+          echo "  [OK]   $NAME (:$PORT)"
           HEALTHY=$((HEALTHY + 1))
         else
-          echo "  [FAIL] $NAME (:$PORT) — HTTP $STATUS"
+          echo "  [FAIL] $NAME (:$PORT): HTTP $STATUS"
           UNHEALTHY=$((UNHEALTHY + 1))
         fi
-      done
+      done < "$TARGETS"
 
       echo ""
       echo "=============================================="
       echo "RESULT: $HEALTHY/$TOTAL healthy, $UNHEALTHY unhealthy"
       echo "=============================================="
+      [ "$UNHEALTHY" -eq 0 ]
 
   - name: check-system-resources
     action: shell

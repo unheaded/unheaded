@@ -38,6 +38,13 @@ route:
       matchers:
         - alertname="AlertMailVolumeHigh"
         - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HealthSweepNotSucceeding"
+        - urgency="none"
     - receiver: page
       group_wait: 2m
       group_interval: 5m
@@ -148,6 +155,20 @@ route:
       group_interval: 5m
       repeat_interval: 24h
       matchers:
+        - alertname="ModuleListenerGuardNotRunning"
+        - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
+        - alertname="ModuleListenerPublic"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
         - alertname="SSHLoginNewSource"
         - urgency="none"
     - receiver: ticket
@@ -184,6 +205,13 @@ route:
       repeat_interval: 24h
       matchers:
         - alertname="WotanTopicPermissionRefused"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="ZhenBackupStale"
         - urgency="none"
     - receiver: page
       group_wait: 2m

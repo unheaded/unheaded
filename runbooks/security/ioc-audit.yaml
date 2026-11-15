@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: ioc-audit
-  description: Daily read of SSH logins, authentication failures, account changes, sudo, crontab edits, kernel events and journal shipping for indicators of compromise; an indicator fails the run so its card lands in Review
+  description: Daily read of SSH logins, authentication failures, account changes, sudo, crontab edits, kernel events and journal shipping for indicators of compromise; an indicator fails the run (unheaded_schedule_last_exit_code 1, the report in the timer's journal)
   owner: sentinel
   estimated_duration: 1m
   risk: low
@@ -16,12 +16,13 @@ metadata:
 notes: |
   Stevie, 2026-11-12: "set a weekly scheduled task with zhenai to read and
   audit ssh and syslog for any indicators of compromise", then "maybe daily
-  if running, alarm if fails for n+ days". Meant for zhen-agentd's scheduler
-  (configs/zhen-schedules.yaml, job ioc-audit: daily, catch_up so a day the
-  host was off at the hour is made up at the next start); it also runs by
-  hand. The alarm is IOCAuditNotSucceeding
-  (monitoring/prometheus/rules/zhen.yml): three days without a successful
-  run, whether the audit could not see or kept finding something.
+  if running, alarm if fails for n+ days". It runs daily from
+  unheaded-ioc-audit.timer, the platform's own timer (ADR-149: Zhen is not
+  the platform's clock), with Persistent= so a day the host was off at the
+  hour is made up at the next boot; it also runs by hand. The alarm is
+  IOCAuditNotSucceeding (monitoring/prometheus/rules/schedules.yml): three
+  days without a successful run, whether the audit could not see or kept
+  finding something.
 
   The window is two days although the run is daily: every hour is read by
   two runs, so one missed run loses nothing, and an indicator a person has
@@ -34,14 +35,14 @@ notes: |
   method}, unheaded_auth_failures_total{host,kind} and, since S-WATCH-TRUE
   (2026-11), unheaded_host_events_total{host,kind,op,class,user,runas} for
   account changes, sudo commands, crontab edits and three kinds of kernel
-  line. So the daemon needs no journal access, no log-store login and no
-  secret, and no log text reaches the card: only hosts, account names,
+  line. So the audit needs no journal access, no log-store login and no
+  secret, and no log text reaches its output: only hosts, account names,
   addresses, methods, tool names, module names and counts. Label values
   come from log lines, so every one is reduced to a safe character set
   before it is printed.
 
-  An INDICATOR fails the run (exit 1), and the scheduler moves the card to
-  Review:
+  An INDICATOR fails the run (exit 1); the timer's run records the exit
+  code and the journal keeps the report:
     - a login from an address outside IOC_OPERATOR_NETS;
     - a login as root;
     - more SSH failures on one host than IOC_SSH_FAIL_MAX in the window;
@@ -302,7 +303,7 @@ steps:
           print("  " + n)
       if len(notes) > 40:
           print("  ... %d more" % (len(notes) - 40))
-      # The verdict goes last: the card keeps the tail of the output.
+      # The verdict goes last: a reader of the tail sees it first.
       print("")
       if indicators:
           print("RESULT: %d indicator(s)" % len(indicators))
@@ -315,7 +316,7 @@ steps:
   - name: follow-up
     action: manual
     command: "echo 'Indicator: runbooks/security/ssh-login-new-source.yaml for the login, runbooks/security/incident-response.yaml if it is not yours. Cannot audit: runbooks/observe/log-pipeline.yaml.'"
-    description: "MANUAL. Only when the audit step failed: an indicator is checked by a person, never closed by the scheduler"
+    description: "MANUAL. Only when the audit step failed: an indicator is checked by a person, never closed by the timer"
 
 verification:
   - name: victoria-answers
