@@ -30,6 +30,7 @@ Type=simple
 # Loopback unless /etc/huginn.env names this host's internal addresses
 # (huginn.env.example): huginn has no auth, and its callers are the dashboard
 # and Prometheus on other addresses.
+# Reads cgroupfs (read-only under ProtectControlGroups=yes) for per-cgroup series (ADR-147)
 Environment=HUGINN_LISTEN=127.0.0.1:9110
 EnvironmentFile=-/etc/huginn.env
 ExecStart=/usr/local/bin/huginn \
