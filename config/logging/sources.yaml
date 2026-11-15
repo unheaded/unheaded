@@ -1588,6 +1588,15 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:installed on east as unheaded-kanban-app.service (see east/unheaded-kanban-app); deploy name differs"
+  - id: unit/unheaded-health-sweep
+    host: west
+    kind: journal-unit
+    match: unheaded-health-sweep.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8 (ADR-149)"
   - id: unit/unheaded-heimdall
     host: west
     kind: journal-unit
@@ -1597,6 +1606,24 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-ioc-audit
+    host: west
+    kind: journal-unit
+    match: unheaded-ioc-audit.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8 (ADR-149)"
+  - id: unit/unheaded-module-guard
+    host: west
+    kind: journal-unit
+    match: unheaded-module-guard.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8 (ADR-149)"
   - id: unit/unheaded-monad
     host: west
     kind: journal-unit
@@ -1663,6 +1690,15 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-zhen-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-zhen-backup.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8B, part of the Zhen switch (ADR-149)"
   - id: unit/unheaded-zhen-app
     host: west
     kind: journal-unit
@@ -1673,6 +1709,15 @@ sources:
     owner: architect
     status: "excluded:unit file only; not installed on any host"
     note: "S-ZHEN-FRONT Phase 10 installs it on west (attended), disabled; it becomes a west/ entry with status gap then"
+  - id: unit/unheaded-zhen-module
+    host: west
+    kind: journal-unit
+    match: unheaded-zhen-module.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8, part of the Zhen switch (ADR-149)"
   - id: unit/zhen-agentd
     host: west
     kind: journal-unit
