@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The differences between unheaded_app's zhen_* objects (after 049) and
+# unheaded_zhen's (052), on purpose (ADR-149; S-ZHEN-SWITCH REV-6, well-lint
+# 2026-11-15). One `kind|name` per line, as scripts/well/zhen-schema-fingerprint.sql
+# prints them. scripts/well/zhen_schema_diff.py passes when every line that
+# differs between the two fingerprints is named here and every name here
+# differs; any other difference is drift. Why each one changed: 052's header.
+#
+# The board stays in unheaded_app, so the run keeps its card id but not the key.
+constraint|zhen_agent_runs.zhen_agent_runs_card_id_fkey
+# SERIAL -> GENERATED ALWAYS AS IDENTITY.
+column|zhen_conversations.id
+column|zhen_memories.id
+column|zhen_actions.id
+column|zhen_action_snapshots.id
+# DEFAULT without NOT NULL -> NOT NULL with the same default.
+column|zhen_conversations.sources
+column|zhen_conversations.tokens_input
+column|zhen_conversations.tokens_output
+column|zhen_conversations.elapsed_ms
+column|zhen_conversations.feedback
+column|zhen_memories.source
+column|zhen_memories.created_at
+column|zhen_actions.parameters
+column|zhen_actions.result
+column|zhen_actions.result_summary
+column|zhen_actions.error
+column|zhen_actions.revertable
+column|zhen_actions.triggered_by
+column|zhen_actions.model
+column|zhen_actions.confidence
+column|zhen_actions.planned_at
+column|zhen_actions.elapsed_ms
+column|zhen_action_snapshots.metadata
+column|zhen_action_snapshots.snapshot_at
+# NOT NULL without the '' default: every writer names the model.
+column|zhen_conversations.model
+# VARCHAR(64) DEFAULT '' -> uuid, NULL when absent, indexed only where set.
+column|zhen_actions.trace_id
+index|idx_zhen_actions_trace

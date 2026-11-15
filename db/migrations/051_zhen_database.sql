@@ -32,7 +32,13 @@
 -- A cap, not a share (ADR-147 decision 13). cmd/zhen-agentd TestPoolCaps
 -- fails when the sum outgrows this line.
 
-CREATE ROLE well_zhen_owner NOLOGIN;
+-- Provisioning stays in the ledger on purpose: the Well makes every database
+-- and role here, in `postgres` (002 made unheaded_app, unheaded_ops and
+-- unheaded_config; 025 their NOLOGIN owners; 012 huginn_reader), and both
+-- db/init.sh and well-migrate apply it from the MANIFEST on all four
+-- deployment targets. No password: app_zhen exists since 002 and gets its
+-- password from db/init.sh or scripts/well/set-role-passwords.sh.
+CREATE ROLE well_zhen_owner NOLOGIN; -- well:ignore provisioning-in-ledger the Well's databases and owner roles are made by the ledger in postgres (002, 012, 025), not by a separate provisioning path; this follows them
 CREATE DATABASE unheaded_zhen OWNER well_zhen_owner;
 REVOKE CONNECT, TEMPORARY ON DATABASE unheaded_zhen FROM PUBLIC;
 GRANT CONNECT ON DATABASE unheaded_zhen TO app_zhen, app_kanban, retention_runner, well_backup, huginn_reader;

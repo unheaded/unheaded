@@ -6,18 +6,20 @@
 # PostgreSQL servers bootstrapped by db/init.sh, never the real Well:
 #   1. a server from the repository's manifest: unheaded_zhen exists, owned
 #      by well_zhen_owner; PUBLIC has no CONNECT on it; app_zhen's
-#      connection limit is 12; unheaded_app holds no zhen_% table or
+#      connection limit is 20; unheaded_app holds no zhen_% table or
 #      function; kanban_zhen_optin stays in unheaded_app, and app_zhen may
 #      SELECT it and kanban_tasks there;
 #   2. a second server from a copy of the migrations whose manifest stops
 #      at 049: its unheaded_app fingerprint
 #      (scripts/well/zhen-schema-fingerprint.sql) and the first server's
-#      unheaded_zhen fingerprint differ by exactly one line, the foreign key
-#      zhen_agent_runs -> kanban_tasks(id);
-#   3. on the second server: 051 and 052 applied with well-migrate, one
-#      zhen_memories row inserted in unheaded_app, 053 refused ("copy the
-#      rows"); with unheaded.zhen_rows_copied set on unheaded_app, 053 runs
-#      and the setting is gone afterwards;
+#      unheaded_zhen fingerprint differ by exactly the deliberate changes in
+#      scripts/well/zhen-schema-changes.txt (scripts/well/zhen_schema_diff.py);
+#   3. on the second server: 051 and 052 applied with well-migrate; rows in
+#      unheaded_app, NULLs and a '' trace_id among them; 053 refused ("copy
+#      the rows"); scripts/well/zhen-copy-rows.sh copies them (counts equal,
+#      NULLs now the defaults, the '' trace_id NULL, the next id above the
+#      copied ones); a row written after the copy makes 053 refuse ("the copy
+#      recorded"); without it 053 runs and the setting is gone afterwards;
 #   4. pkg/zhenagent's split store (build tag wellint, -run Split) against
 #      the first server: WELL_TEST_ZHEN_DSN (unheaded_zhen as app_zhen),
 #      WELL_TEST_APP_DSN (unheaded_app as app_zhen), WELL_TEST_KANBAN_DSN
@@ -109,11 +111,10 @@ open(p, "w", encoding="utf-8").write("".join(out))
 PY
 serve "$B" "$TMP/at049/migrations"
 fingerprint "$B" unheaded_app >"$TMP/fp-app.txt"
-diff "$TMP/fp-app.txt" "$TMP/fp-zhen.txt" >"$TMP/fp.diff" || true
-if [[ "$(grep -c '^[<>]' "$TMP/fp.diff")" == 1 ]] && grep -q "^< constraint|zhen_agent_runs.zhen_agent_runs_card_id_fkey|FOREIGN KEY (card_id) REFERENCES kanban_tasks(id)" "$TMP/fp.diff"; then
-	pass "fingerprints differ by the foreign key to kanban_tasks only ($(wc -l <"$TMP/fp-zhen.txt") lines)"
+if python3 -I "$R/scripts/well/zhen_schema_diff.py" "$TMP/fp-app.txt" "$TMP/fp-zhen.txt" >"$TMP/fp.diff"; then
+	pass "fingerprints differ by the listed changes only ($(wc -l <"$TMP/fp-zhen.txt") lines)"
 else
-	fail "fingerprints differ by more than the foreign key"; sed 's/^/    /' "$TMP/fp.diff" | head -20
+	fail "fingerprints differ by more or less than scripts/well/zhen-schema-changes.txt"; sed 's/^/    /' "$TMP/fp.diff" | head -20
 fi
 
 # 3. 051-053 on the 049 server, with a row in the way.
@@ -127,7 +128,9 @@ if migrate apply -db postgres -yes >"$TMP/m1" 2>&1 && migrate apply -db unheaded
 else
 	fail "051/052 with well-migrate"; tail -5 "$TMP/m1" | sed 's/^/    /'
 fi
-su "$B" unheaded_app "INSERT INTO zhen_memories (question, answer) VALUES ('q', 'a')" >/dev/null
+su "$B" unheaded_app "INSERT INTO zhen_memories (question, answer, source, created_at) VALUES ('q', 'a', NULL, NULL)" >/dev/null
+su "$B" unheaded_app "INSERT INTO zhen_conversations (session_id, role, content, model, tokens_input) VALUES ('s', 'user', 'hi', NULL, NULL)" >/dev/null
+su "$B" unheaded_app "INSERT INTO zhen_actions (session_id, action_type, intent, result_summary, error, triggered_by, trace_id) VALUES ('s', 'tool_call_attempt', 'qa', NULL, NULL, NULL, ''), ('s', 'tool_call_attempt', 'qa', 'ok', '', 'zhen', '0123456789abcdef0123456789abcdef')" >/dev/null
 if migrate apply -db unheaded_app -yes >"$TMP/m2" 2>&1; then
 	fail "053 ran over an uncopied row"
 elif grep -q 'copy the rows' "$TMP/m2"; then
@@ -135,11 +138,39 @@ elif grep -q 'copy the rows' "$TMP/m2"; then
 else
 	fail "053 failed for another reason"; tail -5 "$TMP/m2" | sed 's/^/    /'
 fi
-su "$B" postgres "ALTER DATABASE unheaded_app SET unheaded.zhen_rows_copied = '2026-01-01'" >/dev/null
-if migrate apply -db unheaded_app -yes >"$TMP/m3" 2>&1; then
-	pass "053 ran once the copy was recorded"
+if WELL_CONTAINER="$B" WELL_SUPERUSER=unheaded "$R/scripts/well/zhen-copy-rows.sh" >"$TMP/copy" 2>&1; then
+	pass "zhen-copy-rows.sh copied the rows"
 else
-	fail "053 after the copy"; tail -5 "$TMP/m3" | sed 's/^/    /'
+	fail "zhen-copy-rows.sh"; tail -5 "$TMP/copy" | sed 's/^/    /'
+fi
+got="$(su "$B" unheaded_zhen "SELECT (SELECT count(*) FROM zhen_memories) || ' ' || (SELECT count(*) FROM zhen_conversations) || ' ' || (SELECT count(*) FROM zhen_actions)
+  || ' ' || (SELECT count(*) FROM zhen_memories WHERE source = 'user' AND created_at IS NOT NULL)
+  || ' ' || (SELECT count(*) FROM zhen_conversations WHERE model = '' AND tokens_input = 0)
+  || ' ' || (SELECT count(*) FROM zhen_actions WHERE result_summary = '' AND error = '' AND triggered_by = 'user' AND trace_id IS NULL)
+  || ' ' || (SELECT count(*) FROM zhen_actions WHERE trace_id = '0123456789abcdef0123456789abcdef'::uuid)")"
+if [[ "$got" == "1 1 2 1 1 1 1" ]]; then
+	pass "counts equal; NULLs took the defaults; '' trace_id NULL, a hex one kept"
+else
+	fail "copied rows: $got (want 1 1 2 1 1 1 1)"
+fi
+if [[ "$(su "$B" unheaded_zhen "INSERT INTO zhen_actions (session_id, action_type, intent) VALUES ('s', 'tool_call_attempt', 'next') RETURNING id > (SELECT max(id) FROM zhen_actions WHERE intent = 'qa')")" == t ]]; then
+	pass "the next zhen_actions id follows the copied ones"
+else
+	fail "zhen_actions identity behind the copied ids"
+fi
+su "$B" unheaded_app "INSERT INTO zhen_memories (question, answer) VALUES ('late', 'row')" >/dev/null
+if migrate apply -db unheaded_app -yes >"$TMP/m3" 2>&1; then
+	fail "053 ran over a row written after the copy"
+elif grep -q 'the copy recorded' "$TMP/m3"; then
+	pass "053 refused: a row written after the copy"
+else
+	fail "053 (late row) failed for another reason"; tail -5 "$TMP/m3" | sed 's/^/    /'
+fi
+su "$B" unheaded_app "DELETE FROM zhen_memories WHERE question = 'late'" >/dev/null
+if migrate apply -db unheaded_app -yes >"$TMP/m4" 2>&1; then
+	pass "053 ran once the recorded counts held"
+else
+	fail "053 after the copy"; tail -5 "$TMP/m4" | sed 's/^/    /'
 fi
 if [[ "$(su "$B" postgres "SELECT count(*) FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase WHERE d.datname = 'unheaded_app' AND array_to_string(s.setconfig, ',') LIKE '%zhen_rows_copied%'")" == 0 ]]; then
 	pass "unheaded.zhen_rows_copied reset"; else fail "unheaded.zhen_rows_copied left set"; fi

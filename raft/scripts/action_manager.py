@@ -127,7 +127,9 @@ class ActionManager:
             triggered_by: Who triggered this ('user', 'zhen', 'schedule', 'hook').
             model: Which model made the decision.
             confidence: Model's confidence in the action (0.0 - 1.0).
-            trace_id: Correlation ID across related actions.
+            trace_id: Correlation ID across related actions: a 128-bit trace
+                id as 32 hex digits or a uuid; '' or None when there is none
+                (zhen_actions.trace_id is uuid since migration 052).
             parent_action: ID of the parent action if spawned by another.
             revertable: Whether this action can be undone.
 
@@ -150,8 +152,9 @@ class ActionManager:
                     triggered_by, model, confidence, trace_id, parent_action,
                     revertable, planned_at)
                    VALUES (%s, %s, 'planned', %s, %s::jsonb,
-                           %s, %s, %s, %s, %s,
-                           %s, NOW())
+                           COALESCE(%s, 'user'), COALESCE(%s, ''), COALESCE(%s, 0),
+                           NULLIF(%s, '')::uuid, %s,
+                           COALESCE(%s, false), NOW())
                    RETURNING id""",
                 (session_id, action_type, intent, json.dumps(parameters),
                  triggered_by, model, confidence, trace_id, parent_action,
@@ -272,7 +275,7 @@ class ActionManager:
                 """UPDATE zhen_actions
                    SET status = 'completed',
                        result = %s::jsonb,
-                       result_summary = %s,
+                       result_summary = COALESCE(%s, ''),
                        completed_at = NOW(),
                        elapsed_ms = %s
                    WHERE id = %s""",
@@ -297,7 +300,7 @@ class ActionManager:
             cur.execute(
                 """UPDATE zhen_actions
                    SET status = 'failed',
-                       error = %s,
+                       error = COALESCE(%s, ''),
                        completed_at = NOW(),
                        elapsed_ms = %s
                    WHERE id = %s""",

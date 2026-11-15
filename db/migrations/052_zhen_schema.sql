@@ -22,16 +22,37 @@
 -- (007) does not follow: nothing that connects as ops_reader reads Zhen's
 -- conversations, and the platform's reader has no business in Zhen's data.
 --
--- One difference, on purpose: zhen_agent_runs.card_id keeps its type and
--- loses its foreign key, because the board (kanban_tasks) stays in
--- unheaded_app. The worker keeps the link: it claims the run first and the
--- card second, and cancels the run when the card is gone or taken
--- (pkg/zhenagent/sqlstore.go). scripts/well/zhen-schema-fingerprint.sql
--- shows that this foreign key is the only difference between the two.
+-- Differences, on purpose (a fresh table in a fresh database costs nothing
+-- to get right; scripts/well/zhen-schema-changes.txt lists each one the
+-- fingerprint shows, and scripts/well/test-zhen-database.sh holds the
+-- fingerprint diff to exactly that list):
+--   - zhen_agent_runs.card_id keeps its type and loses its foreign key,
+--     because the board (kanban_tasks) stays in unheaded_app. The worker
+--     keeps the link: it claims the run first and the card second, and
+--     cancels the run when the card is gone or taken
+--     (pkg/zhenagent/sqlstore.go).
+--   - The four SERIAL keys (conversations, memories, actions, snapshots)
+--     are GENERATED ALWAYS AS IDENTITY: nothing writes an id, and an
+--     identity sequence needs no grant, so the sequence GRANTs are gone.
+--   - Every column that had a DEFAULT and allowed NULL is NOT NULL with that
+--     default: one kind of empty, and the Go readers scan tokens, model and
+--     elapsed_ms into plain ints and strings. Writers that sent NULL for
+--     "none" (pkg/champion/pgstore, raft/scripts/action_manager.py) now
+--     COALESCE to the default.
+--   - zhen_conversations.model is NOT NULL without the '' default: every
+--     writer names the model (cmd/zhen-agentd/conversations.go,
+--     pkg/database/zhen.go), and idx_zhen_model no longer indexes a default.
+--   - zhen_actions.trace_id is uuid, NULL when absent (was VARCHAR(64)
+--     DEFAULT '', never written by Go): the Kingdom's trace id is 128 bits
+--     (pkg/trace.TraceID), and uuid takes its 32-hex form as input. Its
+--     index is partial on IS NOT NULL.
 --
 -- Copying rows on a live Well is the attended S-ZHEN-SWITCH Phase 8B, never
--- a migration; 053 refuses to drop unheaded_app's tables while they hold
--- rows that were not copied.
+-- a migration: scripts/well/zhen-copy-rows.sh maps each old column to the
+-- new one (a NULL becomes the column's default; '' trace ids become NULL,
+-- any other non-uuid trace id stops the copy), checks the counts on both
+-- sides and records them; 053 refuses to drop unheaded_app's tables unless
+-- those counts still match.
 
 -- LEDGER.sql makes well_append_only() in every database, but db/init.sh runs
 -- it after a database's first file, and this is unheaded_zhen's first: the
@@ -50,17 +71,17 @@ $do$;
 
 -- ─── zhen_conversations ─────────────────────────────────────────────────────
 CREATE TABLE zhen_conversations (
-    id             BIGSERIAL PRIMARY KEY,
+    id             BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     session_id     VARCHAR(64) NOT NULL,
     role           VARCHAR(10) NOT NULL
         CHECK (role IN ('user', 'assistant', 'system')),
     content        TEXT NOT NULL,
-    sources        JSONB DEFAULT '[]',
-    model          VARCHAR(100) DEFAULT '',
-    tokens_input   INTEGER DEFAULT 0,
-    tokens_output  INTEGER DEFAULT 0,
-    elapsed_ms     INTEGER DEFAULT 0,
-    feedback       VARCHAR(20) DEFAULT '',
+    sources        JSONB NOT NULL DEFAULT '[]',
+    model          VARCHAR(100) NOT NULL,
+    tokens_input   INTEGER NOT NULL DEFAULT 0,
+    tokens_output  INTEGER NOT NULL DEFAULT 0,
+    elapsed_ms     INTEGER NOT NULL DEFAULT 0,
+    feedback       VARCHAR(20) NOT NULL DEFAULT '',
     created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     search_vector  TSVECTOR GENERATED ALWAYS AS (to_tsvector('english', content)) STORED,
     client         TEXT NOT NULL DEFAULT 'web',
@@ -75,46 +96,45 @@ CREATE INDEX idx_zhen_conversations_session_created
     ON zhen_conversations (session_id, created_at DESC);
 
 GRANT SELECT, INSERT ON zhen_conversations TO app_zhen;
-GRANT USAGE, SELECT ON SEQUENCE zhen_conversations_id_seq TO app_zhen;
 GRANT SELECT (id, created_at), DELETE ON zhen_conversations TO retention_runner;
 
 -- ─── zhen_memories ──────────────────────────────────────────────────────────
 CREATE TABLE zhen_memories (
-    id          BIGSERIAL PRIMARY KEY,
+    id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     question    TEXT NOT NULL,
     answer      TEXT NOT NULL,
     embedding   BYTEA,
-    source      VARCHAR(100) DEFAULT 'user',
+    -- well:ignore embedding-bytea raft/zhen_app.py ranks the newest 200 rows by cosine in Python (display-only recall); pgvector would be a new extension (ADR-004, needs Stevie's approval) for a search the Well never runs
+    source      VARCHAR(100) NOT NULL DEFAULT 'user',
     model       VARCHAR(50),
-    created_at  TIMESTAMPTZ DEFAULT NOW()
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_zhen_memories_created ON zhen_memories (created_at DESC);
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON zhen_memories TO app_zhen;
-GRANT USAGE, SELECT ON SEQUENCE zhen_memories_id_seq TO app_zhen;
 
 -- ─── zhen_actions, zhen_action_snapshots ────────────────────────────────────
 CREATE TABLE zhen_actions (
-    id              BIGSERIAL PRIMARY KEY,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     session_id      VARCHAR(64) NOT NULL,
     action_type     VARCHAR(50) NOT NULL,
     status          VARCHAR(40) NOT NULL DEFAULT 'planned',
     intent          TEXT NOT NULL,
-    parameters      JSONB DEFAULT '{}',
-    result          JSONB DEFAULT '{}',
-    result_summary  TEXT DEFAULT '',
-    error           TEXT DEFAULT '',
-    revertable      BOOLEAN DEFAULT FALSE,
+    parameters      JSONB NOT NULL DEFAULT '{}',
+    result          JSONB NOT NULL DEFAULT '{}',
+    result_summary  TEXT NOT NULL DEFAULT '',
+    error           TEXT NOT NULL DEFAULT '',
+    revertable      BOOLEAN NOT NULL DEFAULT FALSE,
     reverted_by     BIGINT,
     reverts_action  BIGINT,
-    triggered_by    VARCHAR(20) DEFAULT 'user',
-    model           VARCHAR(50) DEFAULT '',
-    confidence      REAL DEFAULT 0.0,
-    planned_at      TIMESTAMPTZ DEFAULT NOW(),
+    triggered_by    VARCHAR(20) NOT NULL DEFAULT 'user',
+    model           VARCHAR(50) NOT NULL DEFAULT '',
+    confidence      REAL NOT NULL DEFAULT 0.0,
+    planned_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     started_at      TIMESTAMPTZ,
     completed_at    TIMESTAMPTZ,
-    elapsed_ms      INTEGER DEFAULT 0,
-    trace_id        VARCHAR(64) DEFAULT '',
+    elapsed_ms      INTEGER NOT NULL DEFAULT 0,
+    trace_id        UUID,
     parent_action   BIGINT,
     CONSTRAINT zhen_actions_status_check
         CHECK (status IN ('planned', 'executing', 'completed', 'failed', 'reverted', 'accepted', 'denied')
@@ -124,11 +144,11 @@ CREATE INDEX idx_zhen_actions_session ON zhen_actions(session_id);
 CREATE INDEX idx_zhen_actions_type ON zhen_actions(action_type);
 CREATE INDEX idx_zhen_actions_status ON zhen_actions(status);
 CREATE INDEX idx_zhen_actions_planned ON zhen_actions(planned_at DESC);
-CREATE INDEX idx_zhen_actions_trace ON zhen_actions(trace_id);
+CREATE INDEX idx_zhen_actions_trace ON zhen_actions(trace_id) WHERE trace_id IS NOT NULL;
 CREATE INDEX zhen_actions_type_status_idx ON zhen_actions (action_type, status);
 
 CREATE TABLE zhen_action_snapshots (
-    id              BIGSERIAL PRIMARY KEY,
+    id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     action_id       BIGINT NOT NULL REFERENCES zhen_actions(id),
     resource_type   VARCHAR(50) NOT NULL
         CHECK (resource_type IN (
@@ -138,20 +158,19 @@ CREATE TABLE zhen_action_snapshots (
     resource_id     TEXT NOT NULL,
     content_before  TEXT,
     content_after   TEXT,
-    metadata        JSONB DEFAULT '{}',
-    snapshot_at     TIMESTAMPTZ DEFAULT NOW()
+    metadata        JSONB NOT NULL DEFAULT '{}',
+    snapshot_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_zhen_snapshots_action ON zhen_action_snapshots(action_id);
 CREATE INDEX idx_zhen_snapshots_resource ON zhen_action_snapshots(resource_type, resource_id);
 
 GRANT SELECT, INSERT, UPDATE ON zhen_actions TO app_zhen;
-GRANT USAGE, SELECT ON SEQUENCE zhen_actions_id_seq TO app_zhen;
 GRANT SELECT, INSERT ON zhen_action_snapshots TO app_zhen;
-GRANT USAGE, SELECT ON SEQUENCE zhen_action_snapshots_id_seq TO app_zhen;
 
 -- ─── zhen_pending_confirmations ─────────────────────────────────────────────
 CREATE TABLE zhen_pending_confirmations (
     id             TEXT PRIMARY KEY CHECK (id ~ '^[0-9a-f]{16}$'),
+    -- well:ignore text-surrogate-pk carried from 031: a 16-hex id Stevie types at the CLI (zhen-claude review|confirm), not a join key; Erda accepted it as P3 (S-TWO-BRAINS Steps 198, 202)
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at     TIMESTAMPTZ NOT NULL,
     source_service TEXT NOT NULL CHECK (source_service IN ('zhen-claude', 'zhen-agentd')),
@@ -222,6 +241,7 @@ GRANT SELECT, INSERT, UPDATE (status, decided_at, decided_by) ON zhen_pending_co
 -- ─── zhen_agent_runs (no foreign key to kanban_tasks: see the header) ───────
 CREATE TABLE zhen_agent_runs (
     id              TEXT PRIMARY KEY CHECK (id ~ '^[0-9a-f]{16}$'),
+    -- well:ignore text-surrogate-pk carried from 032: a 16-hex id Stevie types at the CLI (zhen-claude review|confirm), not a join key; Erda accepted it as P3 (S-TWO-BRAINS Steps 198, 202)
     card_id         TEXT NOT NULL,
     claimed_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     lease_until     TIMESTAMPTZ NOT NULL,
@@ -336,6 +356,7 @@ CREATE TABLE zhen_capture_labels (
     capture_id  CHAR(64) NOT NULL REFERENCES zhen_captures (id) ON DELETE CASCADE,
     kind        TEXT NOT NULL CHECK (kind IN ('check_pass', 'check_fail', 'judge_pass', 'judge_fail',
                                               'escalated', 'accepted', 'rejected', 'human_edit')),
+    -- well:ignore open-vocabulary-check carried from 033: the eight kinds are the flywheel's closed set (S-TWO-BRAINS plan Appendix C); a new kind means new export rules, so it is a schema change on purpose
     value       JSONB NOT NULL DEFAULT '{}'
         CHECK (jsonb_typeof(value) = 'object' AND octet_length(value::text) <= 4096),
     source_ref  TEXT NOT NULL CHECK (source_ref <> '' AND length(source_ref) <= 256),
