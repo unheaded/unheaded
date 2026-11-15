@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2026 Stevie Bellis. All rights reserved.
 
-// Command shield runs the Kingdom's Shield WAF / Zero-Trust gateway daemon.
+// Command shield runs Shield, the Kingdom's zero-trust gateway daemon. It
+// evaluates requests against its own rule set; it is not a WAF (ADR-121).
 //
 // Shield (services/shield) ships as both a library (used as middleware
 // inside other Go services) and as a standalone HTTP daemon (this binary).
@@ -10,9 +11,9 @@
 //	GET /health   — liveness
 //	GET /ready    — readiness
 //	GET /metrics  — Prometheus metrics
-//	GET /api/v1/rules            — list active WAF rules
-//	POST /api/v1/rules           — add a WAF rule (JSON body: shield.Rule)
-//	DELETE /api/v1/rules/<id>    — remove a WAF rule
+//	GET /api/v1/rules            — list active rules
+//	POST /api/v1/rules           — add a rule (JSON body: shield.Rule)
+//	DELETE /api/v1/rules/<id>    — remove a rule
 //	POST /api/v1/evaluate        — evaluate a request against the rule set
 //
 // Default bind: 127.0.0.1 on pkg/ports.Shield (19009). Override the port via
@@ -56,7 +57,7 @@ func main() {
 	)
 	cmdline.Parse(cmdline.Spec{
 		Name:     "shield",
-		Purpose:  "Run Shield, the Kingdom's WAF / Zero-Trust gateway daemon.",
+		Purpose:  "Run Shield, the Kingdom's zero-trust gateway daemon.",
 		Examples: []string{"shield", "shield --port 19007"},
 	})
 	wotanClient.InitServiceIdentity("shield") // ADR-103 §6: every Wotan call carries shield's service token

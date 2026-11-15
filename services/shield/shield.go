@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// Package shield provides WAF, DDoS protection, and Zero Trust gateway capabilities.
-// Shield the WAF is the Kingdom's edge defense - protecting all ingress traffic.
-// Implements rate limiting, threat detection, request validation, and edge security.
+// Package shield is the Kingdom's zero-trust gateway: it evaluates requests
+// against its own rule set, with rate limiting and request validation. It is
+// not a WAF (ADR-121).
 package shield
 
 import (
@@ -18,7 +18,7 @@ import (
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
-// Rule represents a WAF rule.
+// Rule represents a Shield rule.
 type Rule struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
@@ -107,7 +107,7 @@ type bucket struct {
 	window    time.Duration
 }
 
-// Service is the main Shield WAF service.
+// Service is the main Shield service.
 type Service struct {
 	log    *logger.Logger
 	wotan  *wotanClient.Client
@@ -143,7 +143,7 @@ func DefaultConfig() *Config {
 	}
 }
 
-// NewService creates a new Shield WAF service.
+// NewService creates a new Shield service.
 func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
 	if cfg == nil {
 		cfg = DefaultConfig()
@@ -174,7 +174,7 @@ func (s *Service) Stop() error {
 	return nil
 }
 
-// Evaluate processes a request through the WAF rules.
+// Evaluate processes a request through the rule set.
 func (s *Service) Evaluate(ctx context.Context, req *Request) *Decision {
 	s.mu.Lock()
 	s.requestsProcessed++
@@ -222,7 +222,7 @@ func (s *Service) Evaluate(ctx context.Context, req *Request) *Decision {
 	return decision
 }
 
-// AddRule adds a new WAF rule.
+// AddRule adds a new rule.
 func (s *Service) AddRule(rule *Rule) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -233,11 +233,11 @@ func (s *Service) AddRule(rule *Rule) error {
 	rule.CreatedAt = time.Now()
 
 	s.rules[rule.ID] = rule
-	s.log.Info().Str("id", rule.ID).Str("name", rule.Name).Msg("WAF rule added")
+	s.log.Info().Str("id", rule.ID).Str("name", rule.Name).Msg("rule added")
 	return nil
 }
 
-// RemoveRule removes a WAF rule.
+// RemoveRule removes a rule.
 func (s *Service) RemoveRule(ruleID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -283,7 +283,7 @@ func (s *Service) RecordThreat(threat *ThreatEvent) {
 		Msg("Threat detected")
 }
 
-// Middleware returns an HTTP middleware for the WAF.
+// Middleware returns an HTTP middleware that evaluates each request.
 func (s *Service) Middleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -457,7 +457,7 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 		fmt.Fprintf(w, "# HELP shield_requests_blocked_total Total requests blocked\n")
 		fmt.Fprintf(w, "# TYPE shield_requests_blocked_total counter\n")
 		fmt.Fprintf(w, "shield_requests_blocked_total %v\n", stats["requests_blocked"])
-		fmt.Fprintf(w, "# HELP shield_active_rules Active WAF rules\n")
+		fmt.Fprintf(w, "# HELP shield_active_rules Active Shield rules\n")
 		fmt.Fprintf(w, "# TYPE shield_active_rules gauge\n")
 		fmt.Fprintf(w, "shield_active_rules %v\n", stats["active_rules"])
 		fmt.Fprintf(w, "# HELP shield_threats_detected Total threats detected\n")

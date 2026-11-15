@@ -2166,7 +2166,7 @@ def teach():
     """
     return jsonify({
         'status': 'deprecated',
-        'reason': 'WAVE15 rewire: live-index teaching is no longer wired. Drop a markdown file under ~/.config/vor/sources/<your-source>/ and cs will index it.',
+        'reason': 'WAVE15 rewire: live-index teaching is no longer wired. Drop a markdown file under ~/.config/vor/sources/<your-source>/ and vor will index it.',
         'note':   'see docs/battle-plans/WAVE15-ZHENAI-REWIRE.md §Phase 1 step 1.5',
     }), 410
 

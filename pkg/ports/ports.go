@@ -40,7 +40,7 @@ const (
 	Cuirass      = 19006
 	KeyMgmt      = 19007
 	PQCVerifier  = 19008
-	Shield       = 19009 // WAF / Zero-Trust gateway daemon (services/shield)
+	Shield       = 19009 // zero-trust gateway daemon (services/shield)
 
 	// Monad CPU Application Services (19010-19019)
 	Firewall     = 19010
