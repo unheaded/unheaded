@@ -25,6 +25,8 @@ RUNBOOKS = {
     "runbooks/security/ssh-login-new-source.yaml": ("SSHLoginNewSource", "SSHAuthFailureBurst"),
     "runbooks/security/outbound-volume-deviation.yaml": ("OutboundVolumeDeviation",),
     "runbooks/observe/zhen-scheduler-stalled.yaml": ("ZhenSchedulerStalled",),
+    # Wotan's topic permissions (FND-043): a refusal is a ticket (S-WATCH-TRUE Phase 5).
+    "runbooks/observe/wotan-topic-refused.yaml": ("WotanTopicPermissionRefused",),
     # heimdall-daemon /metrics (M-085) and lost hook events (LICH-012 L12d).
     "runbooks/infra/heimdall-drift-publish-failing.yaml": ("HeimdallDriftPublishFailing",),
     "runbooks/infra/heimdall-hook-events-lost.yaml": ("HeimdallHookEventsLost",),
