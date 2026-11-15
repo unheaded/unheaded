@@ -219,7 +219,7 @@ func TestPipelineOverCapIsBounded(t *testing.T) {
 func TestPipelineHandler(t *testing.T) {
 	c := &clock{t0}
 	m, _ := pipelineTest(t, t.TempDir(), 6, c)
-	srv := httptest.NewServer(handler(m, metrics.NewRegistry()))
+	srv := httptest.NewServer(handler(m, metrics.NewRegistry(), nil))
 	defer srv.Close()
 	c.t = t0.Add(5 * time.Minute)
 	body := `{"version":"4","status":"firing","alerts":[{"status":"firing","labels":{"alertname":"AlertPipelineHeartbeat"}}]}`
