@@ -940,7 +940,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/zhen-ui-front/main.go:245:tls-config",
+      "bom-ref": "cmd/zhen-ui-front/main.go:246:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -980,7 +980,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/zhen-ui-front/main.go:245"
+          "value": "cmd/zhen-ui-front/main.go:246"
         }
       ]
     },
@@ -2363,6 +2363,48 @@
         {
           "name": "unheaded:source",
           "value": "pkg/champion/runbookseal.go:14"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/compliance/crosswalk/collect/service.go:204:tls-config",
+      "name": "TLS client config",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/compliance/crosswalk/collect/service.go:204"
         }
       ]
     },
