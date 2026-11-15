@@ -1,4 +1,4 @@
-# Prometheus alert rules - the eBPF trace collector (M-084) and heimdall-daemon (M-085)
+# Prometheus alert rules - the eBPF trace collector (M-084)
 # Unheaded Kingdom infrastructure
 # License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
 #
@@ -12,6 +12,10 @@
 # policy.yaml (no SLO covers the collector). TraceCollectorHighLatency is a
 # cause, recorded only: trace_collector_batch_latency_seconds is the time to
 # publish one batch to Wotan, so it is usually Wotan being slow.
+#
+# heimdall's two rules were removed 2026-11-15 (S-WATCH-TRUE, W2, answered
+# 2026-11-12): no host runs heimdall-daemon. A rule returns with its producer and a test
+# (decision 25). Runbooks kept.
 
 groups:
   - name: trace-collector
@@ -42,33 +46,3 @@ groups:
           summary: "Trace collector on {{ $labels.host }}: batches take over 1s to reach Wotan"
           description: "p99 batch publish latency {{ $value | humanizeDuration }} over 10m; Wotan is slow or the collector is backlogged"
           runbook_url: "runbooks/observe/high-latency.yaml"
-
-  - name: heimdall
-    interval: 1m
-    rules:
-      # heimdall-daemon /metrics (M-085, S-WELL-SPRING Step 186): drift is
-      # still detected and printed, but the signed copy never reaches Wotan.
-      - alert: HeimdallDriftPublishFailing
-        expr: rate(heimdall_drift_publish_failed_total[15m]) > 0
-        for: 15m
-        labels:
-          severity: warning
-          urgency: none
-        annotations:
-          summary: "heimdall-daemon on {{ $labels.instance }} cannot publish drift events to Wotan"
-          description: "Drift alerts are printed locally but not published, signed, to drift.detected.<node>; Wotan down or the drift key not enrolled"
-          runbook_url: "runbooks/infra/heimdall-drift-publish-failing.yaml"
-
-      # LICH-012 L12d (2026-10-30): a hook's ringbuf filled (vfs_write,
-      # execve) or the daemon fell behind (reader). Drift is still caught by
-      # the next full poll; event-driven detection was blind for a while.
-      - alert: HeimdallHookEventsLost
-        expr: increase(heimdall_hook_events_lost_total[15m]) > 0
-        for: 5m
-        labels:
-          severity: warning
-          urgency: none
-        annotations:
-          summary: "heimdall-daemon on {{ $labels.instance }} lost {{ $labels.hook }} hook events"
-          description: "{{ $value | humanize }} events lost in 15m; file changes in that window are only seen by the next full scan"
-          runbook_url: "runbooks/infra/heimdall-hook-events-lost.yaml"

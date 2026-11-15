@@ -645,7 +645,7 @@
     },
     {
       "id": 32,
-      "title": "Wotan Buffered Messages / Idempotency",
+      "title": "Wotan Buffered Messages",
       "type": "timeseries",
       "gridPos": {
         "h": 8,
@@ -657,14 +657,6 @@
         {
           "expr": "wotan_buffered_messages",
           "legendFormat": "Buffered Messages"
-        },
-        {
-          "expr": "wotan_idempotency_entries",
-          "legendFormat": "Idempotency Entries"
-        },
-        {
-          "expr": "rate(wotan_idempotency_hits_total[1m])",
-          "legendFormat": "Dedup Hits/s"
         }
       ],
       "fieldConfig": {

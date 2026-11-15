@@ -65,6 +65,29 @@ west holds, so the next `compose up` pulls it for `volume-init`.
 `postgres:16.15-alpine` stays on its tag, the one row left in the baseline, until
 a restore drill passes on the registry's bytes (decision 2).
 
+## Update 2026-11-15
+
+The load-balancer compose file is now read. `docker/docker-compose.loadbalancers.yml`
+carries `tag@sha256:...` on all eight third-party images (`haproxy:2.9.15-alpine`
+twice, `nginx:1.25.5-alpine` six times), and `scripts/check-image-digests.sh` reads
+it with the other two files (S-WATCH-TRUE, backlog row D-15; ruled 2026-11-12).
+
+Why this file and not the rest: Stevie's answer of 2026-11-06 ("pin the digest
+the registry serves") covers compose files, and the 2026-11-05 update left this
+one out only because the gate did not read it. The digests were read, not chosen,
+on 2026-11-15 with `docker buildx imagetools inspect`, which pulls nothing:
+
+- `haproxy:2.9.15-alpine` → `sha256:3e29449a…7b3748`, the build west already
+  holds, so nothing moves (decision 2).
+- `nginx:1.25.5-alpine` → `sha256:516475cc…221a00`. West holds no build of this
+  tag, so the first `compose up` of this file pulls these bytes.
+
+Nothing in this file runs on west today. The images this repo builds
+(`unheaded-*`, `unheaded-sword` among them) stay out of the rule by definition.
+
+Decision 4 still stands for Dockerfile `FROM` lines and the sophia-eye and
+telemetry compose files: tags, and the gate does not read them.
+
 ## Done 2026-10-15
 
 - `docker-compose.yml`: `postgres:16.13-alpine`, `traefik:v3.3.7`,

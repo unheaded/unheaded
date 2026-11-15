@@ -7,8 +7,16 @@
 #   sudo install -m 0755 unheaded-baseline /usr/local/bin/
 #   sudo install -d -m 0755 /usr/share/unheaded/baseline
 #   sudo install -m 0644 compliance/baseline/baseline.yaml /usr/share/unheaded/baseline/
+#   sudo setfacl -m u:unheaded-baseline:rwx /var/lib/unheaded/textfile   # write its own file there, nothing else
 #   sudo cp deploy/systemd/unheaded-baseline.{service,timer,path} /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-baseline.timer unheaded-baseline.path
+#
+# -textfile-dir: each run writes unheaded_baseline.prom into the directory
+# huginn's textfile collector reads (/var/lib/unheaded/textfile, root 0755),
+# which the 09_compliance dashboard reads from VictoriaMetrics. The account
+# gets in through a per-user ACL, like unheaded-ci-status.service. Set the
+# ACL before this unit is installed: without it the run fails on the write.
+# No ReadWritePaths= here: that is a mount namespace (see below).
 #
 # Runs as its own account, not root (FND-010). CAP_DAC_READ_SEARCH reads
 # what root-only files the checks need (/etc/shadow, sudoers, grub.cfg, sshd
@@ -54,7 +62,7 @@ EnvironmentFile=-/etc/unheaded/baseline.env
 # listener stays plain HTTP: no certificate of its own here (pkg/tls.ServesTLS).
 Environment=UNHEADED_TLS_ENABLED=true
 Environment=UNHEADED_TLS_CA_CERT=/etc/unheaded/tls/ca.pem
-ExecStart=/usr/local/bin/unheaded-baseline -root-facts /run/unheaded-baseline
+ExecStart=/usr/local/bin/unheaded-baseline -textfile-dir /var/lib/unheaded/textfile -root-facts /run/unheaded-baseline
 StateDirectory=unheaded/baseline
 StateDirectoryMode=0755
 UMask=0022

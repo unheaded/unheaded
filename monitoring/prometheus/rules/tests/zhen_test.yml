@@ -5,7 +5,8 @@ evaluation_interval: 1m
 tests:
   # The scheduler ticks every minute for 30m, then its ticker sticks: the
   # gauge is still scraped but keeps the 30m value. Quiet while it beats
-  # and for 15m after; past 15m stale and the 1m hold, it fires.
+  # and for 15m after; past 15m stale and the 1m hold, it fires with
+  # reason="stale" (and only that one: the series is not absent).
   - interval: 1m
     input_series:
       - series: 'zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111"}'
@@ -20,14 +21,14 @@ tests:
       - eval_time: 48m
         alertname: ZhenSchedulerStalled
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd, instance: "[fd00:dead:beef::1]:20111"}
+          - exp_labels: {severity: warning, urgency: none, reason: stale, job: zhen-agentd, instance: "[fd00:dead:beef::1]:20111"}
             exp_annotations:
               summary: "Zhen's scheduler has not ticked for over 15 minutes"
-              description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd, or its last tick is stale: scheduled runbooks are not running (zhen-agentd down, started without -scheduler, or its ticker stuck)"
+              description: "zhen-agentd still answers /metrics but its last scheduler tick is over 15 minutes old: scheduled runbooks are not running (the ticker is stuck; the daemon is up)"
               runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
 
   # zhen-agentd runs without -scheduler (or is not scraped): the gauge never
-  # appears. It fires once the 1m hold passes.
+  # appears. It fires once the 1m hold passes, with reason="absent".
   - interval: 1m
     input_series:
       - series: 'up{job="zhen-agentd",instance="[fd00:dead:beef::1]:20111"}'
@@ -39,10 +40,10 @@ tests:
       - eval_time: 5m
         alertname: ZhenSchedulerStalled
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd}
+          - exp_labels: {severity: warning, urgency: none, reason: absent, job: zhen-agentd}
             exp_annotations:
               summary: "Zhen's scheduler has not ticked for over 15 minutes"
-              description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd, or its last tick is stale: scheduled runbooks are not running (zhen-agentd down, started without -scheduler, or its ticker stuck)"
+              description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd for 15 minutes: scheduled runbooks are not running (zhen-agentd down, not scraped, or started without -scheduler)"
               runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
 
   # The daemon stops at 10m: the series ends. Within the 15m window it is
@@ -59,10 +60,10 @@ tests:
       - eval_time: 27m
         alertname: ZhenSchedulerStalled
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: zhen-agentd}
+          - exp_labels: {severity: warning, urgency: none, reason: absent, job: zhen-agentd}
             exp_annotations:
               summary: "Zhen's scheduler has not ticked for over 15 minutes"
-              description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd, or its last tick is stale: scheduled runbooks are not running (zhen-agentd down, started without -scheduler, or its ticker stuck)"
+              description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd for 15 minutes: scheduled runbooks are not running (zhen-agentd down, not scraped, or started without -scheduler)"
               runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
       - eval_time: 35m
         alertname: ZhenSchedulerStalled

@@ -1,3 +1,5 @@
+> **Superseded 2026-11-15:** `lxd/telemetry/` deleted (S-WATCH-TRUE W4), with the Makefile's `launch-telemetry` target. Git history keeps the files. This file stays as the record of 2025-02-26.
+
 # Unheaded Kingdom LXD Infrastructure — Newly Created Files
 
 ## Overview

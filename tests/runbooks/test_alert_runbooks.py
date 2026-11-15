@@ -26,8 +26,11 @@ RUNBOOKS = {
     "runbooks/security/outbound-volume-deviation.yaml": ("OutboundVolumeDeviation",),
     "runbooks/observe/zhen-scheduler-stalled.yaml": ("ZhenSchedulerStalled",),
     # heimdall-daemon /metrics (M-085) and lost hook events (LICH-012 L12d).
-    "runbooks/infra/heimdall-drift-publish-failing.yaml": ("HeimdallDriftPublishFailing",),
-    "runbooks/infra/heimdall-hook-events-lost.yaml": ("HeimdallHookEventsLost",),
+    # The two rules were removed 2026-11-15 (S-WATCH-TRUE, W2: no host runs
+    # heimdall-daemon); the runbooks are kept and still dry-run here. Name
+    # the alerts again when the rules return with their producer.
+    "runbooks/infra/heimdall-drift-publish-failing.yaml": (),
+    "runbooks/infra/heimdall-hook-events-lost.yaml": (),
     # The ci-develop SLO's own runbook (policy.yaml runbook:), no hand rule.
     "runbooks/observe/ci-red.yaml": (),
 }
