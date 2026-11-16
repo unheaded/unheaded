@@ -136,6 +136,7 @@ Proved here: every fast row but two bites (one at a time with `--only`, behind a
 | `sudo scripts/check-ebpf-loads.sh` and `check-ebpf-insns.sh` (Phase 15 objects) | 2 |
 | `check-gates-can-fail.sh` full run (slow provocations need docker and sudo) | all |
 | `alert-policy -sync-well` (store-backups SLO, wotan text) | 1 |
+| Rebuild dashboard-backend (any compose up from this tree does): the running image (built 2026-11-12) refuses develop's catalog since S-EVIDENCE-RUNS added evidence kind `host-service` (11-15 05:26Z), so `ComplianceReportBroken` fires and every other compliance series is frozen at its last good value (`ComplianceEvidenceSilent`, `-FindingsOverdue`, `-FindingsUntriaged` are stale, not read). Proven offline 2026-11-16: the 11-12 `crosswalk` refuses today's `compliance/`, today's reads it (24,108 records). Design note: a running service reads `compliance/` from the moving develop checkout, so a catalog change outruns its binary | all |
 | `sprint/s-west-ground-compose`: merge develop in, rerun `check-compose-pids.sh` after plans 2 and 3 removed services | 4 Phase 7 |
 
 ## For Stevie and the coordinator
