@@ -43,6 +43,9 @@ type agentdAudit struct {
 	auditor claudebridge.Auditor // nil: audit off
 	well    *claudebridge.WellAuditor
 	wotan   *claudebridge.WotanAuditor
+	// client is the one Wotan client (-audit-wotan), also used for the
+	// critical-alert hold (pkg/critalert); nil without -audit-wotan.
+	client  *wotanClient.Client
 	closers []func()
 }
 
@@ -93,6 +96,7 @@ func buildAgentdAudit(ctx context.Context, wantWell, wantWotan bool) (*agentdAud
 		if err != nil {
 			return nil, fmt.Errorf("-audit-wotan: %w", err)
 		}
+		a.client = c
 		a.closers = append(a.closers, func() { _ = c.Close() })
 		wa, err := claudebridge.NewWotanAuditor(claudebridge.WotanAuditorConfig{
 			Pub: claudebridge.WotanClientPublisher{C: c}, Name: "zhen-agentd", Backend: claudebridge.BackendLocal,

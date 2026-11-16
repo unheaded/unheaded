@@ -202,6 +202,7 @@ topics:
         publish: ["upc.cart.weights.*"]
       zhen-agentd:
         publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending", "zhen.agent.report", "zhen.agent.runs", "zhen.scheduler.heartbeat", "runbooks.progress"]
+        subscribe: ["alerts.critical"]   # ADR-147 D2 = B: unattended runs hold while a critical alert fires
       zhen-claude:
         publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending"]
 

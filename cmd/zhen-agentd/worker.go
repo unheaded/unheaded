@@ -120,6 +120,11 @@ type workerConfig struct {
 	// GPUBusy reports the GPU lease held exclusively (a model swap or a
 	// training run): the card is deferred, not claimed (Step 233).
 	GPUBusy func() bool
+	// Hold reports a change hold (ADR-147 D2 = B): true while a critical
+	// alert fires (pkg/critalert's Tracker.Hold). The card is deferred, not
+	// claimed. nil never holds: without a Wotan client the state is
+	// unknown, and unknown allows, as for Sword and chaos-controller.
+	Hold func() (bool, string)
 }
 
 type worker struct {
@@ -329,6 +334,12 @@ func (w *worker) runOnce(ctx context.Context) (cardResult, error) {
 	if w.cfg.GPUBusy != nil && w.cfg.GPUBusy() {
 		w.cfg.Log.Info("worker_deferred", "reason", "gpu lease held exclusively")
 		return cardResult{Outcome: outcomeDeferred, Reason: "gpu lease held exclusively (model swap or training)"}, nil
+	}
+	if w.cfg.Hold != nil {
+		if held, why := w.cfg.Hold(); held {
+			w.cfg.Log.Info("worker_deferred", "reason", why)
+			return cardResult{Outcome: outcomeDeferred, Reason: why}, nil
+		}
 	}
 	c, spec, branch, skipped, err := w.pick(ctx)
 	if err != nil {

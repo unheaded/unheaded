@@ -17,6 +17,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/energy"
 	"unheaded/pkg/gpulease"
 	"unheaded/pkg/zhenagent"
@@ -234,8 +235,17 @@ func buildWorker(ctx context.Context, wf workerFlags, root, llamaURL, mode strin
 		lock := wf.gpuLock
 		gpuBusy = func() bool { return gpulease.Busy(lock) }
 	}
+	// ADR-147 D2 = B: no unattended run starts while a critical alert
+	// fires. The tracker rides the one Wotan client (-audit-wotan);
+	// without it the state is unknown and runs are allowed, said once here.
+	var hold func() (bool, string)
+	if aud != nil && aud.client != nil {
+		hold = critalert.Attach(ctx, aud.client, "zhen-agentd").Hold
+	} else {
+		log.Warn("critical_alert_hold_off", "reason", "no Wotan client (-audit-wotan off): a firing critical alert does not hold unattended runs")
+	}
 	w, err := newWorker(workerConfig{
-		Store: store, Runner: routeRunner{cfg: rc}, Repo: root, AgentRoot: wf.agentRoot, Base: wf.base, Mode: mode, GPUBusy: gpuBusy,
+		Store: store, Runner: routeRunner{cfg: rc}, Repo: root, AgentRoot: wf.agentRoot, Base: wf.base, Mode: mode, GPUBusy: gpuBusy, Hold: hold,
 		Routing: routing, KnownCheck: func(k string) bool { _, ok := checks.Specs[k]; return ok }, ReviewDir: wf.reviewDir,
 		Events: agentdRunEvents{aud: aud, log: log}, Log: log,
 	})
