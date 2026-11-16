@@ -153,7 +153,7 @@ n=$(find "$TMP/backups" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' | wc -l)
 ZDIR="$TMP/zhen-backups"
 if WELL_BACKUP_DIR="$ZDIR" WELL_BACKUP_DATABASES=unheaded_zhen WELL_BACKUP_EXCLUDE='' WELL_BACKUP_SET=zhen \
 	"$R/scripts/db-backup.sh" >"$TMP/zhen.out" 2>&1; then pass "zhen set exits 0"; else fail "zhen set"; tail -4 "$TMP/zhen.out" | sed 's/^/    /'; fi
-ZSET="$(find "$ZDIR" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' 2>/dev/null | sort | tail -1)"
+ZSET="$(find "$ZDIR" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' 2>/dev/null | sort | tail -1 || true)" # no dir: report the checks below, not exit
 got="$(cd "$ZSET" 2>/dev/null && ls -A | sort | tr '\n' ' ')"
 [[ "$got" == "SHA256SUMS cluster.env globals.sql rowcounts.tsv unheaded_zhen.dump " ]] &&
 	pass "zhen set holds unheaded_zhen.dump and the four set files, nothing else" || fail "zhen set files: $got"
