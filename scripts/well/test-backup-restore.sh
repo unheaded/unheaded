@@ -14,6 +14,10 @@
 # and that neither it nor scripts/well/set-role-passwords.sh leaves a
 # password in the server log or pg_stat_statements: the source logs DDL and
 # tracks statements as db/postgresql.conf does.
+# Zhen's database (ADR-149) has its own set: the default set leaves
+# unheaded_zhen out; WELL_BACKUP_DATABASES=unheaded_zhen WELL_BACKUP_SET=zhen
+# makes a set of it alone (zhen_backup.prom) that the drill restores; a
+# database that does not exist exits 1, a bad set name exits 2.
 #
 #   scripts/well/test-backup-restore.sh [image]   # default postgres:16.15-alpine
 set -euo pipefail
@@ -47,6 +51,10 @@ KANBAN_ROWS="$("${DOCKER[@]}" exec "$N" psql -X -qAt -v ON_ERROR_STOP=1 -U unhea
 [[ "$KANBAN_ROWS" =~ ^[0-9]+$ ]] && ((KANBAN_ROWS >= 25)) || { echo "kanban_tasks count unreadable: $KANBAN_ROWS"; exit 1; }
 "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d postgres <<'SQL'
 CREATE TABLE "odd name" (id int); INSERT INTO "odd name" SELECT generate_series(1, 7);
+SQL
+# A row in Zhen's database, which the default set must leave out.
+"${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d unheaded_zhen <<'SQL'
+INSERT INTO zhen_memories (question, answer) VALUES ('backup?', 'its own set');
 SQL
 
 fails=0
@@ -92,7 +100,8 @@ if in_log "$NEW_PW"; then fail "a rotated password appears in the server log"; e
 leaked="$("${DOCKER[@]}" exec "$N" psql -X -At -v ON_ERROR_STOP=1 -U unheaded -d postgres \
 	-c "SELECT count(*) FROM pg_stat_statements WHERE query ILIKE '%PASSWORD%'")"
 [[ "$leaked" == 0 ]] && pass "no password statement in pg_stat_statements" || fail "pg_stat_statements holds $leaked password statement(s)"
-export WELL_CONTAINER="$N" WELL_BACKUP_DIR="$TMP/backups"
+export WELL_CONTAINER="$N" WELL_BACKUP_DIR="$TMP/backups" WELL_METRICS_DIR="$TMP/metrics"
+mkdir -p "$WELL_METRICS_DIR"
 
 "$R/scripts/db-backup.sh" --keep 2
 SET="$(find "$TMP/backups" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' | sort | tail -1)"
@@ -112,6 +121,11 @@ grep -q $'^unheaded_app\tpublic.kanban_tasks\t'"$KANBAN_ROWS"'$' "$SET/rowcounts
 	fail "kanban_tasks count: want $KANBAN_ROWS, rowcounts.tsv has $(grep kanban_tasks "$SET/rowcounts.tsv")"
 grep -q $'^postgres\tpublic."odd name"\t7$' "$SET/rowcounts.tsv" && pass "quoted table counted" || fail "quoted table count"
 ! find "$TMP/backups" -name '.partial-*' | grep -q . && pass "no partial set left" || fail "partial set left behind"
+# (a) The default set leaves Zhen's database out and writes the platform's metrics.
+[[ ! -e "$SET/unheaded_zhen.dump" ]] && pass "default set has no unheaded_zhen.dump" || fail "default set dumped unheaded_zhen"
+! cut -f1 "$SET/rowcounts.tsv" | grep -qx unheaded_zhen && pass "default rowcounts name no unheaded_zhen table" || fail "default rowcounts name unheaded_zhen"
+grep -q '^unheaded_well_backup_last_success_timestamp_seconds ' "$WELL_METRICS_DIR/well_backup.prom" 2>/dev/null &&
+	[[ ! -e "$WELL_METRICS_DIR/zhen_backup.prom" ]] && pass "default set writes well_backup.prom only" || fail "default set metrics: $(ls "$WELL_METRICS_DIR")"
 
 if "$R/scripts/well/restore-drill.sh" --image "$IMAGE" "$SET"; then pass "drill restores the set"; else fail "drill on a good set"; fi
 
@@ -134,6 +148,27 @@ sleep 1; "$R/scripts/db-backup.sh" --keep 2 >/dev/null
 n=$(find "$TMP/backups" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' | wc -l)
 ((n == 2)) && pass "retention keeps 2" || fail "retention left $n sets"
 [[ ! -d "$SET" ]] && pass "oldest set removed" || fail "oldest set still present"
+
+# (b) Zhen's own set: unheaded_zhen alone, its own metrics, restorable.
+ZDIR="$TMP/zhen-backups"
+if WELL_BACKUP_DIR="$ZDIR" WELL_BACKUP_DATABASES=unheaded_zhen WELL_BACKUP_EXCLUDE='' WELL_BACKUP_SET=zhen \
+	"$R/scripts/db-backup.sh" >"$TMP/zhen.out" 2>&1; then pass "zhen set exits 0"; else fail "zhen set"; tail -4 "$TMP/zhen.out" | sed 's/^/    /'; fi
+ZSET="$(find "$ZDIR" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' 2>/dev/null | sort | tail -1)"
+got="$(cd "$ZSET" 2>/dev/null && ls -A | sort | tr '\n' ' ')"
+[[ "$got" == "SHA256SUMS cluster.env globals.sql rowcounts.tsv unheaded_zhen.dump " ]] &&
+	pass "zhen set holds unheaded_zhen.dump and the four set files, nothing else" || fail "zhen set files: $got"
+grep -q $'^unheaded_zhen\tpublic.zhen_memories\t1$' "$ZSET/rowcounts.tsv" 2>/dev/null && pass "zhen set counted zhen_memories" ||
+	fail "zhen set rowcounts: $(grep zhen_memories "$ZSET/rowcounts.tsv" 2>&1)"
+grep -q '^unheaded_zhen_backup_last_success_timestamp_seconds ' "$WELL_METRICS_DIR/zhen_backup.prom" 2>/dev/null &&
+	pass "zhen set writes zhen_backup.prom" || fail "zhen_backup.prom: $(cat "$WELL_METRICS_DIR/zhen_backup.prom" 2>&1 | head -3)"
+if "$R/scripts/well/restore-drill.sh" --image "$IMAGE" "$ZSET"; then pass "drill restores the zhen set"; else fail "drill on the zhen set"; fi
+# (c) A database that does not exist: exit 1 naming it, no set left.
+set +e; WELL_BACKUP_DIR="$TMP/nosuch-backups" WELL_BACKUP_DATABASES=nosuch "$R/scripts/db-backup.sh" >"$TMP/nosuch.out" 2>&1; rc=$?; set -e
+((rc == 1)) && grep -q nosuch "$TMP/nosuch.out" && pass "WELL_BACKUP_DATABASES=nosuch exits 1 naming it" || fail "nosuch: rc $rc $(tail -1 "$TMP/nosuch.out")"
+! find "$TMP/nosuch-backups" -mindepth 2 -maxdepth 2 -name 'well-*Z' 2>/dev/null | grep -q . && pass "no set written for nosuch" || fail "a set was written for nosuch"
+# (d) A set name that is not [a-z]{1,16}: exit 2.
+set +e; WELL_BACKUP_DIR="$TMP/badset-backups" WELL_BACKUP_SET=../x "$R/scripts/db-backup.sh" >"$TMP/badset.out" 2>&1; rc=$?; set -e
+((rc == 2)) && pass "WELL_BACKUP_SET=../x exits 2" || fail "WELL_BACKUP_SET=../x: rc $rc $(tail -1 "$TMP/badset.out")"
 
 if WELL_BACKUP_DIR="$R/tmp-backup-test" "$R/scripts/db-backup.sh" >/dev/null 2>&1; then
 	fail "backup wrote inside the repo"
