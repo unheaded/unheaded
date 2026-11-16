@@ -54,7 +54,7 @@ West ↔ east is a point-to-point link (192.168.13.1 ↔ 192.168.13.2). West is 
 | Zone | Members | Rule |
 |------|---------|------|
 | External | Browsers, internet | TLS 1.3 only, through the edge |
-| Edge / DMZ | traefik / HAProxy, Shield WAF | TLS termination, rate limiting |
+| Edge / DMZ | traefik / HAProxy, Shield (zero-trust gateway) | TLS termination, rate limiting |
 | Application | Court services, dashboard, kanban | Talk to each other via Wotan |
 | Infrastructure | Wotan, collectors, The Well | Restricted; Well accepts TLS only, per-role `pg_hba` |
 | User | The user's app ("the head") | Deny all except the gateway: zero access to Unheaded internals (NIST 800-207 Zero Trust Architecture) |

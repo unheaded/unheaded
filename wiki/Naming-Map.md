@@ -21,7 +21,7 @@ Complete mapping of every internal name in the Unheaded codebase to its technica
 | Kenoma | Actual state / drift detection | Gnostic: material void |
 | Anamnesis | Event sourcing / audit trail | Gnostic: remembrance |
 | Yaldabaoth | Chaos injection service | Gnostic: the Demiurge |
-| Shield | WAF / ingress-egress boundary | Medieval: blocks attacks |
+| Shield | Zero-trust gateway, ingress-egress boundary (not a WAF, ADR-121) | Medieval: blocks attacks |
 | Cuirass | Control plane (unheaded-daemon) | Medieval: chest armor |
 | Hauberk | Service mesh (circuit breakers, mTLS) | Medieval: chain mail |
 | Vambraces | Observability (eBPF layer) | Medieval: forearm armor |
