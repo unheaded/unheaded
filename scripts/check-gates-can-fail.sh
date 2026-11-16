@@ -1252,6 +1252,17 @@ provoke_well_zhen_conversations() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_zhen_database() {
+    # Contract (S-ZHEN-SWITCH Step 196, ADR-149): 053 drops Zhen's tables
+    # from unheaded_app only after their rows were copied. Turn the
+    # "rows not copied" refusal into a no-op.
+    local f="db/migrations/053_app_drop_zhen.sql"
+    backup "${f}"
+    sed -i "s/^    IF total > 0 AND rec = '' THEN$/    IF false THEN/" "${REPO_ROOT}/${f}"
+    grep -q '^    IF false THEN$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_image_digests() {
     # Contract (L23): a pinned compose image keeps its digest. Drop one.
     local f="docker-compose.yml"
@@ -1404,6 +1415,7 @@ well/test-log-events|provoke_well_log_events|slow|log_writer granted SELECT on l
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 well/test-deploy-journal|provoke_well_deploy_journal|slow|chaos_journal's UPDATE/DELETE trigger removed from 039 (needs docker)
 well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 052 (needs docker)
+well/test-zhen-database|provoke_well_zhen_database|slow|053's refusal to drop zhen tables whose rows were not copied turned into IF false (needs docker)
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo on the baseline's kernel; in CI on any other, the recorded numbers)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
