@@ -1,4 +1,4 @@
-.TH AKIRA 1 "2026-11-05" "unheaded 6fd704da" "Unheaded Kingdom"
+.TH AKIRA 1 "2026-11-16" "unheaded e6b73f22" "Unheaded Kingdom"
 .SH NAME
 akira \- Kingdom health daemon: polls every service, publishes votes to Wotan and decides the health band by consensus (ADR\-029).
 .SH SYNOPSIS
@@ -10,6 +10,9 @@ Kingdom health daemon: polls every service, publishes votes to Wotan and decides
 .TP
 .B \-\-config \fISTRING\fR
 Path to config YAML (optional)
+.TP
+.B \-\-discover\-subnets \fIPREFIXES\fR
+read system.discovery and check admitted announcements from these comma\-separated PREFIXES (default: the config's discover.subnets; none: off)
 .TP
 .B \-\-node \fISTRING\fR
 Node identifier (default: hostname)

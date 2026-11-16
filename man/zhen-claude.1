@@ -1,4 +1,4 @@
-.TH ZHEN\-CLAUDE 1 "2026-11-07" "unheaded 15d85d40" "Unheaded Kingdom"
+.TH ZHEN\-CLAUDE 1 "2026-11-16" "unheaded e6b73f22" "Unheaded Kingdom"
 .SH NAME
 zhen\-claude \- ZhenAI's bridge to the Claude API (ADR\-104): a one\-shot prompt or a REPL, every tool call through the Champion gate.
 .SH SYNOPSIS
@@ -49,7 +49,7 @@ the run_check allowlist (default configs/zhen\-checks.yaml)
 config file (default $XDG_CONFIG_HOME/unheaded/zhen\-claude.conf; a missing default is fine)
 .TP
 .B \-\-confirm \fIzhen\-claude confirm approve <id>\fR
-what happens to a write the gate refuses pending confirmation: deny (refuse, the default), tty (ask the human on /dev/tty with a code the model never sees), queue (queue it in the Well for zhen\-claude confirm approve <id>; DSN from env WELL_APP_ZHEN_DSN) (default deny)
+what happens to a write the gate refuses pending confirmation: deny (refuse, the default), tty (ask the human on /dev/tty with a code the model never sees), queue (queue it in the Well for zhen\-claude confirm approve <id>; DSN from env WELL_ZHEN_DSN, unheaded_zhen) (default deny)
 .TP
 .B \-\-daily\-cap\-usd \fINUM\fR
 hard spend cap per UTC day in USD (env ZHEN_CLAUDE_DAILY_CAP_USD) (default 5)
