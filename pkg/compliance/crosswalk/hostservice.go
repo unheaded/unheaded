@@ -9,7 +9,7 @@ import (
 	"unheaded/pkg/ports"
 )
 
-// KindHostService: ref "<host>:<service>", service from the fixed table
+// KindHostService is ref "<host>:<service>", service from the fixed table
 // HostServices (ADR-097, amendment of 2026-11-15; FND-037). It reads what
 // runs: the record passes when the service is running on that host, its
 // auth setting is on, and a request with no credentials to its protected
