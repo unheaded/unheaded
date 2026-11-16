@@ -21,7 +21,8 @@
 #      writing to this server as ops_writer (WELL_TEST_DSN): one row per
 #      request, one audit event per tool decision, a valid hash chain;
 #  6b. cmd/zhen-agentd's AppendTurns (build tag wellint) against the same
-#      server, logged in as app_zhen on unheaded_app (WELL_TEST_APP_DSN), the
+#      server, logged in as app_zhen on unheaded_zhen (WELL_TEST_ZHEN_DSN;
+#      zhen_conversations moved there with ADR-149), the
 #      daemon's role: a session's turns are written and read back, and a turn
 #      the schema refuses mid-batch leaves no row (one transaction);
 #   7. a pg_dump of unheaded_ops holds no trace of the prompt marker.
@@ -140,16 +141,16 @@ if ((GO)); then
 		fail "go integration test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
 	unset WELL_TEST_DSN
-	# 6b. AppendTurns as app_zhen on unheaded_app. Both tests must have run:
+	# 6b. AppendTurns as app_zhen on unheaded_zhen (ADR-149). Both tests must have run:
 	# without the DSN they skip, and a skip is not a pass.
-	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZH_PW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
+	export WELL_TEST_ZHEN_DSN="postgres://app_zhen:$ZH_PW@127.0.0.1:$PORT/unheaded_zhen?sslmode=disable"
 	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-agentd/ -run WellAppendTurns -v >"$TMP/go-agentd.out" 2>&1) &&
 		[[ "$(grep -c '^--- PASS: TestWellAppendTurns' "$TMP/go-agentd.out")" == 2 ]]; then
 		pass "go test -tags wellint ./cmd/zhen-agentd -run WellAppendTurns (as app_zhen)"
 	else
 		fail "AppendTurns integration test"; tail -25 "$TMP/go-agentd.out" | sed 's/^/    /'
 	fi
-	unset WELL_TEST_APP_DSN
+	unset WELL_TEST_ZHEN_DSN
 	# 7. The marker was in the prompt and in a tool input; neither is stored.
 	"${DOCKER[@]}" exec "$N" pg_dump -U unheaded -d unheaded_ops >"$TMP/dump.sql"
 	n=$(grep -c 'S2B-SECRET-MARKER' "$TMP/dump.sql" || true)

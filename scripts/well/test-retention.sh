@@ -11,7 +11,9 @@
 #   2. retention_runner's grants are scoped: it cannot delete from
 #      compliance_findings_history, audit_events, llm_requests,
 #      zhen_agent_runs, zhen_memories or zhen_captures, read a payload
-#      column, update a card, or edit its own run records;
+#      column, update a card, or edit its own run records; since ADR-149
+#      the zhen_* tables are in unheaded_zhen (052) and the cards in
+#      unheaded_app, so a card a run names is held across databases;
 #   3. seeded: 3 old + 2 new conversations; a soft-deleted card past 90
 #      days (an email and a key in its text), one past 90 days that an
 #      agent run names, a recent one, a live one, an archived one; an
@@ -107,6 +109,7 @@ for t in retention_runs retention_archive; do
 	eq "$t belongs to well_ops_owner" "$(sq unheaded_ops "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = '$t'::regclass")" well_ops_owner
 done
 ok "retention_runner logs in to unheaded_ops over TCP" rr unheaded_ops "SELECT 1"
+ok "retention_runner logs in to unheaded_zhen over TCP" rr unheaded_zhen "SELECT 1"
 refused "retention_runner CONNECT unheaded_config" rr unheaded_config "SELECT 1"
 
 # 2. Grants are scoped to the classes' tables.
@@ -116,11 +119,11 @@ refused "DELETE llm_requests" rr unheaded_ops "DELETE FROM llm_requests"
 refused "DELETE service_health_transitions" rr unheaded_ops "DELETE FROM service_health_transitions"
 refused "SELECT llm_requests.model_requested (payload column)" rr unheaded_ops "SELECT model_requested FROM llm_requests"
 refused "SELECT audit_events.details (payload column)" rr unheaded_ops "SELECT details FROM audit_events"
-refused "DELETE zhen_agent_runs" rr unheaded_app "DELETE FROM zhen_agent_runs"
-refused "DELETE zhen_memories" rr unheaded_app "DELETE FROM zhen_memories"
-refused "DELETE zhen_actions" rr unheaded_app "DELETE FROM zhen_actions"
-refused "DELETE zhen_captures outside its purge function" rr unheaded_app "DELETE FROM zhen_captures"
-refused "SELECT zhen_conversations.content" rr unheaded_app "SELECT content FROM zhen_conversations"
+refused "DELETE zhen_agent_runs" rr unheaded_zhen "DELETE FROM zhen_agent_runs"
+refused "DELETE zhen_memories" rr unheaded_zhen "DELETE FROM zhen_memories"
+refused "DELETE zhen_actions" rr unheaded_zhen "DELETE FROM zhen_actions"
+refused "DELETE zhen_captures outside its purge function" rr unheaded_zhen "DELETE FROM zhen_captures"
+refused "SELECT zhen_conversations.content" rr unheaded_zhen "SELECT content FROM zhen_conversations"
 refused "UPDATE kanban_tasks" rr unheaded_app "UPDATE kanban_tasks SET title = 'x'"
 refused "UPDATE retention_runs" rr unheaded_ops "UPDATE retention_runs SET error = 'x'"
 refused "DELETE retention_runs" rr unheaded_ops "DELETE FROM retention_runs"
@@ -132,19 +135,23 @@ CAP_OLD="$(printf '%064x' 1)"
 CAP_NEW="$(printf '%064x' 2)"
 RUN_ID="$(printf '%016x' 7)"
 BASE="$(printf '%040x' 9)"
+sq unheaded_zhen "
+INSERT INTO zhen_conversations (session_id, role, content, model, created_at) VALUES
+  ('s-old', 'user', 'old 1', 'qa', now() - interval '200 days'),
+  ('s-old', 'assistant', 'old 2', 'qa', now() - interval '120 days'),
+  ('s-old', 'user', 'old 3', 'qa', now() - interval '91 days'),
+  ('s-new', 'user', 'new 1', 'qa', now() - interval '10 days'),
+  ('s-new', 'assistant', 'new 2', 'qa', now());
+" >/dev/null
 sq unheaded_app "
-INSERT INTO zhen_conversations (session_id, role, content, created_at) VALUES
-  ('s-old', 'user', 'old 1', now() - interval '200 days'),
-  ('s-old', 'assistant', 'old 2', now() - interval '120 days'),
-  ('s-old', 'user', 'old 3', now() - interval '91 days'),
-  ('s-new', 'user', 'new 1', now() - interval '10 days'),
-  ('s-new', 'assistant', 'new 2', now());
 INSERT INTO kanban_tasks (id, title, description, deleted_at, archived_at) VALUES
   ('card-old', 'mail jane@example.org', 'pasted $KEY by mistake', now() - interval '100 days', NULL),
   ('card-held', 'run history', '', now() - interval '100 days', NULL),
   ('card-recent', 'recent', '', now() - interval '5 days', NULL),
   ('card-live', 'live', '', NULL, NULL),
   ('card-archived', 'archived', '', NULL, now() - interval '400 days');
+" >/dev/null
+sq unheaded_zhen "
 INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family, branch, base_commit)
   VALUES ('$RUN_ID', 'card-held', now() + interval '1 hour', 'overnight', 'code', 'zhen/card-held', '$BASE');
 INSERT INTO zhen_captures (id, captured_at, source, backend, model, author_kind, task_family, conversation_id,
@@ -155,7 +162,7 @@ INSERT INTO zhen_captures (id, captured_at, source, backend, model, author_kind,
 sq unheaded_ops "INSERT INTO service_health_transitions (service_name, host, old_status, new_status, transition_at)
   VALUES ('wotan', 'qa', 'ok', 'down', now() - interval '9 days')" >/dev/null
 counts() {
-	echo "$(sq unheaded_app "SELECT count(*) FROM zhen_conversations")/$(sq unheaded_app "SELECT count(*) FROM kanban_tasks WHERE id LIKE 'card-%'")/$(sq unheaded_app "SELECT count(*) FROM zhen_captures")"
+	echo "$(sq unheaded_zhen "SELECT count(*) FROM zhen_conversations")/$(sq unheaded_app "SELECT count(*) FROM kanban_tasks WHERE id LIKE 'card-%'")/$(sq unheaded_zhen "SELECT count(*) FROM zhen_captures")"
 }
 # 034's Genesis seed: live cards the job must never touch.
 GENESIS="$(sq unheaded_app "SELECT count(*) FROM kanban_tasks WHERE id NOT LIKE 'card-%'")"
@@ -181,11 +188,11 @@ eq "refused run changed nothing" "$(counts)" "5/5/2"
 # 6. A live run with a ratified copy.
 sed 's/^ratified: false$/ratified: true/' "$CLASSES" >"$TMP/ratified.yaml"
 if job -classes "$TMP/ratified.yaml" -metrics-dir "$TMP/metrics" -batch 2 >"$TMP/live" 2>&1; then pass "live run exits 0"; else fail "live run"; sed 's/^/    /' "$TMP/live" | tail -8; fi
-eq "conversations left: the two new ones" "$(sq unheaded_app "SELECT string_agg(content, ',' ORDER BY content) FROM zhen_conversations")" "new 1,new 2"
+eq "conversations left: the two new ones" "$(sq unheaded_zhen "SELECT string_agg(content, ',' ORDER BY content) FROM zhen_conversations")" "new 1,new 2"
 eq "cards left" "$(sq unheaded_app "SELECT string_agg(id, ',' ORDER BY id) FROM kanban_tasks WHERE id LIKE 'card-%'")" "card-archived,card-held,card-live,card-recent"
 eq "the Genesis cards are untouched" "$(sq unheaded_app "SELECT count(*) FROM kanban_tasks WHERE id NOT LIKE 'card-%'")" "$GENESIS"
-eq "the agent run is untouched" "$(sq unheaded_app "SELECT card_id FROM zhen_agent_runs WHERE id = '$RUN_ID'")" card-held
-eq "captures left: the fresh one" "$(sq unheaded_app "SELECT id FROM zhen_captures")" "$CAP_NEW"
+eq "the agent run is untouched" "$(sq unheaded_zhen "SELECT card_id FROM zhen_agent_runs WHERE id = '$RUN_ID'")" card-held
+eq "captures left: the fresh one" "$(sq unheaded_zhen "SELECT id FROM zhen_captures")" "$CAP_NEW"
 eq "card-old archived once, from unheaded_app.kanban_tasks" \
 	"$(sq unheaded_ops "SELECT count(*), min(source_db), min(source_table), min(class) FROM retention_archive WHERE source_key = 'card-old'")" \
 	"1|unheaded_app|kanban_tasks|kanban-soft-deleted"
@@ -214,10 +221,10 @@ else
 fi
 
 # 8. Legal hold.
-sq unheaded_app "INSERT INTO zhen_conversations (session_id, role, content, created_at) VALUES ('s-hold', 'user', 'on hold', now() - interval '300 days')" >/dev/null
+sq unheaded_zhen "INSERT INTO zhen_conversations (session_id, role, content, model, created_at) VALUES ('s-hold', 'user', 'on hold', 'qa', now() - interval '300 days')" >/dev/null
 awk '{print} /^  - name: zhen-conversations$/ {print "    hold: true"}' "$TMP/ratified.yaml" >"$TMP/hold.yaml"
 if job -classes "$TMP/hold.yaml" -class zhen-conversations >"$TMP/hold" 2>&1; then pass "held run exits 0"; else fail "held run"; sed 's/^/    /' "$TMP/hold" | tail -4; fi
-eq "a held class deletes nothing" "$(sq unheaded_app "SELECT count(*) FROM zhen_conversations WHERE content = 'on hold'")" 1
+eq "a held class deletes nothing" "$(sq unheaded_zhen "SELECT count(*) FROM zhen_conversations WHERE content = 'on hold'")" 1
 eq "the held run is recorded as held" \
 	"$(sq unheaded_ops "SELECT action, held, deleted FROM retention_runs WHERE class = 'zhen-conversations' ORDER BY id DESC LIMIT 1")" "held|1|0"
 

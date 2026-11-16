@@ -6,8 +6,8 @@
 package main
 
 // Runs only under scripts/well/test-llm-requests.sh, against a throwaway
-// server bootstrapped from db/migrations, as app_zhen on unheaded_app
-// (WELL_TEST_APP_DSN). Never point it at the real Well.
+// server bootstrapped from db/migrations, as app_zhen on unheaded_zhen
+// (WELL_TEST_ZHEN_DSN). Never point it at the real Well.
 
 import (
 	"context"
@@ -24,9 +24,9 @@ import (
 
 func wellConversationStore(t *testing.T) (*pgMemoryStore, *sql.DB) {
 	t.Helper()
-	dsn := os.Getenv("WELL_TEST_APP_DSN")
+	dsn := os.Getenv("WELL_TEST_ZHEN_DSN")
 	if dsn == "" {
-		t.Skip("WELL_TEST_APP_DSN not set (run scripts/well/test-llm-requests.sh)")
+		t.Skip("WELL_TEST_ZHEN_DSN not set (run scripts/well/test-llm-requests.sh)")
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

@@ -683,18 +683,20 @@ provoke_well_llm_requests() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_zhen_confirm() {
     # Contract (S-TWO-BRAINS Step 67): confirmation states move one way.
-    # Drop the transition trigger from 031.
-    local f="db/migrations/031_app_zhen_pending_confirmations.sql"
+    # Drop the transition trigger. Since ADR-149 the table is built by 052
+    # in unheaded_zhen (053 drops 031's copy), so the provocation goes there.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
-    sed -i '/^CREATE OR REPLACE TRIGGER trg_zhen_confirm_transition/,/EXECUTE FUNCTION zhen_confirm_transition();$/d' "${REPO_ROOT}/${f}"
+    sed -i '/^CREATE TRIGGER trg_zhen_confirm_transition/,/EXECUTE FUNCTION zhen_confirm_transition();$/d' "${REPO_ROOT}/${f}"
     ! grep -q 'TRIGGER trg_zhen_confirm_transition' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_zhen_agent_runs() {
     # Contract (S-TWO-BRAINS Step 202): one active run per card. Drop the
-    # partial unique index from 032, so a claim race has several winners.
-    local f="db/migrations/032_app_zhen_agent_runs.sql"
+    # partial unique index, so a claim race has several winners. Since
+    # ADR-149 the table is built by 052 in unheaded_zhen.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
     sed -i '/zhen_agent_runs_one_active/d' "${REPO_ROOT}/${f}"
     ! grep -q 'zhen_agent_runs_one_active' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -704,7 +706,8 @@ provoke_well_zhen_agent_runs() {
 provoke_well_zhen_captures() {
     # Contract (S-TWO-BRAINS Step 346): re-labelling is idempotent, one
     # label per (capture, kind, source row). Turn the UNIQUE into a no-op.
-    local f="db/migrations/033_app_zhen_captures.sql"
+    # Since ADR-149 the table is built by 052 in unheaded_zhen.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
     sed -i 's/CONSTRAINT zhen_capture_labels_once UNIQUE (capture_id, kind, source_ref)/CONSTRAINT zhen_capture_labels_once CHECK (true)/' "${REPO_ROOT}/${f}"
     grep -q 'zhen_capture_labels_once CHECK (true)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -1240,8 +1243,9 @@ provoke_well_deploy_journal() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_zhen_conversations() {
     # Contract (S-ZHEN-POLISH, migration 045): a conversation's client is
-    # web or cli. Turn the CHECK into a no-op.
-    local f="db/migrations/045_app_zhen_conversations_client.sql"
+    # web or cli. Turn the CHECK into a no-op. Since ADR-149 the table is
+    # built by 052 in unheaded_zhen.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
     sed -i "s/CHECK (client IN ('web', 'cli'))/CHECK (true)/" "${REPO_ROOT}/${f}"
     if grep -q "client IN ('web', 'cli')" "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
@@ -1380,9 +1384,9 @@ well/test-offsite-check|provoke_well_offsite_check|fast|offsite-check.sh countin
 well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
 well/test-pq-groups|provoke_well_pq_groups|slow|the hybrid group removed from the PG18 ssl_groups include (needs docker)
 well/test-llm-requests|provoke_well_llm_requests|slow|llm_requests' UPDATE/DELETE trigger removed from 030 (needs docker)
-well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 031 (needs docker)
-well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 032, so a claim race has several winners (needs docker)
-well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 033 (needs docker)
+well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 052 (needs docker)
+well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 052, so a claim race has several winners (needs docker)
+well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 052 (needs docker)
 well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys turned into CHECK (true) in 036 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
@@ -1399,7 +1403,7 @@ well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE 
 well/test-log-events|provoke_well_log_events|slow|log_writer granted SELECT on log_events in 048 (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 well/test-deploy-journal|provoke_well_deploy_journal|slow|chaos_journal's UPDATE/DELETE trigger removed from 039 (needs docker)
-well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 045 (needs docker)
+well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 052 (needs docker)
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo on the baseline's kernel; in CI on any other, the recorded numbers)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)

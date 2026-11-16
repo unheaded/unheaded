@@ -25,11 +25,11 @@ import (
 )
 
 func TestAdv_QueueRoundTripThroughPostgres(t *testing.T) {
-	if os.Getenv("WELL_TEST_APP_DSN") == "" {
-		t.Skip("WELL_TEST_APP_DSN unset (run scripts/well/test-zhen-confirm.sh)")
+	if os.Getenv("WELL_TEST_ZHEN_DSN") == "" {
+		t.Skip("WELL_TEST_ZHEN_DSN unset (run scripts/well/test-zhen-confirm.sh)")
 	}
 	typedTTY(t, true)
-	db, err := sql.Open("postgres", os.Getenv("WELL_TEST_APP_DSN"))
+	db, err := sql.Open("postgres", os.Getenv("WELL_TEST_ZHEN_DSN"))
 	if err != nil {
 		t.Fatal(err)
 	}
