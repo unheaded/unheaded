@@ -142,7 +142,7 @@ Proved here: every fast row but two bites (one at a time with `--only`, behind a
 ## For Stevie and the coordinator
 
 - zhen-agentd now gives up after 15 minutes (plan 1 SS3) instead of never (plan 3 kept `0`). Plan 1 asked whether Zhen should be the exception.
-- Plan 2's handoff to plan 3 is still open: zhen-agentd does not hold an unattended run while a critical alert fires (`critalert.Attach` + `Hold()`).
+- Plan 2's handoff to plan 3, done here 2026-11-16 (`fb0502c2`): zhen-agentd's worker defers a card while a critical alert fires (tracker on the `-audit-wotan` client; without it, unknown allows). Yours: whether the scheduler's runbook runs should hold too (left running: they may be the diagnostics an outage needs).
 - On the live day: plan 2 stops the role services and puts Cuirass behind `profiles: ["lxd"]`; their old containers will read as stopped to plan 1's ContainerStopped (a page) until removed (plan 2 Phase 19) or older than 7 days.
 - `runbooks/MANIFEST.sha256` (102 runbooks) needs the seal again.
 - `scripts/gen-prom-keep-list.py` gained `--modules` (`5ffa0b66`): an integration change to plan 2's tool, review it with plan 2.
