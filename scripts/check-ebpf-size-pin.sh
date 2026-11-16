@@ -15,6 +15,9 @@
 # deliberately with --update), rather than passing or failing on toolchain
 # noise. That is also why it runs on the build host as a promotion gate and
 # not in CI, whose nightly floats.
+# The size also depends on the checkout's path: panic location strings carry
+# the source path, so a worktree whose path is 8 characters longer reads 48
+# bytes more. Pin and compare from the main checkout (~/tmp/unheaded on west).
 # Exit: 0 match (or updated), 1 size differs, 2 build/toolchain/usage problem.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
