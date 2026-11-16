@@ -23,6 +23,10 @@ API, one per line, `# reader: <file>`), and writes:
   --check   regenerate in memory; exit 1 with a diff when a file differs
   --rules D read rule files from D (default monitoring/prometheus/rules)
   --runbooks D read runbooks from D, recursively (default runbooks)
+  --modules D  module root (default modules): a series only a module's rules
+               read (modules/*/prometheus/rules) stays off the list, because
+               the module's own scrape fragment carries no keep (ADR-149) and
+               the platform's files name nothing of a module's
 
 A rule that names a series by regex (`__name__=~`) cannot be listed: the
 script exits 1 naming the file, never guesses. Recorded series (a colon in
@@ -120,6 +124,15 @@ def runbook_series(runbooks_dir):
     return names
 
 
+def module_series(modules_root):
+    """Series the modules' own rules read (modules/*/prometheus/rules)."""
+    names = set()
+    for d in sorted(pathlib.Path(modules_root).glob("*/prometheus/rules")):
+        if any(d.glob("*.yml")):
+            names |= rule_series(d)
+    return names
+
+
 def extra_series(path):
     out = set()
     if not path.exists():
@@ -171,11 +184,17 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     ap.add_argument("--rules", default=str(PROM_DIR / "rules"))
     ap.add_argument("--runbooks", default=str(ROOT / "runbooks"))
+    ap.add_argument("--modules", default=str(ROOT / "modules"))
     ap.add_argument("--print", action="store_true", dest="do_print")
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
     try:
-        names = rule_series(a.rules) | runbook_series(a.runbooks) | extra_series(PROM_DIR / "keep-extra.txt")
+        platform = rule_series(a.rules)
+        extra = extra_series(PROM_DIR / "keep-extra.txt")
+        names = platform | runbook_series(a.runbooks) | extra
+        # A module's series reach Prometheus through the module's own job,
+        # which has no keep (plan 3 after plan 2, ADR-149): leave them off.
+        names -= module_series(a.modules) - platform - extra
         if a.do_print:
             print("\n".join(sorted(names)))
             return 0

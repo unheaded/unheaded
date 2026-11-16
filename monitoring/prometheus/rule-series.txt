@@ -82,4 +82,3 @@ vector_buffer_byte_size
 vector_buffer_discarded_events_total
 vector_component_errors_total
 vector_component_sent_events_total
-zhen_scheduler_heartbeat_timestamp_seconds
