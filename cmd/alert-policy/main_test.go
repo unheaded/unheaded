@@ -143,16 +143,6 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
-// copyRules puts the repo's hand-written rules into a temp tree.
-func copyRules(t *testing.T, root string) {
-	t.Helper()
-	matches, _ := filepath.Glob(filepath.Join("..", "..", rulesDir, "*.yml"))
-	for _, m := range matches {
-		b, _ := os.ReadFile(m)
-		_ = os.WriteFile(filepath.Join(root, rulesDir, filepath.Base(m)), b, 0o644)
-	}
-}
-
 // mailer.run_days (ADR-147 decision 2): the generator knows the block and
 // refuses what the mailer refuses.
 func TestValidateRunDays(t *testing.T) {
@@ -181,7 +171,7 @@ func TestValidateRunDays(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			root := tree(t, c.edit, "")
-			copyRules(t, root)
+			copyHandRules(t, root) // platform and module rules (ADR-149)
 			var all []string
 			for _, e := range run(root, false) {
 				all = append(all, e.Error())
