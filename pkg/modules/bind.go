@@ -38,7 +38,7 @@ func lastAddr(p netip.Prefix) netip.Addr {
 		case bits <= lo:
 			b[i] = 0xff
 		case bits < lo+8:
-			b[i] |= byte(0xff >> uint(bits-lo)) // #nosec G115 -- bits-lo is in 1..7
+			b[i] |= byte(0xff) >> (bits - lo) // bits-lo is in 1..7 here
 		}
 	}
 	out, _ := netip.AddrFromSlice(b)
