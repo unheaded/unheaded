@@ -1579,6 +1579,7 @@ controls:
       - {kind: slo, ref: overlay}
       - {kind: slo, ref: log-shipping}
       - {kind: slo, ref: kev-feed}
+      - {kind: slo, ref: store-backups}
       - {kind: slo, ref: ci-develop}
     mappings:
       nist-800-53r5: [CA-7, SI-4]
