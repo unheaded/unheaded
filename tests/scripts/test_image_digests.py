@@ -40,10 +40,10 @@ def test_alpine_carries_one_digest_in_both_files():
 
 
 def test_every_load_balancer_image_names_its_bytes():
-    """haproxy x2 and nginx x6 are all third-party: none is built here, so
+    """haproxy x2 and nginx x4 are all third-party: none is built here, so
     each carries the digest the registry serves (ADR-102, Update 2026-11-15)."""
     images = re.findall(r"^\s*image:\s*(\S+)", LOADBALANCERS.read_text(encoding="utf-8"), re.MULTILINE)
-    assert len(images) == 8
+    assert len(images) == 6  # nginx-monad and nginx-sophia went with the role services (ADR-147 decision 7)
     assert [i for i in images if not re.search(rf"{DIGEST}$", i)] == []
     # One digest per tag: the same tag never names two builds.
     by_tag = {}
