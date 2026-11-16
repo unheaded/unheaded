@@ -5,7 +5,7 @@
 // +build integration
 
 // Integration tests for Champion against real PostgreSQL (The Well).
-// Run with: WELL_TEST_ZHEN_DSN='host=... user=app_zhen password=... dbname=unheaded_app sslmode=require' \
+// Run with: WELL_TEST_ZHEN_DSN='host=... user=app_zhen password=... dbname=unheaded_zhen sslmode=require' \
 //   go test ./pkg/champion/... -tags=integration -count=1
 // against a Well bootstrapped from db/ (zhen_actions comes from the
 // migrations, never from the test). Skipped when WELL_TEST_ZHEN_DSN is unset;
