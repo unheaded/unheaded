@@ -108,6 +108,19 @@ Checked and clean: `TestRetiredIdentitiesStayOut` (no retired identity back), pl
 
 **2026-11-16:** merged `sprint/s-zhen-switch` again (its Steps 221 script half, 223 and 234 written ahead; the four Zhen provocations moved from 031/032/033/045 to 052, which would otherwise not have bitten after 053) and develop (ADR-147's dated note). `go vet -tags 'wellint integration'` on the six touched packages, shellcheck `-S warning` on `scripts/well/test-*.sh` and the meta-gate, `tests/scripts` 191 passed, `go test` on zhen-agentd, claudebridge, zhen-claude, champion: all pass.
 
+**2026-11-16, meta-gate on the merged tree (fast rows; no containers).** The trial's gate list had missed four gates that failed on the clean merged tree; each is fixed where it belongs and merged here:
+
+| Gate | Cause | Fix |
+|---|---|---|
+| `check-ci-verdicts` | `docker/Makefile` still listed monad and sophia (plan 2 removed their Dockerfiles) | plan 2 `730ec65c` |
+| `test-check-ci-verdicts` | three cases anchored on monad's Dockerfile and `SERVICES := monad ...` | plan 2 `086b0601` (anchored on shield) |
+| `check-nosec-ratchet` | no lane moved the baseline: 23 gone with the code, 13 new | `7a62fd9c` (3 fixed properly, 10 added by hand with reasons), then `1f69fbce` for develop's benchmark fix |
+| `live-path-inventory` | develop lacked `cmd/unheaded-aide`; here also the five role services | develop `90eaac43`, here `1f69fbce` |
+
+Develop itself was red in CI on two of these since earlier pushes, fixed there: `9a40bb93` (S-WATCH-TRUE's benchmark `#nosec` G115, now built from bytes) and `77a2f906` (`apt-repo.sh serve` and its test still assumed `/srv/unheaded-apt` after the vhost moved to west's `/var/lib/apt-repo` on 11-03). Also `well/test-zhen-database` gained a meta-gate row (plan 3).
+
+Proved here: 74 fast rows bite (one at a time with `--only`, behind a shim that refuses `docker run/build/create/exec` and `sudo`; log in `~/tmp/adr147-table/runs/`); `check-python-audit` stays INCONCLUSIVE (soupsieve, Stevie's yes). Not run: `check-prometheus-rules` (its fast row too runs promtool in a container; a `--quick` run reached it at 05:34Z and was stopped, recorded in S-E1-LIVE progress). Every slow row's provocation finds its anchor (edit only, gate not run). Six hand-run scripts with no row pass (host-settings, gpl classifier, prom keep-list, vor export, host-state textfile, planned-stop).
+
 ## What still must run after the evidence week
 
 | Gate | Plan |
