@@ -189,6 +189,7 @@ func RunExec(ctx context.Context, c ExecCheck) ExecResult {
 
 	start := time.Now()
 	err := cmd.Run()
+	endProcessGroup(cmd)
 	res := ExecResult{Duration: time.Since(start), ExitCode: -1}
 	res.Output, res.Truncated = out.bytes()
 	if cmd.ProcessState != nil {

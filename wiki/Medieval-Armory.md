@@ -9,7 +9,7 @@ Each infrastructure component maps to a piece of medieval plate armor. The user'
 | **Sabatons** | Host OS / bare metal | Foundation the knight stands on |
 | **Gauntlets** | CLI tooling | How operators interact with the system |
 | **Vambraces** | Observability (eBPF) | Fine-grained detail of what's happening |
-| **Shield** | WAF / ingress-egress | Blocks incoming attacks |
+| **Shield** | Zero-trust gateway / ingress-egress | Blocks incoming attacks (not a WAF, ADR-121) |
 | **Hauberk** | Service mesh (mTLS, circuit breakers) | Flexible protection between rigid components |
 | **Cuirass** | Control plane (unheaded-daemon) | Core body armor — protects vital organs |
 | **Pauldrons** | Load balancer | Bears the weight of traffic |

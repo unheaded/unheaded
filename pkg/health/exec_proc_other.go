@@ -10,3 +10,6 @@ import "os/exec"
 // killProcessGroup: no process groups here; the timeout kills the command
 // itself (exec.CommandContext's default) and WaitDelay bounds the rest.
 func killProcessGroup(*exec.Cmd) {}
+
+// endProcessGroup: nothing to reap without process groups.
+func endProcessGroup(*exec.Cmd) {}

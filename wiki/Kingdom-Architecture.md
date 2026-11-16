@@ -13,7 +13,7 @@ The Kingdom's components as one picture: the six technical layers, the armor pie
  Layer 2  Control plane       unheaded-daemon                          Cuirass · Pauldrons (LB)
                               Pleroma (desired) ⇄ Kenoma (actual) → drift
  Layer 1  Data plane          eBPF, the Whispering Void                Vambraces (observability)
-                              Shield (BIRTH at XDP, DEATH at TC)       Shield (WAF / boundary)
+                              Shield (BIRTH at XDP, DEATH at TC)       Shield (zero-trust gate)
  Layer 0  Infrastructure      host OS, bare metal, network fabric      Sabatons (bare-metal agent)
 
  Operator grip on every layer: Gauntlets (CLI + API, cmd/unheaded-cli)
