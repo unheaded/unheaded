@@ -340,3 +340,37 @@ func TestHold(t *testing.T) {
 		t.Error("a nil tracker holds")
 	}
 }
+
+// HoldUntilHeard (zhen-agentd's worker, review 2026-11-16): a fresh
+// tracker has heard nothing, and alerts.critical replays nothing, so until
+// the first message (the snapshot comes every 5 min) it cannot say "ok".
+// It holds until something is heard, and allows once SilentAfter passes
+// with nothing heard (unknown allows, as everywhere).
+func TestHoldUntilHeard(t *testing.T) {
+	tr, _, _ := newTestTracker(t)
+	held, why := tr.HoldUntilHeard()
+	if !held || !strings.Contains(why, "no alerts.critical message yet") {
+		t.Fatalf("fresh tracker: HoldUntilHeard() = %v %q", held, why)
+	}
+	if held, _ := tr.Hold(); held {
+		t.Error("Hold changed: a fresh tracker must still allow for Sword and chaos-controller")
+	}
+	tr.Handle(msg(snapJSON()))
+	if held, why := tr.HoldUntilHeard(); held {
+		t.Errorf("after an empty snapshot: held %q", why)
+	}
+	tr.Handle(msg(alertJSON("fp1", "firing")))
+	if held, why := tr.HoldUntilHeard(); !held || !strings.Contains(why, "WotanDown") {
+		t.Errorf("while WotanDown fires: %v %q", held, why)
+	}
+
+	quiet, c2, _ := newTestTracker(t)
+	c2.add(SilentAfter + time.Second)
+	if held, why := quiet.HoldUntilHeard(); held {
+		t.Errorf("nothing heard for SilentAfter: held %q; unknown allows", why)
+	}
+	var none *Tracker
+	if held, _ := none.HoldUntilHeard(); held {
+		t.Error("a nil tracker holds")
+	}
+}

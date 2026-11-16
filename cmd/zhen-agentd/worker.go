@@ -146,7 +146,8 @@ type cardResult struct {
 	Run        string
 	Branch     string
 	Reason     string
-	Infra      bool // the failure was infrastructure, not the model
+	Defer      string // why a deferred run waited: deferGPU or deferCritAlert
+	Infra      bool   // the failure was infrastructure, not the model
 	Route      claudebridge.RouteOutcome
 	ReviewNote string
 	Skipped    []skipNote
@@ -333,12 +334,12 @@ func (w *worker) runOnce(ctx context.Context) (cardResult, error) {
 	}
 	if w.cfg.GPUBusy != nil && w.cfg.GPUBusy() {
 		w.cfg.Log.Info("worker_deferred", "reason", "gpu lease held exclusively")
-		return cardResult{Outcome: outcomeDeferred, Reason: "gpu lease held exclusively (model swap or training)"}, nil
+		return cardResult{Outcome: outcomeDeferred, Defer: deferGPU, Reason: "gpu lease held exclusively (model swap or training)"}, nil
 	}
 	if w.cfg.Hold != nil {
 		if held, why := w.cfg.Hold(); held {
 			w.cfg.Log.Info("worker_deferred", "reason", why)
-			return cardResult{Outcome: outcomeDeferred, Reason: why}, nil
+			return cardResult{Outcome: outcomeDeferred, Defer: deferCritAlert, Reason: why}, nil
 		}
 	}
 	c, spec, branch, skipped, err := w.pick(ctx)
@@ -523,7 +524,7 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		// cancelled run does not count as an attempt.
 		w.dropUncommitted(bg, run, wt)
 		res = end(zhenagent.StatusCancelled, "gpu lease held exclusively mid-card; deferred", false, o, "", 0)
-		res.Outcome = outcomeDeferred
+		res.Outcome, res.Defer = outcomeDeferred, deferGPU
 		return res
 	}
 	if rerr != nil {

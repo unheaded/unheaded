@@ -46,8 +46,9 @@ const (
 
 // Deferral reasons.
 const (
-	deferGPU      = "gpu_lease"
-	deferMemFloor = "mem_floor"
+	deferGPU       = "gpu_lease"
+	deferMemFloor  = "mem_floor"
+	deferCritAlert = "critical_alert" // ADR-147 D2 = B: a critical alert fired, or none heard yet
 )
 
 // runCheckMemoryMax is the run_check unit's MemoryMax (pkg/sandbox
@@ -258,7 +259,10 @@ func runNight(ctx context.Context, w *worker, oc overnightConfig) (rep nightRepo
 			}
 		case outcomeDeferred:
 			rep.Deferred++
-			reason := deferGPU
+			reason := res.Defer
+			if reason == "" {
+				reason = deferGPU
+			}
 			rep.Deferrals[reason]++
 			if res.Run != "" { // claimed, then cancelled mid-card: it was tried
 				rep.Tried++

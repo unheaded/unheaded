@@ -236,11 +236,14 @@ func buildWorker(ctx context.Context, wf workerFlags, root, llamaURL, mode strin
 		gpuBusy = func() bool { return gpulease.Busy(lock) }
 	}
 	// ADR-147 D2 = B: no unattended run starts while a critical alert
-	// fires. The tracker rides the one Wotan client (-audit-wotan);
-	// without it the state is unknown and runs are allowed, said once here.
+	// fires. The tracker rides the one Wotan client (-audit-wotan; the
+	// overnight unit passes it); without it the state is unknown and runs
+	// are allowed, said once here. HoldUntilHeard, not Hold: a run starts
+	// right after Attach, alerts.critical replays nothing, so until the
+	// first message (the snapshot comes every 5 min) the worker waits.
 	var hold func() (bool, string)
 	if aud != nil && aud.client != nil {
-		hold = critalert.Attach(ctx, aud.client, "zhen-agentd").Hold
+		hold = critalert.Attach(ctx, aud.client, "zhen-agentd").HoldUntilHeard
 	} else {
 		log.Warn("critical_alert_hold_off", "reason", "no Wotan client (-audit-wotan off): a firing critical alert does not hold unattended runs")
 	}

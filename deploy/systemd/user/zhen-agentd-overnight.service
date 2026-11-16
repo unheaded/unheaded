@@ -21,6 +21,14 @@
 #   WELL_APP_ZHEN_DSN=...        (cards, unheaded_app as app_zhen)
 #   WELL_OPS_DSN=...             (llm_requests and audit_events, ops_writer)
 #   LLAMA_URL=http://127.0.0.1:8081
+#   WOTAN_ADDR=127.0.0.1:18000   (-audit-wotan: audit records on Wotan, and the
+#                                critical-alert hold on alerts.critical)
+#   AUTH_KEY_FILE=...            (zhen-agentd's service key, readable by you;
+#                                default /etc/unheaded/keys/zhen-agentd.key)
+# The hold (ADR-147 D2 = B): no card starts while a critical alert fires, or
+# before the first alerts.critical message (snapshot every 5 min); 15 min
+# with nothing heard counts as unknown and allows. Without WOTAN_ADDR the
+# run refuses to start (-audit-wotan needs it).
 #
 # Not enabled by the plan (Step 254 is Stevie's call). To enable:
 #   systemctl --user link ~/tmp/unheaded/deploy/systemd/user/zhen-agentd-overnight.{service,timer}
@@ -45,7 +53,7 @@ ExecCondition=/bin/sh -c 'test -d /run/unheaded/modules/zhen && test ! -L /run/u
 # operator's own and 0600 (or 0400).
 ExecStartPre=/bin/sh -c 'f=%h/.config/unheaded/zhen-agentd.env; [ -O "$f" ] && case "$(stat -c %%a "$f")" in 600|400) exit 0;; esac; echo "zhen-agentd-overnight: $f must be yours and mode 0600" >&2; exit 1'
 ExecStart=%h/tmp/unheaded/bin/zhen-agentd -worker -overnight -window 01:00-07:00 -max-cards 5 \
-    -project-root %h/tmp/unheaded -claude live -effort low -audit-well
+    -project-root %h/tmp/unheaded -claude live -effort low -audit-well -audit-wotan
 # The window is 6 h; a run that outlives it by 30 min is stopped.
 RuntimeMaxSec=6h30min
 TimeoutStopSec=5min

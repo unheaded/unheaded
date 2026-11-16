@@ -109,6 +109,7 @@ type Tracker struct {
 	mu     sync.Mutex
 	active map[string]Alert
 	last   time.Time // the last accepted message (or the start)
+	heard  bool      // a message has been accepted since the start
 	shown  State     // the state last logged and exported
 }
 
@@ -216,6 +217,7 @@ func (t *Tracker) snapshot(in message) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.last = t.now()
+	t.heard = true
 	for fp, a := range t.active {
 		if _, ok := next[fp]; !ok {
 			delete(t.active, fp)
@@ -261,6 +263,7 @@ func (t *Tracker) alert(in message) {
 		return
 	}
 	t.last = t.now()
+	t.heard = true
 	switch {
 	case in.Status == "firing" && !known:
 		t.active[in.Fingerprint] = Alert{Fingerprint: in.Fingerprint, Name: in.AlertName, Severity: in.Severity, Status: in.Status, Host: in.Host, StartsAt: in.StartsAt}
@@ -359,4 +362,22 @@ func (t *Tracker) Hold() (bool, string) {
 		return false, ""
 	}
 	return true, "critical alert firing: " + strings.Join(t.Names(), ", ")
+}
+
+// HoldUntilHeard is Hold for a run that starts right after Attach
+// (zhen-agentd's worker): alerts.critical replays nothing, so a fresh
+// tracker has not heard whether anything fires. Until the first message it
+// holds; once SilentAfter passes with nothing heard the state is unknown,
+// and unknown allows, as for Hold. A nil Tracker never holds.
+func (t *Tracker) HoldUntilHeard() (bool, string) {
+	if t == nil {
+		return false, ""
+	}
+	t.mu.Lock()
+	waiting := !t.heard && t.now().Sub(t.last) <= SilentAfter
+	t.mu.Unlock()
+	if waiting {
+		return true, "no alerts.critical message yet (the snapshot comes every 5 min; unknown, and allowed, after " + SilentAfter.String() + ")"
+	}
+	return t.Hold()
 }
