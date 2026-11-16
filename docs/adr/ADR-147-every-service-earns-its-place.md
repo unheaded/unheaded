@@ -426,3 +426,7 @@ What it means for this series (each item belongs to the plan named; none is buil
 | The log store week | A power cycle during it is a disturbance to record, like a walk of `/var` | S-E1-LIVE progress file |
 | Work in flight (lanes, background runs) | Lost on power-off; `/tmp` is tmpfs | Commit often on branches; `~/tmp/next.md` kept current |
 
+### Note 2026-11-16 (later): the cause
+
+The journal shows the power cycles were not random: of the 12 boots ended since 10-26, 7 were `sudo reboot` or `sudo poweroff` typed on a terminal, 3 were reboots after a root session, 1 a short power-key press (11-03), 1 the 11-04 memory wedge. Nothing in Unheaded (the chaos controller included), no timer and no unattended-upgrades setting reboots west. Stevie asked that west stay up while Claude Code works: a dev-host guard outside the repo (`~/tmp/west-hold.conf`, `hold=true|false`; a user unit holds a systemd `block` lock while Claude Code or tmux runs; override `sudo systemctl reboot -i`). The table above still stands as a design case: a power cut, a long press of the power button and a hang are not stopped by that lock.
+
