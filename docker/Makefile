@@ -9,8 +9,8 @@ REGISTRY  ?= ghcr.io/stevenrbellis/unheaded
 
 # Every service with a Dockerfile under services/ (the rest build from the
 # root Dockerfile's stages)
-SERVICES := monad sophia shield unheaded-daemon \
-            dashboard-backend protocol-api trace-collector
+SERVICES := shield unheaded-daemon dashboard-backend protocol-api \
+            trace-collector
 
 BUILD_ARGS := \
   --build-arg VERSION=$(VERSION) \
@@ -39,7 +39,7 @@ build:
 	done
 	@echo "✓ All $(words $(SERVICES)) images built successfully"
 
-## Build single service: make build-svc SERVICE=monad
+## Build single service: make build-svc SERVICE=shield
 build-svc:
 	@if [ -z "$(SERVICE)" ]; then \
 	  echo "✗ SERVICE not specified. Usage: make build-svc SERVICE=<name>"; \
@@ -76,7 +76,7 @@ pull:
 	done
 	@echo "✓ All images pulled"
 
-## Tail logs for a service: make logs SERVICE=monad
+## Tail logs for a service: make logs SERVICE=shield
 logs:
 	@if [ -z "$(SERVICE)" ]; then \
 	  echo "✗ SERVICE not specified. Usage: make logs SERVICE=<name>"; \
@@ -137,7 +137,7 @@ help:
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build                    # Build all 25 services"
-	@echo "  make build-svc SERVICE=monad  # Build single service"
-	@echo "  make logs SERVICE=monad       # Follow logs for service"
+	@echo "  make build-svc SERVICE=shield # Build single service"
+	@echo "  make logs SERVICE=shield      # Follow logs for service"
 	@echo "  make status                   # Show running containers"
 	@echo ""
