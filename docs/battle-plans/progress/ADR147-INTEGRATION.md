@@ -106,6 +106,8 @@ Checked and clean: `TestRetiredIdentitiesStayOut` (no retired identity back), pl
 | test-planned-stop (18), test-host-state-textfile (12), test-check-host-settings (36) | PASS |
 | `make -n build-services` | ok |
 
+**2026-11-16:** merged `sprint/s-zhen-switch` again (its Steps 221 script half, 223 and 234 written ahead; the four Zhen provocations moved from 031/032/033/045 to 052, which would otherwise not have bitten after 053) and develop (ADR-147's dated note). `go vet -tags 'wellint integration'` on the six touched packages, shellcheck `-S warning` on `scripts/well/test-*.sh` and the meta-gate, `tests/scripts` 191 passed, `go test` on zhen-agentd, claudebridge, zhen-claude, champion: all pass.
+
 ## What still must run after the evidence week
 
 | Gate | Plan |
@@ -116,6 +118,7 @@ Checked and clean: `TestRetiredIdentitiesStayOut` (no retired identity back), pl
 | `scripts/backup/test-store-backups.sh` | 1 |
 | `scripts/qa-smoke.sh` (psql) | 1, 2 |
 | `scripts/well/test-zhen-database.sh`, the 050 migration test, `scripts/well/test-health-bridge.sh` | 3, 2 |
+| `scripts/well/test-zhen-{agent-runs,captures,confirm,conversations}.sh`, `test-retention.sh`, `test-llm-requests.sh`, `test-backup-restore.sh`, `test-migrate.sh` (moved to unheaded_zhen 2026-11-16 without a server: plan 3's progress file, entry of that date) and their four provocations, now on 052 | 3 |
 | `scripts/test-zhen-switch.sh` (live) | 3 |
 | `sudo scripts/check-ebpf-loads.sh` and `check-ebpf-insns.sh` (Phase 15 objects) | 2 |
 | `check-gates-can-fail.sh` full run (slow provocations need docker and sudo) | all |
