@@ -131,7 +131,9 @@ check)
 	echo "apt-repo: $BASE consistent; Release and InRelease signed by the exported key"
 	;;
 serve)
-	sed "s|/srv/unheaded-apt|$BASE|g" "$REPO_ROOT/deploy/nginx/unheaded-apt.conf"
+	# The vhost names west's root (/var/lib/apt-repo until FND-026's move);
+	# print it with this base, whatever root the file holds.
+	sed -E "s|^([[:space:]]*root )[^;]+;|\1$BASE;|" "$REPO_ROOT/deploy/nginx/unheaded-apt.conf"
 	;;
 -h | --help | help) usage ;;
 *) die "unknown command '$cmd' (init, include, list, compare, check, serve)" ;;

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"net"
 	"os"
@@ -271,8 +272,8 @@ func BenchmarkFlowPoll65536(b *testing.B) {
 	const n, live = 65536, 50
 	now := ktimeNow()
 	keys, values := make([][]byte, n), make([][]byte, n)
-	for i := range n {
-		fk := makeFlowKey([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}, [4]byte{10, 20, 0, 1}, uint16(i), 443, 6) // #nosec G115 -- a port for a benchmark key
+	for i := range uint32(n) {
+		fk := benchFlowKey(i)
 		lastSeen := now - uint64(10*time.Minute)
 		if i < live {
 			lastSeen = now
@@ -320,8 +321,8 @@ func BenchmarkKernelBatchPass65536(b *testing.B) {
 		b.Fatal(err)
 	}
 	defer km.Close()
-	for i := range n {
-		fk := makeFlowKey([4]byte{10, byte(i >> 16), byte(i >> 8), byte(i)}, [4]byte{10, 20, 0, 1}, uint16(i), 443, 6) // #nosec G115 -- a port for a benchmark key
+	for i := range uint32(n) {
+		fk := benchFlowKey(i)
 		fs := makeFlowState(ConnStateEstablished, 1, 1, 1, 2, 100, 200)
 		k, v := fk.Encode(), fs.Encode()
 		if err := km.Put(k[:], v[:]); err != nil {
@@ -343,4 +344,13 @@ func BenchmarkKernelBatchPass65536(b *testing.B) {
 	}
 	b.StopTimer()
 	b.ReportMetric(float64(entries), "entries/pass")
+}
+
+// benchFlowKey is the i-th benchmark flow: source 10.x.y.z holding i in its
+// low 24 bits, source port the low 16 bits of i. Built from bytes, so no
+// narrowing conversion (gosec G115) is needed.
+func benchFlowKey(i uint32) FlowKey {
+	var src [4]byte
+	binary.BigEndian.PutUint32(src[:], 10<<24|i)
+	return makeFlowKey(src, [4]byte{10, 20, 0, 1}, binary.BigEndian.Uint16(src[2:]), 443, 6)
 }

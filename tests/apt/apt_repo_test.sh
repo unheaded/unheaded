@@ -114,8 +114,10 @@ expect "check: a tampered Release fails" "$(rc "$APT_REPO" check)" "1"
 
 # The nginx block serves dists/, pool/ and the key; everything else 403.
 NG="$REPO_ROOT/deploy/nginx/unheaded-apt.conf"
-expect "nginx: root /srv/unheaded-apt, autoindex off" \
-	"$(grep -cE '^\s*(root /srv/unheaded-apt;|autoindex off;)$' "$NG")" "2"
+# The root is west's repo path (/var/lib/apt-repo until FND-026 moves it);
+# what matters here is one absolute root and no index.
+expect "nginx: one absolute root, autoindex off" \
+	"$(grep -cE '^\s*(root /[^;[:space:]]+;|autoindex off;)$' "$NG")" "2"
 expect "nginx: default location denies (conf/, db/, incoming/ are 403)" \
 	"$(awk '/location \/ \{/ { getline; print; exit }' "$NG" | tr -d ' ')" "denyall;"
 expect "nginx: only dists/, pool/ and the key are opened" \
