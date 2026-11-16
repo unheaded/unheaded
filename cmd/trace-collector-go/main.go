@@ -1219,7 +1219,7 @@ func main() {
 	if err != nil {
 		log.Warn().Err(err).Msg("Wotan client: traces, log forwarding, discovery and health reports off")
 	} else {
-		defer wc.Close() // #nosec G104 -- process exit; nothing buffered a close error could lose
+		defer func() { _ = wc.Close() }() // process exit: nothing buffered that a close error could lose
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan

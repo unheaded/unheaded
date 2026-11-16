@@ -177,7 +177,7 @@ func main() {
 		log.Warn().Err(err).Msg("Wotan client: events, eBPF ingestion, health persistence, log forwarding, discovery and health reports off")
 		healthSrv.SetGRPCStatus(false)
 	} else {
-		defer wc.Close() // #nosec G104 -- process exit; nothing buffered a close error could lose
+		defer func() { _ = wc.Close() }() // process exit: nothing buffered that a close error could lose
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan
