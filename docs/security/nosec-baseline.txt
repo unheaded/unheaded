@@ -71,7 +71,6 @@ cmd/steel-echo/monad.go 1
 cmd/steel-echo/monad_linux.go 1
 cmd/steel-echo/serve.go 2
 cmd/syslog-relay/main_test.go 2
-cmd/trace-collector-go/benchmark_test.go 2
 cmd/trace-collector-go/correlator.go 2
 cmd/trace-collector-go/enrichment.go 1
 cmd/trace-collector-go/ktime.go 1
