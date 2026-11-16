@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
-# Checks unheaded_app.zhen_conversations.client (db/migrations/045) on a
-# throwaway PostgreSQL server bootstrapped by db/init.sh from the manifest,
-# never the real Well:
-#   1. the bootstrap records 045;
+# Checks zhen_conversations.client (db/migrations/045; since ADR-149 the
+# table lives in unheaded_zhen, made by 052) on a throwaway PostgreSQL server
+# bootstrapped by db/init.sh from the manifest, never the real Well:
+#   1. the bootstrap records 045 in unheaded_app and 052 in unheaded_zhen;
 #   2. a row without client reads web; app_zhen inserts a cli row;
 #   3. an unknown client is refused.
+# model is NOT NULL without a default since 052, so every insert names it.
 #
 #   scripts/well/test-zhen-conversations.sh [image]   # default postgres:16.15-alpine
 #
@@ -46,7 +47,8 @@ done
 ((ready)) || { "${DOCKER[@]}" logs "$N" 2>&1 | tail -20; echo "postgres did not become ready"; exit 1; }
 
 sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
-zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
+sz() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_zhen -c "$1"; }
+zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_zhen -c "$1"; }
 kb() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_app -c "$1"; }
 own() { sq "SET ROLE well_app_owner; $1"; }
 # The passwords exist only inside this throwaway container.
@@ -58,13 +60,15 @@ fail() { echo "[FAIL] $*"; fails=$((fails + 1)); }
 
 [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '045_app_zhen_conversations_client.sql'")" == 1 ]] &&
 	pass "ledger records 045" || fail "ledger records 045"
-zh "INSERT INTO zhen_conversations (session_id, role, content) VALUES ('s1', 'user', 'hello')" &&
-	[[ "$(sq "SELECT client FROM zhen_conversations WHERE session_id = 's1'")" == web ]] &&
+[[ "$(sz "SELECT count(*) FROM well_schema_migrations WHERE filename = '052_zhen_schema.sql'")" == 1 ]] &&
+	pass "unheaded_zhen ledger records 052" || fail "unheaded_zhen ledger records 052"
+zh "INSERT INTO zhen_conversations (session_id, role, content, model) VALUES ('s1', 'user', 'hello', 'qa')" &&
+	[[ "$(sz "SELECT client FROM zhen_conversations WHERE session_id = 's1'")" == web ]] &&
 	pass "default client is web" || fail "default client"
-zh "INSERT INTO zhen_conversations (session_id, role, content, client) VALUES ('s2', 'user', 'hi', 'cli')" &&
-	[[ "$(sq "SELECT client FROM zhen_conversations WHERE session_id = 's2'")" == cli ]] &&
+zh "INSERT INTO zhen_conversations (session_id, role, content, model, client) VALUES ('s2', 'user', 'hi', 'qa', 'cli')" &&
+	[[ "$(sz "SELECT client FROM zhen_conversations WHERE session_id = 's2'")" == cli ]] &&
 	pass "app_zhen writes a cli row" || fail "cli row"
-if zh "INSERT INTO zhen_conversations (session_id, role, content, client) VALUES ('s3', 'user', 'x', 'gui')" 2>/dev/null; then
+if zh "INSERT INTO zhen_conversations (session_id, role, content, model, client) VALUES ('s3', 'user', 'x', 'qa', 'gui')" 2>/dev/null; then
 	fail "unknown client was allowed"
 else
 	pass "unknown client refused"
