@@ -410,3 +410,19 @@ By decision number. He chose to answer all of them before the plan is forged.
 - **11 (journal).** Moving the journal to the NVMe and turning off rsyslog's second copy was offered and not chosen: the journal stays where it is.
 
 **All 25 are answered.** Open and carried as gates in the plan: what counts as load on orb; whether the GPU is shared with a tenant; every number for the shares (13), which the project measures.
+
+## Update 2026-11-16: west powers up and down at random
+
+Stevie, 2026-11-16: "do take note that this host west powers up and down randomly - account for that". `journalctl --list-boots` on west: 8 boots from 2026-10-28 to 2026-11-12, some hours apart; the current boot began 2026-11-12 03:40Z.
+
+What it means for this series (each item belongs to the plan named; none is built yet):
+
+| Case | Today | Plan |
+|---|---|---|
+| After an unplanned power-up the compose stack (the Well, VictoriaMetrics, Prometheus, Alertmanager, alert-mailer, every service) stays down: restart policy is `no` (decision 1) and `kingdom-startup.service` is disabled | Nothing starts it; nothing outside west notices | S-SEE-AND-SURVIVE: the alert path watching itself must be seen from east (a dead man's switch east reads), since west's own monitoring is down with the stack. Whether `kingdom-startup` runs at boot is a question for Stevie that decision 1 does not answer (decision 1 is about crashed containers, not a cold host) |
+| `kingdom-shutdown` writes the planned-stop mark only on a clean shutdown | A power loss leaves no mark, so after a manual start the stopped-container rule counts the outage | S-SEE-AND-SURVIVE: the boot path records "unplanned boot" (previous boot did not end cleanly) as its own event and metric |
+| Databases and the log store lose power mid-write | Postgres and ClickHouse recover by their own logs; the backup drills prove sets, not crash recovery | S-WEST-GROUND (volume move, fstab, swap) proves a cold boot, not only a clean reboot; S-PROVING-RUN adds a power-cut condition |
+| Wotan is in-memory by default | Every power cycle loses its state | S-WASTE-OUT's late-joiner snapshots (critical alerts) already assume this; plan 8 measures it |
+| The log store week | A power cycle during it is a disturbance to record, like a walk of `/var` | S-E1-LIVE progress file |
+| Work in flight (lanes, background runs) | Lost on power-off; `/tmp` is tmpfs | Commit often on branches; `~/tmp/next.md` kept current |
+
