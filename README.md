@@ -14,8 +14,8 @@ Solo, experimental, in active development.
 
 ## Building
 
-Requires Linux (kernel 5.15+; 6.17+ for the UPC eBPF verifier features), Go 1.25+,
-Rust nightly, Docker.
+Requires Linux (kernel 5.15+; 6.17+ for the UPC eBPF verifier features), Go 1.26+
+(`go.mod` names the toolchain), Rust nightly, Docker.
 
 ```
 go build ./...
@@ -31,7 +31,7 @@ Layer 5  Dashboard, Kanban, Zhenai web UI
 Layer 4  timeguru, captain, architect, micromanager, monad, sophia
 Layer 3  Wotan (message bus), trace-collector, gateway, Akira (health)
 Layer 2  unheaded-daemon (drift detection, reconciliation)
-Layer 1  23 eBPF programs (XDP/TC; Rust/Aya, Go/cilium)
+Layer 1  eBPF programs under `ebpf/` (XDP/TC; Rust/Aya, Go/cilium)
 Layer 0  LXD / Docker / NixOS / bare metal
 ```
 
@@ -70,8 +70,9 @@ Code: `ebpf/monad-cpu-ebpf/` (interpreter), `crates/xv6-mbc/`,
 ## Stack
 
 Go services, Rust eBPF (Aya), Wotan message bus (gRPC + HTTP), PostgreSQL (multi-DB "The
-Well"), llama.cpp + Mistral-7B (ROCm), vanilla-JS frontend, `.deb` packaging + systemd,
-SLH-DSA / ML-DSA-65 post-quantum crypto, deterministic Sealed Cask builds.
+Well"), llama.cpp serving a local GGUF model (qwen2.5-coder-7b, ROCm), vanilla-JS
+frontend, `.deb` packaging + systemd, SLH-DSA / ML-DSA-65 post-quantum crypto,
+deterministic Sealed Cask builds.
 
 ## Zhen
 
