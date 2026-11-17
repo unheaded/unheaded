@@ -173,6 +173,12 @@ renew with `--renew`).
 A new pooled client means a new row here first; PgBouncer only when the
 sum no longer fits.
 
+The role limits in this table are the ledger's defaults. A deployment
+changes one with `<ROLE>_CONNECTION_LIMIT` and
+`scripts/well/set-role-limits.sh` (for example `APP_ZHEN_CONNECTION_LIMIT`
+for `app_zhen`, 20 by default since migration 051), not by editing a
+migration; the sum must still fit `max_connections`.
+
 ---
 
 ## Monitoring

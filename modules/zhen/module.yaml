@@ -13,6 +13,9 @@ units:
 ports: [8081, 20103, 20111, 20112]
 # Timers in the switch: they fire only while the module is on.
 timers: [unheaded-zhen-backup.timer]
+# connection_limit is the default migration 051 sets. A deployment changes
+# the live limit with APP_ZHEN_CONNECTION_LIMIT and
+# scripts/well/set-role-limits.sh, not here and not in the migration.
 database: {name: unheaded_zhen, owner: well_zhen_owner, role: app_zhen, connection_limit: 20}
 # Per host, private prefixes only (pkg/modules.ParseBindAllow, ADR-149): the
 # addresses a Zhen listener may hold besides loopback. The house LAN address

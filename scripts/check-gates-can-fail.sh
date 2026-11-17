@@ -1529,6 +1529,7 @@ lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs); pro
 rolling-previous|records what rolling-upgrade moves and puts it back; no verdict of its own, proven by tests/runbooks/test_rolling_rollback.py
 apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
+well/set-role-limits|sets role connection limits from the environment; no verdict of its own, proven by tests/scripts/test_set_role_limits.py
 lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
 lib/tool-pins|version, sha256 and digest pins sourced by lib/fetch-tool, the check-* scripts and security.yml's trivy step; no verdict of its own (check-tool-freshness is the gate on it)
 verify-release|verifies a published release by tag (needs the network and a real release); its pass/fail contract is proven offline by tests/release/verify_release_test.sh (CI job release-verify)

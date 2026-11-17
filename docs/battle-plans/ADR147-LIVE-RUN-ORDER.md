@@ -38,12 +38,12 @@ Copyright (c) 2026 Stevie Bellis.
 | 1 | | Is zhen-agentd the exception to the start limit | | **Ruled 2026-11-17: no exception.** The unit in the tree already trips (90 starts in 30 min, the tree's rule for `RestartSec` 10 s; this row first said plan 3 kept "never give up", which the merged tree does not). Step 308's drop-in goes on it like the rest | Phase 14 |
 | 2 | D1-D7 | Publisher, subscriber, discovery reader, Prometheus keep-list, Akira's cert check, `FLOW_EVENTS`, `FLOW_STATE` | A, B, A, A, A, A, A | as recommended | Phase 19 |
 | 2 | D8 | Postgres's budget | A: 2 GiB, 1.0 CPU, `shared_buffers` 512MB | **Ruled 2026-11-17: A.** Steps 384-393 are open | Phase 22 |
-| 2 | Step 317 | Where the two public keys live (A, B or C); you make both ML-DSA-65 keys | | | live publishing on `alerts.critical`; the deploy itself does not wait |
-| 3 | D1-D5 | Switch is a systemd target; own database; fix the sweep; vor outside the switch; allowlist for private addresses | as listed | as recommended | block C |
-| 3 | D6 | `app_zhen` connection limit; off-site copy | 12; local only | **20** (REV-5); local only | Phase 8B |
-| 3 | D7, D8 | Approve `ioc-audit.yaml` and seal; Zhen on or off at the end | yours; on | not taken | Phase 9 |
-| 4 | WG1-WG5 | Move ClickHouse before the batch fix; backup sets to `sdb`; the two LAN paths; Alertmanager and Prometheus on loopback; west's filter before east's | A each | WG1-WG3 as recommended | sittings A and B |
-| 5 | LW1-LW5 | Bar; indexes; start empty; timer; plan 8's baseline | A, C, A, A, A | | its Phases 3 to 7 |
+| 2 | Step 317 | Where the two public keys live (A, B or C); you make both ML-DSA-65 keys | B | **Ruled 2026-11-17: B**, a host-local `/etc/unheaded/wotan/wotan.yaml`. Stevie makes both keys | live publishing on `alerts.critical`; the deploy itself does not wait |
+| 3 | D1-D5 | Switch is a systemd target; own database; fix the sweep; vor outside the switch; allowlist for private addresses | as listed | as recommended. **Ruled 2026-11-17: yes to all five** | block C |
+| 3 | D6 | `app_zhen` connection limit; off-site copy | 12; local only | **Ruled 2026-11-17: 20; local only; the limit must be adjustable.** Done: `APP_ZHEN_CONNECTION_LIMIT` and `scripts/well/set-role-limits.sh` (any role), 20 stays the default | Phase 8B |
+| 3 | D7, D8 | Approve `ioc-audit.yaml` and seal; Zhen on or off at the end | yours; on | **D8 ruled 2026-11-17: on, "till next power down".** D7 not answered: the audit timer stays installed and disabled | Phase 9 |
+| 4 | WG1-WG5 | Move ClickHouse before the batch fix; backup sets to `sdb`; the two LAN paths; Alertmanager and Prometheus on loopback; west's filter before east's | A each | **Ruled 2026-11-17: A each, and the reboot (WG8) at the end of sitting D, "but document and ensure this isn't hard coded, and is configurable"** | sittings A and B |
+| 5 | LW1-LW5 | Bar; indexes; start empty; timer; plan 8's baseline | A, C, A, A, A | **Ruled 2026-11-17: as recommended** (A, C, A, A, A) | its Phases 3 to 7 |
 
 ## The order
 

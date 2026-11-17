@@ -152,6 +152,17 @@ Stevie asked for sprints ready for the day the week ends. Four read-only passes 
 | Plan 2 D8, Postgres's budget | A: 2 GiB, 1.0 CPU, `shared_buffers` 512MB | Plan 2 Steps 384-393 are open |
 | Plan 1 SS1 to SS3, which alerts mail | "We can tune this later ... right now let's cap it to 1 digest email per day ... if we stand up an IPS or IDS those should page immediately on IoC or intrusion but it's a lab" | `mailer.delivery: digest` and `mailer.immediate: []` in `observability/alerting/policy.yaml`. The mailer sends the 09:00 digest and nothing else: a page is an outbox line with outcome `digest` and leads the digest; a silent alert path is the digest's first line. An alert named in `immediate` mails at once; `alert-policy` refuses a name that is not a promoted page. The urgency table, the run-day caps and the start limits stay as built. Tests were red first (`cmd/alert-mailer/delivery_test.go`, `TestLoadSettingsDelivery`, `TestValidateDelivery`). Plan 1 Steps 321, 324, 326, 329 and 333 amended: `digest` where they said `sent`; the relay is proved by the first digest |
 
+A second round, answered about 18:55Z:
+
+| Ruling | Stevie's answer | What changed |
+|---|---|---|
+| Plan 2 Step 317, where the two public keys live | Yes to the recommendation: B, a host-local `/etc/unheaded/wotan/wotan.yaml` | Nothing yet: Stevie makes both keys; Step 348 adds the mount |
+| Plan 3 D1 to D5 | Yes | As built |
+| Plan 3 D6, `app_zhen`'s limit | "Yes - should be adjustable (always avoid hardcoding variables other people may want to change)" | 20 stays the ledger's default. New: `scripts/well/set-role-limits.sh` sets any role's limit from `<ROLE>_CONNECTION_LIMIT` (values checked before any role changes; `--print` applies none), `tests/scripts/test_set_role_limits.py` (a fake docker; shown to fail on a loosened check), `db/.env.example`, `wiki/The-Well.md`, `THE_WELL_OPERATIONS.md`, `modules/zhen/module.yaml`, plan 3 Step 274. Never run against a Well |
+| Plan 3 D7 and D8 | "Leave it on till next power down" | D8: Zhen stays on. D7 (approve and seal `ioc-audit.yaml`) was not answered: the timer stays installed and disabled |
+| Plan 4 WG1 to WG5 and the reboot | "Yes but document and ensure this isn't hard coded, and is configurable" | All A. The tree is being read for host-specific values that plan 4 hard-codes; what that finds is recorded below it |
+| Plan 5 LW1 to LW5 | Yes | A, C, A, A, A |
+
 Not asked again: SS3 and plan 2's D1 to D7 were laid out for Stevie and not answered one by one; they stay as built until he says otherwise.
 
 Not changed: `runbooks/observe/alert-pipeline-silent.yaml` still says the mailer mails "alert pipeline silent" (true under `delivery: immediate`); a runbook edit needs the manifest rewritten and Stevie's seal.
