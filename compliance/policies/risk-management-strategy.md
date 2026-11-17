@@ -36,7 +36,7 @@ FIPS 199 style: confidentiality, integrity, availability rated low / moderate / 
 | The Well (PostgreSQL) | moderate | moderate | moderate | **moderate** | holds Kanban, Zhen captures and conversations, audit and compliance history; integrity of append-only history is evidence |
 | Wotan | low | moderate | moderate | **moderate** | every service's bus; forged events (drift, health) mislead detection |
 | Dashboard backend | low | moderate | moderate | **moderate** | the operator's live view; a wrong view hides incidents |
-| Kanban, timeguru, captain, architect, micromanager, monad, sophia | low | low | low | low | planning data, rebuildable from git and The Well |
+| Kanban, timeguru | low | low | low | low | planning data, rebuildable from git and The Well |
 | unheaded-daemon (Cuirass), Sword, chaos-controller | low | low | low | low | lab deploys and chaos inside an allowlist (ADR-107) |
 | unheaded-auth, unheaded-keygen | low | low | low | low | proposed raise to moderate integrity (issues tokens): decision for Stevie |
 | trace-collector, Heimdall, Akira, kev-poller, alert-mailer | low | low | low | low | detection and telemetry; loss is visible (SLOs, AlertPipelineHeartbeat) |

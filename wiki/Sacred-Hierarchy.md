@@ -17,8 +17,8 @@ Full Unheaded component hierarchy mapping lore names to technical layers.
 
 | Hollow | Domain | Key Components |
 |--------|--------|---------------|
-| **Crown Hollow** | Leadership & strategy | Captain, Timeguru |
-| **Forge Hollow** | Infrastructure & execution | Architect, Micromanager, IaC renderers |
+| **Crown Hollow** | Leadership & strategy | Timeguru |
+| **Forge Hollow** | Infrastructure & execution | IaC renderers |
 | **Gnostic Hollow** | State management | Pleroma, Kenoma, Anamnesis |
 | **Fae Hollow** | Messaging & communication | Wotan, topic contracts |
 | **Protocol Hollow** | Wire format & dictionaries | Monad, Sophia, Shield, Shim |

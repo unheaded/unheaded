@@ -85,8 +85,8 @@ Please do **not** report the following as security vulnerabilities:
 
 The Unheaded platform infrastructure includes:
 
-- **Core services**: Wotan (message bus), Timeguru (timeline), Captain (vision), Architect (ADRs), Micromanager (tasks)
-- **State management**: Monad (unified state), Sophia (knowledge graph)
+- **Core services**: Wotan (message bus), Timeguru (timeline)
+- **Protocol**: Monad wire format, Sophia dictionaries
 - **API gateway**: Gateway (public access point)
 - **System components**: Dashboard backend, eBPF infrastructure, trace collection
 - **Configuration management**: All configuration files and environment handling

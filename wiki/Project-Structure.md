@@ -7,7 +7,7 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | Dir | What |
 |-----|------|
 | `cmd/` | Every binary's entry point (Go, plus a few Rust/C) |
-| `services/` | Service internals: wotan, timeguru, captain, architect, micromanager, monad, sophia, anamnesis, shield, plus the armor-named components (cuirass, gauntlets, vambraces…) |
+| `services/` | Service internals: wotan, timeguru, gateway, shield, sword, sabatons, yaldabaoth, anomaly, compliance, firewall, keymgmt, loadbalancer, nfv, qos, selfheal, version |
 | `pkg/` | Shared Go packages: auth, audit, transport, discovery, logagg, health, ports, wotan-client, compliance, champion, gungnir, gjallarhorn, enkrateia, pqc_policy, … |
 | `ebpf/` | Rust/Aya eBPF workspace (GPL-2.0-only): XDP/TC programs + shared types |
 | `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, heimdall-bpf, lich-fuzz, zhend |

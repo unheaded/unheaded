@@ -57,4 +57,4 @@ type Connection interface {
 
 `transport.RegisterFlags()` defines `--transport`, `--wotan-grpc-addr`, `--wotan-http-addr`, `--connect-timeout` and `--fallback`, but no binary calls it: services take their own `--wotan`-style flags or the environment.
 
-11 binaries call `ConfigFromEnv()`: timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, unheaded-daemon, trace-collector-go, chaos-controller.
+7 binaries call `ConfigFromEnv()`: timeguru, dashboard-backend, kanban-app, unheaded-daemon, trace-collector-go, chaos-controller, sword.
