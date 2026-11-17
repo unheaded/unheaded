@@ -4,7 +4,7 @@ Copyright (c) 2026 Stevie Bellis.
 -->
 # ADR-147 series: the live run order after the evidence week
 
-**Written** 2026-11-17 (about 06:00Z), before the week ends at 18:34Z, from a read of the four plans' remaining phases against `integrate/adr147` `2dcb1d68`. Nothing in it has been run. It adds no scope: every step it names is a step of plan 1 to 5. Where it and a plan disagree about order or about a step listed under "Amendments", this page wins; everything else is the plan's.
+**Written** 2026-11-17 (about 04:00Z), before the week ends at 18:34Z, from a read of the four plans' remaining phases against `integrate/adr147` `2dcb1d68`. Nothing in it has been run. It adds no scope: every step it names is a step of plan 1 to 5. Where it and a plan disagree about order or about a step listed under "Amendments", this page wins; everything else is the plan's.
 
 **Why it exists.** Each plan was written to merge its own branch and deploy alone. The four were merged into one branch instead (`docs/battle-plans/progress/ADR147-INTEGRATION.md`), so one tree now carries all four: any image built from it holds every plan's code, and any migration batch sees every plan's files. Read alone, the steps listed under "Amendments" are stale. Run in the order below with those amendments, they are not.
 
