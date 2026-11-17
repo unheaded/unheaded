@@ -4,8 +4,8 @@
 package ports
 
 import (
+	"io/fs"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -39,6 +39,7 @@ var callerFiles = []string{
 	"tomb/provision.sh",
 	"tomb/ansible/*.yml",
 	"tomb/cerydwyn/prompts/*.txt",
+	"demos/*.html",
 }
 
 // starterFiles are also read for the five names as whole words: these files
@@ -80,24 +81,23 @@ func uncommented(path, line string) string {
 }
 
 func TestRetiredPortsStayOut(t *testing.T) {
-	const root = "../.."
+	repo := os.DirFS("../..")
 	names := map[string]bool{}
 	for _, f := range starterFiles {
 		names[f] = true
 	}
 	seen := map[string]bool{}
 	for _, g := range append(append([]string{}, callerFiles...), starterFiles...) {
-		paths, err := filepath.Glob(filepath.Join(root, g))
+		paths, err := fs.Glob(repo, g)
 		if err != nil {
 			t.Fatal(err)
 		}
-		for _, p := range paths {
-			rel, _ := filepath.Rel(root, p)
+		for _, rel := range paths {
 			if seen[rel] {
 				continue
 			}
 			seen[rel] = true
-			data, err := os.ReadFile(p) // #nosec G304 -- repository files under test
+			data, err := fs.ReadFile(repo, rel)
 			if err != nil {
 				t.Fatal(err)
 			}
