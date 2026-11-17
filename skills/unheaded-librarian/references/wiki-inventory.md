@@ -1,7 +1,7 @@
 # Wiki Page Inventory & Cross-Reference Map
 
 **Last Updated**: February 22, 2026
-**Total Pages**: 52
+**Total Pages**: 49
 
 ## Table of Contents
 
@@ -62,14 +62,11 @@
 | `LICH-Campaigns.md` | docs/security/ | Automated adversary testing |
 | `Dark-Grimoire.md` | docs/security/ | BlackMage offensive notes |
 
-### Services (7 pages)
+### Services (4 pages)
 | Wiki Page | Source Doc(s) | Notes |
 |-----------|--------------|-------|
 | `Service-Wotan.md` | services/wotan/ | Message bus / ring buffer |
 | `Service-Timeguru.md` | services/timeguru/ | Timeline tracking |
-| `Service-Captain.md` | services/captain/ | Strategy service |
-| `Service-Architect.md` | services/architect/ | Infrastructure design |
-| `Service-Micromanager.md` | services/micromanager/ | Execution + QA |
 | `Service-Dashboard-Backend.md` | cmd/dashboard-backend/ | Metrics + WebSocket |
 | `Service-Kanban-App.md` | cmd/kanban-app/ | Meta Moment app |
 
