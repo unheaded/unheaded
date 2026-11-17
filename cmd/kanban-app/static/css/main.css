@@ -91,6 +91,13 @@
     padding: 0;
 }
 
+/* The hidden attribute means hidden. The browser's own rule loses to any
+   class that sets display (.form-group does), which showed the task form's
+   read-only GUID row on a new task. */
+[hidden] {
+    display: none !important;
+}
+
 html {
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
