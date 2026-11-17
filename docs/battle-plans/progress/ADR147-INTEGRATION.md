@@ -135,6 +135,15 @@ Left as found, with reasons: `scripts/three-crowns/lib.sh` keeps the old binary 
 
 After these: the gates named above that need no container pass on the merged tree (spdx, nosec ratchet 845, live-path inventory, runbook manifest, CI verdicts, pytest 680). **`~/tmp/adr147-table/runs/after-week.sh`** runs the table below in a clean worktree, one log a gate, and refuses to start before 2026-11-17T18:34Z; it leaves out the rows that touch the live stack.
 
+## 2026-11-17, the live phases read against the merged tree
+
+Stevie asked for sprints ready for the day the week ends. Four read-only passes compared each plan's remaining phases with this branch. Each plan was written to merge and deploy alone; one merged tree changes what several steps meet.
+
+- **`docs/battle-plans/ADR147-LIVE-RUN-ORDER.md`** is the result: the order of the live blocks across plans 1 to 5, the one merge that replaces each plan's own, the rulings still open, and the steps to run differently, by plan. Each plan carries a pointer to it at its first live phase.
+- **A trap in the Well sitting, fixed** (`2dcb1d68`): migrations 050 (plan 2) and 051 to 053 (plan 3) are in one manifest, and `batch-apply.sh` applied everything pending, so plan 2 Step 341 would have run on into 053, which refuses until the rows are copied. `well-migrate apply -through FILE` and `batch-apply.sh --through NNN` now stop a batch at one file. The Go test was red first; the dry run was exercised against a stub runner; the new cases in `scripts/well/test-batch-apply.sh` need a throwaway server and have not run.
+- **Amended in the plans:** plan 2 Step 340 (it would have set five roles' passwords, not one) and Step 341 (`--through 050`); plan 3 Step 266 (the file is 053) and Step 274 (limit 20); plan 1 Step 308 (`2h` and `180`) and Phase 16 (its build and recreate are plan 2's).
+- **S-LOG-WEEK-2 forged** (`docs/battle-plans/S-LOG-WEEK-2-battle-plan.md`, 8 phases, 96 steps), ahead of its turn: its Phase 1 is repository work for the day the week ends. Its grounding found that the probe of the Well's own latency runs after the three queries, so week 1's latency row may have measured the reading itself, and that the copy would reach the writer's 4 GiB ceiling inside any second week that kept week 1's rows.
+
 ## What still must run after the evidence week
 
 | Gate | Plan |
@@ -142,6 +151,7 @@ After these: the gates named above that need no container pass on the merged tre
 | `scripts/check-hadolint.sh`, `scripts/check-trivy-misconfig.sh` (baselines edited by hand 2026-11-17, never run on this tree), `check-haproxy-cfg.sh`, `check-image-digests.sh`, `check-compose-log-caps.sh`, `check-compose-bind-nesting.sh`, `test-pihole-history.sh` (CI runs each; each needs docker) | 2, all |
 | `scripts/check-prometheus-rules.sh` (promtool in a container): every new rule test file, `containers_test.yml` with the timeguru fixture, the module rule tests | 1, 2, 3, 4 |
 | `scripts/ci-local.sh` (throwaway Wells, haproxy image) | all |
+| `scripts/well/test-batch-apply.sh`: the `--through` cases added 2026-11-17 (`2dcb1d68`), never run | 2, 3 |
 | `scripts/monitoring/test-alert-path.sh` (cases 6, 7) | 1 |
 | `scripts/backup/test-store-backups.sh` | 1 |
 | `scripts/qa-smoke.sh` (psql) | 1, 2 |

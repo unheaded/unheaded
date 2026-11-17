@@ -916,6 +916,8 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 
 ## PHASE 12: THE E-GATE, THE CONTAINER TESTS, THE MERGE (Steps 247-270)
 
+**Amended 2026-11-17: read `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` before running any step from Step 247 on.** The four plans were merged as one branch, so this plan's own merge steps are replaced by that page's block C, its live phases run in that page's order, and the steps that page lists under "Amendments" run as amended there.
+
 **Goal**: The evidence week is over; the tests that need throwaway containers pass; the lanes are one branch; `develop` holds it.
 **Prerequisite**: Phases 1 to 11 gates (a `[STUCK]` lane merges without its stuck part, or not at all).
 **Time**: 1.5 h.
@@ -1028,7 +1030,7 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
   ```bash
   for u in huginn unheaded-chaos-controller unheaded-kev-poller unheaded-syslog-relay unheaded-vor unheaded-wiki-server unheaded-zhen-ui-front zhen-agentd; do systemctl cat $u.service >/dev/null 2>&1 && sudo install -D -m 0644 /home/govan/tmp/unheaded/deploy/systemd/dropins/10-start-limit.conf /etc/systemd/system/$u.service.d/10-start-limit.conf; done; sudo systemctl daemon-reload
   ```
-- [ ] **Step 308** [V] ~1m: `for u in huginn unheaded-kev-poller unheaded-wiki-server unheaded-vor; do systemctl show -p Id,StartLimitIntervalUSec,StartLimitBurst,NRestarts $u | tr '\n' ' '; echo; done` → `15min` and `10` each; `NRestarts` as before (nothing restarted).
+- [ ] **Step 308** [V] ~1m: `for u in huginn unheaded-kev-poller unheaded-wiki-server unheaded-vor; do systemctl show -p Id,StartLimitIntervalUSec,StartLimitBurst,NRestarts $u | tr '\n' ' '; echo; done` → `2h` and `180` each (amended 2026-11-17: REV-3 changed the drop-in from 15 min and 10); `NRestarts` as before (nothing restarted).
 - [ ] **Step 309** [W] ~2m: SSV-09 after: the units and their new limits. Undo: `sudo rm /etc/systemd/system/<unit>.service.d/10-start-limit.conf && sudo systemctl daemon-reload`.
 - [ ] **Step 310** [C] ~1m: **COMMIT** `$PROG` on develop: "Steps 297-310: huginn per-cgroup series, host state, start limits live on west".
 - [ ] **Step 311** [B] ~1m: `systemctl --failed --no-legend | wc -l`
@@ -1092,6 +1094,8 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 ---
 
 ## PHASE 16: LIVE 4: THE BUCKETS ROLL OUT (Steps 335-348)
+
+**Amended 2026-11-17:** Steps 335 to 341 are done by S-WASTE-OUT Steps 327 to 355 (the same images, built once from the merged tree; timeguru's needs migration 050 first). Steps 342 to 348 run an hour after S-WASTE-OUT Step 355. See `ADR147-LIVE-RUN-ORDER.md`.
 
 **Goal**: Every running service built from this tree serves the 0.1 ms buckets; Wotan's p50 reads near its true mean.
 **Prerequisite**: Phase 15 gate (a container stopped by mistake during the rollout now mails). No other builder running (series rule 3).

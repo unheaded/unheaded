@@ -24,7 +24,7 @@ The seats' full reports are on west in `~/tmp/adr147-table/` (not in the reposit
 | 2 | S-WASTE-OUT | Waste out, each fix measured before and after | unattended; steps on Vector, ClickHouse and Postgres wait for the evidence week to end | 7, 8, 9, 10, 19, 24, timeguru; then 5's two fixes | forged 2026-11-15 (24 phases, 414 steps; finished after a cutoff, committed) |
 | 3 | S-ZHEN-SWITCH | The platform whole without Zhen; one switch turns it on | unattended code; attended where the Well changes | 15 | forged 2026-11-15 (11 phases, 330 steps; finished after a cutoff, committed; its ADR takes the next free number, 149 since ADR-148) |
 | 4 | S-WEST-GROUND | West's ground: databases off the spinning disk, swap, huge pages, input filter, pid limits | ATTENDED, after the evidence week | 11, 12, 16, 22 | forged 2026-11-15 (13 phases, 324 steps; finished after a cutoff, committed `S-WEST-GROUND-battle-plan.md`) |
-| 5 | S-LOG-WEEK-2 | A second, fair log store week | unattended, 7 days | 5 | after plans 2 and 4 |
+| 5 | S-LOG-WEEK-2 | A second, fair log store week | unattended, 7 days | 5 | forged 2026-11-17 ahead of its turn, on Stevie's word (8 phases, 96 steps; not executed). Its Phase 1 is repository work and may run beside plans 1 to 4; the week itself starts after plans 2 and 4 |
 | 6 | S-EAST-PAIR | East as a second home: the collector fix, Evening 10B, its own uplink, it watches west, two wired paths with BGP carrying real routes | ATTENDED, hardware Stevie adds | 3, 17, 18 | needs a design ADR for the pair first (what fails over, and how): drafted 2026-11-17 as ADR-150 (Proposed, parked); its 15 choices are Stevie's before the forge |
 | 7 | S-TENANT-DOOR | One way in for a tenant: an LXD instance placed by Cuirass; Zhen moves into one | attended | 14 | after plans 3, 4 and 6 |
 | 8 | S-PROVING-RUN | Baseline of five to seven quiet days, the rails, then the 38 conditions at 80 to 90% of real work | Stevie present for east | 13 (measured here, no numbers before), 20, 21 | after plans 1 to 7 |
@@ -32,7 +32,9 @@ The seats' full reports are on west in `~/tmp/adr147-table/` (not in the reposit
 | 10 | S-LONG-SOAK | Seven days at load; close every finding | watched | 20 | after plan 9 |
 | 11 | S-TEN-NODES | Unheaded on ten or more nodes in a public cloud, before 1.0 | Stevie's cost and word | 21; ADR-143 | after plan 10 |
 
-Plans 5 to 11 are forged when the plan before them closes, from what it measured. Forging them now would be guessing.
+Plans 6 to 11 are forged when the plan before them closes, from what it measured. Forging them now would be guessing. Plan 5 reads plan 2's and plan 4's numbers at its Phase 2 and stops without them.
+
+**The live order of plans 1 to 5** after the evidence week, with the steps that the single integration merge made stale: `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` (2026-11-17).
 
 ## Gates that stay open
 

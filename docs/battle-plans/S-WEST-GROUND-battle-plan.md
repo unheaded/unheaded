@@ -102,6 +102,8 @@ Copyright (c) 2026 Stevie Bellis.
 
 ## PHASE 0: THE GATE (Steps 1-24)
 
+**Amended 2026-11-17: read `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` before running any step from Step 2 on.** The four plans were merged as one branch, so this plan's own merge steps are replaced by that page's block C, its live phases run in that page's order, and the steps that page lists under "Amendments" run as amended there.
+
 **Goal**: Proof that the log store week has ended and that plan 1's backups and alerts exist; the rulings; the worktree.
 **Prerequisite**: none. Nothing in this phase changes the host.
 **Time**: 45 min.
