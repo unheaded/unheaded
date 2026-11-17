@@ -5,15 +5,19 @@
 # Apply every pending migration to The Well as one batch, behind a backup
 # taken seconds before (ADR-101, ADR-106 Q1; S-WELL-SPRING Phase 1, M-070).
 #
-#   scripts/well/batch-apply.sh --dry-run [--from NNN]   # list what would run, change nothing
-#   scripts/well/batch-apply.sh [--from NNN]             # back up, apply, show the ledger after
+#   scripts/well/batch-apply.sh --dry-run [--from NNN] [--through NNN]   # list what would run, change nothing
+#   scripts/well/batch-apply.sh [--from NNN] [--through NNN]             # back up, apply, show the ledger after
 #
 # Pending = db/migrations/MANIFEST minus each database's
 # well_schema_migrations ledger, as `well-migrate status` computes it. An
 # applied file that changed (drift) or an orphan ledger row stops the batch
 # before anything runs. --from NNN refuses when any pending file is numbered
 # below NNN: the live ledger disagreeing with the repo about older files is a
-# reason to stop and look, never to apply (Step 46).
+# reason to stop and look, never to apply (Step 46). --through NNN applies
+# only the pending files numbered NNN or lower and leaves the rest pending:
+# one tree can carry two sittings' files (050 with S-WASTE-OUT; 051 to 053
+# with the Zhen move, where 053 refuses until the rows are copied). The
+# backup, pending.tsv and the rollback then cover that part alone.
 #
 # Apply, in order:
 #   1. writes <root>/pre-batch-<UTC>/: pending.tsv (database and file of every
@@ -42,15 +46,18 @@ set -euo pipefail
 umask 077
 
 R="$(cd "$(dirname "$0")/../.." && pwd)"
-DRY=0 FROM=""
+DRY=0 FROM="" THROUGH=""
 while (($#)); do
 	case "$1" in
 	--dry-run) DRY=1; shift ;;
 	--from) FROM="${2:?--from needs a migration number}"; shift 2 ;;
-	*) echo "usage: $0 [--dry-run] [--from NNN]" >&2; exit 2 ;;
+	--through) THROUGH="${2:?--through needs a migration number}"; shift 2 ;;
+	*) echo "usage: $0 [--dry-run] [--from NNN] [--through NNN]" >&2; exit 2 ;;
 	esac
 done
 [[ -z "$FROM" || "$FROM" =~ ^[0-9]{3}$ ]] || { echo "[batch] --from takes three digits, got '$FROM'" >&2; exit 2; }
+[[ -z "$THROUGH" || "$THROUGH" =~ ^[0-9]{3}$ ]] || { echo "[batch] --through takes three digits, got '$THROUGH'" >&2; exit 2; }
+[[ -z "$FROM" || -z "$THROUGH" || $((10#$THROUGH)) -ge $((10#$FROM)) ]] || { echo "[batch] --through $THROUGH is below --from $FROM" >&2; exit 2; }
 : "${WELL_MIGRATE_PASSWORD:?set WELL_MIGRATE_PASSWORD (from .env): credentials are not stored in this repo}"
 
 DIR="${WELL_MIGRATIONS_DIR:-$R/db/migrations}"
@@ -75,8 +82,23 @@ case $rc in
 esac
 awk '$1 == "pending" {print $2 "\t" $3}' "$TMP/before.txt" >"$TMP/pending.tsv"
 [[ -s "$TMP/pending.tsv" ]] || { cat "$TMP/before.txt" >&2; echo "[batch] status said pending but listed nothing" >&2; exit 1; }
-echo "[batch] pending ($(wc -l <"$TMP/pending.tsv")):"
+: >"$TMP/later.tsv"
+THROUGH_FILE=""
+if [[ -n "$THROUGH" ]]; then
+	awk -F'\t' -v t="$THROUGH" 'substr($2, 1, 3) + 0 > t + 0' "$TMP/pending.tsv" >"$TMP/later.tsv"
+	awk -F'\t' -v t="$THROUGH" 'substr($2, 1, 3) + 0 <= t + 0' "$TMP/pending.tsv" >"$TMP/now.tsv"
+	mv "$TMP/now.tsv" "$TMP/pending.tsv"
+	if [[ ! -s "$TMP/pending.tsv" ]]; then
+		echo "[batch] nothing pending through $THROUGH ($(wc -l <"$TMP/later.tsv") later file(s) left pending)"
+		exit 0
+	fi
+	THROUGH_FILE="$(tail -1 "$TMP/pending.tsv" | cut -f2)"
+	echo "[batch] pending ($(wc -l <"$TMP/pending.tsv")) through $THROUGH:"
+else
+	echo "[batch] pending ($(wc -l <"$TMP/pending.tsv")):"
+fi
 sed 's/^/  /' "$TMP/pending.tsv"
+[[ ! -s "$TMP/later.tsv" ]] || echo "[batch] left pending for a later batch ($(wc -l <"$TMP/later.tsv")): $(cut -f2 "$TMP/later.tsv" | paste -sd' ')"
 if [[ -n "$FROM" ]]; then
 	older="$(awk -F'\t' -v from="$FROM" 'substr($2, 1, 3) + 0 < from + 0' "$TMP/pending.tsv")"
 	if [[ -n "$older" ]]; then
@@ -112,7 +134,9 @@ done
 
 # 3. Apply.
 echo "[batch] applying"
-if ! wm apply -yes; then
+APPLY=(apply -yes)
+[[ -z "$THROUGH_FILE" ]] || APPLY=(apply -through "$THROUGH_FILE" -yes)
+if ! wm "${APPLY[@]}"; then
 	echo "[batch] FAILED part-way. Do not re-run. Roll back (Appendix A1):" >&2
 	echo "  bash scripts/well/batch-rollback.sh --yes $PRE" >&2
 	exit 1
@@ -126,6 +150,12 @@ echo "[batch] ledger rows added by this batch:"
 while IFS=$'\t' read -r db f; do
 	awk -v db="$db" -v f="$f" '$2 == db && $3 == f {print "  " $0}' "$TMP/after.txt"
 done <"$PRE/pending.tsv"
+if ((rc == 3)) && [[ -s "$TMP/later.tsv" ]] &&
+	[[ "$(awk '$1 == "pending" {print $2 "\t" $3}' "$TMP/after.txt")" == "$(cat "$TMP/later.tsv")" ]]; then
+	# --through: exactly the later files are still pending, as asked.
+	echo "[batch] done through $THROUGH; $(wc -l <"$TMP/later.tsv") later file(s) left pending. Pre-batch backup: $PRE"
+	exit 0
+fi
 if ((rc != 0)); then
 	cat "$TMP/after.txt" >&2
 	echo "[batch] status after the batch is not clean (rc $rc). Roll back: bash scripts/well/batch-rollback.sh --yes $PRE" >&2

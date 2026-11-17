@@ -45,3 +45,19 @@ func TestRun_RefusesMissingCA(t *testing.T) {
 		t.Fatalf("exit %d, stderr %q: want 1 and a refusal naming %s", code, errb.String(), gone)
 	}
 }
+
+// apply takes -through FILE (a batch that stops at one file: two plans'
+// migrations in one tree); status does not. Neither reaches a connection
+// here: no password is set, so a parsed command line ends at that refusal.
+func TestRun_ApplyTakesThrough(t *testing.T) {
+	t.Setenv("WELL_MIGRATE_PASSWORD", "")
+	var out, errb bytes.Buffer
+	code := run(context.Background(), []string{"-dir", "../../db/migrations", "apply", "-through", "050_app_timeline_milestones.sql", "-yes"}, &out, &errb)
+	if code != 1 || !strings.Contains(errb.String(), "WELL_MIGRATE_PASSWORD is not set") {
+		t.Fatalf("apply -through: exit %d, stderr %q: want the flag parsed and the password refusal", code, errb.String())
+	}
+	errb.Reset()
+	if code := run(context.Background(), []string{"-dir", "../../db/migrations", "status", "-through", "050_app_timeline_milestones.sql"}, &out, &errb); code != 2 {
+		t.Fatalf("status -through: exit %d, want 2 (usage)", code)
+	}
+}
