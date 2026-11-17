@@ -11,11 +11,9 @@
    - 3 stages: builder → certs → final (distroless)
    - Documents hardening strategy
 
-2. **7 Service Dockerfiles**
-   - 5 × distroless/static-debian12 (Go services)
-   - 1 × Node.js 22 Alpine → nginx Alpine (frontend)
-   - 1 × Go service (dashboard-backend)
-   - 4 × debian:bookworm-slim (eBPF/privileged)
+2. **5 Service Dockerfiles**
+   - 3 × distroless/static-debian12 (protocol-api, dashboard-backend, trace-collector)
+   - 2 × debian:bookworm-slim (eBPF/privileged: shield, unheaded-daemon)
 
 3. **.dockerignore** (global, all builds)
    - Optimizes build context
@@ -39,7 +37,7 @@ docker build \
   -t unheaded-protocol-api:v1.0.0 .
 ```
 
-### All 7 Services (Parallel)
+### All 5 Services (Parallel)
 ```bash
 #!/bin/bash
 export VERSION=v1.0.0
@@ -94,7 +92,7 @@ echo "All 5 services built successfully!"
 ```bash
 # List all service Dockerfiles
 find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l
-# Should output: 7
+# Should output: 5
 
 # Verify base Dockerfile
 ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/base/Dockerfile.base
@@ -131,7 +129,7 @@ docker/
 ├── MANIFEST.md                             (inventory & stats)
 └── QUICKSTART.md                           (this file)
 
-Total: 8 Dockerfiles
+Total: 6 Dockerfiles
 ```
 
 ---

@@ -63,9 +63,8 @@ Instead of services talking directly to each other, they communicate through
                    +----------+
   Timeguru ------->|          |------> Dashboard
                    |  WOTAN   |
-  Captain -------->|  (bus)   |------> Kanban App
+  Trace collector->|  (bus)   |------> Kanban App
                    |          |
-  Architect ------>|          |------> Micromanager
                    +----------+
 ```
 

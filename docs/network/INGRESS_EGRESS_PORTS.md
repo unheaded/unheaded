@@ -3,7 +3,8 @@
 ## Overview
 
 Port reference for Unheaded. **`pkg/ports/ports.go` is the single source of truth**;
-the registry below was generated from it on 2026-10-27 (one row per constant).
+the registry below was generated from it on 2026-10-27 (one row per constant);
+the 19001-19005 rows went when those constants were retired (2026-11, ADR-147).
 Every Unheaded service listens in the Doom Range (16666-26666). Ports owned by
 compose files rather than `pkg/ports` (haproxy edge 21080/21443/21404 and internal
 21081/21405, the nginx sidecars, the monitoring stack's Prometheus 9090 and
@@ -31,11 +32,6 @@ assigned in the tree and were removed on 2026-10-27.
 | `WotanHTTP` | 18000 | Wotan — Message Bus (18000-18099) |  |
 | `WotanGRPC` | 18001 | Wotan — Message Bus (18000-18099) |  |
 | `Timeguru` | 19000 | Core Services (19000-19999) |  |
-| `Architect` | 19001 | Core Services (19000-19999) |  |
-| `Captain` | 19002 | Core Services (19000-19999) |  |
-| `Micromanager` | 19003 | Core Services (19000-19999) |  |
-| `Monad` | 19004 | Core Services (19000-19999) |  |
-| `Sophia` | 19005 | Core Services (19000-19999) |  |
 | `Cuirass` | 19006 | Core Services (19000-19999) |  |
 | `KeyMgmt` | 19007 | Core Services (19000-19999) |  |
 | `PQCVerifier` | 19008 | Core Services (19000-19999) |  |

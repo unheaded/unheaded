@@ -5,7 +5,7 @@ This directory contains LXD initialization and deployment scripts for the Unhead
 ## Overview
 
 ### host-a: The Forge
-- **Purpose**: Full-stack deployment with all 25 services
+- **Purpose**: Full-stack deployment with all 19 services
 - **Hardware**: 16+ cores, 64GB RAM, RX 7700 XT GPU
 - **Services**: Complete protocol stack, all business logic, compute services, observability stack
 - **Storage**: 200GB ZFS pool (unheaded-ssd)
@@ -14,7 +14,7 @@ This directory contains LXD initialization and deployment scripts for the Unhead
 ### host-b: The Outpost
 - **Purpose**: Minimal deployment for distributed deployments
 - **Hardware**: Consumer-grade (8GB RAM typical, no GPU)
-- **Services**: 6 core services (wotan, monad, sophia, anamnesis, gateway, dashboard-backend) + telemetry agents
+- **Services**: 4 core services (wotan, anamnesis, gateway, dashboard-backend) + telemetry agents
 - **Storage**: 50GB ZFS pool (unheaded-minimal)
 - **Network**: 10.21.0.0/16 (IPv4) + fd00:dead:beef:2::/64 (IPv6)
 - **Connectivity**: WireGuard tunnel to host-a for cluster operations
@@ -95,7 +95,7 @@ Idempotent bootstrap script that:
 
 #### launch-all.sh
 Complete service deployment script that:
-1. Launches 25 service containers in dependency order
+1. Launches 19 service containers in dependency order
 2. Configures per-service CPU/memory limits
 3. Applies specialized profiles (ebpf, gpu)
 4. Pushes binaries and starts systemd services
@@ -103,12 +103,12 @@ Complete service deployment script that:
 
 **Launch order**:
 - Phase 1: wotan (message bus)
-- Phase 2: monad, sophia, anamnesis (protocol layer)
+- Phase 2: anamnesis (protocol layer)
 - Phase 3: shield, unheaded-daemon (eBPF control)
 - Phase 4: gateway, service-discovery (routing)
 - Phase 5: dashboard-backend, protocol-api (presentation)
 - Phase 6: trace-collector, doom (observability/compute)
-- Phase 7-8: 11 service containers (kanban, captain, etc.)
+- Phase 7-8: 8 service containers (kanban, timeguru, etc.)
 - Phase 9: lich (adversary, last)
 - Phase 10: telemetry stack (prometheus, grafana, loki, etc.)
 
@@ -152,7 +152,7 @@ Minimal bootstrap script that:
 
 #### launch-minimal.sh
 Core service deployment for host-b:
-1. Launches 6 essential services (wotan, monad, sophia, anamnesis, gateway, dashboard-backend)
+1. Launches 4 essential services (wotan, anamnesis, gateway, dashboard-backend)
 2. Launches 3 telemetry agents:
    - prometheus-agent (remote_write to host-a)
    - promtail (log shipping to host-a)
@@ -171,8 +171,6 @@ Core service deployment for host-b:
 | Service | CPU | Memory | Special Profile |
 |---------|-----|--------|-----------------|
 | wotan | 4 | 1GB | - |
-| monad | 2 | 512MB | - |
-| sophia | 2 | 512MB | - |
 | anamnesis | 2 | 512MB | - |
 | shield | 4 | 2GB | ebpf |
 | unheaded-daemon | 4 | 1GB | ebpf |
@@ -183,10 +181,7 @@ Core service deployment for host-b:
 | trace-collector | 2 | 512MB | - |
 | doom | 4 | 1GB | - |
 | lich | 4 | 2GB | - |
-| captain | 1 | 256MB | - |
-| micromanager | 1 | 256MB | - |
 | timeguru | 1 | 256MB | - |
-| architect | 1 | 256MB | - |
 | developer | 1 | 256MB | - |
 | kanban | 2 | 512MB | - |
 | lore | 1 | 256MB | - |
@@ -201,15 +196,13 @@ Core service deployment for host-b:
 | Service | CPU | Memory |
 |---------|-----|--------|
 | wotan | 2 | 512MB |
-| monad | 1 | 256MB |
-| sophia | 1 | 256MB |
 | anamnesis | 1 | 256MB |
 | gateway | 1 | 256MB |
 | dashboard-backend | 1 | 256MB |
 | prometheus-agent | 1 | 256MB |
 | promtail | 1 | 256MB |
 | node-exporter | 1 | 256MB |
-| **Total** | **10 CPU** | **2.5GB** |
+| **Total** | **8 CPU** | **2GB** |
 
 ## Networking
 

@@ -71,7 +71,7 @@ Infrastructure has layers, just like armor:
 
 ```
 Layer 5: User Interface (Dashboard, Kanban) — The Face
-Layer 4: Application Services (timeguru, captain, architect, micromanager) — The Mind
+Layer 4: Application Services (timeguru) — The Mind
 Layer 3: Infrastructure Services (wotan, trace-collector, gateway) — The Senses
 Layer 2: Control Plane (unheaded-daemon) — The Will
 Layer 1: Data Plane (eBPF programs) — The Reflexes

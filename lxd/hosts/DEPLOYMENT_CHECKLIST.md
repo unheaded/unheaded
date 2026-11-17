@@ -65,7 +65,7 @@ scp -r bin/ user@host-a:/tmp/host-a/binaries/
 ```
 
 Checklist:
-- [ ] All 25 service binaries present
+- [ ] All 19 service binaries present
 - [ ] Binaries are executable (check permissions)
 
 ### Step 3: Initialize LXD
@@ -97,12 +97,12 @@ Checklist:
 ### Step 5: Verify Host Binary Directory
 ```bash
 ls -lh /opt/unheaded/bin/
-# Should show all 25 service binaries
+# Should show all 19 service binaries
 ```
 
 Checklist:
 - [ ] /opt/unheaded/bin/ directory exists
-- [ ] All 25 service binaries present
+- [ ] All 19 service binaries present
 - [ ] Binaries are executable
 
 ### Step 6: Launch All Services
@@ -113,7 +113,7 @@ cd /tmp/host-a
 
 Monitor progress:
 - [ ] Phase 1: wotan launched and ready
-- [ ] Phase 2: monad, sophia, anamnesis launched
+- [ ] Phase 2: anamnesis launched
 - [ ] Phase 3: shield, unheaded-daemon launched
 - [ ] Phase 4: gateway, service-discovery launched
 - [ ] Phase 5: dashboard-backend, etc. launched
@@ -126,12 +126,12 @@ Monitor progress:
 ### Step 7: Verify Containers Running
 ```bash
 lxc list | grep unheaded
-# Should show 30 containers (25 services + 5 telemetry)
+# Should show 24 containers (19 services + 5 telemetry)
 ```
 
 Checklist:
-- [ ] All 30 containers show "RUNNING" status
-- [ ] Container count matches expected (30)
+- [ ] All 24 containers show "RUNNING" status
+- [ ] Container count matches expected (24)
 - [ ] All containers are in "unheaded" network
 
 ### Step 8: Verify Service Connectivity
@@ -144,7 +144,7 @@ lxc exec unheaded-wotan -- nc -zv 127.0.0.1 4222
 lxc exec unheaded-gateway -- nc -zv 10.20.1.1 50053
 
 # Test inter-container communication
-lxc exec unheaded-monad -- ping -c 1 10.20.1.1
+lxc exec unheaded-anamnesis -- ping -c 1 10.20.1.1
 ```
 
 Checklist:
@@ -223,12 +223,12 @@ Checklist:
 ### Step 2: Copy Service Binaries
 ```bash
 scp -r bin/ user@host-b:/tmp/host-b/binaries/
-# Only need 6 core services + 3 telemetry agents
+# Only need 4 core services + 3 telemetry agents
 ```
 
 Checklist:
 - [ ] wotan binary present
-- [ ] monad, sophia, anamnesis binaries present
+- [ ] anamnesis binary present
 - [ ] gateway, dashboard-backend binaries present
 - [ ] prometheus-agent, promtail, node-exporter present
 
@@ -296,7 +296,7 @@ ls -lh /opt/unheaded/bin/
 
 Checklist:
 - [ ] /opt/unheaded/bin/ directory exists
-- [ ] 6 core service binaries present
+- [ ] 4 core service binaries present
 - [ ] 3 telemetry agent binaries present
 - [ ] All binaries are executable
 
@@ -308,7 +308,7 @@ cd /tmp/host-b
 
 Monitor progress:
 - [ ] Phase 1: wotan launched (local bus)
-- [ ] Phase 2: monad, sophia, anamnesis launched
+- [ ] Phase 2: anamnesis launched
 - [ ] Phase 3: gateway, dashboard-backend launched
 - [ ] Phase 4: telemetry agents launched
 - [ ] No containers failed to launch
@@ -316,12 +316,12 @@ Monitor progress:
 ### Step 9: Verify Containers Running
 ```bash
 lxc list | grep unheaded
-# Should show 9 containers (6 core + 3 telemetry)
+# Should show 7 containers (4 core + 3 telemetry)
 ```
 
 Checklist:
-- [ ] All 9 containers show "RUNNING" status
-- [ ] Container count is 9
+- [ ] All 7 containers show "RUNNING" status
+- [ ] Container count is 7
 - [ ] All containers are in "unheaded-outpost" network
 
 ### Step 10: Verify Service Connectivity
@@ -330,7 +330,7 @@ Checklist:
 lxc exec unheaded-wotan -- nc -zv 127.0.0.1 50053
 
 # Test inter-container communication
-lxc exec unheaded-monad -- ping -c 1 10.21.1.1
+lxc exec unheaded-anamnesis -- ping -c 1 10.21.1.1
 
 # Test tunnel connectivity to host-a
 lxc exec unheaded-prometheus-agent -- ping -c 1 10.20.1.1
@@ -379,14 +379,14 @@ Checklist:
 ## Post-Deployment
 
 ### host-a Verification
-- [ ] All 25 services responding to health checks
+- [ ] All 19 services responding to health checks
 - [ ] All telemetry components are receiving data
 - [ ] Grafana dashboards are populated with metrics
 - [ ] Log aggregation is working (Loki)
 - [ ] Service-to-service RPC communication verified
 
 ### host-b Verification
-- [ ] All 6 core services operational
+- [ ] All 4 core services operational
 - [ ] WireGuard tunnel stable (no handshake timeouts)
 - [ ] Telemetry agents sending data to host-a
 - [ ] Remote metrics visible in host-a Prometheus
@@ -405,7 +405,7 @@ Checklist:
 - [ ] Verify CPU overcommit is acceptable:
   ```bash
   # host-a: max 51 CPU / 16 cores = 3.19x
-  # host-b: max 10 CPU / 4 cores = 2.5x
+  # host-b: max 8 CPU / 4 cores = 2.0x
   ```
 - [ ] Memory utilization under 80%:
   ```bash
@@ -476,7 +476,7 @@ lxc exec unheaded-SERVICENAME -- netstat -tlnp | grep SERVICENAME
 ## Success Criteria
 
 ### host-a Deployment Success
-- [ ] 30 containers running (25 services + 5 telemetry)
+- [ ] 24 containers running (19 services + 5 telemetry)
 - [ ] All services responding to health checks
 - [ ] Prometheus collecting metrics from all targets
 - [ ] Grafana dashboards populated and accessible
@@ -484,7 +484,7 @@ lxc exec unheaded-SERVICENAME -- netstat -tlnp | grep SERVICENAME
 - [ ] All inter-service communication functional
 
 ### host-b Deployment Success
-- [ ] 9 containers running (6 core + 3 telemetry)
+- [ ] 7 containers running (4 core + 3 telemetry)
 - [ ] WireGuard tunnel stable with < 50ms latency
 - [ ] All local services responsive
 - [ ] Telemetry agents successfully remote_write to host-a

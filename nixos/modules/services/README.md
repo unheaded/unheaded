@@ -1,6 +1,6 @@
 # Unheaded Kingdom Services Module
 
-This directory contains 20 NixOS systemd service modules for the Unheaded Kingdom project.
+This directory contains 18 NixOS systemd service modules for the Unheaded Kingdom project.
 
 ## Services by Layer
 
@@ -162,7 +162,7 @@ Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 ## Architecture Notes
 
-The 25 services span 9 distinct armor layers:
+The 18 services span 9 distinct armor layers:
 1. Core networking and low-level services
 2. Control plane orchestration
 3. User-facing dashboard components

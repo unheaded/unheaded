@@ -6,8 +6,8 @@ The Kingdom's components as one picture: the six technical layers, the armor pie
 
 ```
  Layer 5  User interface      The Crown ─ dashboard, kanban            Cloak (user dashboard)
- Layer 4  Application         Captain · Timeguru (vision)              Sword (deploy pipeline)
-                              Micromanager · Architect (execution)     Cape (internal web framework)
+ Layer 4  Application         Timeguru (timeline)                      Sword (deploy pipeline)
+                                                                       Cape (internal web framework)
  Layer 3  Infrastructure svcs Wotan, the Fae Chamber (message bus)     Hauberk (mesh, mTLS)
                               Monad · Sophia (protocol)                Tassets (data layer → The Well)
  Layer 2  Control plane       unheaded-daemon                          Cuirass · Pauldrons (LB)
@@ -28,8 +28,8 @@ The hollows group components by domain rather than layer:
 
 | Hollow | Components |
 |--------|------------|
-| Crown | Captain, Timeguru |
-| Forge | Architect, Micromanager, IaC renderers |
+| Crown | Timeguru |
+| Forge | IaC renderers |
 | Gnostic | Pleroma, Kenoma, Anamnesis (event memory) |
 | Fae | Wotan, topic contracts ([[Fae-Chamber-Contracts]]) |
 | Protocol | Monad, Sophia, Shield, Shim |

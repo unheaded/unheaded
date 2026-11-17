@@ -42,7 +42,7 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 **Build a single service**
 → See: `QUICKSTART.md` "Single Service" section
 
-**Build all 7 services**
+**Build all 5 services**
 → See: `QUICKSTART.md` "All Services (Parallel)" section
 
 **Understand the security model**
@@ -55,7 +55,7 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 → Follow: `README.md` "Production Checklist" section
 
 **Verify all files exist**
-→ Run: `find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l` (should be 7)
+→ Run: `find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l` (should be 5)
 
 **Check documentation completeness**
 → Run: `ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/*.md`
@@ -63,9 +63,8 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 ## Statistics
 
 ```
-Total Dockerfiles:     8 (1 base + 7 services)
-Total Lines:           883 production-ready code
-Standard Services:     5 (distroless/static-debian12)
+Total Dockerfiles:     6 (1 base + 5 services)
+Standard Services:     3 (distroless/static-debian12)
 eBPF Services:         2 (debian:bookworm-slim)
 Documentation Files:   4 (README, MANIFEST, QUICKSTART, INDEX)
 Build Context Opt:     1 (.dockerignore)
@@ -89,7 +88,7 @@ Build Context Opt:     1 (.dockerignore)
 - OCI image label standards
 
 ### Operations
-- Parallel build capability (all 7 services simultaneously)
+- Parallel build capability (all 5 services simultaneously)
 - Version/commit/timestamp tracking
 - Per-service documentation in headers
 - Capacity annotations
@@ -99,7 +98,7 @@ Build Context Opt:     1 (.dockerignore)
 
 | Base Image | Services | Use Case |
 |-----------|----------|----------|
-| `gcr.io/distroless/static-debian12:nonroot` | 5 | Standard Go microservices |
+| `gcr.io/distroless/static-debian12:nonroot` | 3 | Standard Go microservices |
 | `debian:bookworm-slim` | 2 | eBPF + privileged services |
 
 ## Port Assignments
@@ -123,7 +122,7 @@ docker build -f docker/services/protocol-api/Dockerfile \
   -t unheaded-protocol-api:v1.0.0 .
 ```
 
-### Batch build (all 7)
+### Batch build (all 5)
 See `QUICKSTART.md` for complete parallel build script
 
 ### With registry

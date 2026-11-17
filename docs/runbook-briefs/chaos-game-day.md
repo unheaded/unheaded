@@ -39,9 +39,9 @@ Duration about 2h.
    - stop Wotan (`docker stop unheaded-wotan`): hypothesis: clients retry
      and rejoin, logagg keeps forwarding after Wotan returns, nothing is
      lost except buffered messages. Restore: `docker start unheaded-wotan`.
-   - stop the Well (`docker stop unheaded-postgres`): hypothesis: kanban,
-     architect and micromanager go read-only (503 on writes), reads of cached
-     data keep working. Restore: `docker start unheaded-postgres`.
+   - stop the Well (`docker stop unheaded-postgres`): hypothesis: kanban
+     goes read-only (503 on writes), reads of cached data keep working.
+     Restore: `docker start unheaded-postgres`.
    - kill trace-collector (a systemd unit, not a container:
      `sudo systemctl kill unheaded-trace-collector`): hypothesis: the
      dashboard shows "--", not zeros. Restore:

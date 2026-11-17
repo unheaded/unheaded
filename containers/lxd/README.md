@@ -63,8 +63,7 @@ lxc info timeguru
 
 ```bash
 # Launch all services in dependency order
-for svc in wotan timeguru captain architect micromanager monad sophia \
-           doom-bridge wiki-server kanban dashboard gateway; do
+for svc in wotan timeguru doom-bridge wiki-server kanban dashboard gateway; do
   echo "Launching $svc..."
   lxc launch ubuntu:22.04 "$svc" \
     --profile default \
@@ -82,8 +81,7 @@ lxc list
 
 ```bash
 # Stop and delete all
-for svc in gateway dashboard kanban wiki-server doom-bridge sophia monad \
-           micromanager architect captain timeguru wotan; do
+for svc in gateway dashboard kanban wiki-server doom-bridge timeguru wotan; do
   lxc stop "$svc" --force 2>/dev/null
   lxc delete "$svc" --force 2>/dev/null
 done
@@ -125,11 +123,6 @@ lxd/
 └── instances/
     ├── wotan.yaml               # Message bus
     ├── timeguru.yaml            # Timeline service
-    ├── captain.yaml             # Strategy service
-    ├── architect.yaml           # Design service
-    ├── micromanager.yaml        # Execution service
-    ├── monad.yaml               # State management
-    ├── sophia.yaml              # Knowledge graph
     ├── dashboard.yaml           # Metrics + WebSocket
     ├── kanban.yaml              # Kanban app (meta moment)
     ├── doom-bridge.yaml         # Fenrir's Eye

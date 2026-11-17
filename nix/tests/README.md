@@ -79,9 +79,6 @@ container_test.go
 |-----------|-----|------|--------------|
 | wotan | 10.10.10.10 | 8080 | - |
 | timeguru | 10.10.10.20 | 8000 | wotan |
-| captain | 10.10.10.21 | 8001 | wotan |
-| micromanager | 10.10.10.22 | 8002 | wotan |
-| architect | 10.10.10.23 | 8003 | wotan |
 | developer | 10.10.10.24 | 8004 | wotan |
 | kanban | 10.10.10.200 | 8080 | timeguru |
 | dashboard | 10.10.10.201 | 8081 | wotan |

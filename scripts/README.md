@@ -24,12 +24,9 @@ Automation scripts for Unheaded development and deployment.
   - dashboard-backend (Go)
   - kanban-app (Go)
 
-- ✅ **services/** - 5 microservices (Go)
+- ✅ **services/** - 2 microservices (Go)
   - wotan (link to github.com/unheaded/wotan)
   - timeguru
-  - captain
-  - micromanager
-  - architect
 
 - ✅ **ebpf/** - 3 eBPF programs (Rust)
   - packet_marker.rs

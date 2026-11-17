@@ -108,7 +108,7 @@ conflicting with common services:
 16666-16999  Infrastructure (trace-collector, bridges)
 17000-17999  Control Plane (unheaded-daemon)
 18000-18099  Wotan message bus
-19000-19999  Core services (timeguru, architect, captain)
+19000-19999  Core services (timeguru, cuirass, sword)
 20000-20999  Applications (dashboard, kanban)
 21000-21443  Gateway (HTTP/HTTPS)
 26000-26666  Reserved for user applications
@@ -237,7 +237,7 @@ Gateway (server to browser, client to services)
     |         |
     +---> Timeguru (server to gateway, client to Wotan)
     |
-    +---> Captain, Architect, Micromanager... (same pattern)
+    +---> Kanban App (same pattern)
 ```
 
 ---
