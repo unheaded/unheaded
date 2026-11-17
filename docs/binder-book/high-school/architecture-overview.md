@@ -27,11 +27,6 @@ explains every component, and shows how they connect.
 |  dashboard-backend  (Go, port 20000)                            |
 |  kanban-app         (Go, port 20001)                            |
 |  timeguru           (Go, port 19000)                            |
-|  captain            (Go, port 19002)                            |
-|  architect          (Go, port 19001)                            |
-|  micromanager       (Go, port 19003)                            |
-|  monad              (Go, port 19004)                            |
-|  sophia             (Go, port 19005)                            |
 +================================================================+
         |  gRPC / HTTP
         v
@@ -425,18 +420,18 @@ Drift Detection:
               |         lxdbr0            |
               |     10.10.10.0/24         |
               +--+--+--+--+--+--+--+--+--+
-                 |  |  |  |  |  |  |  |
-  +---------+   +--+  +--+  +--+  +--+   +---------+
-  | Wotan   |   |TG|  |CA|  |AR|  |MM|   | Dash    |
-  |.10:18001|   |.20|  |.21|  |.23|  |.22|   |.30:20000|
-  +---------+   +--+  +--+  +--+  +--+   +---------+
+                 |  |  |  |
+  +---------+   +--+                     +---------+
+  | Wotan   |   |TG|                     | Dash    |
+  |.10:18001|   |.20|                    |.30:20000|
+  +---------+   +--+                     +---------+
                                             |
                                           +---------+
                                           | Kanban  |
                                           |.200:20001|
                                           +---------+
 
-  TG=timeguru  CA=captain  AR=architect  MM=micromanager
+  TG=timeguru
 ```
 
 ---

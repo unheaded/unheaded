@@ -241,9 +241,6 @@ communicate through Wotan rather than directly with each other.
 |---------------|-----------|-------------|---------|
 | `network.traces` | trace-collector | dashboard-backend | Anamnesis events |
 | `timeline.updates` | timeguru | dashboard, kanban | Roadmap changes |
-| `strategy.decisions` | captain | all services | Strategic guidance |
-| `tasks.assignments` | micromanager | all services | Task tracking |
-| `design.proposals` | architect | all services | Architecture decisions |
 | `alerts.critical` | any service | all services | Emergency notifications |
 | `logs.<svc>.<level>` | all services | dashboard-backend | Structured log entries |
 | `system.discovery` | all services | all services | Service registration |

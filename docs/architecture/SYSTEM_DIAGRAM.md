@@ -55,7 +55,7 @@
 │  │  Routes:                                                          │  │
 │  │    /           ─→ dashboard (10.10.10.30)                        │  │
 │  │    /kanban     ─→ kanban-app (10.10.10.200)                      │  │
-│  │    /api/*      ─→ services (timeguru, captain, etc)              │  │
+│  │    /api/*      ─→ services (timeguru)                            │  │
 │  │    /ws         ─→ dashboard-backend (WebSocket)                  │  │
 │  │    /grpc       ─→ wotan (gRPC-Web)                              │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
@@ -93,34 +93,21 @@
 │  │                    AGENT SERVICES                                │   │
 │  │              (Mirror our dev methodology)                        │   │
 │  │                                                                  │   │
-│  │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐          │   │
-│  │  │  timeguru    │  │   captain    │  │ micromanager │          │   │
-│  │  │ 10.10.10.20  │  │ 10.10.10.21  │  │ 10.10.10.22  │          │   │
-│  │  │              │  │              │  │              │          │   │
-│  │  │ :8000 HTTP   │  │ :8000 HTTP   │  │ :8000 HTTP   │          │   │
-│  │  │              │  │              │  │              │          │   │
-│  │  │ Timeline     │  │ Strategy     │  │ Tasks & QA   │          │   │
-│  │  │ tracking     │  │ & vision     │  │              │          │   │
-│  │  │              │  │              │  │              │          │   │
-│  │  │ R/W:         │  │ R/W:         │  │ R/W:         │          │   │
-│  │  │ timeline.md  │  │ strategy.md  │  │ tasks.yaml   │          │   │
-│  │  │ timeline.json│  │ strategy.json│  │ tasks.json   │          │   │
-│  │  │ timeline.yaml│  │ strategy.yaml│  │              │          │   │
-│  │  └──────────────┘  └──────────────┘  └──────────────┘          │   │
-│  │                                                                  │   │
 │  │  ┌──────────────┐                                               │   │
-│  │  │  architect   │                                               │   │
-│  │  │ 10.10.10.23  │                                               │   │
+│  │  │  timeguru    │                                               │   │
+│  │  │ 10.10.10.20  │                                               │   │
 │  │  │              │                                               │   │
 │  │  │ :8000 HTTP   │                                               │   │
 │  │  │              │                                               │   │
-│  │  │ Infra design │                                               │   │
-│  │  │ & patterns   │                                               │   │
+│  │  │ Timeline     │                                               │   │
+│  │  │ tracking     │                                               │   │
 │  │  │              │                                               │   │
 │  │  │ R/W:         │                                               │   │
-│  │  │ designs.md   │                                               │   │
-│  │  │ designs.json │                                               │   │
+│  │  │ timeline.md  │                                               │   │
+│  │  │ timeline.json│                                               │   │
+│  │  │ timeline.yaml│                                               │   │
 │  │  └──────────────┘                                               │   │
+│  │  captain, micromanager, architect: removed 2026-11 (ADR-147)     │   │
 │  └─────────────────────────────────────────────────────────────────┘   │
 │                                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
@@ -268,7 +255,7 @@ User clicks "Kanban" in browser
                  ↓
 ┌────────────────────────────────────────────────┐
 │ APPLICATION ZONE (Unheaded services)           │
-│   • timeguru, captain, micromanager, architect │
+│   • timeguru                                   │
 │   • dashboard-backend, kanban-app              │
 │   • Network policies: ALLOW within zone        │
 └────────────────┬───────────────────────────────┘
@@ -300,8 +287,8 @@ unheaded-daemon
     │
     ├─→ Starts: gateway (needs to route traffic)
     │
-    ├─→ Starts: timeguru, captain, micromanager, architect (parallel)
-    │       └─→ All subscribe to: wotan
+    ├─→ Starts: timeguru
+    │       └─→ Subscribes to: wotan
     │
     ├─→ Starts: dashboard-backend
     │       └─→ Subscribes to: all Wotan topics
@@ -357,9 +344,6 @@ Container (timeguru):
 | wotan | 10.10.10.10 | 8080 (HTTP), 9090 (gRPC) | Message bus |
 | trace-collector | 10.10.10.11 | 8081 (metrics) | eBPF → Wotan |
 | timeguru | 10.10.10.20 | 8000 (HTTP) | Timeline API |
-| captain | 10.10.10.21 | 8000 (HTTP) | Strategy API |
-| micromanager | 10.10.10.22 | 8000 (HTTP) | Tasks API |
-| architect | 10.10.10.23 | 8000 (HTTP) | Design API |
 | dashboard-backend | 10.10.10.30 | 8082 (HTTP), 8083 (WS) | Metrics + WS |
 | kanban-app | 10.10.10.200 | 8001 (HTTP) | Kanban UI |
 | demo-app | 10.10.10.254 | 8000 (HTTP) | User sim |

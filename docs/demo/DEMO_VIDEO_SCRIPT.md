@@ -38,7 +38,7 @@
 **Action**: Health check loop across all service ports.
 
 ```bash
-for port in 17000 18000 19000 19001 19002 19003 19004 19005 20000 20001; do
+for port in 17000 18000 19000 20000 20001; do
   curl -sf "http://localhost:$port/health"
 done
 ```

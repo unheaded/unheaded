@@ -1,6 +1,6 @@
 # Service Breakout Strategy
 
-**Status:** RETIRED under ADR-047 (2026-10-27 note). Still one Go module; extraction order and which tools leave the monorepo are framed by ADR-047 (K8s honest assessment + extractable tools), not by this plan.
+**Status:** RETIRED under ADR-047 (2026-10-27 note). Still one Go module; extraction order and which tools leave the monorepo are framed by ADR-047 (K8s honest assessment + extractable tools), not by this plan. Of the services it lists, captain, architect, micromanager, monad and sophia were removed 2026-11 (ADR-147).
 **Target:** After stable Alpha release
 **Author:** Architect + Micromanager
 **Last Updated:** February 3, 2026
