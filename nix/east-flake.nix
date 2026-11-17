@@ -3,7 +3,7 @@
 # east-flake.nix — Lightweight NixOS configuration for EAST bare metal bootstrap
 #
 # Target hardware: 4-core CPU, 8GB DDR3 RAM, single NIC
-# Purpose: Minimal service footprint with WireGuard, BGP routing, and 9 critical services
+# Purpose: Minimal service footprint with WireGuard, BGP routing, and 7 critical services
 # Network: fd00:dead:beef::2/48 (EAST), connected to WEST via WireGuard tunnel
 #
 # Deploy: nix build -f east-flake.nix --attr config.system.build.toplevel
@@ -199,15 +199,13 @@ with lib;
   users.groups.unheaded = { };
 
   # ============================================================================
-  # THE 9 EAST SERVICES
+  # THE 7 EAST SERVICES
   # ============================================================================
-  # Lightweight service configuration: wotan, monad, sophia, anamnesis, gateway,
+  # Lightweight service configuration: wotan, anamnesis, gateway,
   # dashboard-backend, prometheus-agent, promtail, node-exporter
   #
   # Memory allocation strategy (5GB total):
   #   - Wotan (message bus):        800MB
-  #   - Monad (state):              600MB
-  #   - Sophia (knowledge):         600MB
   #   - Anamnesis (memory):         400MB
   #   - Gateway (public access):    400MB
   #   - Dashboard-backend (UI):     400MB
@@ -360,42 +358,32 @@ with lib;
   #    - Memory: 800MB
   #    - Role: Central event hub for all EAST services
   #
-  # 2. MONAD (State Service)
-  #    - Port: 8081
-  #    - Memory: 600MB
-  #    - Role: Distributed state management
-  #
-  # 3. SOPHIA (Knowledge Service)
-  #    - Port: 8082
-  #    - Memory: 600MB
-  #    - Role: Knowledge graph and reasoning
-  #
-  # 4. ANAMNESIS (Memory Service)
+  # 2. ANAMNESIS (Memory Service)
   #    - Port: 8083
   #    - Memory: 400MB
   #    - Role: Historical data and analytics
   #
-  # 5. GATEWAY (Public Access Point)
+  # 3. GATEWAY (Public Access Point)
   #    - Port: 8080 (proxy)
   #    - Memory: 400MB
   #    - Role: Public API endpoint, routing to EAST services
   #
-  # 6. DASHBOARD-BACKEND (UI Backend)
+  # 4. DASHBOARD-BACKEND (UI Backend)
   #    - Port: 8084
   #    - Memory: 400MB
   #    - Role: Backend for EAST web dashboard
   #
-  # 7. PROMETHEUS-AGENT (Metrics)
+  # 5. PROMETHEUS-AGENT (Metrics)
   #    - Port: 9090
   #    - Memory: 300MB (included above)
   #    - Role: Scrape and aggregate local metrics
   #
-  # 8. PROMTAIL (Log Shipper)
+  # 6. PROMTAIL (Log Shipper)
   #    - Port: none (outbound only)
   #    - Memory: 200MB (included above)
   #    - Role: Ship logs to WEST Loki
   #
-  # 9. NODE-EXPORTER (System Metrics)
+  # 7. NODE-EXPORTER (System Metrics)
   #    - Port: 9100
   #    - Memory: 100MB (included above)
   #    - Role: Expose system metrics

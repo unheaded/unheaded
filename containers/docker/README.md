@@ -42,11 +42,6 @@ Each per-service stage can be targeted with `--target`:
 ```bash
 docker build --target wotan -t unheaded/wotan .
 docker build --target timeguru -t unheaded/timeguru .
-docker build --target captain -t unheaded/captain .
-docker build --target architect -t unheaded/architect .
-docker build --target micromanager -t unheaded/micromanager .
-docker build --target monad -t unheaded/monad .
-docker build --target sophia -t unheaded/sophia .
 docker build --target cuirass -t unheaded/cuirass .
 ```
 
@@ -78,11 +73,6 @@ production network layout. The Traefik gateway handles routing.
 |---------|---------------|-----------------|
 | wotan | 8080/9090 | 8080/9090 |
 | timeguru | 8082 | 8000 |
-| captain | 8083 | 8001 |
-| architect | 8084 | 8003 |
-| micromanager | 8085 | 8002 |
-| monad | 8086 | 8004 |
-| sophia | 8087 | 8005 |
 | cuirass | 8080 | 8005 |
 
 Note: The internal Docker ports differ from the production layout due

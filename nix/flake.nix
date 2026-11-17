@@ -8,10 +8,11 @@
   #
   # Architecture:
   #   - 4 shared modules (base, common, hardening, networking)
-  #   - 10 container definitions:
+  #   - 7 container definitions:
   #     - Control plane: cuirass
-  #     - Message bus: wotan
-  #     - Agent services: timeguru, developer
+  #     - Message bus: wotan, wotan-service
+  #     - Agent services: timeguru
+  #     - Gateway: gateway
   #     - Applications: kanban, dashboard
   #   - Security: seccomp, capabilities, read-only FS, minimal capabilities
   #   - Network: isolated mesh with default-deny, explicit allow rules

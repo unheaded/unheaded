@@ -6,7 +6,7 @@ Production-ready, security-hardened NixOS container definitions for the Unheaded
 
 This directory contains the complete container orchestration layer:
 - **3 shared modules**: common, hardening, networking
-- **8 container definitions**: 5 agent services + 2 apps + wotan message hub
+- **7 container definitions** (`mkContainer` in `flake.nix`): wotan, wotan-service, timeguru, gateway, kanban, dashboard, cuirass
 - **Security**: Defense-in-depth with seccomp, capabilities, filesystem isolation
 - **Network**: Isolated mesh with explicit allow-only firewall rules
 - **Observability**: Prometheus metrics + structured JSON logging
@@ -359,7 +359,7 @@ curl http://10.10.10.10:18000/health
 
 ### Completed
 - [x] 3 shared modules (common, hardening, networking)
-- [x] 8 container definitions (all services + apps)
+- [x] 7 container definitions (all services + apps)
 - [x] Package build definitions
 - [x] Comprehensive test suite (unit + integration + security)
 - [x] Deployment documentation

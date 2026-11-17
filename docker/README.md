@@ -122,7 +122,7 @@ Verifies:
 ```bash
 cd /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker
 
-# Build all 7 service images under services/
+# Build all 5 service images under services/
 make build
 
 # Or build single service
@@ -131,7 +131,7 @@ make build-svc SERVICE=protocol-api
 ```
 
 **Build times:**
-- Full build (7 services): depends on layer caching
+- Full build (5 services): depends on layer caching
 - Single service: ~2-5 minutes
 - vLLM/ROCm: ~5-10 minutes (includes PyTorch + ROCm stack)
 
@@ -236,7 +236,7 @@ WG_SERVERURL=<host-a-ip-or-fqdn>  # For client configuration
 
 **Building:**
 ```bash
-make build                          # Build all 7 services under services/
+make build                          # Build all 5 services under services/
 make build-svc SERVICE=protocol-api        # Build single service
 ```
 

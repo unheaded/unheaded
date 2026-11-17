@@ -57,9 +57,9 @@ host-a/
 │   Creates: LXD infrastructure, binary directories
 │
 ├── launch-all.sh
-│   Deploy all 25 services in 10 phases
+│   Deploy all 19 services in 10 phases
 │   Usage: ./launch-all.sh
-│   Launches: 25 services + 5 telemetry containers
+│   Launches: 19 services + 5 telemetry containers
 │
 └── static-ips.yaml
     Reference document with deterministic IP assignments
@@ -79,9 +79,9 @@ host-b/
 │   Creates: LXD infrastructure, WireGuard tunnel
 │
 ├── launch-minimal.sh
-│   Deploy 6 core services + 3 telemetry agents
+│   Deploy 4 core services + 3 telemetry agents
 │   Usage: ./launch-minimal.sh
-│   Launches: 9 containers with remote telemetry
+│   Launches: 7 containers with remote telemetry
 │
 └── wireguard.conf.example
     WireGuard tunnel configuration template
@@ -93,25 +93,25 @@ host-b/
 ## Deployment Summary
 
 ### host-a: The Forge (Full Stack)
-- **Deployment Size**: 30 containers (25 services + 5 telemetry)
+- **Deployment Size**: 24 containers (19 services + 5 telemetry)
 - **Resource Allocation**: 51 CPU cores, 23.5GB RAM, 200GB storage
 - **Network**: 10.20.0.0/16 (unheaded bridge)
 - **Hardware Requirement**: 16+ cores, 64GB RAM, 200GB+ SSD
-- **Services Included**: All 25 Unheaded Kingdom services
+- **Services Included**: All 19 Unheaded Kingdom services
 - **Special Features**: GPU support, eBPF security, full observability stack
 
 **Deployment Steps**:
 1. Copy `host-a/` to target: `scp -r host-a/ user@host-a:/tmp/`
 2. Initialize: `ssh user@host-a "cd /tmp/host-a && sudo ./init.sh"`
 3. Deploy: `ssh user@host-a "cd /tmp/host-a && ./launch-all.sh"`
-4. Verify: `ssh user@host-a "lxc list | grep unheaded | wc -l"` (should be 30)
+4. Verify: `ssh user@host-a "lxc list | grep unheaded | wc -l"` (should be 24)
 
 ### host-b: The Outpost (Minimal)
-- **Deployment Size**: 9 containers (6 core + 3 telemetry agents)
-- **Resource Allocation**: 10 CPU cores, 2.5GB RAM, 50GB storage
+- **Deployment Size**: 7 containers (4 core + 3 telemetry agents)
+- **Resource Allocation**: 8 CPU cores, 2GB RAM, 50GB storage
 - **Network**: 10.21.0.0/16 (unheaded-outpost bridge) + WireGuard tunnel
 - **Hardware Requirement**: 4+ cores, 8GB RAM, 50GB+ SSD
-- **Services Included**: 6 core services (wotan, monad, sophia, anamnesis, gateway, dashboard)
+- **Services Included**: 4 core services (wotan, anamnesis, gateway, dashboard)
 - **Special Features**: Remote telemetry, WireGuard cluster connectivity
 
 **Deployment Steps**:
@@ -119,7 +119,7 @@ host-b/
 2. Copy `host-b/` to target: `scp -r host-b/ user@host-b:/tmp/`
 3. Initialize: `ssh user@host-b "cd /tmp/host-b && sudo ./init.sh"`
 4. Deploy: `ssh user@host-b "cd /tmp/host-b && ./launch-minimal.sh"`
-5. Verify: `ssh user@host-b "lxc list | grep unheaded | wc -l"` (should be 9)
+5. Verify: `ssh user@host-b "lxc list | grep unheaded | wc -l"` (should be 7)
 
 ---
 
@@ -130,22 +130,22 @@ host-b/
 host-a (Forge)
 ├─ Network: 10.20.0.0/16
 ├─ Containers: 10.20.1.1-10.20.1.53
-└─ Services: 25 + 5 telemetry
+└─ Services: 19 + 5 telemetry
 
 host-b (Outpost)
 ├─ Network: 10.21.0.0/16
 ├─ Containers: 10.21.1.1-10.21.1.9
-├─ Services: 6 core + 3 telemetry
+├─ Services: 4 core + 3 telemetry
 └─ Tunnel: WireGuard to host-a
 ```
 
 ### Service Dependency Chain (host-a)
 ```
 wotan (message bus)
-  ├─ monad, sophia, anamnesis (protocol)
+  ├─ anamnesis (protocol)
   │   └─ shield, unheaded-daemon (eBPF)
   │       └─ gateway, service-discovery (routing)
-  │           ├─ 11 business services
+  │           ├─ 8 business services
   │           └─ presentation layer (dashboard, api)
   │               └─ lich (adversary - last)
   │
