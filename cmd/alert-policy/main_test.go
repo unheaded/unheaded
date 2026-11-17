@@ -143,6 +143,48 @@ func TestRefusals(t *testing.T) {
 	}
 }
 
+// mailer.delivery and mailer.immediate (Stevie, 2026-11-17): the generator
+// knows both keys, and refuses an immediate alert that could never reach the
+// mailer's page hook.
+func TestValidateDelivery(t *testing.T) {
+	replace := func(old, new string) func(string) string {
+		return func(s string) string {
+			if !strings.Contains(s, old) {
+				t.Fatalf("anchor %q not in policy", old)
+			}
+			return strings.Replace(s, old, new, 1)
+		}
+	}
+	for _, c := range []struct {
+		name  string
+		edit  func(string) string
+		wants string
+	}{
+		{"the repo's own", same, ""},
+		{"immediate", replace("  delivery: digest", "  delivery: immediate"), ""},
+		{"unknown delivery", replace("  delivery: digest", "  delivery: weekly"), `mailer.delivery "weekly"`},
+		{"a promoted page", replace("  immediate: []", "  immediate: [ContainerStopped]"), ""},
+		{"a ticket cannot be immediate", replace("  immediate: []", "  immediate: [HostSwapping]"), "mailer.immediate: HostSwapping is not promoted with urgency page"},
+		{"an alert nobody promoted", replace("  immediate: []", "  immediate: [Nope]"), "mailer.immediate: Nope is not promoted with urgency page"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			root := tree(t, c.edit, "")
+			copyHandRules(t, root)
+			var all []string
+			for _, e := range run(root, false) {
+				all = append(all, e.Error())
+			}
+			got := strings.Join(all, "\n")
+			if c.wants == "" && got != "" {
+				t.Fatalf("want no error, got %s", got)
+			}
+			if !strings.Contains(got, c.wants) {
+				t.Fatalf("want an error containing %q, got %q", c.wants, got)
+			}
+		})
+	}
+}
+
 // mailer.run_days (ADR-147 decision 2): the generator knows the block and
 // refuses what the mailer refuses.
 func TestValidateRunDays(t *testing.T) {

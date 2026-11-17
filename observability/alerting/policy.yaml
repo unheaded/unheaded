@@ -29,6 +29,20 @@ mailer:
   # 2026-11-15 (Stevie, ADR-147 decision 2): mail on. A stopped container and
   # a memory kill each mail (promote: below). S-SEE-AND-SURVIVE Phase 15.
   mode: send
+  # delivery: what is mailed.
+  #   digest     the daily digest and nothing else: at most one mail a day. A
+  #              page is recorded (outbox outcome "digest") and leads the
+  #              digest; a silent alert path is the digest's first line.
+  #   immediate  pages are mailed at once, tickets wait for the digest; the
+  #              caps below bound the day.
+  # 2026-11-17 (Stevie): "cap it to 1 digest email per day ... it's a lab, my
+  # email doesn't need the noise". To get pages by mail again: immediate.
+  delivery: digest
+  # Mailed at once whatever delivery says: an intrusion or an indicator of
+  # compromise from an IDS or IPS (Stevie, 2026-11-17). None exists yet. An
+  # entry must be promoted below with urgency: page; it counts against the
+  # caps like any mail.
+  immediate: []
   # Hard cap across everything, per calendar day in timezone. The last
   # allowed mail says so; past it nothing is sent until midnight, and the
   # next digest counts what was held back.

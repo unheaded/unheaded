@@ -64,6 +64,11 @@ type Policy struct {
 			MaxPerHour int      `yaml:"max_per_hour"`
 			Dates      []string `yaml:"dates"`
 		} `yaml:"run_days,omitempty"`
+		// Delivery and Immediate (Stevie, 2026-11-17): digest makes the daily
+		// digest the only mail; Immediate names the promoted pages mailed at
+		// once anyway. The mailer alone acts on them.
+		Delivery  string   `yaml:"delivery,omitempty"`
+		Immediate []string `yaml:"immediate,omitempty"`
 	} `yaml:"mailer"`
 	Page struct {
 		GroupWait      string `yaml:"group_wait"`
@@ -179,6 +184,22 @@ func (p *Policy) validate() []error {
 			if _, err := time.Parse("2006-01-02", d); err != nil {
 				bad("mailer.run_days.dates %q: want YYYY-MM-DD", d)
 			}
+		}
+	}
+	// The same rule as loadSettings in cmd/alert-mailer; the page check is
+	// here only, where the promotions are known.
+	switch p.Mailer.Delivery {
+	case "", "immediate", "digest":
+	default:
+		bad("mailer.delivery %q: want digest or immediate", p.Mailer.Delivery)
+	}
+	for _, n := range p.Mailer.Immediate {
+		paged := false
+		for _, pr := range p.Promote {
+			paged = paged || (pr.Alert == n && pr.Urgency == "page")
+		}
+		if !paged {
+			bad("mailer.immediate: %s is not promoted with urgency page, so it never reaches the mailer as one (add it under promote: first)", n)
 		}
 	}
 	if !clockRE.MatchString(p.Mailer.DigestAt) {

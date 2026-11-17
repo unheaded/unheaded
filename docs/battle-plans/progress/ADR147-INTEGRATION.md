@@ -144,6 +144,18 @@ Stevie asked for sprints ready for the day the week ends. Four read-only passes 
 - **Amended in the plans:** plan 2 Step 340 (it would have set five roles' passwords, not one) and Step 341 (`--through 050`); plan 3 Step 266 (the file is 053) and Step 274 (limit 20); plan 1 Step 308 (`2h` and `180`) and Phase 16 (its build and recreate are plan 2's).
 - **S-LOG-WEEK-2 forged** (`docs/battle-plans/S-LOG-WEEK-2-battle-plan.md`, 8 phases, 96 steps), ahead of its turn: its Phase 1 is repository work for the day the week ends. Its grounding found that the probe of the Well's own latency runs after the three queries, so week 1's latency row may have measured the reading itself, and that the copy would reach the writer's 4 GiB ceiling inside any second week that kept week 1's rows.
 
+## 2026-11-17, rulings taken with Stevie present (from about 05:15Z)
+
+| Ruling | Stevie's answer | What changed |
+|---|---|---|
+| Is zhen-agentd the exception to plan 1's start limit | No: the same as the rest | Nothing in the tree: its unit already trips (90 starts in 30 min, the tree's rule for `RestartSec` 10 s), and plan 1 Step 308's drop-in lists it. The run order's row had said plan 3 kept "never give up"; the merged tree does not |
+| Plan 2 D8, Postgres's budget | A: 2 GiB, 1.0 CPU, `shared_buffers` 512MB | Plan 2 Steps 384-393 are open |
+| Plan 1 SS1 to SS3, which alerts mail | "We can tune this later ... right now let's cap it to 1 digest email per day ... if we stand up an IPS or IDS those should page immediately on IoC or intrusion but it's a lab" | `mailer.delivery: digest` and `mailer.immediate: []` in `observability/alerting/policy.yaml`. The mailer sends the 09:00 digest and nothing else: a page is an outbox line with outcome `digest` and leads the digest; a silent alert path is the digest's first line. An alert named in `immediate` mails at once; `alert-policy` refuses a name that is not a promoted page. The urgency table, the run-day caps and the start limits stay as built. Tests were red first (`cmd/alert-mailer/delivery_test.go`, `TestLoadSettingsDelivery`, `TestValidateDelivery`). Plan 1 Steps 321, 324, 326, 329 and 333 amended: `digest` where they said `sent`; the relay is proved by the first digest |
+
+Not asked again: SS3 and plan 2's D1 to D7 were laid out for Stevie and not answered one by one; they stay as built until he says otherwise.
+
+Not changed: `runbooks/observe/alert-pipeline-silent.yaml` still says the mailer mails "alert pipeline silent" (true under `delivery: immediate`); a runbook edit needs the manifest rewritten and Stevie's seal.
+
 ## What still must run after the evidence week
 
 | Gate | Plan |
@@ -152,7 +164,7 @@ Stevie asked for sprints ready for the day the week ends. Four read-only passes 
 | `scripts/check-prometheus-rules.sh` (promtool in a container): every new rule test file, `containers_test.yml` with the timeguru fixture, the module rule tests | 1, 2, 3, 4 |
 | `scripts/ci-local.sh` (throwaway Wells, haproxy image) | all |
 | `scripts/well/test-batch-apply.sh`: the `--through` cases added 2026-11-17 (`2dcb1d68`), never run | 2, 3 |
-| `scripts/monitoring/test-alert-path.sh` (cases 6, 7) | 1 |
+| `scripts/monitoring/test-alert-path.sh` (cases 6, 7; since 2026-11-17 its two policy copies are set to `delivery: immediate`, an edit never run) | 1 |
 | `scripts/backup/test-store-backups.sh` | 1 |
 | `scripts/qa-smoke.sh` (psql) | 1, 2 |
 | `scripts/well/test-zhen-database.sh`, the 050 migration test, `scripts/well/test-health-bridge.sh` | 3, 2 |

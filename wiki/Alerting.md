@@ -7,7 +7,7 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 `observability/alerting/policy.yaml` decides what reaches a human:
 
 - **SLOs**: each has a name, an objective (99.5% or 99% over 28 days), whether it can page, and a `good` expression that is 1 when the service is fine this minute. A missing series counts as bad.
-- **mailer**: `mode` (`dry-run` or `send`), `max_per_day` (hard cap, 6), `digest_at` (09:00) and `timezone` (America/Chicago).
+- **mailer**: `mode` (`dry-run` or `send`), `delivery` (`digest` or `immediate`), `immediate` (alerts mailed at once whatever `delivery` says), `max_per_day` (hard cap, 6), `max_per_hour` (3), `run_days` (raised caps on listed dates), `digest_at` (09:00) and `timezone` (America/Chicago).
 - **page** timing, and **promote**: cause alerts that should notify anyway. Keep it short; each entry needs a reason. Today: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket).
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
@@ -25,6 +25,29 @@ Every alert carries `urgency`:
 | `none` | Nobody. All 44 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence, compliance, Well backups, KEV, trace collector, AlertPipelineHeartbeat, security detections in `detection.yml`: SSH login from a new source, SSH auth-failure bursts, outbound volume, …), except the three the policy promotes: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket). DGA, beaconing and DNS tunnelling have no rule: there is no DNS query log source yet (threat register DET-01). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
+
+### One mail a day (`delivery: digest`)
+
+The table above is `delivery: immediate`. Since 2026-11-17 the policy says `delivery: digest` (Stevie: "cap it to 1 digest email per day ... it's a lab"), and the mailer sends the 09:00 digest and nothing else:
+
+| What happens | Under `delivery: digest` |
+|---|---|
+| A page fires | Not mailed. `/v1/outbox` shows it at once with outcome `digest`; it is listed first in the next digest, under "Urgent", and the subject counts it: `[digest] 3 open (1 urgent)`. |
+| A page resolves | One line under "Resolved since the last digest". |
+| The alert path goes silent (`pipeline.silent_after`) | Not mailed. The next digest opens with it and goes out for it even with nothing else open; its return is one resolved line. |
+| A ticket | As before. |
+| A day with nothing open, resolved or held back | No mail. |
+
+To tune it, edit the `mailer:` block and restart the mailer (no regeneration: the generated files do not read these keys):
+
+| Want | Edit |
+|---|---|
+| Pages by mail again | `delivery: immediate` |
+| One alert mailed at once, the rest in the digest (an intrusion or an indicator of compromise from an IDS or IPS) | Promote it with `urgency: page`, then add its name to `immediate:`. `go run ./cmd/alert-policy --check` refuses a name that is not a promoted page. |
+| More or fewer mails on a day when alerts are mailed at once | `max_per_day`, `max_per_hour`; for single dates, `run_days` |
+| Another hour for the digest | `digest_at` |
+
+`curl -s localhost:19130/v1/status` shows the delivery in force.
 
 ## SLOs
 

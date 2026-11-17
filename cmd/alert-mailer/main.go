@@ -67,6 +67,8 @@ func loadSettings(path string) (Settings, error) {
 			DigestAt   string      `yaml:"digest_at"`
 			Timezone   string      `yaml:"timezone"`
 			RunDays    *runDaysDoc `yaml:"run_days"`
+			Delivery   string      `yaml:"delivery"`
+			Immediate  []string    `yaml:"immediate"`
 		} `yaml:"mailer"`
 		Page struct {
 			RepeatInterval string `yaml:"repeat_interval"`
@@ -91,6 +93,24 @@ func loadSettings(path string) (Settings, error) {
 	}
 	if err := loadRunDays(&s, p.RunDays); err != nil {
 		return s, err
+	}
+	// mailer.delivery: absent is immediate. The same rules are in
+	// cmd/alert-policy's validate, which also checks that an immediate
+	// alert is a promoted page.
+	switch p.Delivery {
+	case "", "immediate":
+		s.Delivery = "immediate"
+	case "digest":
+		s.Delivery = "digest"
+	default:
+		return s, fmt.Errorf("mailer.delivery %q: want digest or immediate", p.Delivery)
+	}
+	s.Immediate = map[string]bool{}
+	for _, n := range p.Immediate {
+		if !alertNameRE.MatchString(n) {
+			return s, fmt.Errorf("mailer.immediate %q: want an alert name", n)
+		}
+		s.Immediate[n] = true
 	}
 	t, err := time.Parse("15:04", p.DigestAt)
 	if err != nil {

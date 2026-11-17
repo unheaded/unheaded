@@ -50,6 +50,37 @@ func TestLoadSettingsPipeline(t *testing.T) {
 	}
 }
 
+// mailer.delivery (Stevie, 2026-11-17): absent is immediate, digest is one
+// mail a day; mailer.immediate names the alerts that mail at once anyway.
+func TestLoadSettingsDelivery(t *testing.T) {
+	for _, tc := range []struct {
+		name, block, wantErr, delivery string
+		immediate                      int
+	}{
+		{"absent", "", "", "immediate", 0},
+		{"immediate", "  delivery: immediate", "", "immediate", 0},
+		{"digest", "  delivery: digest\n  immediate: [SuricataAlert, IOCMatch]", "", "digest", 2},
+		{"unknown", "  delivery: weekly", "mailer.delivery", "", 0},
+		{"bad name", "  delivery: digest\n  immediate: [\"not a name\"]", "mailer.immediate", "", 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s, err := loadSettings(writePolicy(t, tc.block))
+			if tc.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
+					t.Fatalf("err %v, want one naming %q", err, tc.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if s.Delivery != tc.delivery || len(s.Immediate) != tc.immediate {
+				t.Fatalf("delivery %q with %d immediate, want %q with %d", s.Delivery, len(s.Immediate), tc.delivery, tc.immediate)
+			}
+		})
+	}
+}
+
 // ADR-147 decision 2 (SS2): mailer.run_days raises the caps on listed dates.
 func TestLoadSettingsRunDays(t *testing.T) {
 	for _, tc := range []struct {

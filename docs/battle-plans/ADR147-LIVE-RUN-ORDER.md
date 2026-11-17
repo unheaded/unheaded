@@ -31,13 +31,13 @@ Copyright (c) 2026 Stevie Bellis.
 
 | Plan | Id | Question, short | Recommended | Lane took | Needed by |
 |---|---|---|---|---|---|
-| 1 | SS1 | Which alerts page | A, the urgency table | A | Phase 15 |
-| 1 | SS2 | Mail cap on run days | A, 24 a day / 6 an hour | A | Phase 15 |
+| 1 | SS1 | Which alerts page | A, the urgency table | **Ruled 2026-11-17: one digest mail a day and nothing else** ("it's a lab, my email doesn't need the noise"; tune later). The table's urgencies stay as built; `mailer.delivery: digest` keeps every page for the 09:00 digest, where it leads. An intrusion or an indicator of compromise from an IDS or IPS, once one exists, mails at once: `mailer.immediate`, empty today | Phase 15 |
+| 1 | SS2 | Mail cap on run days | A, 24 a day / 6 an hour | A, as built. It has no effect while `delivery: digest` and `immediate: []` | Phase 15 |
 | 1 | SS3 | Start limits that trip | A (now 180 starts in 2 h, REV-3) | A | Phase 14 |
 | 1 | SS4 | New SLOs alert as tickets | A | not asked | Phase 17 |
-| 1 | | Is zhen-agentd the exception to the start limit | | plan 3 kept "never give up" | Phase 14 |
+| 1 | | Is zhen-agentd the exception to the start limit | | **Ruled 2026-11-17: no exception.** The unit in the tree already trips (90 starts in 30 min, the tree's rule for `RestartSec` 10 s; this row first said plan 3 kept "never give up", which the merged tree does not). Step 308's drop-in goes on it like the rest | Phase 14 |
 | 2 | D1-D7 | Publisher, subscriber, discovery reader, Prometheus keep-list, Akira's cert check, `FLOW_EVENTS`, `FLOW_STATE` | A, B, A, A, A, A, A | as recommended | Phase 19 |
-| 2 | D8 | Postgres's budget | A: 2 GiB, 1.0 CPU, `shared_buffers` 512MB | not taken | Phase 22 |
+| 2 | D8 | Postgres's budget | A: 2 GiB, 1.0 CPU, `shared_buffers` 512MB | **Ruled 2026-11-17: A.** Steps 384-393 are open | Phase 22 |
 | 2 | Step 317 | Where the two public keys live (A, B or C); you make both ML-DSA-65 keys | | | live publishing on `alerts.critical`; the deploy itself does not wait |
 | 3 | D1-D5 | Switch is a systemd target; own database; fix the sweep; vor outside the switch; allowlist for private addresses | as listed | as recommended | block C |
 | 3 | D6 | `app_zhen` connection limit; off-site copy | 12; local only | **20** (REV-5); local only | Phase 8B |
@@ -104,6 +104,7 @@ A step not listed runs as written.
 | 254-262, 264 | Gates on the sprint tree | Block B ran them on the merged tree; read `SUMMARY.txt` of that run |
 | 263 | After the merge steps | In block A, before the merge |
 | 308 | Expects `15min` and `10` | `2h` and `180` (`deploy/systemd/dropins/10-start-limit.conf`, REV-3) |
+| 321, 324, 326, 329, 333 | A page and the pipeline mail show as `sent`; Stevie's inbox is asked at Step 324 | Amended in the plan (2026-11-17, one digest a day): each shows as `digest` in the outbox and no mail leaves. The relay is proved by the next 09:00 digest (America/Chicago), which carries the drills; SSV-03's after is filled then |
 | 335-341 | Tag, build, recreate seven services and three host units | Done by plan 2 Steps 327-355. Take the planned stop of Step 335 before plan 2 Step 339 and end it (Step 341) after plan 2 Step 356. `unheaded-wiki-server` is rebuilt by plan 3 Step 256 |
 | 346, 371 | `:pre-ssv` tags | The rollback tags are plan 2's `:pre-s-waste-out` |
 | 350, 352 | `pq` on `unheaded_http_*` | Prometheus drops those series after plan 2's keep-list (Step 355); read VictoriaMetrics (`q`) |

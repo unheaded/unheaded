@@ -63,11 +63,15 @@ pages="$(grep -c '^    - receiver: page$' "$T/am/alertmanager.yml")"
 # The policy refuses an hourly cap above the daily one (DP-710), so both go to
 # 2. The hourly cap is read first; which of the two holds a mail back is
 # cmd/alert-mailer's unit tests. Here: two mails leave, the rest are held.
+# This test is of the page path (rule, Alertmanager, webhook, relay), so the
+# copy runs with delivery: immediate whatever the repository's policy says;
+# delivery: digest (one mail a day) is cmd/alert-mailer's unit tests.
 sed -e 's/^  mode: dry-run$/  mode: send/' -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' \
-	-e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' \
+	-e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' -e 's/^  delivery: [a-z]*$/  delivery: immediate/' \
 	"$REPO_ROOT/observability/alerting/policy.yaml" >"$T/mailer/policy.yaml"
 { grep -q '^  mode: send$' "$T/mailer/policy.yaml" && grep -q '^  max_per_day: 2$' "$T/mailer/policy.yaml" &&
-	grep -q '^  max_per_hour: 2$' "$T/mailer/policy.yaml"; } || fail "policy anchors missing"
+	grep -q '^  max_per_hour: 2$' "$T/mailer/policy.yaml" && grep -q '^  delivery: immediate$' "$T/mailer/policy.yaml"; } ||
+	fail "policy anchors missing (want mode, max_per_day, max_per_hour and delivery lines in the mailer block)"
 chmod -R a+rX "$T"
 
 docker network create "$NET" >/dev/null
@@ -169,9 +173,10 @@ echo "[ok] AlertPipelineHeartbeat reaches the mailer's pipeline receipt"
 today="$(TZ=America/Chicago date +%F)"
 sed -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' -e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' \
 	-e 's/^    max_per_day: [0-9]*$/    max_per_day: 3/' -e 's/^    max_per_hour: [0-9]*$/    max_per_hour: 3/' \
-	-e "s/^    dates: \[\]\$/    dates: [\"$today\"]/" \
+	-e "s/^    dates: \[\]\$/    dates: [\"$today\"]/" -e 's/^  delivery: [a-z]*$/  delivery: immediate/' \
 	"$REPO_ROOT/observability/alerting/policy.yaml" >"$T/mailer/policy-runday.yaml"
 { grep -q '^  mode: send$' "$T/mailer/policy-runday.yaml" && grep -q '^  max_per_day: 2$' "$T/mailer/policy-runday.yaml" &&
+	grep -q '^  delivery: immediate$' "$T/mailer/policy-runday.yaml" &&
 	grep -q '^    max_per_day: 3$' "$T/mailer/policy-runday.yaml" && grep -q "^    dates: \[\"$today\"\]\$" "$T/mailer/policy-runday.yaml"; } ||
 	fail "run_days anchors missing in policy.yaml (want mode send, run_days max_per_day and dates: [])"
 chmod a+r "$T/mailer/policy-runday.yaml"
