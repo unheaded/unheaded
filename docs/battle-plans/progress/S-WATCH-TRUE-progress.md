@@ -86,6 +86,8 @@ The reference reading of 2026-11-12 22:50Z was 0.81 core on west at 19 h up and 
 
 | 2026-11-15 | 217, 221-225 | Closing table below. Timeline entry and its three mirrors. The lane worktree is removed. `~/tmp/next.md` written. |
 
+| 2026-11-17 | 105 (the reading asked for after 2026-11-17 00:00Z) | **41.9 h reading (00:31Z; same process, started 2026-11-15T06:38:07Z, 0 restarts).** CPU `rate(process_cpu_seconds_total{job="trace-collector",host="west"}[1h])` on VictoriaMetrics: **0.0262 core** (10 min 0.0252, 6 h mean 0.0262), bar 0.05: **met**. The same rate every six hours since the restart: 12:40Z 0.0163, 18:40Z 0.0192, 11-16 00:40Z 0.0215, 06:40Z 0.0232, 12:40Z 0.0244, 18:40Z 0.0247. The steps shrink (+0.0029, +0.0023, +0.0017, +0.0012, +0.0003): the curve has levelled at about 0.025 core, inside the 0.025 to 0.03 predicted when the row was marked stuck, and after the roughly 33 h that `FLOWS` was reckoned to need to fill. Against its first hour (0.0076) the collector is at 3.4 times, so **the growth row as written (1.5) is still not met**; what the row was written to catch, a cost that climbs without end, is not what the curve shows. Map occupancy was not read (it needs root). Still Stevie's: accept the row as bounded, or build ADR-144's ring-buffer reader. Nothing was changed. |
+
 ## Closing table (Step 217)
 
 The sweep (`docs/sweeps/BACKLOG-SWEEP-2026-11-12.md`) is a dated record and is not edited. Its rows D-13 to D-18 ended as follows.
