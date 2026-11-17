@@ -10,9 +10,9 @@ See [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for our community standards.
 
 Prerequisites:
 - Linux kernel 5.15+
-- Go 1.25+
+- Go 1.26+ (`go.mod` names the toolchain)
 - Docker or LXD
-- Rust 1.70+ (for eBPF)
+- Rust nightly (for eBPF; `ebpf/rust-toolchain.toml`)
 
 Clone and setup:
 ```bash
