@@ -171,6 +171,48 @@ print(14 * med * pay_lo / 60e6, 14 * med * pay_hi / 20e6)          # dump, 9 to 
 - **2026-11-16, a small disturbance in the log store week, from the coordinator, about 05:34 to 05:36Z.** A `check-gates-can-fail.sh --quick` run on `integrate/adr147` reached the one "fast" row whose gate, `check-prometheus-rules`, runs promtool in a throwaway container (`prom/prometheus:v3.15.1`, `--network none`); it was stopped about two minutes in (`docker stop`, the run killed; the tree restored clean). The run also wrote a few KB of gate logs under `/var/tmp/unheaded-gate-logs.*`. West's I/O pressure (`rate(node_pressure_io_waiting_seconds_total[2m])`, instance `[fd00:dead:beef::1]:9100`): 5-6% before, 10% and 12% at 05:32-05:33Z (the earlier fast rows), 7%, 9%, 11% at 05:34-05:36Z, 6% at 05:37Z. Nothing in the stack restarted. Afterwards every remaining fast row ran one at a time behind a shim that refuses `docker run/build/create/exec` and `sudo`, with its logs in `~/.cache`.
 - **2026-11-15, two more disturbances in the log store week, from the ADR-147 execution lanes.** (1) About 21:47 to 21:49Z: a lane ran `find /`, which walked `/var`; west's I/O pressure reached 54 to 71% and was back to 7% by 21:51Z. Leave 21:45 to 21:52Z out of the week's latency and stall figures. (2) Earlier the same evening (time not recorded, under 2 minutes): a lane started the `check-prometheus-rules.sh` container once by mistake and stopped it. Nothing was restarted on the stack and nothing was written to the stores.
 
+### Step 284, prepared for Stevie: the week against the bar (2026-11-17, after the reading of 00:13Z)
+
+Step 284 is Stevie's. This is the reckoning ready for it, from the eleven readings in `~/.local/state/unheaded/S-E1-LIVE-logstore.tsv` (collected data, on the host). The week ends 18:34Z today; one more reading after that closes it and should not move any row. The bar is (A), as he chose 2026-11-10.
+
+- **Answer.** Under bar (A) ClickHouse stays, on four of the five tests. Postgres wins one query outright and loses the other two by two to three orders of magnitude.
+
+| Test (bar) | ClickHouse | Postgres copy | Verdict |
+|---|---|---|---|
+| Disk, same rows (within 2x) | 64 to 72 bytes a row | 1,454 to 1,464 bytes a row; 2.19 GB for 1,498,575 rows on day 6 | **20x to 23x: fails** |
+| q1, last hour by host, p95 (within 2x) | 7 to 30 ms | 0.7 to 0.9 ms | **Postgres faster, 8x to 40x: passes** |
+| q2, text match over 24 h, p95 (within 2x) | 20 to 33 ms | 4.3 to 16.1 s | **177x to 619x: fails** |
+| q3, 7-day count by unit, p95 (within 2x) | 13 to 23 ms | 5.1 to 31.0 s, growing with the table | **391x to 1,833x: fails** |
+| The Well's own latency (moves under 10%) | | Kanban read p95 0.178 ms before, 0.197 to 0.289 ms in ten readings since (+11% to +62%, median +25%) | **fails as written; see the caution** |
+| Backup (moves under 10%) | | 1.5 s and 0.35 MB before; 57 to 72 s and 80 to 102 MB by days 5 and 6 | **fails** |
+| Vector stalls on the record sink (zero) | | one send over 1 s and 263 rows dropped at the Well sink, both in the 11-12 06:10Z reading; 0 in every other | **one, with a cause on record; see below** |
+
+- **Cautions, each of which weakens one row and none of which changes the verdict.**
+  - The Well's latency row rests on a single reading before the week (0.178 ms) and moves by tenths of a millisecond. The second measure, mean time per statement for everything that does not touch `log_events`, ran 0.19 to 0.26 ms a call in the first day and 0.32 to 0.40 ms from 11-12 on; the round table found Postgres re-reading 35 GB inside its 256 MiB limit over the same days (ADR-147), so the copy is the likely cause but this file cannot separate it from the limit.
+  - On 11-16 the q3 run did not finish: twenty runs did not fit the script's 600 s, so that reading holds `NA` and the script exited 1. That is a mean above 30 s a run, not a broken reading; the 11-17 run finished at p50 21.2 s, p95 25.1 s.
+  - The one stall and the 263 dropped rows sit in the reading taken 30 minutes before the password pass restarted the Well (06:40Z 11-12), after the host's power-off and boot (00:50Z to 03:40Z). Vector's counters start again at each Vector start (11-12, twice on 11-15), so "0" in later readings covers only the time since.
+  - Seven days, eleven readings, two days with none (11-13, 11-14: no session ran). Disturbances on record above: the `du` walk 11-15 17:04 to 17:10Z, the `find /` 21:47 to 21:49Z, two short promtool containers, the planned Well restart 11-12, the power-off.
+  - ClickHouse ran with one-second inserts and Postgres inside 256 MiB for the whole week. Decision 5 of ADR-147 already answers that: this week stands as the record of the two defects, and a second, fair week (S-LOG-WEEK-2) runs after both are fixed, before the log store is chosen.
+- **What keeps running after 18:34Z until someone turns it off.** The copy grows about 361 MB a day and reaches the writer's 4 GiB ceiling about 2026-11-22 20Z; the writer then answers 503 and Vector drops at that sink only (the record sink is unaffected). Every nightly backup and its copy on east carries the copy: 102 MB and 57 s last night. The off switch is in the Step 281 entry (remove the `well_logs` sink and `well_rows` through a worktree, `compose up -d vector`, stop `logstore-writer`; `DROP TABLE` after). It restarts Vector, so it is Stevie's word, and S-WASTE-OUT's Vector batching fix wants the same restart.
+- **For Stevie at Step 284:** (1) the verdict above, or one more week as the step allows for a broken reading (not recommended: no row is close); (2) when the copy is switched off, given the 11-22 ceiling and the nightly backup carrying it; (3) whether S-LOG-WEEK-2 keeps the three queries as they are: q2 and q3 have no index that serves them on the Postgres side (a trigram index for the text match, a covering index or a rollup for the unit count), and a fair second week should say beforehand whether Postgres gets them.
+
+```python
+# every figure above, from the readings file; numbers only
+import collections, csv, os
+d = collections.defaultdict(dict)
+for t, m, v in (r for r in csv.reader(open(os.path.expanduser("~/.local/state/unheaded/S-E1-LIVE-logstore.tsv")), delimiter="\t") if len(r) == 3 and r[0] != "reading_utc"):
+    d[m][t] = None if v == "NA" else float(v)
+week = sorted(t for t in d["pg_rows"] if t > "2026-11-11T12")          # the copy holds a full day from here
+for t in week:
+    ch, pg = d["ch_bytes"][t] / d["ch_rows"][t], d["pg_bytes"][t] / d["pg_rows"][t]
+    print(t, round(ch, 1), round(pg, 1), round(pg / ch, 1))             # bytes a row, ratio
+for q in ("q1_last_hour", "q2_text_24h", "q3_units_7d"):
+    print(q, [(d[f"ch_{q}_p95_ms"][t], d[f"pg_{q}_p95_ms"][t]) for t in week])
+a, b = week[0], week[-1]                                                # growth, then days to 4 GiB
+rate = (d["pg_bytes"][b] - d["pg_bytes"][a]) / 5.08                     # days between the two readings
+print(round(rate / 1e6), round((4 * 2**30 - d["pg_bytes"][b]) / rate, 1))   # 361 MB a day, 5.8 days
+```
+
 ## Evening 14: the drafts (2026-11-10)
 
 - Step 259 (desk pass): report at `docs/protocol/RFC-DESK-PASS-2026-11-10.md`. Changes to the frozen v0x01 format: none. Thirteen open items, each a ruling on public text: WH items 1-4 (DP-715's four), WH items 6-9, and four the pass found (stream against code points, a reference to a draft that was never uploaded, private revision labels, FIPS 206/207 citations).
