@@ -132,48 +132,6 @@ scrape_configs:
           service: 'timeguru'
           tier: 'core-services'
 
-  - job_name: 'architect'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['192.168.13.1:19001']
-        labels:
-          service: 'architect'
-          tier: 'core-services'
-
-  - job_name: 'captain'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['192.168.13.1:19002']
-        labels:
-          service: 'captain'
-          tier: 'core-services'
-
-  - job_name: 'micromanager'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['192.168.13.1:19003']
-        labels:
-          service: 'micromanager'
-          tier: 'core-services'
-
-  - job_name: 'monad'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['192.168.13.1:19004']
-        labels:
-          service: 'monad'
-          tier: 'core-services'
-          protocol: 'grpc'
-
-  - job_name: 'sophia'
-    metrics_path: '/metrics'
-    static_configs:
-      - targets: ['192.168.13.1:19005']
-        labels:
-          service: 'sophia'
-          tier: 'core-services'
-          protocol: 'grpc'
-
   - job_name: 'cuirass'
     metrics_path: '/metrics'
     static_configs:
@@ -369,9 +327,6 @@ scrape_configs:
           - '192.168.13.1:17000'
           - '192.168.13.1:18000'
           - '192.168.13.1:19000'
-          - '192.168.13.1:19001'
-          - '192.168.13.1:19002'
-          - '192.168.13.1:19003'
           - '192.168.13.1:20000'
           - '192.168.13.1:20001'
           - '192.168.13.1:21000'

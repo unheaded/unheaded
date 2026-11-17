@@ -1355,11 +1355,6 @@ scrape_configs:
           - '192.168.13.2:17000'    # unheaded-daemon
           - '192.168.13.2:18000'    # wotan
           - '192.168.13.2:19000'    # timeguru
-          - '192.168.13.2:19001'    # architect
-          - '192.168.13.2:19002'    # captain
-          - '192.168.13.2:19003'    # micromanager
-          - '192.168.13.2:19004'    # monad
-          - '192.168.13.2:19005'    # sophia
         labels:
           layer: 'kingdom'
           perspective: 'external'

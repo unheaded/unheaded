@@ -85,14 +85,10 @@ type svc struct {
 }
 
 var services = []svc{
-	{"monad", "10.10.10.20", 19004, 1},
-	{"sophia", "10.10.10.21", 19005, 2},
 	{"wotan", "10.10.10.10", 18001, 3},
 	{"dashboard", "10.10.10.30", 20000, 4},
 	{"kanban", "10.10.10.31", 20001, 5},
 	{"timeguru", "10.10.10.22", 19000, 6},
-	{"captain", "10.10.10.23", 19002, 7},
-	{"architect", "10.10.10.24", 19001, 8},
 }
 
 // latency profile per op: base + jitter (nanoseconds)

@@ -45,11 +45,6 @@ type serviceDefinition struct {
 // pipelineServices lists all Unheaded services that must be verified.
 var pipelineServices = []serviceDefinition{
 	{name: "timeguru", version: "0.1.0", port: 8000},
-	{name: "captain", version: "0.1.0", port: 8001},
-	{name: "architect", version: "0.1.0", port: 8002},
-	{name: "micromanager", version: "0.1.0", port: 8003},
-	{name: "monad", version: "0.1.0", port: 8004},
-	{name: "sophia", version: "0.1.0", port: 8005},
 	{name: "dashboard-backend", version: "0.1.0", port: 8080},
 	{name: "kanban-app", version: "0.1.0", port: 8090},
 }
@@ -115,7 +110,7 @@ func newPipelineTestHarness(t *testing.T) *pipelineTestHarness {
 	signingKey := []byte("test-signing-key-for-e2e-pipeline-32b!")
 	jwtAuth := auth.NewJWTAuthenticator(auth.JWTConfig{
 		SigningKey: signingKey,
-		Issuer:    "unheaded-e2e-test",
+		Issuer:     "unheaded-e2e-test",
 	})
 
 	wotanDiscovery := newMockWotanDiscovery()

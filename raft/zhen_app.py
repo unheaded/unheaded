@@ -844,8 +844,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # Services
         services = {
-            'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
-            'architect': 19001, 'micromanager': 19003,
+            'wotan': 18000, 'timeguru': 19000,
             'dashboard': 20000, 'kanban': 16668,
             'zhenai': 20103, 'inference': 20100, 'akira': 16699,
         }
@@ -959,9 +958,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
     if q in ('health', 'service health', 'check health', 'status'):
         import urllib.request as ur
         services = {
-            'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
-            'architect': 19001, 'micromanager': 19003, 'monad': 19004,
-            'sophia': 19005, 'dashboard': 20000, 'kanban': 16668,
+            'wotan': 18000, 'timeguru': 19000,
+            'dashboard': 20000, 'kanban': 16668,
             'zhenai': 20103, 'inference': 20100,
         }
         lines = ['**Kingdom Service Health:**\n']
@@ -980,9 +978,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
     if q in ('drift check', 'bailiff', 'check drift', 'drift'):
         import urllib.request as ur
         desired_services = {
-            'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
-            'architect': 19001, 'micromanager': 19003, 'monad': 19004,
-            'sophia': 19005, 'dashboard': 20000, 'kanban': 16668,
+            'wotan': 18000, 'timeguru': 19000,
+            'dashboard': 20000, 'kanban': 16668,
             'zhenai': 20103, 'inference': 20100, 'akira': 16699,
         }
         lines = ['**Bailiff Drift Report:**\n']
@@ -2291,9 +2288,8 @@ def champion_health():
     """Check health of all Kingdom services."""
     import urllib.request
     services = {
-        'wotan': 18000, 'timeguru': 19000, 'captain': 19002,
-        'architect': 19001, 'micromanager': 19003, 'monad': 19004,
-        'sophia': 19005, 'dashboard': 20000, 'kanban': 16668,
+        'wotan': 18000, 'timeguru': 19000,
+        'dashboard': 20000, 'kanban': 16668,
         'zhen': 20103, 'inference': 20100,
     }
     results = []

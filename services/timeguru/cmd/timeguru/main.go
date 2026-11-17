@@ -494,8 +494,8 @@ func registerAPIRoutes(mux *http.ServeMux, handler *api.Handler) {
 
 // wrapAuth puts auth in front of the mux (S-IRON-GATE Phase 6): with
 // AUTH_ENABLED=true every route but /health, /ready and /metrics needs a
-// token from an AUTH_ALLOW_CALLERS caller (kanban-app reads the timeline,
-// micromanager and kanban-app may write), and a write needs a write role.
+// token from an AUTH_ALLOW_CALLERS caller (kanban-app, which reads the
+// timeline and may write it), and a write needs a write role.
 func wrapAuth(h http.Handler, cfg auth.ServiceAuthConfig) (http.Handler, error) {
 	return auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
 }

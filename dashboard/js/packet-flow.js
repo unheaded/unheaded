@@ -57,26 +57,13 @@ const PacketFlowViz = (function() {
         services: {
             gateway: { name: 'Gateway', color: '#ffd700', x: 0.5, y: 0.08 },
             wotan: { name: 'Wotan', color: '#4ecdc4', x: 0.5, y: 0.35 },
-            timeguru: { name: 'Timeguru', color: '#45b7d1', x: 0.15, y: 0.6 },
-            captain: { name: 'Captain', color: '#a29bfe', x: 0.35, y: 0.6 },
-            architect: { name: 'Architect', color: '#fd79a8', x: 0.65, y: 0.6 },
-            micromanager: { name: 'Micromanager', color: '#6c5ce7', x: 0.85, y: 0.6 },
-            monad: { name: 'Monad', color: '#00cec9', x: 0.25, y: 0.85 },
-            sophia: { name: 'Sophia', color: '#e17055', x: 0.75, y: 0.85 }
+            timeguru: { name: 'Timeguru', color: '#45b7d1', x: 0.5, y: 0.6 }
         },
 
         // Connection topology (which services connect to which)
         connections: [
             ['gateway', 'wotan'],
-            ['wotan', 'timeguru'],
-            ['wotan', 'captain'],
-            ['wotan', 'architect'],
-            ['wotan', 'micromanager'],
-            ['wotan', 'monad'],
-            ['wotan', 'sophia'],
-            ['timeguru', 'monad'],
-            ['captain', 'architect'],
-            ['architect', 'sophia']
+            ['wotan', 'timeguru']
         ]
     };
 
@@ -828,11 +815,6 @@ const PacketFlowViz = (function() {
             'wotan': 'wotan',
             'service': 'timeguru', // Default service
             'timeguru': 'timeguru',
-            'captain': 'captain',
-            'architect': 'architect',
-            'micromanager': 'micromanager',
-            'monad': 'monad',
-            'sophia': 'sophia',
             'trace-collector': 'wotan'
         };
         return mapping[component] || component;

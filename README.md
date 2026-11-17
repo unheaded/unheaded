@@ -28,7 +28,7 @@ See [QUICKSTART.md](QUICKSTART.md).
 
 ```
 Layer 5  Dashboard, Kanban, Zhenai web UI
-Layer 4  timeguru, captain, architect, micromanager, monad, sophia
+Layer 4  timeguru
 Layer 3  Wotan (message bus), trace-collector, gateway, Akira (health)
 Layer 2  unheaded-daemon (drift detection, reconciliation)
 Layer 1  eBPF programs under `ebpf/` (XDP/TC; Rust/Aya, Go/cilium)

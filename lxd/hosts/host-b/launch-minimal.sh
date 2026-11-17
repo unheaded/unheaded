@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # lxd/hosts/host-b/launch-minimal.sh
-# Launch 6 core Unheaded services + telemetry agents on host-b (Outpost)
+# Launch 4 core Unheaded services + telemetry agents on host-b (Outpost)
 # Minimal configuration suitable for consumer-grade hardware
 
 set -euo pipefail
@@ -213,12 +213,8 @@ push_and_start_service "wotan"
 sleep 2
 
 # Phase 2: Core protocol layer
-log_info "Phase 2: Launching core protocol layer (monad, sophia, anamnesis)..."
-launch_container "monad" 1 256
-launch_container "sophia" 1 256
+log_info "Phase 2: Launching core protocol layer (anamnesis)..."
 launch_container "anamnesis" 1 256
-push_and_start_service "monad"
-push_and_start_service "sophia"
 push_and_start_service "anamnesis"
 sleep 2
 

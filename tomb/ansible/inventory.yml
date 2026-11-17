@@ -41,11 +41,6 @@ all:
       - { name: unheaded-daemon, host: 192.168.13.2, port: 17000 }
       - { name: wotan,           host: 192.168.13.2, port: 18000 }
       - { name: timeguru,        host: 192.168.13.2, port: 19000 }
-      - { name: architect,       host: 192.168.13.2, port: 19001 }
-      - { name: captain,         host: 192.168.13.2, port: 19002 }
-      - { name: micromanager,    host: 192.168.13.2, port: 19003 }
-      - { name: monad,           host: 192.168.13.2, port: 19004 }
-      - { name: sophia,          host: 192.168.13.2, port: 19005 }
 
   children:
     tomb:
