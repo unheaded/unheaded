@@ -1,13 +1,25 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# West: compare the host's settings with their files in the repository
+# Compare this host's settings with their files in the repository
 # (S-WEST-GROUND, ADR-147; Architect A5, A12) and write the result for
 # node_exporter's textfile collector. Drift is a reading, not a unit failure:
 # the metric unheaded_host_settings_drift_files and the alert HostSettingsDrift
 # carry it (monitoring/prometheus/rules/host-settings.yml).
 #
+# One unit for every host. Nothing about a host is written here:
+#   HOST_SETTINGS_REPO      the checkout to read (required; no default)
+#   HOST_SETTINGS_HOST      which manifest, deploy/host-settings/<host>.tsv
+#                           (default: %l, this host's short name)
+#   HOST_SETTINGS_TEXTFILE  node_exporter's textfile directory
+#                           (default: /var/lib/unheaded/textfile; if you
+#                           change it, also add a drop-in with
+#                           ReadWritePaths= for the new directory)
+# come from /etc/unheaded/host-settings.env (deploy/systemd/host-settings.env.example).
+# Without that file the unit fails to start, and HostSettingsCheckStale says so.
+#
 # The script is a root-owned copy; the checkout is read as data only.
 # Install (S-WEST-GROUND Phase 8, attended):
 #   sudo install -m 0755 -o root -g root scripts/check-host-settings.sh /usr/local/lib/unheaded/check-host-settings.sh
+#   sudo install -m 0644 deploy/systemd/host-settings.env.example /etc/unheaded/host-settings.env   # then set HOST_SETTINGS_REPO
 #   sudo install -m 0644 deploy/systemd/unheaded-host-settings.service deploy/systemd/unheaded-host-settings.timer /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-host-settings.timer
 # Root, because /etc/wireguard and /etc/frr are root only; it keeps one
@@ -16,11 +28,13 @@
 [Unit]
 Description=Unheaded: host settings against their repository files (drift check)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-147-every-service-earns-its-place.md
-ConditionPathExists=/home/govan/tmp/unheaded/deploy/host-settings/west.tsv
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded --textfile /var/lib/unheaded/textfile
+Environment=HOST_SETTINGS_HOST=%l
+Environment=HOST_SETTINGS_TEXTFILE=/var/lib/unheaded/textfile
+EnvironmentFile=/etc/unheaded/host-settings.env
+ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host ${HOST_SETTINGS_HOST} --repo ${HOST_SETTINGS_REPO} --textfile ${HOST_SETTINGS_TEXTFILE}
 # 4 is drift, 3 a file it could not read: readings, not failures. 1 is a
 # command that failed (set -e), 2 a broken manifest: both fail the unit.
 SuccessExitStatus=3 4

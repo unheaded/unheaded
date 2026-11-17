@@ -159,6 +159,7 @@ Full record: [[Timeline]] (`references/timeline.md`).
 ## Operations
 
 - [[Systemd Units|Systemd-Units]] — what is installed and enabled on west and east, timers
+- [[Host Settings|Host-Settings]] — per-host files, the drift check, and what to set for another host
 - [[Runbooks]] — `runbooks/` (Champion-executable YAML) + `docs/runbooks/`
 
 ## Storage

@@ -11,7 +11,7 @@
 #   - the five data binds are appended only while the stack is stopped, after the
 #     copy to /srv/unheaded-data is verified.
 # `nofail` keeps west bootable with sshd up if the volume is lost;
-# deploy/systemd/docker.service.d/10-unheaded-data.conf is what keeps Docker from
+# deploy/host-settings/west-docker-data.conf is what keeps Docker from
 # starting the stores on the stale copies underneath.
 #
 # The /srv/backups bind (ADR-147 S-WEST-GROUND WG2, ruling A) keeps the Well's

@@ -27,6 +27,9 @@ readonly NVME_MOUNT="/mnt/nvme"                   # Fast storage mount
 readonly HDD_MOUNT="/mnt/hdd"                     # Slow storage mount
 readonly MODELS_DIR="/mnt/hdd/models"             # LLM model weights
 readonly UNHEADED_HOME="/opt/unheaded"            # Kingdom home
+# This host's sysctl source, relative to the checkout. One file per host:
+# deploy/sysctl.d/99-unheaded-<host>.conf (SYSCTL_SOURCE=... overrides).
+readonly SYSCTL_SOURCE="${SYSCTL_SOURCE:-deploy/sysctl.d/99-unheaded-$(hostname -s).conf}"
 readonly LOG_FILE="/var/log/unheaded-bootstrap.log"
 
 # Feature flags
@@ -806,7 +809,10 @@ phase_kernel_tune() {
     phase "8/16 — KERNEL TUNING + SYSCTL"
 
     step "Writing sysctl parameters..."
-    install -m 0644 "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/deploy/sysctl.d/99-unheaded-west.conf" /etc/sysctl.d/99-unheaded.conf
+    local sysctl_src
+    sysctl_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/${SYSCTL_SOURCE}"
+    [[ -f "${sysctl_src}" ]] || die "no sysctl source for this host: ${SYSCTL_SOURCE} (copy deploy/sysctl.d/99-unheaded-west.conf to that name and edit it, or set SYSCTL_SOURCE)"
+    install -m 0644 "${sysctl_src}" /etc/sysctl.d/99-unheaded.conf
 
     step "Loading kernel modules..."
     local modules=(

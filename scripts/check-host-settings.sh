@@ -16,6 +16,9 @@
 #             "password <x>" masked, and comment (#, !) and blank lines dropped,
 #             are equal (WireGuard: the repository keeps placeholders)
 #   absent    the host path does not exist (repo_path is -)
+#   swap      the host path is an active swap (repo_path is -); the swap rows
+#             of a manifest are the host's whole active swap list, and a
+#             manifest with none has no swap check
 #
 # Two ways to run it:
 #
@@ -160,9 +163,9 @@ parse_manifest() {
 			return 1
 		fi
 		case "${mode}" in
-		absent)
+		absent | swap)
 			if [[ "${rp}" != "-" ]]; then
-				echo "${file}:${n}: an absent row has repo_path -"
+				echo "${file}:${n}: an ${mode} row has repo_path -"
 				return 1
 			fi
 			;;
@@ -173,7 +176,7 @@ parse_manifest() {
 			fi
 			;;
 		*)
-			echo "${file}:${n}: unknown mode '${mode}' (exact, contains, redact, absent)"
+			echo "${file}:${n}: unknown mode '${mode}' (exact, contains, redact, absent, swap)"
 			return 1
 			;;
 		esac
@@ -193,7 +196,6 @@ parse_manifest() {
 # ---------------------------------------------------------------------------
 self_check() {
 	local dir="${REPO}/deploy/host-settings" fail=0 m problem i rp manifests=() nrows=0
-	local sysctl_src="${REPO}/deploy/sysctl.d/99-unheaded-west.conf"
 	local unit="${REPO}/deploy/systemd/unheaded-host-settings.service"
 	local share_re='^(CPUWeight|CPUQuota|MemoryMin|MemoryLow|MemoryHigh|MemoryMax|MemorySwapMax|IOWeight|TasksMax)='
 	if [[ ! -d "${dir}" ]]; then
@@ -223,19 +225,17 @@ self_check() {
 				fail=1
 				continue
 			fi
+			# Every host's sysctl source, whatever its name (ADR-147 decision 12).
+			if [[ "${ROWS_H[$i]}" == /etc/sysctl.d/* ]] && ! grep -qx 'vm.nr_hugepages = 0' "${REPO}/${rp}"; then
+				echo "FAIL: ${rp} must say 'vm.nr_hugepages = 0' (ADR-147 decision 12: no huge pages reserved)"
+				fail=1
+			fi
 			if [[ "${rp}" == *.slice ]] && grep -qE "${share_re}" "${REPO}/${rp}"; then
 				echo "FAIL: ${rp} sets a share ($(grep -oE "${share_re}" "${REPO}/${rp}" | tr -d '=' | sort -u | tr '\n' ' ')); ADR-147 decision 13: plan 8 sets the shares"
 				fail=1
 			fi
 		done
 	done
-	if [[ ! -f "${sysctl_src}" ]]; then
-		echo "FAIL: ${sysctl_src#"${REPO}"/} does not exist"
-		fail=1
-	elif ! grep -qx 'vm.nr_hugepages = 0' "${sysctl_src}"; then
-		echo "FAIL: ${sysctl_src#"${REPO}"/} must say 'vm.nr_hugepages = 0' (ADR-147 decision 12: no huge pages reserved)"
-		fail=1
-	fi
 	# The unit that runs the live check. net.* sysctls are per network
 	# namespace: in a private one `sysctl -n` reads that namespace's defaults
 	# (somaxconn 4096, tcp_keepalive_time 7200), not the host's, and every
@@ -247,6 +247,17 @@ self_check() {
 	else
 		if grep -qE '^[[:space:]]*(PrivateNetwork[[:space:]]*=[[:space:]]*(yes|true|on|1)|NetworkNamespacePath[[:space:]]*=[[:space:]]*[^[:space:]]|JoinsNamespaceOf[[:space:]]*=[[:space:]]*[^[:space:]])' "${unit}"; then
 			echo "FAIL: ${unit#"${REPO}"/} runs in its own network namespace (PrivateNetwork, NetworkNamespacePath or JoinsNamespaceOf): the net.* sysctls it reads would not be the host's; use RestrictAddressFamilies and IPAddressDeny instead"
+			fail=1
+		fi
+		# One unit for every host: the host's name and the checkout's path
+		# come from the unit's environment (/etc/unheaded/host-settings.env),
+		# never from this file (Stevie, 2026-11-17).
+		if grep -qE '^[[:space:]]*(ExecStart|Condition[A-Za-z]*)[[:space:]]*=.*/home/' "${unit}"; then
+			echo "FAIL: ${unit#"${REPO}"/} names a home directory: the checkout's path is HOST_SETTINGS_REPO in /etc/unheaded/host-settings.env"
+			fail=1
+		fi
+		if grep -qE '^[[:space:]]*ExecStart[[:space:]]*=.*--host[[:space:]]+[^$%[:space:]]' "${unit}"; then
+			echo "FAIL: ${unit#"${REPO}"/} names one host after --host: use \${HOST_SETTINGS_HOST} (default %l, the host's own name)"
 			fail=1
 		fi
 		if grep -qE '^[[:space:]]*SuccessExitStatus[[:space:]]*=(.*[[:space:]=])?[12]([[:space:]]|$)' "${unit}"; then
@@ -332,6 +343,7 @@ for i in "${!ROWS_H[@]}"; do
 	hp_name="${ROWS_H[$i]}"
 	hp="${ROOT}${hp_name}"
 	mode="${ROWS_M[$i]}"
+	[[ "${mode}" == swap ]] && continue
 	if [[ "${mode}" == absent ]]; then
 		if [[ -e "${hp}" || -L "${hp}" ]]; then
 			verdict DRIFT absent "${hp_name}"
@@ -427,20 +439,24 @@ if [[ -z "${ROOT}" ]]; then
 			done < <(required_lines "${rp}")
 		fi
 	done
-	# The active swap list. West's is the NVMe file alone (decision 12); a host
-	# with no entry here has no swap row (east's is plan 6's).
-	expect_swaps=""
-	case "${HOST}" in
-	west) expect_swaps="/swap.img" ;;
-	esac
-	if [[ -n "${expect_swaps}" ]]; then
-		if [[ ! -r /proc/swaps ]]; then
-			verdict SKIP swap /proc/swaps
-		elif [[ "$(awk 'NR>1{print $1}' /proc/swaps | sort | tr '\n' ' ' | sed 's/ $//')" == "${expect_swaps}" ]]; then
-			verdict OK swap "${expect_swaps}"
-		else
-			verdict DRIFT swap /proc/swaps
-		fi
+fi
+
+# The active swap list: the manifest's swap rows are all of it (west's is the
+# NVMe file alone, ADR-147 decision 12). A manifest with no swap row has no
+# swap check. Under --root the list is read from ROOT/proc/swaps.
+expect_swaps=""
+for i in "${!ROWS_H[@]}"; do
+	[[ "${ROWS_M[$i]}" == swap ]] && expect_swaps+="${ROWS_H[$i]}"$'\n'
+done
+if [[ -n "${expect_swaps}" ]]; then
+	expect_swaps="$(printf '%s' "${expect_swaps}" | sort | tr '\n' ' ' | sed 's/ $//')"
+	swaps_file="${ROOT}/proc/swaps"
+	if [[ ! -r "${swaps_file}" ]]; then
+		verdict SKIP swap /proc/swaps
+	elif [[ "$(awk 'NR>1{print $1}' "${swaps_file}" | sort | tr '\n' ' ' | sed 's/ $//')" == "${expect_swaps}" ]]; then
+		verdict OK swap "${expect_swaps}"
+	else
+		verdict DRIFT swap /proc/swaps
 	fi
 fi
 

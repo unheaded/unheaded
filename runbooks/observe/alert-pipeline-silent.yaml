@@ -24,6 +24,13 @@ notes: |
   mailer mails once. When receipts come back it mails "alert pipeline back"
   once.
 
+  Under mailer.delivery: digest (the policy since 2026-11-17: one mail a
+  day) neither is a mail of its own. "alert pipeline silent" is the first
+  line of the next 09:00 digest, which goes out for it even with nothing
+  else open, and the return is one line under "Resolved since the last
+  digest". Both show at once in the outbox with outcome "digest":
+  curl -s localhost:19130/v1/outbox.
+
   Why the mailer and not a rule: a rule cannot report that its own
   evaluator is down. Prometheus stopped, Alertmanager stopped, or the route
   between them and the mailer broken all look the same from inside: silence.

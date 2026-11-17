@@ -154,7 +154,10 @@ A step not listed runs as written.
 | 157, 226, 295 | `maintenance.sh 60m` | `maintenance.sh --planned 60m "<reason>"`: a silence alone lets `ContainerStopped` and the SLO budgets count the stop |
 | 215, 217 | Merge develop into the compose lane | Expect a conflict on the five removed services; 18 services remain; the limits then sum to 12,800 (11.1% of the thread limit) |
 | 218-219 | A grep for slice names | It also matches huginn's test fixtures; `cmd/huginn/cgroups.go` walks any slice to depth 4, so a hit in a fixture is not a defect |
+| 165 | Installs Docker's drop-in from `deploy/systemd/docker.service.d/` | Amended in the plan (2026-11-17): the file is west's own, `deploy/host-settings/west-docker-data.conf`, installed under the same host name |
 | 246 | Expects `rc=1` | The gate exits 4 on drift (REV-2) |
+| 256 | The drift unit names `west` and the checkout | Amended in the plan (2026-11-17): the unit takes both from `/etc/unheaded/host-settings.env`, which the step installs first. Step 245's direct call with `--host west --repo ...` is unchanged |
+| 189-200 | The filter's values are read in the rules | They are a `define` block at the top of `deploy/nftables/west.nft` since 2026-11-17; the loaded ruleset is identical. `wiki/Host-Settings.md` lists them |
 | 296 | Reboot | `~/tmp/west-hold.conf` holds a block lock while Claude or tmux runs: `sudo reboot` is refused. Lifting it is Stevie's (`hold=false`, or `sudo systemctl reboot -i`); Claude never does either |
 
 ## What could go wrong on the day, and what is already in place

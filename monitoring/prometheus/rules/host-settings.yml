@@ -28,7 +28,7 @@ groups:
           urgency: none
         annotations:
           summary: "{{ $value }} host setting(s) on {{ $labels.host }} differ from the repository"
-          description: "sudo /usr/local/lib/unheaded/check-host-settings.sh --host {{ $labels.host }} --repo /home/govan/tmp/unheaded lists the DRIFT lines"
+          description: "On {{ $labels.host }}: sudo systemctl start unheaded-host-settings.service; journalctl -u unheaded-host-settings -n 60 --no-pager lists the DRIFT lines"
           runbook_url: "runbooks/infra/host-settings-drift.yaml"
 
       - alert: HostSettingsCheckStale

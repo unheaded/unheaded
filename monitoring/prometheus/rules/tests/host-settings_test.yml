@@ -28,7 +28,7 @@ tests:
           - exp_labels: {severity: warning, urgency: none, host: west}
             exp_annotations:
               summary: "2 host setting(s) on west differ from the repository"
-              description: "sudo /usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded lists the DRIFT lines"
+              description: "On west: sudo systemctl start unheaded-host-settings.service; journalctl -u unheaded-host-settings -n 60 --no-pager lists the DRIFT lines"
               runbook_url: "runbooks/infra/host-settings-drift.yaml"
 
   # A check that last completed at t=0 and never again: stale after 2 days (+1 h).

@@ -3,11 +3,12 @@
 # Columns, tab-separated: host_path<TAB>repo_path<TAB>mode
 # Modes: exact (byte for byte), contains (every non-comment line of the repo file is
 # a whole line of the host file), redact (keys and passwords masked, comments and
-# blank lines dropped, then compared), absent (the host path must not exist; repo_path -).
+# blank lines dropped, then compared), absent (the host path must not exist; repo_path -),
+# swap (the host path is an active swap; the swap rows are the whole active list; repo_path -).
 # Checked by scripts/check-host-settings.sh --host west (root, on a timer).
 /etc/sysctl.d/99-unheaded.conf	deploy/sysctl.d/99-unheaded-west.conf	exact
 /etc/fstab	deploy/host-settings/west-fstab.fragment	contains
-/etc/systemd/system/docker.service.d/10-unheaded-data.conf	deploy/systemd/docker.service.d/10-unheaded-data.conf	exact
+/etc/systemd/system/docker.service.d/10-unheaded-data.conf	deploy/host-settings/west-docker-data.conf	exact
 /etc/systemd/system/unheaded.slice	deploy/systemd/unheaded.slice	exact
 /etc/systemd/system/unheaded-host.slice	deploy/systemd/unheaded-host.slice	exact
 /etc/systemd/system/unheaded-env.slice	deploy/systemd/unheaded-env.slice	exact
@@ -16,6 +17,7 @@
 /etc/wireguard/wg0.conf	config/wireguard/west.conf	redact
 /etc/frr/frr.conf	routing/frr/west.conf	exact
 /etc/frr/daemons	routing/frr/daemons	exact
+/swap.img	-	swap
 /var/swapfile2	-	absent
 /var/swapfile3	-	absent
 /var/swapfile4	-	absent

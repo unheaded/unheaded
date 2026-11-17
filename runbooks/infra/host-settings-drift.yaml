@@ -27,18 +27,18 @@ notes: |
 steps:
   - name: list-drift-unprivileged
     action: shell
-    command: "scripts/check-host-settings.sh --host west --allow-skip; echo rc=$?"
+    command: "scripts/check-host-settings.sh --host \"$(hostname -s)\" --allow-skip; echo rc=$?"
     description: "From the checkout, as yourself: OK, DRIFT or SKIP, the mode, the host path (or the sysctl key, mount target, swap list). Root-only files (WireGuard, FRR) read SKIP here; the next step reads them. rc 4 = drift, 2 = a broken manifest, 1 = the check itself failed."
 
   - name: list-drift-as-root
     action: manual
-    command: "sudo /usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded; echo rc=$?"
-    description: "The same check as the timer runs it, root-only files included. rc 3 = a file could not be read."
+    command: "sudo systemctl start unheaded-host-settings.service; journalctl -u unheaded-host-settings -n 60 --no-pager"
+    description: "The same check as the timer runs it, root-only files included: the unit takes the host's name and the checkout's path from /etc/unheaded/host-settings.env. The journal holds the verdict lines; the unit's result is success for exit 0, 3 (a file could not be read) and 4 (drift)."
 
   - name: see-the-difference
     action: manual
     command: |
-      # For one DRIFT line: H is the host path, R the repository file named for it in deploy/host-settings/west.tsv.
+      # For one DRIFT line: H is the host path, R the repository file named for it in deploy/host-settings/<host>.tsv.
       # exact (never for a file that holds a key; use the redact line):
       sudo diff -u H R
       # contains: prints the repository lines the host lacks

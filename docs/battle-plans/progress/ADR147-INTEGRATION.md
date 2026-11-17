@@ -163,6 +163,22 @@ A second round, answered about 18:55Z:
 | Plan 4 WG1 to WG5 and the reboot | "Yes but document and ensure this isn't hard coded, and is configurable" | All A. The tree is being read for host-specific values that plan 4 hard-codes; what that finds is recorded below it |
 | Plan 5 LW1 to LW5 | Yes | A, C, A, A, A |
 
+**Plan 4, "document and ensure this isn't hard coded, and is configurable" (2026-11-17, about 19:00Z to 19:15Z).** A read-only pass listed what plan 4's code on this branch wrote in for one host. Changed here, repository only:
+
+| Was | Now |
+|---|---|
+| `unheaded-host-settings.service` named `west` and `/home/govan/tmp/unheaded` | One unit for every host: `HOST_SETTINGS_REPO` (required), `HOST_SETTINGS_HOST` (default: the host's short name) and `HOST_SETTINGS_TEXTFILE` from `/etc/unheaded/host-settings.env` (`deploy/systemd/host-settings.env.example`). The repository check refuses a unit that names a home directory or a host |
+| `check-host-settings.sh`: `case west) expect_swaps="/swap.img"` | A manifest mode `swap`: the `swap` rows are the host's whole active swap list; west's manifest has the row |
+| `check-host-settings.sh`: the huge-page rule read one file, `99-unheaded-west.conf` | It holds for every manifest row under `/etc/sysctl.d/` |
+| `deploy/systemd/docker.service.d/10-unheaded-data.conf`, west's five paths in a file with no host in its name | `deploy/host-settings/west-docker-data.conf`, beside west's fstab fragment; installed under the same host path |
+| `deploy/nftables/west.nft`: interfaces, addresses and port sets written in the rules | A `define` block at the top. Both versions loaded in a private namespace (`unshare -rn`): `nft list ruleset` is byte-identical, 47 lines. The two rates stay in the rules (nft 1.1.5 takes no variable after `limit rate`) |
+| `HostSettingsDrift`'s text and the runbook named `/home/govan/tmp/unheaded` and `west` | Both say: start the unit, read its journal. Runbook manifest rewritten (`--write`); the seal is Stevie's |
+| `bootstrap-llm-lab.sh` installed `99-unheaded-west.conf` on any host | `SYSCTL_SOURCE`, default `deploy/sysctl.d/99-unheaded-<host>.conf`; it stops when the file is missing |
+
+`wiki/Host-Settings.md` (new, linked from Home and the sidebar) documents the per-host files, the filter's names and values, the unit's variables and the steps for a second host. Tests: `scripts/test-check-host-settings.sh` 44 passed (seven new cases, five red first); the promtool rule test for the changed alert text has NOT run (container). Plan 4 Steps 43, 95, 165 and 256 amended. Dated plans that quote the old filter lines (S-E1-LIVE Steps near 1079 to 1084, S-ZHEN-SWITCH grounding line 31, plan 4 Step 97 for ruling B) are left as written. Still to come: the compose lane's pid limits, slice and `AUTH_ANONYMOUS_FROM` default (its own branch), and the unit lists of the slice drop-ins, which are only in comments.
+
+The same commit records the week's closing reading (18:57Z) in `S-E1-LIVE-progress.md` and brings `runbooks/observe/alert-pipeline-silent.yaml` in line with one digest a day.
+
 Not asked again: SS3 and plan 2's D1 to D7 were laid out for Stevie and not answered one by one; they stay as built until he says otherwise.
 
 Not changed: `runbooks/observe/alert-pipeline-silent.yaml` still says the mailer mails "alert pipeline silent" (true under `delivery: immediate`); a runbook edit needs the manifest rewritten and Stevie's seal.

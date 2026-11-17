@@ -26,6 +26,7 @@ WORK="$(mktemp -d)"
 trap 'chmod -R u+rwX "${WORK}" 2>/dev/null; rm -rf "${WORK}"' EXIT
 PASSED=0
 FAILED=0
+TABCH="$(printf '\t')"
 FAKE_KEY='kTESTpRiVaTeKeYdOnOtPrInT0000000000000000000='
 FAKE_PSK='pTESTpReShArEdKeYdOnOtPrInT00000000000000000='
 FAKE_PW='TESTbgpPassw0rdDoNotPrint'
@@ -260,6 +261,57 @@ rm "${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
 RC=0
 OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
 expect "10 no drift-check unit refused" 1 'unheaded-host-settings.service'
+
+echo "--- 12: nothing about one host is in the code (Stevie, 2026-11-17) ---"
+# The huge page rule holds for every host's sysctl source, not one file name.
+setup
+mkdir -p "${WORK}/repo/deploy/sysctl.d"
+printf '# SPDX-License-Identifier: GPL-3.0-or-later\nvm.nr_hugepages = 1024\n' >"${WORK}/repo/deploy/sysctl.d/99-unheaded-north.conf"
+printf '# SPDX-License-Identifier: GPL-3.0-or-later\n/etc/sysctl.d/99-unheaded.conf\tdeploy/sysctl.d/99-unheaded-north.conf\texact\n' \
+	>"${WORK}/repo/deploy/host-settings/north.tsv"
+RC=0
+OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+expect "12 huge pages refused in a second host's sysctl source" 1 '99-unheaded-north.conf'
+# The unit names no home directory and no host: both come from the host.
+setup
+printf 'ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host ${HOST_SETTINGS_HOST} --repo /home/someone/unheaded\n' \
+	>>"${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
+RC=0
+OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+expect "12 the unit naming a home directory refused" 1 'home directory'
+setup
+printf 'ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host west --repo ${HOST_SETTINGS_REPO}\n' \
+	>>"${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
+RC=0
+OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+expect "12 the unit naming one host refused" 1 'names one host'
+setup
+printf 'ExecStart=/usr/local/lib/unheaded/check-host-settings.sh --host ${HOST_SETTINGS_HOST} --repo ${HOST_SETTINGS_REPO}\n' \
+	>>"${WORK}/repo/deploy/systemd/unheaded-host-settings.service"
+RC=0
+OUT="$("${GATE}" --repo "${WORK}/repo" 2>&1)" || RC=$?
+expect "12 the unit taking both from its environment passes" 0 ''
+# The active swap list is rows of the manifest (mode swap), not a case on the host's name.
+setup
+printf '/swap.img\t-\tswap\n' >>"${WORK}/repo/deploy/host-settings/west.tsv"
+mkdir -p "${WORK}/root/proc"
+printf 'Filename\t\t\t\tType\t\tSize\t\tUsed\t\tPriority\n/swap.img                               file\t\t8388604\t\t0\t\t-2\n' >"${WORK}/root/proc/swaps"
+gate
+expect "12 the one swap the manifest names is OK" 0 "OK${TABCH}swap${TABCH}/swap.img"
+printf '/var/swapfile2                          file\t\t8388604\t\t0\t\t-3\n' >>"${WORK}/root/proc/swaps"
+gate
+expect "12 a second active swap is drift" 4 "DRIFT${TABCH}swap"
+setup
+printf '/swap.img\tdeploy/x\tswap\n' >>"${WORK}/repo/deploy/host-settings/west.tsv"
+gate
+expect "12 a swap row with a repo_path is exit 2" 2 ''
+setup
+gate
+if printf '%s\n' "${OUT}" | grep -q "${TABCH}swap${TABCH}"; then
+	bad "12 a manifest with no swap row still got a swap verdict"
+else
+	ok "12 a manifest with no swap row has no swap verdict"
+fi
 
 echo "--- 11: a crash is not drift ---"
 if [ "$(id -u)" -eq 0 ]; then

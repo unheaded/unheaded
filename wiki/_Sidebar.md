@@ -178,6 +178,7 @@
 - [[Overlay Network|Overlay-Network]]
 - [[Alerting]]
 - [[Systemd Units|Systemd-Units]]
+- [[Host Settings|Host-Settings]]
 - [[Runbooks]]
 
 **Storage**
