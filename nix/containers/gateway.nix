@@ -91,7 +91,7 @@
     ];
     checkInterval = "30s";
     checkTimeout = 5;
-    totalServices = 10;
+    totalServices = 5;
   };
 
   # ===========================================================================
