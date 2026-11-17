@@ -152,7 +152,8 @@ A step not listed runs as written.
 | 7 | Plan 1's backup and swap-alert rows read done | True only after block D; until then Phases 4 and 5 are `[BLOCKED]`, as the step says |
 | 147, 171 | Checks the Well's backup timer | Also `unheaded-clickhouse-backup`, `unheaded-victoria-backup` and `unheaded-store-drill` timers (plan 1): none due inside the window |
 | 157, 226, 295 | `maintenance.sh 60m` | `maintenance.sh --planned 60m "<reason>"`: a silence alone lets `ContainerStopped` and the SLO budgets count the stop |
-| 215, 217 | Merge develop into the compose lane | Expect a conflict on the five removed services; 18 services remain; the limits then sum to 12,800 (11.1% of the thread limit) |
+| 215, 217 | Merge develop into the compose lane | Expect a conflict on the five removed services; 18 services remain; the limits then sum to 12,800 (11.1% of the thread limit). Since lane commit `38565750` the limits, the slice and the gate's thresholds are variables with these values as defaults; two comments in the lane still say 15,360 and 13.3% |
+| 225 | Stevie says yes to the recreate | Amended in the plan (2026-11-17): first he adds `AUTH_ANONYMOUS_FROM` with west's two networks to `/etc/unheaded/compose.env`; the compose default no longer carries them (lane commit `38565750`) |
 | 218-219 | A grep for slice names | It also matches huginn's test fixtures; `cmd/huginn/cgroups.go` walks any slice to depth 4, so a hit in a fixture is not a defect |
 | 165 | Installs Docker's drop-in from `deploy/systemd/docker.service.d/` | Amended in the plan (2026-11-17): the file is west's own, `deploy/host-settings/west-docker-data.conf`, installed under the same host name |
 | 246 | Expects `rc=1` | The gate exits 4 on drift (REV-2) |

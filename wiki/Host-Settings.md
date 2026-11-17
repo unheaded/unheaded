@@ -62,8 +62,10 @@ The schedule (10 minutes after boot, then daily) is a systemd timer: `systemctl 
 
 | What | Where | Default |
 |---|---|---|
-| Which networks reach the kanban task list and the dashboard's `/metrics` without a credential (plan 4, WG3) | `AUTH_ANONYMOUS_FROM` in the compose secrets file; see [[Security]] | unset in the code: everyone |
+| Which networks reach the kanban task list and the dashboard's `/metrics` without a credential (plan 4, WG3) | `AUTH_ANONYMOUS_FROM` in the compose secrets file; see [[Security]] | unset in the code: everyone. The compose files (same lane) default to loopback and the Docker ranges; a link to a second host or an overlay is added per deployment, as the example in `db/.env.example` shows for west |
 | Where backup sets go, and whether they must be on another disk than the data | `WELL_BACKUP_DIR`, `WELL_BACKUP_OTHER_DISK`, `CH_BACKUP_OTHER_DISK`, `VM_BACKUP_OTHER_DISK`; see [[Well-Backups]] | `/srv/backups/...`; the guard is on in the units |
+| Each container's pid limit and the slice containers run in (plan 4 Phase 7; on `sprint/s-west-ground-compose` until that phase merges it) | `UNHEADED_PIDS_LIMIT`, `UNHEADED_CH_PIDS_LIMIT`, `UNHEADED_CGROUP_PARENT` in the compose env file, and again in `monitoring/.env` for the monitoring stack | 512, 2048, `unheaded-env.slice` |
+| What `scripts/check-compose-pids.sh` holds the limits against (same lane) | `COMPOSE_PIDS_THREADS_MAX`, `COMPOSE_PIDS_SHARE_PERCENT`, `COMPOSE_PIDS_PER_SERVICE_MAX`, `COMPOSE_PIDS_PER_FILE_MAX`, `COMPOSE_PIDS_SLICE` | 115473 (west's `kernel.threads-max`), 15, 4096, 20000, `unheaded-env.slice` |
 | A Well role's connection limit | `<ROLE>_CONNECTION_LIMIT` and `scripts/well/set-role-limits.sh`; see [[The-Well]] | the ledger's (app_zhen 20) |
 | What is mailed | `mailer.delivery`, `mailer.immediate`, the caps; see [[Alerting]] | one digest a day |
 
