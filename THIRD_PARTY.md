@@ -98,7 +98,7 @@ Direct modules, from `go.mod`. Every indirect module, with its license as read, 
 | Module | Version | License | Purpose |
 |--------|---------|---------|---------|
 | github.com/BurntSushi/toml | v1.6.0 | MIT | TOML configuration parsing |
-| github.com/anthropics/anthropic-sdk-go | v1.82.0 | MIT | Claude API client (`pkg/claudebridge`) |
+| github.com/anthropics/anthropic-sdk-go | v1.84.0 | MIT | Claude API client (`pkg/claudebridge`) |
 | github.com/cilium/ebpf | v0.22.0 | MIT | Loading eBPF programs and reading their maps |
 | github.com/cloudflare/circl | v1.6.5 | BSD-3-Clause | Post-quantum cryptography |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause | UUID generation |

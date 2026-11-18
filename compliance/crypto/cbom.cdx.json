@@ -1660,7 +1660,7 @@
     {
       "type": "cryptographic-asset",
       "bom-ref": "docker-compose.yml:173:proxy-image",
-      "name": "Traefik edge (traefik:v3.3.7@sha256:2cd5cc75530c8d07ae0587c743d23eb30cae2436d07017a5ff78498b1a43d09f)",
+      "name": "Traefik edge (traefik:v3.7.19@sha256:aa942a00bce033c909bf1f7e861d93761be4b31a035f10d2410d33e38a8f41cf)",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {

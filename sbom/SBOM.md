@@ -48,7 +48,7 @@ means the files name each of these; they may be alternatives.
 | Module | Version | License |
 |--------|---------|---------|
 | github.com/BurntSushi/toml | v1.6.0 | MIT |
-| github.com/anthropics/anthropic-sdk-go | v1.82.0 | MIT |
+| github.com/anthropics/anthropic-sdk-go | v1.84.0 | MIT |
 | github.com/cilium/ebpf | v0.22.0 | MIT |
 | github.com/cloudflare/circl | v1.6.5 | BSD-3-Clause |
 | github.com/google/uuid | v1.6.0 | BSD-3-Clause |

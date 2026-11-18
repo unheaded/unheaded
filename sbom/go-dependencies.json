@@ -99,7 +99,7 @@
     },
     {
       "module": "github.com/anthropics/anthropic-sdk-go",
-      "version": "v1.82.0",
+      "version": "v1.84.0",
       "indirect": false,
       "compiled": true,
       "license": "MIT",
