@@ -2627,7 +2627,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		Load15m       float64 `json:"load_15m"`
 		Goroutines    int     `json:"goroutines"`
 		UptimeSeconds float64 `json:"uptime_seconds"`
-		// Extended system metrics (from system-summary)
+		// Extended system metrics
 		SwapTotal     uint64         `json:"swap_total"`
 		SwapUsed      uint64         `json:"swap_used"`
 		SwapPercent   float64        `json:"swap_percent"`
