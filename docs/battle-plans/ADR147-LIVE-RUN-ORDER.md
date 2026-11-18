@@ -27,6 +27,8 @@ Copyright (c) 2026 Stevie Bellis.
 | 3 | The rulings, in one round (table below) | Plan 3 forbids a merge to develop on an unanswered D1 to D6. |
 | 4 | Say go for block B (the gates) and block C (the merge) | The merge changes files that running containers read at their next restart. |
 
+**2026-11-18, about 00:30Z.** Row 2 is done: Stevie closed the week, ClickHouse stays, and he asked for a parked ADR on making the log store a setting (ADR-151). Row 3 is done but for plan 3's D7. Row 4 is given: blocks A, then B, then C, without asking again; block C only if every gate of B is green. Plan 2 Step 306 (the five entries in west's compose override): yes. Row 1 is still open, so every commit and the merge are unsigned until the key is unlocked.
+
 **The rulings.** "Lane took" is what the code already does on the plan's recommendation; a different answer means rework before the live phase.
 
 | Plan | Id | Question, short | Recommended | Lane took | Needed by |
