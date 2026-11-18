@@ -7,7 +7,7 @@
 # Stage 3: final  — gcr.io/distroless/static-debian12 (no shell, no package manager)
 #
 # Build args:
-#   SERVICE    — binary name to copy (e.g. monad, sophia, wotan)
+#   SERVICE    — binary name to copy (e.g. wotan, timeguru)
 #   VERSION    — git tag / semver (default: dev)
 #   BUILD_DATE — ISO 8601 build timestamp
 #   COMMIT     — git short SHA

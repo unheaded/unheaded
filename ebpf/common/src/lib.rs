@@ -151,28 +151,9 @@ pub enum Direction {
     Egress = 1,
 }
 
-/// Flow event sent to userspace via ring buffer.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Default)]
-pub struct FlowEvent {
-    pub timestamp_ns: u64,
-    pub flow_key: FlowKey,
-    pub state: FlowState,
-    pub event_type: FlowEventType,
-    pub _pad: [u8; 7],
-}
-
-/// Type of flow event.
-#[repr(u8)]
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub enum FlowEventType {
-    #[default]
-    New = 0,
-    StateChange = 1,
-    Expired = 2,
-    Update = 3,
-    Anomaly = 4,
-}
+// FlowEvent and FlowEventType were removed 2026-11 with flow-tracker's
+// FLOW_EVENTS ring (ADR-147, BlackMage F8): nothing read it. Flows reach
+// userspace through the FLOWS map and its batch reader.
 
 /// Latency measurement event from kprobes.
 #[repr(C)]
@@ -434,15 +415,6 @@ mod tests {
     }
 
     #[test]
-    fn test_flow_event_type_repr_values() {
-        assert_eq!(FlowEventType::New as u8, 0);
-        assert_eq!(FlowEventType::StateChange as u8, 1);
-        assert_eq!(FlowEventType::Expired as u8, 2);
-        assert_eq!(FlowEventType::Update as u8, 3);
-        assert_eq!(FlowEventType::Anomaly as u8, 4);
-    }
-
-    #[test]
     fn test_latency_operation_repr_values() {
         assert_eq!(LatencyOperation::TcpSend as u8, 0);
         assert_eq!(LatencyOperation::TcpRecv as u8, 1);
@@ -477,17 +449,6 @@ mod tests {
             size % 8,
             0,
             "PacketEvent should be 8-byte aligned, got size {}",
-            size
-        );
-    }
-
-    #[test]
-    fn test_flow_event_size_aligned() {
-        let size = std::mem::size_of::<FlowEvent>();
-        assert_eq!(
-            size % 8,
-            0,
-            "FlowEvent should be 8-byte aligned, got size {}",
             size
         );
     }

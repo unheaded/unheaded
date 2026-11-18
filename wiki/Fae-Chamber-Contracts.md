@@ -8,11 +8,9 @@ Topic and message contracts for Wotan (the Fae Chamber): which service publishes
 
 | Domain | Owner | Topics used in code |
 |--------|-------|----------------------------------|
-| `tasks` | Micromanager / kanban | `tasks.created`, `.updated`, `.completed`, `.deleted`, `.created.bulk` |
+| `tasks` | kanban-app | `tasks.created`, `.updated`, `.deleted` |
 | `timeline` | Timeguru | `timeline.updates`, `.updated`, `.sync`, `.task.{created,updated,removed}`, `.phase.{started,completed}`, `.milestone.{hit,missed}` |
-| `decisions` | Captain | `decisions.created` |
-| `architecture` | Architect | `architecture.updates` |
-| `alerts` | everyone | `alerts.critical` (every service subscribes) |
+| `alerts` | alert-mailer | `alerts.critical` (signed; every service on the bus subscribes through `pkg/critalert`) |
 | `state` | unheaded-daemon | `state.changed` |
 | `system` | Akira, discovery | `system.health.reports`, `system.health.consensus`, `system.health.remediate` (ADR-029), `system.discovery` (TTL registration) |
 | `logs` | every service | `logs.<service>.<level>` (`pkg/logagg`) |
@@ -22,7 +20,7 @@ Topic and message contracts for Wotan (the Fae Chamber): which service publishes
 | `compliance` | compliance eBPF | `compliance.violations` |
 | `config` | control plane | `config.*` must carry an ML-DSA-65 signature ([[Wotan-Topic-Signing]]) |
 
-The source doc's fuller catalog (e.g. `tasks.blocked`, `state.drift.*`, `metrics.anomaly`) is design intent; the table above is what code publishes or subscribes to today.
+The source doc's fuller catalog (e.g. `tasks.blocked`, `state.drift.*`, `metrics.anomaly`) is design intent; the table above is what code publishes or subscribes to today. `decisions.*`, `architecture.*`, `tasks.completed` and `tasks.created.bulk` lost their publishers with the role services (removed 2026-11, ADR-147).
 
 ## Message shape
 

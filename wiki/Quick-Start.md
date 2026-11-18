@@ -49,12 +49,9 @@ Kingdom service APIs (each exposes `/health`):
 
 | Service | Port | Service | Port |
 |---------|------|---------|------|
-| Wotan | 18000 (HTTP) / 18001 (gRPC) | Monad | 19004 |
-| Timeguru | 19000 | Sophia | 19005 |
-| Architect | 19001 | Cuirass | 19006 |
-| Captain | 19002 | Dashboard | 20000 |
-| Micromanager | 19003 | Kanban | 20001 |
-| Akira | 19100 | | |
+| Wotan | 18000 (HTTP) / 18001 (gRPC) | Cuirass | 19006 |
+| Timeguru | 19000 | Dashboard | 20000 |
+| Akira | 19100 | Kanban | 20001 |
 
 Infra: VictoriaMetrics `8428` · ClickHouse `8123`/`9000` · Postgres `5432` (127.0.0.1 only, TLS; see [[The Well|The-Well]]) · CoreDNS `5353` · Traefik edge `80`/`443`. All but the edge bind `127.0.0.1`; see [[Port Registry|Port-Registry]].
 
@@ -62,7 +59,7 @@ Infra: VictoriaMetrics `8428` · ClickHouse `8123`/`9000` · Postgres `5432` (12
 
 ```bash
 # All Kingdom services should return 200 OK on /health
-for p in 18000 19000 19001 19002 19003 19004 19005 19006 19100 20000 20001; do
+for p in 18000 19000 19006 19100 20000 20001; do
   printf "localhost:%-5s -> " "$p"; curl -sf "http://localhost:$p/health" && echo || echo DOWN
 done
 ```

@@ -1,0 +1,66 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: memory-kill
+  description: The kernel killed a process for memory (MemoryKill in the stack's slices, HostOOMKill anywhere) or a cgroup sits at its limit (ContainerMemoryNearLimit)
+  owner: zhenai
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147 decision 2 (S-SEE-AND-SURVIVE). huginn reads memory.events per
+  cgroup (cmd/huginn/cgroups.go). The count is hierarchical: a container
+  killed as its PID 1 takes its own scope with it, but system.slice (or
+  unheaded.slice) keeps the count, so MemoryKill reads the slices and this
+  runbook finds the child.
+
+  A killed container stays down (restart policy no) and ContainerStopped
+  fires too, with unheaded_container_oom_killed 1. A killed child process
+  leaves its container up and maybe broken: read its log.
+
+  A limit is raised only after the growth is explained (Micromanager 4.5):
+  a leak with a higher limit is the same kill later.
+
+steps:
+  - name: which-cgroup
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=increase(huginn_cgroup_memory_events_total{event="oom_kill"}[1h]) > 0' |
+        python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), r["metric"].get("container_id", "-"), "%.0f kills in the last hour" % float(r["value"][1])) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Every cgroup whose kill count rose in the last hour: the deepest one is where it happened (a slice line only: the scope is gone with its container)"
+
+  - name: which-container
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=unheaded_container_oom_killed == 1' |
+        python3 -c 'import json,sys; [print(r["metric"].get("name", "-")) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Containers Docker says were killed for memory"
+
+  - name: kernel-log
+    action: shell
+    command: |
+      journalctl -k --since -30min --no-pager | grep -i -E 'killed process|out of memory|oom' | tail -20
+    description: "The kernel's own lines: the process, its memory at the kill, and the cgroup"
+
+  - name: limit
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=huginn_cgroup_memory_bytes / huginn_cgroup_memory_max_bytes > 0.8' |
+        python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), "%.0f%% of its limit" % (100 * float(r["value"][1]))) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "Groups over 80% of their memory limit now"
+
+  - name: decide
+    action: manual
+    command: |
+      echo "Growth explained (a known job, a load run): raise the limit in docker-compose.yml or the unit, with the reason in the commit."
+      echo "Not explained: leave the limit, start the container (container-stopped.yaml) and watch huginn_cgroup_memory_bytes for it."
+    description: "MANUAL. Never raise a limit to make an alert go away"

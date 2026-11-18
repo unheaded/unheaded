@@ -43,6 +43,9 @@ type agentdAudit struct {
 	auditor claudebridge.Auditor // nil: audit off
 	well    *claudebridge.WellAuditor
 	wotan   *claudebridge.WotanAuditor
+	// client is the one Wotan client (-audit-wotan), also used for the
+	// critical-alert hold (pkg/critalert); nil without -audit-wotan.
+	client  *wotanClient.Client
 	closers []func()
 }
 
@@ -93,6 +96,7 @@ func buildAgentdAudit(ctx context.Context, wantWell, wantWotan bool) (*agentdAud
 		if err != nil {
 			return nil, fmt.Errorf("-audit-wotan: %w", err)
 		}
+		a.client = c
 		a.closers = append(a.closers, func() { _ = c.Close() })
 		wa, err := claudebridge.NewWotanAuditor(claudebridge.WotanAuditorConfig{
 			Pub: claudebridge.WotanClientPublisher{C: c}, Name: "zhen-agentd", Backend: claudebridge.BackendLocal,
@@ -217,20 +221,10 @@ func buildConfirmQueue(ctx context.Context, want bool) (claudebridge.ConfirmQueu
 	if !want {
 		return nil, func() {}, nil
 	}
-	dsn := strings.TrimSpace(os.Getenv("WELL_APP_ZHEN_DSN"))
-	if dsn == "" {
-		return nil, func() {}, fmt.Errorf("-confirm-queue needs WELL_APP_ZHEN_DSN (unheaded_app as app_zhen)")
-	}
-	db, err := sql.Open("postgres", dsn)
+	db, err := pools.zhen(ctx, "-confirm-queue")
 	if err != nil {
 		return nil, func() {}, err
 	}
-	db.SetMaxOpenConns(2)
-	pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-	if err := db.PingContext(pctx); err != nil {
-		_ = db.Close()
-		return nil, func() {}, fmt.Errorf("the Well is unreachable: %w", err)
-	}
-	return claudebridge.SQLConfirmQueue{DB: db}, func() { _ = db.Close() }, nil
+	// The pool is shared (pools.go); main closes it.
+	return claudebridge.SQLConfirmQueue{DB: db}, func() {}, nil
 }

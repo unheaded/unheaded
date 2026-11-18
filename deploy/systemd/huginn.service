@@ -18,6 +18,12 @@ Description=Huginn — Kingdom host metrics agent
 Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/huginn
 After=network-online.target wg-quick@wg0.service
 Wants=network-online.target
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (180 starts x RestartSec 5s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 50 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=180
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
@@ -30,6 +36,7 @@ Type=simple
 # Loopback unless /etc/huginn.env names this host's internal addresses
 # (huginn.env.example): huginn has no auth, and its callers are the dashboard
 # and Prometheus on other addresses.
+# Reads cgroupfs (read-only under ProtectControlGroups=yes) for per-cgroup series (ADR-147)
 Environment=HUGINN_LISTEN=127.0.0.1:9110
 EnvironmentFile=-/etc/huginn.env
 ExecStart=/usr/local/bin/huginn \

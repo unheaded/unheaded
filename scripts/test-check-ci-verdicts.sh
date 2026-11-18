@@ -245,11 +245,11 @@ ci_verdict_expect_bite "trivy left to float" docker-images "${DOCKER_WF}" \
 ci_verdict_expect_bite "a job that pushes before it scans" docker-images "${DOCKER_WF}" \
 	's/^( +)load: true$/\1push: true/'
 ci_verdict_expect_bite "a service Dockerfile building a command that left" docker-services \
-	"docker/services/monad/Dockerfile" 's#\./cmd/monad$#./cmd/monad-gone#'
+	"docker/services/shield/Dockerfile" 's#\./cmd/shield$#./cmd/shield-gone#'
 ci_verdict_expect_bite "the Makefile naming a service with no Dockerfile" docker-services \
-	"docker/Makefile" 's/^SERVICES := monad /SERVICES := monad gone /'
+	"docker/Makefile" 's/^SERVICES := shield /SERVICES := shield gone /'
 ci_verdict_expect_bite "a service Dockerfile the Makefile does not build" docker-services \
-	"docker/Makefile" 's/^SERVICES := monad sophia /SERVICES := monad /'
+	"docker/Makefile" 's/^SERVICES := shield unheaded-daemon /SERVICES := shield /'
 
 echo "--- downloads unpacked or run as they arrive ---"
 ci_verdict_expect_bite "an archive unpacked as it downloads" tool-fetch "${SBOM_WF}" \

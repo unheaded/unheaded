@@ -15,12 +15,8 @@ wotan:
   wotan-http:            { port: 18000, proto: http,      lore_name: wotan }
   wotan-grpc:            { port: 18001, proto: grpc,      lore_name: wotan }
 services:
+  # 19001-19005 retired 2026-11 (ADR-147 decision 7). Not reused.
   timeguru:              { port: 19000, proto: http,      lore_name: hourglass }
-  architect:             { port: 19001, proto: http,      lore_name: mason }
-  captain:               { port: 19002, proto: http,      lore_name: pennant }
-  micromanager:          { port: 19003, proto: http,      lore_name: quartermaster }
-  monad:                 { port: 19004, proto: http,      lore_name: monad }
-  sophia:                { port: 19005, proto: http,      lore_name: sophia }
   cuirass:               { port: 19006, proto: http,      lore_name: cuirass }
 applications:
   dashboard-backend:     { port: 20000, proto: http,      lore_name: visor }

@@ -52,6 +52,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/modules"
 	"unheaded/pkg/zhenagent"
 )
 
@@ -422,19 +423,28 @@ type AgentRun struct {
 	ReviewedAt   *time.Time `json:"reviewed_at,omitempty"`
 }
 
-// agentRunSource is a store that can say which agent run worked a card.
-// Only the Well has zhen_agent_runs; SQLite and memory stores do not.
+// agentRunSource can say which agent run worked a card: the Zhen module's
+// runs (runsReader over unheaded_zhen), or a test's stand-in. SQLite and
+// memory boards have none.
 type agentRunSource interface {
 	LatestAgentRun(ctx context.Context, cardID string) (*AgentRun, error)
 }
 
+// runsReader is zhen_agent_runs in unheaded_zhen as app_kanban (ADR-149),
+// read through the pool zhenRuns opens while the Zhen module is on.
+type runsReader struct{ db *sql.DB }
+
 // LatestAgentRun implements agentRunSource: nil, nil when the card has no
-// run. Reads only the columns 041 grants app_kanban.
-func (p *PgStore) LatestAgentRun(ctx context.Context, cardID string) (*AgentRun, error) {
+// run. Reads only the columns 052 grants app_kanban (041's).
+func (r runsReader) LatestAgentRun(ctx context.Context, cardID string) (*AgentRun, error) {
+	return latestAgentRun(ctx, r.db, cardID)
+}
+
+func latestAgentRun(ctx context.Context, db *sql.DB, cardID string) (*AgentRun, error) {
 	var r AgentRun
 	var branch, head, note, check, reason sql.NullString
 	var reviewed sql.NullTime
-	err := p.db.QueryRowContext(ctx, `
+	err := db.QueryRowContext(ctx, `
 		SELECT id, status, mode, family, branch, head_commit, route_summary->>'review_note',
 		       route_summary->>'check', review_reason, claimed_at, reviewed_at
 		  FROM zhen_agent_runs WHERE card_id = $1 ORDER BY claimed_at DESC LIMIT 1`, cardID).
@@ -472,9 +482,16 @@ func (r *AgentRun) sanitize() {
 var agentRunWarned atomic.Bool
 
 func (s *Server) agentRunFor(ctx context.Context, cardID string) *AgentRun {
+	if !modules.Enabled("zhen") {
+		return nil // the module is off: no query, no warning (ADR-149)
+	}
 	src, ok := s.store.(agentRunSource)
 	if !ok {
-		return nil
+		db := s.zhenRuns(ctx)
+		if db == nil {
+			return nil
+		}
+		src = runsReader{db: db}
 	}
 	ctx, cancel := context.WithTimeout(ctx, agentRunLookupLimit)
 	defer cancel()
@@ -634,13 +651,16 @@ type taskDetail struct {
 	RunbookProgress *RunbookProgress `json:"runbook_progress,omitempty"`
 	AgentRun        *AgentRun        `json:"agent_run,omitempty"`
 	ZhenOptIn       *ZhenOptIn       `json:"zhen_opt_in,omitempty"`
+	// ZhenModule is set while the Zhen module is on (ADR-149): the modal shows
+	// its Zhen section only then.
+	ZhenModule bool `json:"zhen_module,omitempty"`
 	// CardSHA256 is this card's text as served here, what an opt-in must name.
 	CardSHA256 string `json:"card_sha256"`
 }
 
 func (s *Server) writeTaskDetail(w http.ResponseWriter, r *http.Request, t *Task) {
 	d := taskDetail{Task: t, Runbook: runbookRefOf(t), AgentRun: s.agentRunFor(r.Context(), t.ID), ZhenOptIn: s.zhenOptInFor(r.Context(), t),
-		CardSHA256: zhenagent.CardSHA256(t.Title, t.Description)}
+		CardSHA256: zhenagent.CardSHA256(t.Title, t.Description), ZhenModule: modules.Enabled("zhen")}
 	if d.Runbook != "" {
 		d.RunbookProgress, _ = s.runbookProgress().Get(d.Runbook)
 	}

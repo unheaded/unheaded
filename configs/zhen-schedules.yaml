@@ -24,26 +24,10 @@
 # every 60 s); it is not a job.
 version: 1
 jobs:
-  # The Python scheduler's one enabled default (every 30m there). Six hours
-  # here: each run is a card on the board, and minute-level health is
-  # Akira's and the Watchdog's job. No metadata.status.
-  - name: service-health-sweep
-    runbook: observe/service-health-sweep
-    every: 6h
-
-  # Daily indicator-of-compromise audit (Stevie 2026-11-12: "daily if
-  # running, alarm if fails for n+ days"). Reads VictoriaMetrics on loopback
-  # only; an indicator fails the run and the card lands in Review; three days
-  # without a success is the alert IOCAuditNotSucceeding. catch_up because
-  # west is not always on at 02:00. COMMENTED OUT: the runbook is
-  # status: draft, and a draft in this file makes the scheduler refuse to
-  # start. After Stevie approves it (status: approved, approved_by,
-  # approved_at, then scripts/runbook-manifest.sh --write and the seal),
-  # uncomment these four lines.
-  # - name: ioc-audit
-  #   runbook: security/ioc-audit
-  #   every: daily@02:00
-  #   catch_up: true
+  # Platform checks are not Zhen's. The health sweep and the IOC audit run
+  # on the platform's timers (deploy/systemd/unheaded-health-sweep.timer,
+  # unheaded-ioc-audit.timer, ADR-149). Zhen may run a runbook when asked;
+  # it is not their clock.
 
   # Weekly consolidation (the step's starting job). Disabled: its steps run
   # `sudo docker exec unheaded-postgres psql`, which the unit's

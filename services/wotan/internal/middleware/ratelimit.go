@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
+	"unheaded/pkg/auth"
 )
 
 // RateLimiter implements token bucket rate limiting per client
@@ -20,6 +21,15 @@ type RateLimiter struct {
 	rate     rate.Limit
 	burst    int
 	cleanup  time.Duration
+	// subject is the verified service identity of a request, "" for none:
+	// pkg/auth's ServiceSubject (the limiter sits inside Wotan's auth
+	// middleware, so the context already carries it). Tests replace it.
+	subject func(*http.Request) string
+}
+
+// verifiedSubject is the service subject pkg/auth verified on r, or "".
+func verifiedSubject(r *http.Request) string {
+	return auth.IdentityFromContext(r.Context()).ServiceSubject()
 }
 
 // NewRateLimiter creates a new rate limiter
@@ -31,6 +41,7 @@ func NewRateLimiter(r rate.Limit, burst int, cleanup time.Duration) *RateLimiter
 		rate:     r,
 		burst:    burst,
 		cleanup:  cleanup,
+		subject:  verifiedSubject,
 	}
 
 	// Periodic cleanup of old limiters
@@ -79,10 +90,7 @@ func (rl *RateLimiter) cleanupRoutine() {
 // Middleware returns HTTP middleware for rate limiting
 func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// One bucket per client IP. RemoteAddr is IP:port, and every new
-		// connection has a fresh port, so keying on it gave each connection
-		// its own bucket. X-Forwarded-For is not trusted here.
-		limiter := rl.GetLimiter(clientIP(r.RemoteAddr))
+		limiter := rl.GetLimiter(rl.limitKey(r))
 
 		if !limiter.Allow() {
 			http.Error(w, `{"error":"rate_limit_exceeded","message":"Too many requests"}`, http.StatusTooManyRequests)
@@ -91,6 +99,22 @@ func (rl *RateLimiter) Middleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// limitKey is the bucket a request draws from: one per verified service
+// identity ("sub:<name>"), else one per source address ("ip:<addr>"). Every
+// compose service reaches Wotan from the same bridge address, so a bucket
+// per address made each pay for the busiest (ADR-147, BlackMage F5).
+// RemoteAddr is IP:port and every new connection has a fresh port, so the
+// port is dropped; X-Forwarded-For is not trusted. The prefixes keep a
+// subject that looks like an address out of that address's bucket.
+func (rl *RateLimiter) limitKey(r *http.Request) string {
+	if rl.subject != nil {
+		if sub := rl.subject(r); sub != "" {
+			return "sub:" + sub
+		}
+	}
+	return "ip:" + clientIP(r.RemoteAddr)
 }
 
 // clientIP is the host part of a RemoteAddr, or the whole string when it

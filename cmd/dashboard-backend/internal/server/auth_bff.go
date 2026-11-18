@@ -23,6 +23,8 @@ import (
 //
 //   - The UI itself (pages, scripts, styles: every GET outside /api/ and
 //     /ws) and /health, /ready, /metrics, security.txt, /auth/* are open.
+//     With AUTH_ANONYMOUS_FROM set, /metrics is open only to those networks
+//     (ADR-147 decision 16).
 //   - Every /api/ call and every WebSocket needs an identity. Reads take any
 //     of admin, operator, observer, viewer, service; writes take admin,
 //     operator or service; the compliance profile switch takes admin or
@@ -58,6 +60,7 @@ func dashboardRBAC() *auth.RBACConfig {
 // /auth/me, so the page shows no login.
 func (s *Server) wrapAuth(cfg auth.ServiceAuthConfig, next http.Handler) (http.Handler, error) {
 	if !cfg.Enabled {
+		auth.WarnInertAnonymousFrom(cfg, auth.ServiceRoutes{})
 		return next, nil
 	}
 	bcfg := bff.ConfigFromEnv(cfg.ServiceName)
@@ -76,11 +79,16 @@ func (s *Server) wrapAuth(cfg auth.ServiceAuthConfig, next http.Handler) (http.H
 	} else {
 		s.log.Warn().Msg("auth on without AUTH_ISSUER_URL: no browser login; the UI's API calls and WebSockets need a token")
 	}
-	chain, err := auth.NewServiceChain(cfg, auth.ServiceRoutes{
+	routes := auth.ServiceRoutes{
 		OpenPaths:      []string{"/auth", securityTxtPath},
 		RBAC:           dashboardRBAC(),
 		Authenticators: extra,
-	})
+		// ADR-147 decision 16: with AUTH_ANONYMOUS_FROM set, /metrics needs a
+		// credential from outside those networks.
+		AnonymousFrom: cfg.AnonymousFrom,
+		SourceGated:   []string{"/metrics"},
+	}
+	chain, err := auth.NewServiceChain(cfg, routes)
 	if err != nil {
 		if s.bff != nil {
 			s.bff.Close()
@@ -89,7 +97,9 @@ func (s *Server) wrapAuth(cfg auth.ServiceAuthConfig, next http.Handler) (http.H
 	}
 	guarded := chain(next)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isUIRead(r) {
+		// /metrics is a GET outside /api/, so isUIRead would serve it before
+		// the chain; a source-gated request goes to the chain instead.
+		if isUIRead(r) && !routes.GatesRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}

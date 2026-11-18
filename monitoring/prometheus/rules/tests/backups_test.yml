@@ -1,0 +1,58 @@
+# promtool test rules backups_test.yml (from this directory)
+# ADR-147 decision 6 (S-SEE-AND-SURVIVE Phase 8).
+rule_files:
+  - ../backups.yml
+evaluation_interval: 1m
+tests:
+  # ClickHouse backed up at t=0 and never again: late after 26h (+45m),
+  # missing after 50h. VictoriaMetrics is backed up every minute: quiet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_store_backup_last_success_timestamp_seconds{host="west",store="clickhouse"}'
+        values: '0x3100'
+      - series: 'unheaded_store_backup_last_success_timestamp_seconds{host="west",store="victoria"}'
+        values: '0+60x3100'
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: StoreBackupLate
+        exp_alerts: []
+      - eval_time: 26h30m
+        alertname: StoreBackupLate
+        exp_alerts: []
+      - eval_time: 27h
+        alertname: StoreBackupLate
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, store: clickhouse}
+            exp_annotations:
+              summary: "No clickhouse backup on west for over a day"
+              description: "The newest good set of clickhouse is over 26 hours old; see journalctl -u unheaded-clickhouse-backup"
+              runbook_url: "runbooks/data/store-backup-late.yaml"
+      - eval_time: 27h
+        alertname: StoreBackupMissing
+        exp_alerts: []
+      - eval_time: 51h
+        alertname: StoreBackupMissing
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, host: west, store: clickhouse}
+            exp_annotations:
+              summary: "No clickhouse backup on west for two nights"
+              description: "The newest good set of clickhouse is over 50 hours old; a restore now would lose more than two days"
+              runbook_url: "runbooks/data/store-backup-late.yaml"
+
+  # A drill that passed at t=0 and never again: late after 8 days (+45m).
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_store_drill_last_success_timestamp_seconds{host="west",store="victoria"}'
+        values: '0x13000'
+    alert_rule_test:
+      - eval_time: 7d
+        alertname: StoreDrillLate
+        exp_alerts: []
+      - eval_time: 9d
+        alertname: StoreDrillLate
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west, store: victoria}
+            exp_annotations:
+              summary: "No passed restore drill of victoria on west for over a week"
+              description: "A set that has not been restored is not known to restore; see journalctl -u unheaded-store-drill"
+              runbook_url: "runbooks/data/store-backup-late.yaml"

@@ -1,4 +1,4 @@
-.TH HUGINN 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH HUGINN 1 "2026-11-16" "unheaded e6b73f22" "Unheaded Kingdom"
 .SH NAME
 huginn \- Huginn: report bare\-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR\-084).
 .SH SYNOPSIS
@@ -7,6 +7,9 @@ huginn \- Huginn: report bare\-metal host metrics (CPU, memory, disks, network, 
 .SH DESCRIPTION
 Huginn: report bare\-metal host metrics (CPU, memory, disks, network, processes) to the dashboard and VictoriaMetrics (ADR\-084).
 .SH OPTIONS
+.TP
+.B \-\-cgroup\-root \fIDIR\fR
+cgroup v2 DIR read for per\-cgroup series (cgroups.go, ADR\-147); empty turns them off (default /sys/fs/cgroup)
 .TP
 .B \-\-config \fISTRING\fR
 path to YAML config file (optional) (default /etc/huginn.yaml)

@@ -726,55 +726,6 @@
       }
     },
     {
-      "id": 41,
-      "title": "Captain HTTP Requests",
-      "type": "timeseries",
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 31
-      },
-      "targets": [
-        {
-          "expr": "rate(captain_http_requests_total[1m])",
-          "legendFormat": "Total/s"
-        },
-        {
-          "expr": "rate(captain_http_requests_success[1m])",
-          "legendFormat": "Success/s"
-        },
-        {
-          "expr": "rate(captain_http_requests_error[1m])",
-          "legendFormat": "Error/s"
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "drawStyle": "line",
-            "lineWidth": 2,
-            "fillOpacity": 15,
-            "spanNulls": false
-          },
-          "unit": "reqps"
-        }
-      },
-      "options": {
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        },
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      }
-    },
-    {
       "id": 42,
       "title": "VictoriaMetrics — Ingestion & Queries",
       "type": "timeseries",

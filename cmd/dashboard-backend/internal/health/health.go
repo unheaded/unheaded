@@ -761,6 +761,11 @@ func (m *Monitor) GetSystemHealth() *SystemHealth {
 		m.historyMu.RUnlock()
 
 		system.Services[name] = &h
+		// A module's target is listed but never decides the platform's
+		// overall state (ADR-149): it is left out of the counts.
+		if moduleOf(health.Tags) != "" {
+			continue
+		}
 		system.TotalServices++
 
 		switch health.Status {
@@ -881,11 +886,8 @@ func (m *Monitor) ForceCheck(ctx context.Context, name string) (*CheckResult, er
 
 // DefaultServiceEndpoints returns the default LXD bridge addresses for Kingdom services.
 var DefaultServiceEndpoints = map[string]string{
-	"timeguru":     "localhost:19000",
-	"captain":      "localhost:19002",
-	"architect":    "localhost:19001",
-	"micromanager": "localhost:19003",
-	"wotan":        "localhost:18000", // HTTP: /health, /metrics (18001 is gRPC)
+	"timeguru": "localhost:19000",
+	"wotan":    "localhost:18000", // HTTP: /health, /metrics (18001 is gRPC)
 	// No "gateway": nothing serves localhost:21000 in any deployment (the
 	// gateway deb is gone; compose's edge is Traefik on 80/443), so it was
 	// permanently unhealthy and held every dashboard at "unhealthy". A
@@ -897,8 +899,8 @@ var DefaultServiceEndpoints = map[string]string{
 // UNHEADED_TLS_ENABLED=true (S-IRON-GATE Phase 8). Anything else stays
 // http unless its endpoint says https://.
 var FirstParty = map[string]bool{
-	"timeguru": true, "captain": true, "architect": true, "micromanager": true,
-	"wotan": true, "monad": true, "sophia": true, "cuirass": true, "daemon": true,
+	"timeguru": true,
+	"wotan":    true, "cuirass": true, "daemon": true,
 	"kanban": true, "kanban-app": true, "dashboard": true, "akira": true,
 	"sword": true, "auth": true,
 }

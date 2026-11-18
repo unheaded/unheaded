@@ -1,0 +1,49 @@
+# Prometheus alert rules - ClickHouse and VictoriaMetrics backups (ADR-147 decision 6)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Series come from huginn's textfile collector: unheaded-clickhouse-backup,
+# unheaded-victoria-backup and unheaded-store-drill (scripts/backup/) write
+# their .prom file only on success, so a failing job shows here as an old
+# timestamp, never as a value. Schedules: ClickHouse 04:15 and
+# VictoriaMetrics 04:45 nightly, the drill of both on Sundays 05:40. The
+# timers are Persistent=, so a missed run starts soon after boot; for: 45m
+# keeps that catch-up quiet. Modelled on well.yml. The store-backups SLO
+# (policy.yaml) is what notifies.
+
+groups:
+  - name: store-backups
+    interval: 1m
+    rules:
+      - alert: StoreBackupLate
+        expr: time() - max by (host, store) (unheaded_store_backup_last_success_timestamp_seconds) > 26 * 3600
+        for: 45m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "No {{ $labels.store }} backup on {{ $labels.host }} for over a day"
+          description: "The newest good set of {{ $labels.store }} is over 26 hours old; see journalctl -u unheaded-{{ $labels.store }}-backup"
+          runbook_url: "runbooks/data/store-backup-late.yaml"
+
+      - alert: StoreBackupMissing
+        expr: time() - max by (host, store) (unheaded_store_backup_last_success_timestamp_seconds) > 50 * 3600
+        for: 45m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "No {{ $labels.store }} backup on {{ $labels.host }} for two nights"
+          description: "The newest good set of {{ $labels.store }} is over 50 hours old; a restore now would lose more than two days"
+          runbook_url: "runbooks/data/store-backup-late.yaml"
+
+      - alert: StoreDrillLate
+        expr: time() - max by (host, store) (unheaded_store_drill_last_success_timestamp_seconds) > 8 * 86400
+        for: 45m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "No passed restore drill of {{ $labels.store }} on {{ $labels.host }} for over a week"
+          description: "A set that has not been restored is not known to restore; see journalctl -u unheaded-store-drill"
+          runbook_url: "runbooks/data/store-backup-late.yaml"

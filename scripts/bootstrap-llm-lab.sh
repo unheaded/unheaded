@@ -27,6 +27,9 @@ readonly NVME_MOUNT="/mnt/nvme"                   # Fast storage mount
 readonly HDD_MOUNT="/mnt/hdd"                     # Slow storage mount
 readonly MODELS_DIR="/mnt/hdd/models"             # LLM model weights
 readonly UNHEADED_HOME="/opt/unheaded"            # Kingdom home
+# This host's sysctl source, relative to the checkout. One file per host:
+# deploy/sysctl.d/99-unheaded-<host>.conf (SYSCTL_SOURCE=... overrides).
+readonly SYSCTL_SOURCE="${SYSCTL_SOURCE:-deploy/sysctl.d/99-unheaded-$(hostname -s).conf}"
 readonly LOG_FILE="/var/log/unheaded-bootstrap.log"
 
 # Feature flags
@@ -806,84 +809,10 @@ phase_kernel_tune() {
     phase "8/16 — KERNEL TUNING + SYSCTL"
 
     step "Writing sysctl parameters..."
-    cat > /etc/sysctl.d/99-unheaded.conf << 'SYSCTL'
-# ═══════════════════════════════════════════════════════════════════
-# UNHEADED KINGDOM — KERNEL TUNING
-# Target: LLM Lab Server (AMD GPU, heavy inference workloads)
-# ═══════════════════════════════════════════════════════════════════
-
-# ── NETWORK: IPv6-first, forwarding, performance ──
-net.ipv4.ip_forward = 1
-net.ipv6.conf.all.forwarding = 1
-net.ipv6.conf.default.forwarding = 1
-
-# TCP performance
-net.core.rmem_max = 134217728
-net.core.wmem_max = 134217728
-net.core.rmem_default = 16777216
-net.core.wmem_default = 16777216
-net.ipv4.tcp_rmem = 4096 87380 134217728
-net.ipv4.tcp_wmem = 4096 87380 134217728
-net.core.netdev_max_backlog = 50000
-net.core.somaxconn = 65535
-net.ipv4.tcp_max_syn_backlog = 65535
-net.ipv4.tcp_fastopen = 3
-net.ipv4.tcp_mtu_probing = 1
-
-# TCP keepalive (faster dead connection detection)
-net.ipv4.tcp_keepalive_time = 60
-net.ipv4.tcp_keepalive_intvl = 10
-net.ipv4.tcp_keepalive_probes = 6
-
-# Connection tracking for containers
-net.netfilter.nf_conntrack_max = 1048576
-net.nf_conntrack_max = 1048576
-
-# BBR congestion control
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-
-# ── SECURITY: hardening ──
-net.ipv4.conf.all.rp_filter = 1
-net.ipv4.conf.default.rp_filter = 1
-net.ipv4.tcp_syncookies = 1
-net.ipv4.conf.all.accept_redirects = 0
-net.ipv6.conf.all.accept_redirects = 0
-net.ipv4.conf.all.send_redirects = 0
-net.ipv4.conf.all.accept_source_route = 0
-net.ipv6.conf.all.accept_source_route = 0
-net.ipv4.icmp_echo_ignore_broadcasts = 1
-net.ipv4.icmp_ignore_bogus_error_responses = 1
-
-# ── MEMORY: LLM workload optimized ──
-vm.swappiness = 10
-vm.dirty_ratio = 40
-vm.dirty_background_ratio = 10
-vm.overcommit_memory = 1
-vm.max_map_count = 1048576
-
-# Huge pages for GPU/model loading
-vm.nr_hugepages = 1024
-
-# ── FILE DESCRIPTORS ──
-fs.file-max = 2097152
-fs.inotify.max_user_watches = 1048576
-fs.inotify.max_user_instances = 8192
-
-# ── eBPF ──
-# 2 (not 0): only CAP_BPF holders load BPF; 2 stays reversible at runtime.
-kernel.unprivileged_bpf_disabled = 2
-net.core.bpf_jit_enable = 1
-net.core.bpf_jit_harden = 0
-
-# ── AIO (for direct I/O workloads) ──
-fs.aio-max-nr = 1048576
-
-# ── VXLAN / tunneling ──
-net.ipv4.ip_forward = 1
-net.bridge.bridge-nf-call-iptables = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-SYSCTL
+    local sysctl_src
+    sysctl_src="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/${SYSCTL_SOURCE}"
+    [[ -f "${sysctl_src}" ]] || die "no sysctl source for this host: ${SYSCTL_SOURCE} (copy deploy/sysctl.d/99-unheaded-west.conf to that name and edit it, or set SYSCTL_SOURCE)"
+    install -m 0644 "${sysctl_src}" /etc/sysctl.d/99-unheaded.conf
 
     step "Loading kernel modules..."
     local modules=(

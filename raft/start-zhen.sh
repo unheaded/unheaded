@@ -237,7 +237,10 @@ else
     # Defaults match db/migrations/002_create_databases.sql + 008_zhen_memories.
     # No password default: credentials are never stored in this repo. Unset,
     # zhen_app.py logs "The Well not available" and runs without it.
-    export ZHEN_DB_NAME="${ZHEN_DB_NAME:-unheaded_app}"
+    # Zhen's rows in unheaded_zhen, the board's kanban_tasks in unheaded_app
+    # (ADR-149, migrations 051-053); both as app_zhen.
+    export ZHEN_DB_NAME="${ZHEN_DB_NAME:-unheaded_zhen}"
+    export ZHEN_BOARD_DB_NAME="${ZHEN_BOARD_DB_NAME:-unheaded_app}"
     export ZHEN_DB_USER="${ZHEN_DB_USER:-app_zhen}"
     if [[ -z "${ZHEN_DB_PASSWORD:-}" ]]; then
         echo "  ! ZHEN_DB_PASSWORD unset: The Well disabled (no memory cache, no conversation log, no live kanban context)"

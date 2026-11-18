@@ -55,18 +55,42 @@ type Settings struct {
 	DigestH    int
 	DigestM    int
 	Loc        *time.Location
+	// Run days (ADR-147 decision 2, mailer.run_days): on a listed date
+	// (YYYY-MM-DD in Loc) these caps replace MaxPerDay and MaxPerHour.
+	RunDayMaxPerDay  int
+	RunDayMaxPerHour int
+	RunDates         map[string]bool
+	// PipelineSilentAfter (pipeline.silent_after): with no pipeline receipt
+	// from Alertmanager for this long, mail once that the alert path is
+	// silent (ADR-116 R4, ADR-147 stage 1). 0 turns it off.
+	PipelineSilentAfter time.Duration
+	// Delivery (mailer.delivery; Stevie, 2026-11-17: "one digest email per
+	// day"). "digest": the digest is the only mail; a page is recorded and
+	// leads it, and a silent alert path is its first line. "" or
+	// "immediate": pages are mailed at once, tickets wait for the digest.
+	Delivery string
+	// Immediate (mailer.immediate): alerts mailed at once whatever Delivery
+	// says: an intrusion, an indicator of compromise.
+	Immediate map[string]bool
 }
+
+// digestOnly reports whether the digest is the only mail.
+func (s Settings) digestOnly() bool { return s.Delivery == "digest" }
 
 // OutboxEntry records what was mailed, or would have been, or was held back.
 type OutboxEntry struct {
 	Time    time.Time `json:"time"`
 	Urgency string    `json:"urgency"`
-	Outcome string    `json:"outcome"` // sent, dry-run, capped, capped-hour, failed, unchanged (not mailed: nothing new)
+	Outcome string    `json:"outcome"` // sent, dry-run, capped, capped-hour, failed, unchanged (not mailed: nothing new), digest (a page kept for the day's digest)
 	Subject string    `json:"subject"`
 	Body    string    `json:"body"`
 }
 
 const outboxKeep = 50
+
+// pipelineOverCapPerDay bounds the alert-pipeline mails (silent, back) that
+// may go past a spent cap in one day: two outages, each mailed and answered.
+const pipelineOverCapPerDay = 4
 
 // state survives restarts (state.json in the state dir): a restart must not
 // reset the daily cap or forget the open tickets.
@@ -79,10 +103,14 @@ type state struct {
 	HeldSinceDigest int              `json:"held_since_digest"` // reported, then reset, by the digest
 	LastDigest      string           `json:"last_digest"`       // day the digest last ran
 	Tickets         map[string]Alert `json:"tickets"`           // open tickets by fingerprint
+	Urgent          map[string]bool  `json:"urgent,omitempty"`  // open entries that came as pages (delivery: digest): they lead the digest
 	Resolved        []string         `json:"resolved"`          // tickets resolved since the last digest
 	Outbox          []OutboxEntry    `json:"outbox"`
-	PageFiring      []string         `json:"page_firing"`    // SLOs the last page mail reported burning
-	PageMailedAt    time.Time        `json:"page_mailed_at"` // when
+	PageFiring      []string         `json:"page_firing"`       // SLOs the last page mail reported burning
+	PageMailedAt    time.Time        `json:"page_mailed_at"`    // when
+	PipelineLast    time.Time        `json:"pipeline_last"`     // last pipeline receipt from Alertmanager
+	PipelineAlerted bool             `json:"pipeline_alerted"`  // the silent mail went out; the back mail is owed
+	PipelineOverCap int              `json:"pipeline_over_cap"` // pipeline mails sent past a spent cap today
 }
 
 // Mailer turns Alertmanager webhooks into at most Settings.MaxPerDay mails a
@@ -95,6 +123,7 @@ type Mailer struct {
 	statePath string
 	st        state
 	count     func(urgency, outcome string)
+	started   time.Time // the pipeline's grace runs from here after a start
 }
 
 // NewMailer loads state from dir (an empty state when there is none).
@@ -102,7 +131,7 @@ func NewMailer(cfg Settings, send Sender, dir string, now func() time.Time) (*Ma
 	if cfg.Mode == "send" && send == nil {
 		return nil, errors.New("mode send needs an SMTP sender")
 	}
-	m := &Mailer{cfg: cfg, send: send, now: now, statePath: filepath.Join(dir, "state.json"), count: func(string, string) {}}
+	m := &Mailer{cfg: cfg, send: send, now: now, statePath: filepath.Join(dir, "state.json"), count: func(string, string) {}, started: now()}
 	data, err := os.ReadFile(m.statePath) // #nosec G304 -- our own state file
 	switch {
 	case errors.Is(err, os.ErrNotExist):
@@ -124,7 +153,7 @@ func (m *Mailer) today() string { return m.now().In(m.cfg.Loc).Format("2006-01-0
 // rollDay resets the cap at local midnight.
 func (m *Mailer) rollDay() {
 	if d := m.today(); d != m.st.Day {
-		m.st.Day, m.st.Sent, m.st.Held = d, 0, 0
+		m.st.Day, m.st.Sent, m.st.Held, m.st.PipelineOverCap = d, 0, 0, 0
 	}
 }
 
@@ -133,6 +162,16 @@ func (m *Mailer) rollHour() {
 	if h := m.now().In(m.cfg.Loc).Format("2006-01-02T15"); h != m.st.Hour {
 		m.st.Hour, m.st.HourSent = h, 0
 	}
+}
+
+// caps returns today's daily and hourly caps: the run-day caps on a listed
+// run day, the normal ones otherwise. A run-day cap never lowers a cap.
+func (m *Mailer) caps() (day, hour int) {
+	day, hour = m.cfg.MaxPerDay, m.cfg.MaxPerHour
+	if m.cfg.RunDates[m.today()] {
+		day, hour = max(day, m.cfg.RunDayMaxPerDay), max(hour, m.cfg.RunDayMaxPerHour)
+	}
+	return day, hour
 }
 
 // held reports whether a cap kept the mail back.
@@ -163,24 +202,47 @@ func (m *Mailer) record(msg Message, outcome string) {
 // returns the outcome. A send error is returned, uncounted, so Alertmanager
 // retries the webhook. Called with m.mu held.
 func (m *Mailer) deliver(msg Message) (string, error) {
+	return m.deliverCapped(msg, false)
+}
+
+// deliverPipeline is deliver for the alert-pipeline mails. Nothing retries
+// them (Alertmanager is the thing that is down), and a cap spent by the
+// incident's own pages would lose the one mail that says no alert can reach
+// you (review 2026-11-15, REV-1). They go past a spent cap, still counted,
+// at most pipelineOverCapPerDay a day. Called with m.mu held.
+func (m *Mailer) deliverPipeline(msg Message) (string, error) {
+	m.rollDay()
+	return m.deliverCapped(msg, m.st.PipelineOverCap < pipelineOverCapPerDay)
+}
+
+// deliverCapped is deliver; pastCap sends even when a cap is spent.
+func (m *Mailer) deliverCapped(msg Message, pastCap bool) (string, error) {
 	m.rollDay()
 	m.rollHour()
-	if m.cfg.MaxPerHour > 0 && m.st.HourSent >= m.cfg.MaxPerHour {
+	maxDay, maxHour := m.caps()
+	overHour := maxHour > 0 && m.st.HourSent >= maxHour
+	overDay := m.st.Sent >= maxDay
+	if overHour && !pastCap {
 		m.st.Held++
 		m.st.HeldSinceDigest++
 		m.record(msg, "capped-hour")
 		return "capped-hour", m.save()
 	}
-	if m.st.Sent >= m.cfg.MaxPerDay {
+	if overDay && !pastCap {
 		m.st.Held++
 		m.st.HeldSinceDigest++
 		m.record(msg, "capped")
 		return "capped", m.save()
 	}
+	over := overHour || overDay
 	n := m.st.Sent + 1
-	msg.Body += fmt.Sprintf("\n--\nMail %d of at most %d today (%s).", n, m.cfg.MaxPerDay, m.cfg.Mode)
-	if n == m.cfg.MaxPerDay {
-		msg.Body += " This is the last one: anything else today is held back and counted in the next digest."
+	if over {
+		msg.Body += fmt.Sprintf("\n--\nMail %d today, past the cap of %d (%s): the alert path itself is the news.", n, maxDay, m.cfg.Mode)
+	} else {
+		msg.Body += fmt.Sprintf("\n--\nMail %d of at most %d today (%s).", n, maxDay, m.cfg.Mode)
+		if n == maxDay {
+			msg.Body += " This is the last one: anything else today is held back and counted in the next digest."
+		}
 	}
 	outcome := "dry-run"
 	if m.cfg.Mode == "send" {
@@ -193,6 +255,9 @@ func (m *Mailer) deliver(msg Message) (string, error) {
 	}
 	m.st.Sent = n
 	m.st.HourSent++
+	if over {
+		m.st.PipelineOverCap++
+	}
 	m.record(msg, outcome)
 	return outcome, m.save()
 }
@@ -204,6 +269,28 @@ func (m *Mailer) deliver(msg Message) (string, error) {
 func (m *Mailer) Page(w Webhook) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.cfg.digestOnly() {
+		// Only the alerts on the immediate list are mailed now; the rest
+		// are kept, as tickets are, and lead the digest.
+		var now, later []Alert
+		for _, a := range w.Alerts {
+			if m.cfg.Immediate[a.Labels["alertname"]] {
+				now = append(now, a)
+			} else {
+				later = append(later, a)
+			}
+		}
+		for _, a := range later {
+			if _, open := m.st.Tickets[ticketKey(a)]; !open && a.Status != "resolved" {
+				m.record(Message{Urgency: "page", Subject: "[page] " + name(a) + ": firing"}, "digest")
+			}
+		}
+		m.keep(later, true)
+		if len(now) == 0 {
+			return m.save()
+		}
+		w.Alerts = now
+	}
 	firing, resolved := split(w.Alerts)
 	if len(firing)+len(resolved) == 0 {
 		return nil
@@ -263,47 +350,169 @@ func (m *Mailer) Page(w Webhook) error {
 func (m *Mailer) Ticket(w Webhook) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	for _, a := range w.Alerts {
-		key := a.Fingerprint
-		if key == "" {
-			key = a.Labels["slo"] + "/" + a.Labels["tier"] + "/" + a.Labels["alertname"]
-		}
+	m.keep(w.Alerts, false)
+	return m.save()
+}
+
+// ticketKey names one alert in the open list.
+func ticketKey(a Alert) string {
+	if a.Fingerprint != "" {
+		return a.Fingerprint
+	}
+	return a.Labels["slo"] + "/" + a.Labels["tier"] + "/" + a.Labels["alertname"]
+}
+
+// keep opens, refreshes or resolves alerts in the list the digest reports.
+// Called with m.mu held; the caller saves.
+func (m *Mailer) keep(alerts []Alert, urgent bool) {
+	for _, a := range alerts {
+		key := ticketKey(a)
 		if a.Status == "resolved" {
 			if _, open := m.st.Tickets[key]; open {
 				delete(m.st.Tickets, key)
+				delete(m.st.Urgent, key)
 				m.st.Resolved = append(m.st.Resolved, fmt.Sprintf("%s%s, open since %s",
 					name(a), tierNote(a), a.StartsAt.In(m.cfg.Loc).Format("Jan 2 15:04")))
 			}
 			continue
 		}
 		m.st.Tickets[key] = a
+		if urgent {
+			if m.st.Urgent == nil {
+				m.st.Urgent = map[string]bool{}
+			}
+			m.st.Urgent[key] = true
+		}
+	}
+}
+
+// PipelineSeen records a pipeline receipt: Alertmanager handed over its
+// AlertPipelineHeartbeat, so Prometheus evaluates, Alertmanager routes and
+// the route reaches here. After a silent mail it mails, once, that receipts
+// are back.
+func (m *Mailer) PipelineSeen() error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	now := m.now()
+	m.st.PipelineLast = now
+	if m.st.PipelineAlerted && m.cfg.digestOnly() {
+		m.st.PipelineAlerted = false
+		m.st.Resolved = append(m.st.Resolved, "alert pipeline silent, receipts back at "+now.In(m.cfg.Loc).Format("Jan 2 15:04"))
+		m.record(Message{Urgency: "page", Subject: "[page] alert pipeline back"}, "digest")
+		return m.save()
+	}
+	if m.st.PipelineAlerted {
+		m.st.PipelineAlerted = false
+		if _, err := m.deliverPipeline(Message{Urgency: "page", Subject: "[page] alert pipeline back",
+			Body: fmt.Sprintf("alert pipeline back: receipts from Alertmanager resumed at %s.\n\n%s",
+				now.In(m.cfg.Loc).Format("Jan 2 15:04 MST"), footer)}); err != nil {
+			m.st.PipelineAlerted = true // owed again: the next receipt retries
+			_ = m.save()
+			return err
+		}
 	}
 	return m.save()
 }
 
-// Tick sends the day's digest once it is due. Nothing open, nothing
-// resolved and nothing held back means no mail at all.
+// PipelineLast is the time of the last pipeline receipt (zero: none yet).
+func (m *Mailer) PipelineLast() time.Time {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.st.PipelineLast
+}
+
+// pipelineCheck mails once when no receipt has come for
+// PipelineSilentAfter, counted from the last receipt or from this start,
+// whichever is later. A rule cannot report that its own evaluator is down;
+// the mailer can. Called with m.mu held.
+func (m *Mailer) pipelineCheck() error {
+	if m.cfg.PipelineSilentAfter <= 0 || m.st.PipelineAlerted {
+		return nil
+	}
+	since := m.st.PipelineLast
+	if m.started.After(since) {
+		since = m.started
+	}
+	if m.now().Sub(since) <= m.cfg.PipelineSilentAfter {
+		return nil
+	}
+	m.st.PipelineAlerted = true
+	if m.cfg.digestOnly() {
+		// Not a mail of its own: the digest says it (Tick), and goes out
+		// for it even with nothing else open.
+		m.record(Message{Urgency: "page", Subject: "[page] alert pipeline silent"}, "digest")
+		return m.save()
+	}
+	last := m.pipelineLastText()
+	_, err := m.deliverPipeline(Message{Urgency: "page", Subject: "[page] alert pipeline silent",
+		Body: fmt.Sprintf("alert pipeline silent: no heartbeat from Alertmanager since %s; Prometheus, Alertmanager or the route is down.\n"+
+			"Until it is back, no alert can reach you.\n  Runbook: runbooks/observe/alert-pipeline-silent.yaml\n\n%s", last, footer)})
+	if err != nil {
+		m.st.PipelineAlerted = false // the relay refused: the next tick retries
+		_ = m.save()
+		return err
+	}
+	return m.save()
+}
+
+// pipelineLastText is when the last pipeline receipt came, for a person.
+func (m *Mailer) pipelineLastText() string {
+	if m.st.PipelineLast.IsZero() {
+		return "never since this start"
+	}
+	return m.st.PipelineLast.In(m.cfg.Loc).Format("Jan 2 15:04 MST")
+}
+
+// Tick checks the alert pipeline, then sends the day's digest once it is
+// due. Nothing open, nothing resolved and nothing held back means no digest.
+// Under delivery: digest the pages lead it and a silent alert path is its
+// first line.
 func (m *Mailer) Tick() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if err := m.pipelineCheck(); err != nil {
+		return err
+	}
 	now := m.now().In(m.cfg.Loc)
 	due := time.Date(now.Year(), now.Month(), now.Day(), m.cfg.DigestH, m.cfg.DigestM, 0, 0, m.cfg.Loc)
 	if now.Before(due) || m.st.LastDigest == m.today() {
 		return nil
 	}
-	if len(m.st.Tickets) == 0 && len(m.st.Resolved) == 0 && m.st.HeldSinceDigest == 0 {
+	silent := m.cfg.digestOnly() && m.st.PipelineAlerted
+	if len(m.st.Tickets) == 0 && len(m.st.Resolved) == 0 && m.st.HeldSinceDigest == 0 && !silent {
 		m.st.LastDigest = m.today()
 		return m.save()
 	}
-	open := make([]Alert, 0, len(m.st.Tickets))
-	for _, a := range m.st.Tickets {
-		open = append(open, a)
+	// Kept pages (delivery: digest) lead; tickets follow.
+	var urgent, open []Alert
+	for key, a := range m.st.Tickets {
+		if m.st.Urgent[key] {
+			urgent = append(urgent, a)
+		} else {
+			open = append(open, a)
+		}
 	}
-	sort.Slice(open, func(i, j int) bool {
-		return name(open[i])+open[i].Labels["tier"] < name(open[j])+open[j].Labels["tier"]
-	})
+	for _, l := range [][]Alert{urgent, open} {
+		sort.Slice(l, func(i, j int) bool {
+			return name(l[i])+l[i].Labels["tier"] < name(l[j])+l[j].Labels["tier"]
+		})
+	}
 	var b strings.Builder
-	subject := fmt.Sprintf("[digest] %d open", len(open))
+	subject := fmt.Sprintf("[digest] %d open", len(urgent)+len(open))
+	if len(urgent) > 0 {
+		subject += fmt.Sprintf(" (%d urgent)", len(urgent))
+	}
+	if silent {
+		subject += ", alert pipeline silent"
+		fmt.Fprintf(&b, "Alert pipeline silent: no heartbeat from Alertmanager since %s; Prometheus, Alertmanager or the route is down.\n"+
+			"Until it is back, no alert can reach you.\n  Runbook: runbooks/observe/alert-pipeline-silent.yaml\n\n", m.pipelineLastText())
+	}
+	if len(urgent) > 0 {
+		b.WriteString("Urgent (a page: mailed at once under delivery: immediate):\n\n")
+		for _, a := range urgent {
+			writeAlert(&b, a)
+		}
+	}
 	if len(open) > 0 {
 		b.WriteString("Open (worth a look this week):\n\n")
 		for _, a := range open {
@@ -339,6 +548,7 @@ func (m *Mailer) Tick() error {
 // Status is a summary for /v1/status.
 type Status struct {
 	Mode        string        `json:"mode"`
+	Delivery    string        `json:"delivery"` // digest or immediate
 	Day         string        `json:"day"`
 	SentToday   int           `json:"sent_today"`
 	MaxPerDay   int           `json:"max_per_day"`
@@ -352,7 +562,12 @@ func (m *Mailer) Status(withOutbox bool) Status {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.rollDay()
-	s := Status{Mode: m.cfg.Mode, Day: m.st.Day, SentToday: m.st.Sent, MaxPerDay: m.cfg.MaxPerDay, HeldToday: m.st.Held,
+	maxDay, _ := m.caps()
+	delivery := "immediate"
+	if m.cfg.digestOnly() {
+		delivery = "digest"
+	}
+	s := Status{Mode: m.cfg.Mode, Delivery: delivery, Day: m.st.Day, SentToday: m.st.Sent, MaxPerDay: maxDay, HeldToday: m.st.Held,
 		OpenTickets: len(m.st.Tickets), LastDigest: m.st.LastDigest}
 	if withOutbox {
 		s.Outbox = append([]OutboxEntry(nil), m.st.Outbox...)

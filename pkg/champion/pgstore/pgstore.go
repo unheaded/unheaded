@@ -8,12 +8,15 @@
 //
 // Replaces the stderrActionStore stub that ships with the daemons —
 // production deployments wire this in with a DSN to The Well's
-// unheaded_app database.
+// unheaded_zhen database (ADR-149; it was unheaded_app until migration 052).
 //
 // The table is defined by db/migrations (009, 011, 020), applied by
 // db/init.sh or well-migrate (ADR-101), never at startup: the daemon runs
 // as a role that may write rows but not change tables (ERDA W-02, 3.3).
-// CheckSchema confirms the shape on startup.
+// CheckSchema confirms the shape on startup. In unheaded_zhen (052) the
+// columns this store leaves empty are NOT NULL with a default, so an empty
+// Go string is written as that default (COALESCE), never as NULL; the
+// readers below still accept NULL from rows written before the move.
 //
 //	zhen_actions (id, session_id, action_type, status, intent,
 //	              parameters, result, result_summary, error,
@@ -69,7 +72,7 @@ func (s *Store) LogAction(ctx context.Context, action *champion.Action) (int64, 
 		`INSERT INTO zhen_actions
 		   (session_id, action_type, status, intent, parameters,
 		    triggered_by, planned_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 VALUES ($1, $2, $3, $4, COALESCE($5::jsonb, '{}'), COALESCE($6, 'user'), $7)
 		 RETURNING id`,
 		action.SessionID, action.ActionType, action.Status,
 		nullableString(action.Intent), nullableString(action.Parameters),
@@ -89,8 +92,8 @@ func (s *Store) UpdateAction(ctx context.Context, id int64, status, result, errM
 	_, err := s.db.ExecContext(ctx,
 		`UPDATE zhen_actions
 		    SET status         = $1,
-		        result_summary = $2,
-		        error          = $3,
+		        result_summary = COALESCE($2, ''),
+		        error          = COALESCE($3, ''),
 		        elapsed_ms     = $4,
 		        completed_at   = NOW()
 		  WHERE id = $5`,

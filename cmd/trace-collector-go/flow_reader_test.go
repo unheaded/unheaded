@@ -318,7 +318,7 @@ func TestFlowReader_NewFlowDetection(t *testing.T) {
 	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultFlowReaderConfig()
 	reader := NewFlowReader(loader, publisher, config)
 
@@ -358,7 +358,7 @@ func TestFlowReader_StateChangeDetection(t *testing.T) {
 	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultFlowReaderConfig()
 	reader := NewFlowReader(loader, publisher, config)
 
@@ -399,7 +399,7 @@ func TestFlowReader_StaleFlowExpiration(t *testing.T) {
 	fs := makeFlowState(ConnStateEstablished, nowNS-1000, nowNS, 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultFlowReaderConfig()
 	config.StaleTTL = 10 * time.Millisecond // Short TTL for testing
 	reader := NewFlowReader(loader, publisher, config)
@@ -445,7 +445,7 @@ func TestFlowReader_DisappearedFlowExpiration(t *testing.T) {
 	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultFlowReaderConfig()
 	reader := NewFlowReader(loader, publisher, config)
 
@@ -477,7 +477,7 @@ func TestFlowReader_DisappearedFlowExpiration(t *testing.T) {
 
 func TestFlowReader_EmptyMap(t *testing.T) {
 	loader := NewMockBPFLoader()
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -506,7 +506,7 @@ func TestFlowReader_MultipleFlows(t *testing.T) {
 		insertFlow(loader.flowMap, fk, fs)
 	}
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -540,7 +540,7 @@ func TestFlowReader_EmptyFlowMap(t *testing.T) {
 	loader := NewMockBPFLoader()
 	// flowMap is empty by default
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -564,7 +564,7 @@ func TestFlowReader_UnchangedFlowNoEvent(t *testing.T) {
 	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	// First poll: new flow event
@@ -594,7 +594,7 @@ func TestFlowReader_BadKeyDecode(t *testing.T) {
 	// Insert entry with a too-short key (< 16 bytes)
 	loader.flowMap.Insert([]byte("short"), make([]byte, FlowStateSize))
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -613,7 +613,7 @@ func TestFlowReader_BadValueDecode(t *testing.T) {
 	keyBytes := fk.Encode()
 	loader.flowMap.Insert(keyBytes[:], []byte("tooshort"))
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -626,7 +626,7 @@ func TestFlowReader_BadValueDecode(t *testing.T) {
 
 func TestFlowReader_RunContext(t *testing.T) {
 	loader := NewMockBPFLoader()
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultFlowReaderConfig()
 	config.PollInterval = 10 * time.Millisecond
 	reader := NewFlowReader(loader, publisher, config)
@@ -660,7 +660,7 @@ func TestFlowReader_RunContext(t *testing.T) {
 
 func TestFlowReader_StatsAccuracy(t *testing.T) {
 	loader := NewMockBPFLoader()
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	// Insert 3 flows
@@ -823,7 +823,7 @@ func TestFlowReader_MultipleStateTransitions(t *testing.T) {
 		ConnStateClosed,
 	}
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	var expectedEvents uint64

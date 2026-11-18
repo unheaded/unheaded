@@ -213,6 +213,31 @@ rate = (d["pg_bytes"][b] - d["pg_bytes"][a]) / 5.08                     # days b
 print(round(rate / 1e6), round((4 * 2**30 - d["pg_bytes"][b]) / rate, 1))   # 361 MB a day, 5.8 days
 ```
 
+### The closing reading (2026-11-17 18:57Z; the week ended 18:34Z)
+
+The twelfth reading, 23 minutes after the week ended, exit 0. No row of the table above changes its verdict.
+
+| Test (bar) | ClickHouse | Postgres copy | Against the bar |
+|---|---|---|---|
+| Disk, same rows (within 2x) | 72.4 bytes a row | 1,462 bytes a row; 2.25 GiB for 1,648,948 rows | 20.2x: fails |
+| q1, p95 (within 2x) | 6.0 ms | 0.94 ms | Postgres 6.4x faster: passes |
+| q2, p95 (within 2x) | 42 ms | 5.77 s | 137x: fails |
+| q3, p95 (within 2x) | 41 ms | 23.3 s | 569x: fails |
+| The Well's own latency (moves under 10%) | | p95 0.241 ms against 0.178 ms before | +35%: fails as written, with the caution above |
+| Backup (moves under 10%) | | 64 s and 124 MB against 1.5 s and 0.35 MB before | fails |
+| Vector stalls on the record sink (zero) | | 0 sends over 1 s, 0 rows dropped since Vector's last start | none in this reading |
+
+Yesterday's rows match in both stores (295,591 each). Step 284 is still Stevie's: the verdict, when the copy is switched off, and whether the second week keeps the three queries as they are (he ruled plan 5's LW2 = C on 2026-11-17: the week runs without indexes, then a one-day rider adds them).
+
+### Step 284: Stevie's verdict (2026-11-18, about 00:30Z)
+
+**The week is closed. ClickHouse stays.** Stevie, asked with the closing reading's figures in front of him: "keep clickhouse for now but create ADR to remove reliance from it --- maybe we have a couple configure-able packages to support the alternatives rather than being fully dependant on it so user could chose whatever solution they want. should be configurable by a configuration file".
+
+- This entry is the record that S-SEE-AND-SURVIVE Step 247, S-WASTE-OUT Step 305 and S-ZHEN-SWITCH Step 238 open on.
+- The ADR he asked for is `docs/adr/ADR-151-the-log-store-is-a-setting.md`, Proposed and parked: it builds nothing.
+- The Postgres copy: "Leave it running". Nothing on west changes for it now; it stops itself at the writer's 4 GiB ceiling about 2026-11-22, and plan 5 (S-LOG-WEEK-2) empties it when the second week starts (his LW3 = A).
+- Steps 285 to 288 (the off switch for the loser, the ADR-117 amendment, the exit gate and the merge) run in S-LOG-WEEK-2 Phase 7, after the fair week, as that plan says.
+
 ## Evening 14: the drafts (2026-11-10)
 
 - Step 259 (desk pass): report at `docs/protocol/RFC-DESK-PASS-2026-11-10.md`. Changes to the frozen v0x01 format: none. Thirteen open items, each a ruling on public text: WH items 1-4 (DP-715's four), WH items 6-9, and four the pass found (stream against code points, a reference to a draft that was never uploaded, private revision labels, FIPS 206/207 citations).

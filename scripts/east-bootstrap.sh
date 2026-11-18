@@ -7,7 +7,7 @@
 #   references/EAST-BOOTSTRAP-CHECKLIST.md    — 6-phase checklist
 #   nix/east-flake.nix                        — NixOS config for EAST
 #   lxd/hosts/host-b/wireguard-ipv6.conf.example — WireGuard template
-#   lxd/hosts/host-b/launch-minimal.sh        — LXD container launcher (9 svc)
+#   lxd/hosts/host-b/launch-minimal.sh        — LXD container launcher (7 svc)
 #
 # USAGE:
 #   sudo bash scripts/east-bootstrap.sh [phase]
@@ -37,11 +37,10 @@ WG_MTU=1380
 WG_DIR="/etc/unheaded/wg"
 EAST_SVC_DIR="/opt/east"
 
-# 9 EAST services + memory budgets (total ~4.5GB of 8GB)
+# 7 EAST services + memory budgets (total ~3.3GB of 8GB); the monad and sophia
+# services were removed 2026-11 (ADR-147)
 declare -A SERVICES=(
   [wotan]=800        # message bus
-  [monad]=600        # state
-  [sophia]=600       # knowledge
   [anamnesis]=400    # memory
   [gateway]=400      # public access
   [dashboard-backend]=400  # UI backend
@@ -231,7 +230,7 @@ phase_services() {
     echo ""
     info "Copy binaries from WEST:"
     echo "  # On WEST:"
-    echo "  tar czf /tmp/east-svc.tar.gz -C /opt/unheaded/bin wotan monad sophia anamnesis gateway dashboard-backend"
+    echo "  tar czf /tmp/east-svc.tar.gz -C /opt/unheaded/bin wotan anamnesis gateway dashboard-backend"
     echo "  scp /tmp/east-svc.tar.gz ${EAST_USER}@[${EAST_IP}]:/tmp/"
     echo ""
     echo "  # On EAST (the service directory is root's, so through sudo):"
@@ -243,7 +242,7 @@ phase_services() {
   # Create systemd units
   info "Creating systemd service units..."
   local port=18000
-  for svc in wotan monad sophia anamnesis gateway dashboard-backend; do
+  for svc in wotan anamnesis gateway dashboard-backend; do
     local mem=${SERVICES[$svc]}
     cat > "/etc/systemd/system/east-${svc}.service" << UNIT
 [Unit]
@@ -303,14 +302,14 @@ UNIT
   systemctl enable --now east-wotan 2>/dev/null && ok "wotan started" || warn "wotan failed"
   sleep 2
 
-  for svc in monad sophia anamnesis gateway dashboard-backend; do
+  for svc in anamnesis gateway dashboard-backend; do
     systemctl enable --now "east-${svc}" 2>/dev/null && ok "${svc} started" || warn "${svc} failed"
   done
 
   # Health check
   echo ""
   info "Service status:"
-  for svc in wotan monad sophia anamnesis gateway dashboard-backend; do
+  for svc in wotan anamnesis gateway dashboard-backend; do
     if systemctl is-active "east-${svc}" &>/dev/null; then
       ok "  east-${svc}: active"
     else
@@ -400,17 +399,17 @@ phase_verify() {
     fail "BGP not established"
   fi
 
-  # 6 app services
+  # 4 app services
   total=$((total+1))
   info "[3/7] Application services..."
   local svc_up=0
-  for svc in wotan monad sophia anamnesis gateway dashboard-backend; do
+  for svc in wotan anamnesis gateway dashboard-backend; do
     systemctl is-active "east-${svc}" &>/dev/null && svc_up=$((svc_up+1))
   done
-  if [[ ${svc_up} -eq 6 ]]; then
-    ok "All 6 app services running"; pass=$((pass+1))
+  if [[ ${svc_up} -eq 4 ]]; then
+    ok "All 4 app services running"; pass=$((pass+1))
   else
-    fail "${svc_up}/6 app services running"
+    fail "${svc_up}/4 app services running"
   fi
 
   # Node exporter

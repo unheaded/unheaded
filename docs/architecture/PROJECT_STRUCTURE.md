@@ -90,15 +90,6 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 │   │       ├── storage/            # Timeline persistence
 │   │       └── timeline/           # Timeline data structures
 │   │
-│   ├── captain/                    # 👑 STRATEGIC VISION - Strategy Service
-│   │   └── cmd/                    # Entry point
-│   │
-│   ├── architect/                  # 📚 THE SAGE'S LAIR - Design Service
-│   │   └── cmd/                    # Entry point
-│   │
-│   ├── micromanager/               # 📋 EXECUTION ENGINE - Task Service
-│   │   └── cmd/                    # Entry point
-│   │
 │   └── wotan/                     # 🧚 THE FAE CHAMBER - Message Bus
 │       └── (external: github.com/unheaded/wotan)
 │
@@ -404,7 +395,7 @@ unheaded/                           # THE KINGDOM - Root of all infrastructure
 | 💎 **Crystal Grotto** | Secrets | `pkg/secrets/` | 90% |
 | 🔮 **Seer's Antre** | Timeline | `services/timeguru/` | 85% |
 | 🧚 **Fae Chamber** | Messages | `pkg/wotan-client/` (`pkg/events/` deleted unused 2026-10-26, E1) | 95% |
-| 📚 **Sage's Lair** | ADRs | `services/architect/`, `docs/adr/` | 80% |
+| 📚 **Sage's Lair** | ADRs | `docs/adr/` | 80% |
 | 🌀 **Mythic Abyss** | Telemetry | `cmd/trace-collector/` | 60% |
 
 ---

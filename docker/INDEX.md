@@ -15,11 +15,9 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 | `base/Dockerfile.base` | 82 | Multi-stage Go build reference pattern |
 | `services/.dockerignore` | 16 | Global build context optimization |
 
-### Service Dockerfiles (7 total)
+### Service Dockerfiles (5 total)
 
-#### Standard Go Services (5 distroless)
-- `services/monad/Dockerfile` — 50051/gRPC register
-- `services/sophia/Dockerfile` — 50052/gRPC state
+#### Standard Go Services (3 distroless)
 - `services/protocol-api/Dockerfile` — 50056/gRPC
 - `services/trace-collector/Dockerfile` — 9411/HTTP traces
 - `services/dashboard-backend/Dockerfile` — 8080/HTTP+WS
@@ -44,7 +42,7 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 **Build a single service**
 → See: `QUICKSTART.md` "Single Service" section
 
-**Build all 7 services**
+**Build all 5 services**
 → See: `QUICKSTART.md` "All Services (Parallel)" section
 
 **Understand the security model**
@@ -57,7 +55,7 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 → Follow: `README.md` "Production Checklist" section
 
 **Verify all files exist**
-→ Run: `find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l` (should be 7)
+→ Run: `find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l` (should be 5)
 
 **Check documentation completeness**
 → Run: `ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/*.md`
@@ -65,9 +63,8 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 ## Statistics
 
 ```
-Total Dockerfiles:     8 (1 base + 7 services)
-Total Lines:           883 production-ready code
-Standard Services:     5 (distroless/static-debian12)
+Total Dockerfiles:     6 (1 base + 5 services)
+Standard Services:     3 (distroless/static-debian12)
 eBPF Services:         2 (debian:bookworm-slim)
 Documentation Files:   4 (README, MANIFEST, QUICKSTART, INDEX)
 Build Context Opt:     1 (.dockerignore)
@@ -91,7 +88,7 @@ Build Context Opt:     1 (.dockerignore)
 - OCI image label standards
 
 ### Operations
-- Parallel build capability (all 7 services simultaneously)
+- Parallel build capability (all 5 services simultaneously)
 - Version/commit/timestamp tracking
 - Per-service documentation in headers
 - Capacity annotations
@@ -101,14 +98,12 @@ Build Context Opt:     1 (.dockerignore)
 
 | Base Image | Services | Use Case |
 |-----------|----------|----------|
-| `gcr.io/distroless/static-debian12:nonroot` | 5 | Standard Go microservices |
+| `gcr.io/distroless/static-debian12:nonroot` | 3 | Standard Go microservices |
 | `debian:bookworm-slim` | 2 | eBPF + privileged services |
 
 ## Port Assignments
 
 ### gRPC Standard Ports (50051-50067)
-- 50051: monad
-- 50052: sophia
 - 50055: shield
 - 50056: protocol-api
 
@@ -120,28 +115,28 @@ Build Context Opt:     1 (.dockerignore)
 
 ### Single service build
 ```bash
-docker build -f docker/services/monad/Dockerfile \
+docker build -f docker/services/protocol-api/Dockerfile \
   --build-arg VERSION=v1.0.0 \
   --build-arg COMMIT=$(git rev-parse --short HEAD) \
   --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-  -t unheaded-monad:v1.0.0 .
+  -t unheaded-protocol-api:v1.0.0 .
 ```
 
-### Batch build (all 7)
+### Batch build (all 5)
 See `QUICKSTART.md` for complete parallel build script
 
 ### With registry
 ```bash
-docker build ... -t registry.example.com/unheaded-monad:v1.0.0
-docker push registry.example.com/unheaded-monad:v1.0.0
+docker build ... -t registry.example.com/unheaded-protocol-api:v1.0.0
+docker push registry.example.com/unheaded-protocol-api:v1.0.0
 ```
 
 ## Security Scanning
 
 ### Recommended tools
-- Trivy: `trivy image unheaded-monad:v1.0.0`
-- Grype: `grype unheaded-monad:v1.0.0`
-- Snyk: `snyk container test unheaded-monad:v1.0.0`
+- Trivy: `trivy image unheaded-protocol-api:v1.0.0`
+- Grype: `grype unheaded-protocol-api:v1.0.0`
+- Snyk: `snyk container test unheaded-protocol-api:v1.0.0`
 
 ### CI/CD Integration
 See `README.md` "Security Scanning" section

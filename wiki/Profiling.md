@@ -13,6 +13,10 @@ pprof is off by default. Turn it on per process:
 
 It runs on its own listener, never on the service port. Any address that isn't loopback (`127.0.0.0/8`, `::1`, `localhost`) is refused at startup with exit 2: heap and goroutine dumps can hold service tokens and keys.
 
+## Go runtime limits (ADR-147)
+
+Every Go service's `/metrics` (`pkg/metrics` GoCollector) carries `go_sched_gomaxprocs_threads` (since Go 1.25 the runtime sets it from the cgroup's CPU limit, rounded up), `go_gc_gomemlimit_bytes` and `go_gc_gogc_percent`: what the runtime was told. Every first-party compose service sets `GOMEMLIMIT` at 85 % of its memory limit; `scripts/check-unit-ceilings.sh` fails one built from our Dockerfile whose `GOMEMLIMIT` is missing or not below its limit.
+
 ## Flame graph
 
 ```bash

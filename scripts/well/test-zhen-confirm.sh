@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
-# Checks unheaded_app.zhen_pending_confirmations (db/migrations/031) on a
-# throwaway PostgreSQL server bootstrapped by db/init.sh from the
-# manifest, never the real Well:
-#   1. the bootstrap records 031; the table belongs to well_app_owner;
+# Checks zhen_pending_confirmations (db/migrations/031; since ADR-149 in
+# unheaded_zhen, made by 052) on a throwaway PostgreSQL server bootstrapped
+# by db/init.sh from the manifest, never the real Well:
+#   1. the bootstrap records 031 in unheaded_app and 052 in unheaded_zhen;
+#      the table belongs to well_zhen_owner;
 #   2. app_zhen (a real TCP login) inserts a pending row;
 #      pending -> approved -> executed works, and so does pending -> denied;
 #   3. every other transition is refused: approved -> pending,
@@ -17,7 +18,8 @@
 #   6. an approval after expires_at is refused;
 #   7. at most 20 pending rows per source_service.
 #   8. pkg/claudebridge's queue store (build tag wellint) against the same
-#      server as app_zhen (WELL_TEST_APP_DSN), and a teach_write row from the
+#      server as app_zhen on unheaded_zhen (WELL_TEST_ZHEN_DSN), and a
+#      teach_write row from the
 #      queue through zhen-claude confirm approve to a file.
 #
 #   scripts/well/test-zhen-confirm.sh [--sql-only] [image]   # default postgres:16.15-alpine
@@ -58,9 +60,10 @@ done
 ((ready)) || { "${DOCKER[@]}" logs "$N" 2>&1 | tail -20; echo "postgres did not become ready"; exit 1; }
 PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
-sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
-zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
-own() { sq "SET ROLE well_app_owner; $1"; }
+sa() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
+sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_zhen -c "$1"; }
+zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_zhen -c "$1"; }
+own() { sq "SET ROLE well_zhen_owner; $1"; }
 # The password exists only inside this throwaway container.
 sq "ALTER ROLE app_zhen PASSWORD '$ZPW';" >/dev/null
 
@@ -85,10 +88,12 @@ row() { # id [tool] [expires] [source] [status]
 setst() { echo "UPDATE zhen_pending_confirmations SET status = '$2', decided_at = now(), decided_by = 'stevie@west' WHERE id = '$1'"; }
 
 # 1. Ledger and owner.
-[[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '031_app_zhen_pending_confirmations.sql'")" == 1 ]] &&
+[[ "$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '031_app_zhen_pending_confirmations.sql'")" == 1 ]] &&
 	pass "bootstrap recorded 031 in unheaded_app" || fail "031 not in the ledger"
-[[ "$(sq "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'zhen_pending_confirmations'::regclass")" == well_app_owner ]] &&
-	pass "owned by well_app_owner" || fail "owner"
+[[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '052_zhen_schema.sql'")" == 1 ]] &&
+	pass "bootstrap recorded 052 in unheaded_zhen" || fail "052 not in unheaded_zhen's ledger"
+[[ "$(sq "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'zhen_pending_confirmations'::regclass")" == well_zhen_owner ]] &&
+	pass "owned by well_zhen_owner" || fail "owner"
 
 # 2. The happy paths, as app_zhen.
 ok "app_zhen INSERT pending" zh "$(row 0000000000000001)"
@@ -135,18 +140,18 @@ ok "zhen-claude has its own cap" zh "$(row c000000000000001)"
 
 # 8. The Go queue store against this server.
 if ((GO)); then
-	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
-	if (cd "$R" && go test -count=1 -tags wellint ./pkg/claudebridge/ -run WellConfirm -v >"$TMP/go.out" 2>&1); then
+	export WELL_TEST_ZHEN_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_zhen?sslmode=disable"
+	if (cd "$R" && go test -count=1 -tags wellint ./pkg/claudebridge/ -run WellConfirm -v >"$TMP/go.out" 2>&1) && ! grep -q -- '--- SKIP' "$TMP/go.out"; then
 		pass "go test -tags wellint ./pkg/claudebridge -run WellConfirm"
 	else
 		fail "go queue-store test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
-	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-claude/ -run TestAdv_QueueRoundTrip -v >"$TMP/go2.out" 2>&1); then
+	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-claude/ -run TestAdv_QueueRoundTrip -v >"$TMP/go2.out" 2>&1) && ! grep -q -- '--- SKIP' "$TMP/go2.out"; then
 		pass "go test -tags wellint ./cmd/zhen-claude -run TestAdv_QueueRoundTrip"
 	else
 		fail "teach queue round trip"; tail -25 "$TMP/go2.out" | sed 's/^/    /'
 	fi
-	unset WELL_TEST_APP_DSN
+	unset WELL_TEST_ZHEN_DSN
 fi
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi

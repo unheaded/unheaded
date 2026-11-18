@@ -87,6 +87,13 @@ echo ""
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+# An explicit -f does not load the override; west's restart policy lives there
+# (ADR-147 decision 1). Name it too when the host has one.
+OVERRIDE_FILE="$PROJECT_ROOT/docker-compose.override.yml"
+COMPOSE_ARGS=(-f "$COMPOSE_FILE")
+if [[ -f "$OVERRIDE_FILE" ]]; then
+    COMPOSE_ARGS=(--project-directory "$PROJECT_ROOT" -f "$COMPOSE_FILE" -f "$OVERRIDE_FILE")
+fi
 BIN_DIR="/opt/unheaded/bin"
 
 # Known services in dependency order (wotan first)
@@ -95,12 +102,6 @@ NATIVE_SERVICES=(
     unheaded-daemon
     trace-collector-go
     timeguru
-    architect
-    captain
-    micromanager
-    monad
-    sophia
-    cuirass
     dashboard-backend
     kanban-app
     protocol-api
@@ -111,11 +112,6 @@ HEALTH_ENDPOINTS=(
     "wotan:18000"
     "unheaded-daemon:17000"
     "timeguru:19000"
-    "architect:19001"
-    "captain:19002"
-    "micromanager:19003"
-    "monad:19004"
-    "sophia:19005"
     "dashboard-backend:20000"
     "kanban-app:20001"
     "protocol-api:17100"
@@ -149,6 +145,10 @@ fi
 # Services that are still starting look down to the SLOs. Best effort.
 "$SCRIPT_DIR/monitoring/maintenance.sh" 15m "kingdom-startup warm-up" >/dev/null 2>&1 ||
     log_warn "Alertmanager not reachable; warm-up not silenced"
+# ADR-147 decision 4: the warm-up is the planned tail; this replaces the
+# shutdown's mark (2h, or its --planned length) with 15m.
+run "$SCRIPT_DIR/monitoring/planned-stop.sh" all 15m >/dev/null 2>&1 ||
+    log_warn "planned-stop mark not written: the warm-up will spend SLO budget"
 
 # ── Phase 1: Start Docker containers ─────────────────────────────────
 if [[ "$NATIVE_ONLY" != "true" ]]; then
@@ -157,7 +157,7 @@ if [[ "$NATIVE_ONLY" != "true" ]]; then
     if [[ -f "$COMPOSE_FILE" ]]; then
         if command -v docker &> /dev/null; then
             log_info "  docker compose up -d..."
-            run docker compose -f "$COMPOSE_FILE" up -d 2>&1 | grep -E "Started|Running|Created|dry-run" | while read -r line; do
+            run docker compose "${COMPOSE_ARGS[@]}" up -d 2>&1 | grep -E "Started|Running|Created|dry-run" | while read -r line; do
                 log_info "  $line"
             done || true
             log_success "Phase 1 complete"

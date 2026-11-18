@@ -279,7 +279,7 @@ func TestWotanPublisher_PublishBatch(t *testing.T) {
 	defer srv.Close()
 
 	addr := strings.TrimPrefix(srv.URL, "http://")
-	pub := NewWotanPublisher(addr, 100, 50*time.Millisecond)
+	pub := NewWotanPublisher(testWotan(t, addr), 100, 50*time.Millisecond)
 
 	events := []*ebpf.AnamnesisEvent{
 		makeEvent(ebpf.EventBirth, 0, 0x1234, 1000),
@@ -317,7 +317,7 @@ func TestWotanPublisher_RejectedIsError(t *testing.T) {
 	f := &fakeWotan{subscriberID: "6f1c2d3e-0000-4000-8000-000000000002", payloads: map[string][]string{}, reject: true}
 	srv := httptest.NewServer(f)
 	defer srv.Close()
-	pub := NewWotanPublisher(strings.TrimPrefix(srv.URL, "http://"), 100, 50*time.Millisecond)
+	pub := NewWotanPublisher(testWotan(t, strings.TrimPrefix(srv.URL, "http://")), 100, 50*time.Millisecond)
 	err := pub.PublishBatch(context.Background(), TopicBirth, []*ebpf.AnamnesisEvent{makeEvent(ebpf.EventBirth, 0, 1, 1)})
 	if err == nil {
 		t.Fatal("a 400 from Wotan was reported as published")
@@ -331,7 +331,7 @@ func TestWotanPublisher_RejectedIsError(t *testing.T) {
 }
 
 func TestWotanPublisher_EmptyBatch(t *testing.T) {
-	pub := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	pub := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	err := pub.PublishBatch(context.Background(), TopicBirth, nil)
 	if err != nil {
 		t.Fatalf("empty batch should not error: %v", err)
@@ -341,7 +341,7 @@ func TestWotanPublisher_EmptyBatch(t *testing.T) {
 // ── Health handler tests ────────────────────────────────────────────────────
 
 func TestHealthHandler(t *testing.T) {
-	pub := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	pub := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	fc := NewFlowCorrelator(60 * time.Second)
 
 	handler := &healthHandler{

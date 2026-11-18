@@ -88,7 +88,7 @@ func TestInfo_ReportsBackendAndModes(t *testing.T) {
 	d.config.LXDBackend = ""
 	w = httptest.NewRecorder()
 	mux.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/info", nil))
-	if !strings.Contains(w.Body.String(), `"lxd_backend":"mock"`) {
-		t.Errorf("empty backend should read mock: %s", w.Body.String())
+	if !strings.Contains(w.Body.String(), `"lxd_backend":"unset"`) {
+		t.Errorf("empty backend should read unset (no default since ADR-147): %s", w.Body.String())
 	}
 }

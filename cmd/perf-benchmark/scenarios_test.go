@@ -261,7 +261,7 @@ func newFakeStack(t *testing.T, ingested string) *fakeStack {
 	t.Cleanup(f.wotan.Close)
 	t.Cleanup(f.dash.Close)
 	// background noise: other packet events with trace id zero
-	f.add("ebpf.packet.events", map[string]any{"trace_id": map[string]any{"high": 0, "low": 0}})
+	f.add("traces.packet", map[string]any{"trace_id": map[string]any{"high": 0, "low": 0}})
 	return f
 }
 
@@ -306,7 +306,7 @@ func (f *fakeStack) serveWotan(w http.ResponseWriter, r *http.Request) {
 		if topic == f.ingested && !f.drop {
 			go func() {
 				time.Sleep(f.delay)
-				f.add("ebpf.packet.events", map[string]any{"trace_id": map[string]any{"high": 1, "low": 2}})
+				f.add("traces.packet", map[string]any{"trace_id": map[string]any{"high": 1, "low": 2}})
 				f.add(topic, data)
 			}()
 		}

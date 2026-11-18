@@ -103,6 +103,32 @@ type ClientOption func(*clientOptions)
 type clientOptions struct {
 	minter     tokenMinter
 	insecureOK bool
+	// pollStreams lets a client with no gRPC address stream by HTTP
+	// polling (WithHTTPPollStreams).
+	pollStreams bool
+	// liveStreams starts each stream at the live position (WithLiveStreams).
+	liveStreams bool
+}
+
+// WithHTTPPollStreams lets a client built with no gRPC address (NewClient,
+// NewClientWithTLS) stream by HTTP polling. Without it StreamMessages on
+// such a client returns ErrNoStreamTransport: a first-party service streams
+// over gRPC and polls only while gRPC is down (ADR-147 Phase 6; a policy
+// test refuses this option under cmd/ and services/*/cmd/). Tools that must
+// poll ask for it.
+func WithHTTPPollStreams() ClientOption {
+	return func(o *clientOptions) { o.pollStreams = true }
+}
+
+// WithLiveStreams makes each new stream begin at the live position
+// instead of replaying the history Wotan holds for the topic: the first
+// gRPC connect sends since_seq -1 (Wotan replays nothing for a negative
+// cursor), and the HTTP fallback starts from the server's last_seq. After
+// that the stream resumes from its cursor as usual. For live views (the
+// dashboard), where a replay only re-counts history as if it just happened;
+// TopicStreamClient's WithLiveStart, for the one Client (ADR-147 Phase 7).
+func WithLiveStreams() ClientOption {
+	return func(o *clientOptions) { o.liveStreams = true }
 }
 
 // WithServiceToken makes the client present m's tokens instead of the

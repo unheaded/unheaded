@@ -75,6 +75,20 @@ func scrapeService(t *testing.T, svc string) string {
 	return strings.Join(out, "\n")
 }
 
+// The request histogram reads below a millisecond (ADR-147, Scientist F1):
+// DefBuckets started at 5 ms, so every p50 read 2.5 ms.
+func TestRequestDurationSeesSubMillisecond(t *testing.T) {
+	svc := "t_submillisecond"
+	m := NewServiceMetrics(svc)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/x", func(http.ResponseWriter, *http.Request) {})
+	m.Instrument(mux, mux).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/x", nil))
+	out := scrapeService(t, svc)
+	if !strings.Contains(out, `le="0.00025"`) {
+		t.Fatalf("no 0.25 ms bucket for %s:\n%s", svc, out)
+	}
+}
+
 // withAuthLikeCopy stands in for auth.WrapHandler: it hands the mux a copy
 // of the request, and rejects one path before the mux sees it.
 func withAuthLikeCopy(next http.Handler) http.Handler {

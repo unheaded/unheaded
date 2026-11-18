@@ -119,6 +119,8 @@ trap 'rm -f "$tmp"' EXIT
 {
     printf '# Written by scripts/write-zhen-app-env.sh. Keys: deploy/systemd/zhen-app.env.example.\n'
     printf 'ZHEN_DB_PASSWORD=%s\n' "$password"
+    printf 'ZHEN_DB_NAME=unheaded_zhen\n'
+    printf 'ZHEN_BOARD_DB_NAME=unheaded_app\n'
     printf 'ZHEN_DB_HOST=%s\n' "$host"
     printf 'ZHEN_DB_PORT=%s\n' "$port"
     printf 'ZHEN_DB_SSLMODE=verify-full\n'
@@ -140,4 +142,4 @@ mv -f "$tmp" "$out"
 trap - EXIT
 
 echo "wrote $out, mode 0640, $owner_note"
-echo "keys: ZHEN_DB_PASSWORD ZHEN_DB_HOST ZHEN_DB_PORT ZHEN_DB_SSLMODE ZHEN_DB_SSLROOTCERT ZHEN_ALLOWED_HOSTS ZHEN_EMBEDDER_SHA256 ZHEN_EMBEDDER_REVISION"
+echo "keys: ZHEN_DB_PASSWORD ZHEN_DB_NAME ZHEN_BOARD_DB_NAME ZHEN_DB_HOSTZHEN_DB_PORT ZHEN_DB_SSLMODE ZHEN_DB_SSLROOTCERT ZHEN_ALLOWED_HOSTS ZHEN_EMBEDDER_SHA256 ZHEN_EMBEDDER_REVISION"

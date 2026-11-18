@@ -21,6 +21,8 @@ import (
 var (
 	emailRE    = regexp.MustCompile(`^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$`)
 	hostPortRE = regexp.MustCompile(`^[A-Za-z0-9.-]+:[0-9]{1,5}$`)
+	// alertNameRE is a Prometheus alert name, for mailer.immediate.
+	alertNameRE = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 )
 
 // smtpSender submits mail to one relay (smtp.gmail.com:587 for a Google

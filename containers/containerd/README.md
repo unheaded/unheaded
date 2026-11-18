@@ -115,11 +115,6 @@ containerd/
 └── services/
     ├── wotan.json         # Message bus
     ├── timeguru.json      # Timeline service
-    ├── captain.json       # Strategy service
-    ├── architect.json     # Design service
-    ├── micromanager.json  # Execution service
-    ├── monad.json         # State management
-    ├── sophia.json        # Knowledge graph
     ├── dashboard.json     # Metrics + WebSocket
     ├── kanban.json        # Kanban app (meta moment)
     ├── doom-bridge.json   # Fenrir's Eye

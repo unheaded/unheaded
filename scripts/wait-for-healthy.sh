@@ -52,12 +52,6 @@ SERVICES=(
     # Application services (Kingdom Core) -- Doom Range ports
     "wotan|localhost|18000|health"
     "timeguru|localhost|19000|health"
-    "captain|localhost|19002|health"
-    "architect|localhost|19001|health"
-    "micromanager|localhost|19003|health"
-    "monad|localhost|19004|health"
-    "sophia|localhost|19005|health"
-    "cuirass|localhost|19006|health"
 )
 
 # ============================================================================

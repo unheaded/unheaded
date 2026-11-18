@@ -68,7 +68,7 @@ func fastRetries(t *testing.T) {
 func TestSubscribeWithRetry_JoinsWhenWotanStartsLater(t *testing.T) {
 	fastRetries(t)
 	addr, start, joins := lateWotan(t)
-	c, err := NewClient(addr)
+	c, err := NewClient(addr, WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +115,7 @@ func TestSubscribeWithRetry_JoinsWhenWotanStartsLater(t *testing.T) {
 func TestSubscribeWithRetry_JoinOnlyReturnsWhenJoined(t *testing.T) {
 	fastRetries(t)
 	addr, start, joins := lateWotan(t)
-	c, err := NewClient(addr)
+	c, err := NewClient(addr, WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +156,7 @@ func TestRetryDelay_GrowsAndCaps(t *testing.T) {
 func TestSubscribeWithRetry_CloseEndsRetries(t *testing.T) {
 	fastRetries(t)
 	addr, _, _ := lateWotan(t) // never started
-	c, err := NewClient(addr)
+	c, err := NewClient(addr, WithHTTPPollStreams())
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -12,7 +12,7 @@
 #   tmpfiles.d line that names the account the app runs as
 #   sudo cp deploy/systemd/unheaded-zhen-ui-front.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now unheaded-zhen-ui-front.service
+#   sudo systemctl enable unheaded-zhen-ui-front.service (the switch starts it: unheaded-zhen.target, ADR-149)
 #
 # A LAN listener is a host's drop-in: a second --listen with the interface's
 # address, its subnet in IPAddressAllow, and the firewall rule (Stevie's).
@@ -23,6 +23,14 @@ Description=Unheaded Zhen UI front: hybrid-only TLS 1.3 to the app's socket
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md
 After=network-online.target
 Wants=network-online.target
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (30 starts x RestartSec 30s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 300 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=30
+# The Zhen module's switch (ADR-149): stopping the target stops this unit.
+PartOf=unheaded-zhen.target
 
 [Service]
 Type=simple
@@ -98,4 +106,4 @@ IPAddressDeny=any
 IPAddressAllow=localhost
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=unheaded-zhen.target

@@ -41,11 +41,6 @@ var ownPrimitives = []ownPrimitive{
 		primitive: primHash, param: "SHA-256", marker: sha256RoundConstant,
 		detail: "the algorithm is the standard's and the implementation is this repository's: the eBPF workspace has no hashing crate",
 	},
-	{
-		path: "services/sophia/hkdf_derive.go", name: "HKDF-SHA-256 (hand-written on crypto/hmac, RFC 5869)",
-		primitive: primKDF, param: "HKDF-SHA-256", marker: regexp.MustCompile(`(?m)^func hkdfExtract\(`),
-		detail: "extract and expand written here on the standard library's HMAC",
-	},
 }
 
 func ownListed(rel string) bool {

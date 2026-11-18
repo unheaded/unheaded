@@ -4,10 +4,8 @@ DL3008	docker/base/Dockerfile.base	1
 DL3008	docker/firewall/frr/Dockerfile	2
 DL3008	docker/routing/ospf/Dockerfile	2
 DL3008	docker/services/dashboard-backend/Dockerfile	1
-DL3008	docker/services/monad/Dockerfile	1
 DL3008	docker/services/protocol-api/Dockerfile	1
 DL3008	docker/services/shield/Dockerfile	1
-DL3008	docker/services/sophia/Dockerfile	1
 DL3008	docker/services/trace-collector/Dockerfile	1
 DL3008	docker/services/unheaded-daemon/Dockerfile	1
 DL3008	routing/frr/Dockerfile	2
@@ -23,9 +21,7 @@ DL3025	docker/routing/ospf/Dockerfile	1
 DL3066	deploy/docker/zhen-agentd.Dockerfile	1
 DL3066	docker/base/Dockerfile.base	1
 DL3066	docker/services/dashboard-backend/Dockerfile	1
-DL3066	docker/services/monad/Dockerfile	1
 DL3066	docker/services/protocol-api/Dockerfile	1
-DL3066	docker/services/sophia/Dockerfile	1
 DL3066	docker/services/trace-collector/Dockerfile	1
 SC2046	docker/firewall/bird/Dockerfile	1
 SC2046	docker/firewall/frr/Dockerfile	1

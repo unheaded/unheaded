@@ -362,15 +362,6 @@ sources:
     canary: http-get
     owner: developer
     status: "blocked:FND-001"
-  - id: west/compose-architect
-    host: west
-    kind: journal-container
-    match: unheaded-architect
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
   - id: west/compose-auth
     host: west
     kind: journal-container
@@ -387,15 +378,6 @@ sources:
     retention: operational
     max_silence: 7d
     canary: "none: logs its start, refusals and maintenance failures only; it logs no request"
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-captain
-    host: west
-    kind: journal-container
-    match: unheaded-captain
-    retention: operational
-    max_silence: 6h
-    canary: http-get
     owner: developer
     status: "blocked:FND-001"
   - id: west/compose-cuirass
@@ -420,33 +402,6 @@ sources:
     host: west
     kind: journal-container
     match: unheaded-kanban-app
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-micromanager
-    host: west
-    kind: journal-container
-    match: unheaded-micromanager
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-monad
-    host: west
-    kind: journal-container
-    match: unheaded-monad
-    retention: operational
-    max_silence: 6h
-    canary: http-get
-    owner: developer
-    status: "blocked:FND-001"
-  - id: west/compose-sophia
-    host: west
-    kind: journal-container
-    match: unheaded-sophia
     retention: operational
     max_silence: 6h
     canary: http-get
@@ -784,7 +739,7 @@ sources:
     canary: http-get
     owner: developer
     status: gap
-    note: "D4: ships once vector-east is installed (Step 170)"
+    note: "still a host unit on east until plan 6 (S-EAST-PAIR) removes it; the code was removed and archived (ADR-147 decision 7)"
   - id: east/unheaded-captain
     host: east
     kind: journal-unit
@@ -794,7 +749,7 @@ sources:
     canary: http-get
     owner: developer
     status: gap
-    note: "D4: ships once vector-east is installed (Step 170)"
+    note: "still a host unit on east until plan 6 (S-EAST-PAIR) removes it; the code was removed and archived (ADR-147 decision 7)"
   - id: east/unheaded-chaos-controller
     host: east
     kind: journal-unit
@@ -844,7 +799,7 @@ sources:
     canary: http-get
     owner: developer
     status: gap
-    note: "D4: ships once vector-east is installed (Step 170)"
+    note: "still a host unit on east until plan 6 (S-EAST-PAIR) removes it; the code was removed and archived (ADR-147 decision 7)"
   - id: east/unheaded-trace-collector
     host: east
     kind: journal-unit
@@ -1394,6 +1349,16 @@ sources:
     owner: architect
     status: "blocked:FND-001"
     note: "boot-time nft load; one line per boot"
+  - id: west/unheaded-host-settings
+    host: west
+    kind: journal-unit
+    match: unheaded-host-settings.service
+    retention: audit
+    max_silence: 26h
+    canary: "none: daily timer; HostSettingsCheckStale is the alert"
+    owner: architect
+    status: gap
+    note: "S-WEST-GROUND drift check; installed in its Phase 8 (attended); prints verdicts and paths only"
   - id: west/unheaded-upc-netns
     host: west
     kind: journal-unit
@@ -1552,6 +1517,42 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:runs in compose on west (west/compose-auth); the host unit is not installed"
+  - id: unit/unheaded-clickhouse-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-clickhouse-backup.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 13 (then max_silence 26h, like the Well's backup units; the store-backups SLO watches the result)"
+  - id: unit/unheaded-victoria-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-victoria-backup.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 13 (then max_silence 26h, like the Well's backup units; the store-backups SLO watches the result)"
+  - id: unit/unheaded-store-drill
+    host: west
+    kind: journal-unit
+    match: unheaded-store-drill.service
+    retention: audit
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 13 (then max_silence 8d, like the Well's backup units; the store-backups SLO watches the result)"
+  - id: unit/unheaded-host-state
+    host: west
+    kind: journal-unit
+    match: unheaded-host-state.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 14 (HostStateStale watches its output)"
   - id: unit/unheaded-ci-status
     host: west
     kind: journal-unit
@@ -1588,6 +1589,15 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:installed on east as unheaded-kanban-app.service (see east/unheaded-kanban-app); deploy name differs"
+  - id: unit/unheaded-health-sweep
+    host: west
+    kind: journal-unit
+    match: unheaded-health-sweep.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8 (ADR-149)"
   - id: unit/unheaded-heimdall
     host: west
     kind: journal-unit
@@ -1597,24 +1607,24 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
-  - id: unit/unheaded-monad
+  - id: unit/unheaded-ioc-audit
     host: west
     kind: journal-unit
-    match: unheaded-monad.service
+    match: unheaded-ioc-audit.service
     retention: operational
     max_silence: n/a
     canary: "none: excluded"
     owner: architect
-    status: "excluded:runs in compose on west (west/compose-monad); the host unit is not installed"
-  - id: unit/unheaded-sophia
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8 (ADR-149)"
+  - id: unit/unheaded-module-guard
     host: west
     kind: journal-unit
-    match: unheaded-sophia.service
+    match: unheaded-module-guard.service
     retention: operational
     max_silence: n/a
     canary: "none: excluded"
     owner: architect
-    status: "excluded:runs in compose on west (west/compose-sophia); the host unit is not installed"
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8 (ADR-149)"
   - id: unit/unheaded-sword
     host: west
     kind: journal-unit
@@ -1663,6 +1673,15 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host"
+  - id: unit/unheaded-zhen-backup
+    host: west
+    kind: journal-unit
+    match: unheaded-zhen-backup.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8B, part of the Zhen switch (ADR-149)"
   - id: unit/unheaded-zhen-app
     host: west
     kind: journal-unit
@@ -1673,6 +1692,15 @@ sources:
     owner: architect
     status: "excluded:unit file only; not installed on any host"
     note: "S-ZHEN-FRONT Phase 10 installs it on west (attended), disabled; it becomes a west/ entry with status gap then"
+  - id: unit/unheaded-zhen-module
+    host: west
+    kind: journal-unit
+    match: unheaded-zhen-module.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; installed by S-ZHEN-SWITCH Phase 8, part of the Zhen switch (ADR-149)"
   - id: unit/zhen-agentd
     host: west
     kind: journal-unit

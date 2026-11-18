@@ -36,7 +36,7 @@ Internet
     |       |
     |       +-- Gateway (10.10.10.100:21000/21443)
     |       +-- Wotan (10.10.10.10:18000/18001)
-    |       +-- Services (10.10.10.20-30:19000-19005)
+    |       +-- Services (10.10.10.20-30:19000)
     |       +-- Apps (10.10.10.200+:20000-20002)
     |       +-- Nginx sidecars (per-app proxy)
     |
@@ -54,7 +54,7 @@ Internet
 | 16666-16671 | protocol-api, dashboard-backend, kanban-app, trace-collector | Internal only |
 | 17000-17001 | unheaded-daemon (HTTP + gRPC) | Internal only |
 | 18000-18001 | Wotan (HTTP + gRPC) | Internal only |
-| 19000-19005 | timeguru, architect, captain, micromanager, monad, sophia | Internal only |
+| 19000 | timeguru (19001-19005 retired 2026-11, ADR-147) | Internal only |
 | 20000-20002 | dashboard, kanban, wiki | Internal + optional external |
 | 21000-21443 | Gateway (HTTP/HTTPS) | External-facing |
 | 26000-26666 | User applications | External-facing |

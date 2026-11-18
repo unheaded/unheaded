@@ -22,6 +22,7 @@ import (
 	"unheaded/pkg/auth/authtest"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // M10: with no flags the collector binds loopback, in both modes.
@@ -196,7 +197,7 @@ const runEnding = "TRACE_COLLECTOR_TEST_RUN"
 // this test binary running main with the BPF work swapped out.
 func TestMainEnding(t *testing.T) {
 	if mode := os.Getenv(runEnding); mode != "" {
-		runCollector = func(ctx context.Context, _ *transport.HealthServer, _ transport.Config, _ auth.ServiceAuthConfig, ls listeners) error {
+		runCollector = func(ctx context.Context, _ *transport.HealthServer, _ transport.Config, _ *wotanClient.Client, _ auth.ServiceAuthConfig, ls listeners) error {
 			switch mode {
 			case "late-failure":
 				ls.stop(syscall.EADDRINUSE)
@@ -249,7 +250,7 @@ const statsFlagChild = "TRACE_COLLECTOR_TEST_STATS_INTERVAL"
 // a ticker panic later on; --read-interval is no longer an option.
 func TestStatsIntervalRefusesNonPositive(t *testing.T) {
 	if v := os.Getenv(statsFlagChild); v != "" {
-		runCollector = func(context.Context, *transport.HealthServer, transport.Config, auth.ServiceAuthConfig, listeners) error {
+		runCollector = func(context.Context, *transport.HealthServer, transport.Config, *wotanClient.Client, auth.ServiceAuthConfig, listeners) error {
 			return errors.New("the run should not have started")
 		}
 		os.Args = append([]string{"trace-collector-go", "--http-addr", "127.0.0.1:0"}, strings.Fields(v)...)

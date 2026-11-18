@@ -46,9 +46,9 @@ func (c *Client) ensureReprobe() {
 }
 
 // reprobeLoop probes gRPC every interval while the client is degraded and
-// exits once it is healthy again or the client closes. Streams already
-// polling over HTTP keep polling; streams opened after the promotion use
-// gRPC.
+// exits once it is healthy again or the client closes. A stream polling
+// over HTTP sees the promotion before its next poll and reopens gRPC from
+// the last seq it delivered (streamLoop, ADR-147 Phase 6).
 //
 // Before this loop the client probed once, at construction: a service that
 // started before Wotan's gRPC port answered stayed on HTTP polling for the

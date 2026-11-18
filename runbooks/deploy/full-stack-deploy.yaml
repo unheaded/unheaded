@@ -74,7 +74,7 @@ steps:
     action: shell
     command: |
       cd ${PROJECT_ROOT}
-      for svc in timeguru captain architect micromanager; do
+      for svc in timeguru; do
         go build -o services/$svc/cmd/$svc/$svc ./services/$svc/cmd/$svc/ 2>/dev/null
         nohup services/$svc/cmd/$svc/$svc > /tmp/$svc.log 2>&1 &
         sleep 1
@@ -123,7 +123,7 @@ steps:
     action: shell
     command: |
       echo "=== Full Health Sweep ==="
-      for entry in wotan:18000 timeguru:19000 captain:19002 dashboard:20000 kanban:20001 zhen-ui-front:20112 inference:20100; do
+      for entry in wotan:18000 timeguru:19000 dashboard:20000 kanban:20001 zhen-ui-front:20112 inference:20100; do
         NAME=$(echo $entry | cut -d: -f1)
         PORT=$(echo $entry | cut -d: -f2)
         curl -sf http://localhost:$PORT/health > /dev/null && echo "  $NAME: OK" || echo "  $NAME: FAIL"
@@ -146,7 +146,7 @@ rollback:
     command: |
       pkill -f zhen_app.py; pkill -f llama-server
       pkill -f dashboard-backend; pkill -f kanban-app
-      pkill -f wotan; pkill -f timeguru; pkill -f captain
+      pkill -f wotan; pkill -f timeguru
       sudo docker compose -f ${PROJECT_ROOT}/docker-compose.yml down
       echo "All services stopped. Logs: $(dirname "$(dirname "$(~/tmp/unheaded/scripts/lib/logpath.sh wotan)")")/<service>/"
     when: "any critical step fails"

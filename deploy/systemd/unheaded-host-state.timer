@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Runs unheaded-host-state.service every 30 s (ADR-147, S-SEE-AND-SURVIVE
+# Phase 5). HostStateStale fires when host_state.prom is over 5 minutes old.
+
+[Unit]
+Description=Container and unit state every 30 s (ADR-147)
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

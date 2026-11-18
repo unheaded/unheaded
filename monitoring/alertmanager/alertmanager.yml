@@ -11,6 +11,12 @@ route:
   group_interval: 5m
   repeat_interval: 24h
   routes:
+    - receiver: pipeline
+      group_wait: 30s
+      group_interval: 1m
+      repeat_interval: 5m
+      matchers:
+        - alertname="AlertPipelineHeartbeat"
     - receiver: ticket
       group_wait: 1m
       group_interval: 5m
@@ -37,6 +43,20 @@ route:
       group_interval: 5m
       repeat_interval: 12h
       matchers:
+        - alertname="ContainerStopped"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HealthSweepNotSucceeding"
+        - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
         - alertname="HeartbeatMissing"
         - urgency="none"
     - receiver: ticket
@@ -44,7 +64,119 @@ route:
       group_interval: 5m
       repeat_interval: 24h
       matchers:
+        - alertname="HostDiskAlmostFull"
+        - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
+        - alertname="HostDiskFull"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostIOPressure"
+        - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
+        - alertname="HostMemoryPressure"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostSettingsCheckStale"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostSettingsDrift"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostStateStale"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostSwapNearFull"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostSwapping"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HostTemperatureNearCritical"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="HuginnDown"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
         - alertname="IOCAuditNotSucceeding"
+        - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
+        - alertname="MemoryKill"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="ModuleListenerGuardNotRunning"
+        - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
+        - alertname="ModuleListenerPublic"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="NodeExporterDown"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="PrometheusRemoteWriteFailing"
         - urgency="none"
     - receiver: ticket
       group_wait: 1m
@@ -60,12 +192,40 @@ route:
       matchers:
         - alertname="TraceCollectorDown"
         - urgency="none"
+    - receiver: page
+      group_wait: 2m
+      group_interval: 5m
+      repeat_interval: 12h
+      matchers:
+        - alertname="UnitFailed"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="UnitRestartLoop"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="VictoriaMetricsDown"
+        - urgency="none"
     - receiver: ticket
       group_wait: 1m
       group_interval: 5m
       repeat_interval: 24h
       matchers:
         - alertname="WotanTopicPermissionRefused"
+        - urgency="none"
+    - receiver: ticket
+      group_wait: 1m
+      group_interval: 5m
+      repeat_interval: 24h
+      matchers:
+        - alertname="ZhenBackupStale"
         - urgency="none"
     - receiver: page
       group_wait: 2m
@@ -98,3 +258,8 @@ receivers:
       - url: http://alert-mailer:19130/v1/alerts/ticket
         send_resolved: true
         max_alerts: 50
+  - name: pipeline
+    webhook_configs:
+      - url: http://alert-mailer:19130/v1/alerts/pipeline
+        send_resolved: false
+        max_alerts: 1

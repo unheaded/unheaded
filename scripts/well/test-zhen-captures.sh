@@ -2,11 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
-# Checks unheaded_app.zhen_captures and zhen_capture_labels
-# (db/migrations/033) on a throwaway PostgreSQL server bootstrapped by
-# db/init.sh from the manifest, never the real Well:
-#   1. the bootstrap records 033; both tables and the purge function
-#      belong to well_app_owner; app_kanban cannot read captures;
+# Checks zhen_captures and zhen_capture_labels (db/migrations/033; since
+# ADR-149 they live in unheaded_zhen, made by 052) on a throwaway PostgreSQL
+# server bootstrapped by db/init.sh from the manifest, never the real Well:
+#   1. the bootstrap records 033 in unheaded_app and 052 in unheaded_zhen;
+#      both tables and the purge function belong to well_zhen_owner;
+#      app_kanban cannot read captures;
 #   2. app_zhen (a real TCP login) inserts a capture; purge_after is set
 #      by the trigger (captured_at + 180 days), not by the writer;
 #   3. dedupe: a duplicate id is refused; ON CONFLICT DO NOTHING inserts 0;
@@ -59,10 +60,11 @@ for _ in $(seq 1 120); do
 done
 ((ready)) || { "${DOCKER[@]}" logs "$N" 2>&1 | tail -20; echo "postgres did not become ready"; exit 1; }
 
-sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
-zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
-kb() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_app -c "$1"; }
-own() { sq "SET ROLE well_app_owner; $1"; }
+sa() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
+sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_zhen -c "$1"; }
+zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_zhen -c "$1"; }
+kb() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_zhen -c "$1"; }
+own() { sq "SET ROLE well_zhen_owner; $1"; }
 # The passwords exist only inside this throwaway container.
 sq "ALTER ROLE app_zhen PASSWORD '$ZPW'; ALTER ROLE app_kanban PASSWORD '$KPW';" >/dev/null
 
@@ -95,10 +97,12 @@ label() { # n kind ref
 
 # 1. Ledger, owners, readers.
 is "bootstrap recorded 033 in unheaded_app" 1 \
-	"$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '033_app_zhen_captures.sql'")"
-is "tables owned by well_app_owner" "well_app_owner well_app_owner" \
+	"$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '033_app_zhen_captures.sql'")"
+is "bootstrap recorded 052 in unheaded_zhen" 1 \
+	"$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '052_zhen_schema.sql'")"
+is "tables owned by well_zhen_owner" "well_zhen_owner well_zhen_owner" \
 	"$(sq "SELECT string_agg(pg_get_userbyid(relowner), ' ' ORDER BY relname) FROM pg_class WHERE relname IN ('zhen_captures', 'zhen_capture_labels')")"
-is "purge function owned by well_app_owner, SECURITY DEFINER" "well_app_owner true" \
+is "purge function owned by well_zhen_owner, SECURITY DEFINER" "well_zhen_owner true" \
 	"$(sq "SELECT pg_get_userbyid(proowner) || ' ' || prosecdef FROM pg_proc WHERE proname = 'zhen_captures_purge'")"
 refused "app_kanban SELECT zhen_captures" kb "SELECT count(*) FROM zhen_captures"
 
@@ -114,7 +118,7 @@ refused "a capture born promoted" zh "$(cap 3 local local "now()" "answer 3" rep
 # 3. Dedupe by content hash.
 refused "duplicate id" zh "$(cap 1)"
 is "ON CONFLICT DO NOTHING inserts 0" "INSERT 0 0" \
-	"$("${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$(cap 1) ON CONFLICT (id) DO NOTHING")"
+	"$("${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_zhen -c "$(cap 1) ON CONFLICT (id) DO NOTHING")"
 
 # 4. Size cap (bytes is generated from the stored text).
 refused "a 300 KiB capture" zh "$(cap 4 local local "now()" "' || repeat('x', 300 * 1024) || '")"
@@ -151,7 +155,7 @@ refused "owner TRUNCATE" own "TRUNCATE zhen_captures CASCADE"
 ok "app_zhen INSERT a label" zh "$(label 1 check_pass zhen_actions:7)"
 refused "the same label twice" zh "$(label 1 check_pass zhen_actions:7)"
 is "re-labelling with ON CONFLICT DO NOTHING inserts 0" "INSERT 0 0" \
-	"$("${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$(label 1 check_pass zhen_actions:7) ON CONFLICT DO NOTHING")"
+	"$("${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_zhen -c "$(label 1 check_pass zhen_actions:7) ON CONFLICT DO NOTHING")"
 ok "another source for the same kind" zh "$(label 1 check_pass zhen_actions:8)"
 refused "unknown kind" zh "$(label 1 thumbs_up ui:1)"
 refused "label on a missing capture" zh "$(label 999 check_pass x:1)"

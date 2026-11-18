@@ -110,10 +110,11 @@ Before every card the night checks, in order, and stops with a typed reason writ
 | infrastructure failures | 2 in a row (a failing check is the model's failure and does not count) | `infra_failures` |
 | SIGTERM / SIGINT | | `signal` |
 
-Two conditions defer a card to the next poll instead of stopping the night:
+Three conditions defer a card to the next poll instead of stopping the night:
 
 - **memory floor**: `MemAvailable` (from `/proc/meminfo`) must be at least 2 GiB plus one check's `MemoryMax` (2G), 4 GiB in all. Swap is never counted: fitting in swap is how this box livelocks. `ZHEN_MEM_FLOOR_BYTES` can raise the floor, never lower it.
 - **GPU lease** (below) held exclusively.
+- **a critical alert firing** (ADR-147 D2 = B, `pkg/critalert` on `alerts.critical`), for every worker run, interactive or overnight. The tracker rides the `-audit-wotan` client (the overnight unit passes it, with `WOTAN_ADDR` in its env file). A fresh tracker has heard nothing and Wotan replays nothing, so the worker also waits until the first `alerts.critical` message (alert-mailer sends a snapshot every 5 min; `-worker -once` right after start is therefore deferred); 15 min with nothing heard is unknown and runs go ahead, as for Sword and chaos-controller. Without the client zhen-agentd logs `critical_alert_hold_off` once and runs go ahead. The morning report counts these deferrals as `critical_alert`, apart from `gpu_lease`.
 
 Privacy is forced to `strict` (no Kingdom-ops tool result leaves the host while nobody watches).
 

@@ -21,10 +21,17 @@ import (
 
 // `zhen-claude confirm list|show <id>|approve <id>|deny <id>` decides
 // calls queued by -confirm queue (or zhen-agentd). It runs as Stevie, in
-// his own process, with his own Well login (WELL_APP_ZHEN_DSN): nothing
-// it does is visible to, or can be answered by, a model.
+// his own process, with his own Well login (WELL_ZHEN_DSN, unheaded_zhen as
+// app_zhen; ADR-149): nothing it does is visible to, or can be answered by,
+// a model.
 
-const envAppZhenDSN = "WELL_APP_ZHEN_DSN"
+// envZhenDSN reaches Zhen's own tables (unheaded_zhen as app_zhen, ADR-149);
+// envAppZhenDSN reaches the board (unheaded_app as app_zhen), and only the
+// review command, which moves a card, needs it.
+const (
+	envZhenDSN    = "WELL_ZHEN_DSN"
+	envAppZhenDSN = "WELL_APP_ZHEN_DSN"
+)
 
 // envTaughtDir names the zhen-taught directory for approving a teach_write
 // row. Only this command reads it: no daemon has a taught dir.
@@ -44,9 +51,9 @@ type confirmStore interface {
 
 // openConfirmStore opens the queue. A variable so tests can stub it.
 var openConfirmStore = func(ctx context.Context) (confirmStore, func(), error) {
-	dsn := strings.TrimSpace(os.Getenv(envAppZhenDSN))
+	dsn := strings.TrimSpace(os.Getenv(envZhenDSN))
 	if dsn == "" {
-		return nil, func() {}, fmt.Errorf("%s is not set (unheaded_app as app_zhen); it is read from the environment only", envAppZhenDSN)
+		return nil, func() {}, fmt.Errorf("%s is not set (unheaded_zhen as app_zhen); it is read from the environment only", envZhenDSN)
 	}
 	db, err := openWellDB(ctx, dsn)
 	if err != nil {
@@ -333,7 +340,7 @@ func buildConfirmer(ctx context.Context, o *options, champ *champion.Champion, a
 		}
 		return &claudebridge.TTYConfirmer{Champion: champ, TTY: o.tty}, func() {}, nil
 	case "queue":
-		dsn := strings.TrimSpace(os.Getenv(envAppZhenDSN))
+		dsn := strings.TrimSpace(os.Getenv(envZhenDSN))
 		db, err := openWellDB(ctx, dsn)
 		if err != nil {
 			return nil, func() {}, fmt.Errorf("-confirm queue: connect to the Well: %s", redactDSN(err.Error()))

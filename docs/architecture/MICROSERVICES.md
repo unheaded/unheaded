@@ -99,26 +99,7 @@ func main() {
 - REST API: GET/POST /api/v1/timeline
 - **Hollow**: Seer's Antre
 
-### captain
-- **Domain**: Vision & Strategy
-- **Question**: WHY & WHERE
-- Strategic decisions and vision alignment
-- REST API: GET/POST /api/v1/strategy
-- **Hollow**: Commander's Quarters
-
-### micromanager
-- **Domain**: Execution & QA
-- **Question**: WHAT & WHEN
-- Task breakdown and QA oversight
-- REST API: GET/POST /api/v1/tasks
-- **Hollow**: War Room
-
-### architect
-- **Domain**: Technical Design
-- **Question**: HOW
-- Infrastructure design and tech decisions
-- REST API: GET/POST /api/v1/designs
-- **Hollow**: Sage's Lair
+The captain, micromanager and architect services were removed 2026-11 (ADR-147).
 
 ### developer
 - **Domain**: Code & TDD
@@ -146,10 +127,8 @@ All services communicate via Wotan (message bus) using the Fae Chamber protocols
 ### Standard Topics
 | Topic | Publisher | Subscribers |
 |-------|-----------|-------------|
-| `tasks.created` | micromanager | timeguru, kanban |
-| `tasks.completed` | micromanager | timeguru, captain |
-| `timeline.updates` | timeguru | captain, dashboard |
-| `decisions.approved` | captain | micromanager, architect |
+| `tasks.created` | kanban-app | kanban-app, dashboard-backend |
+| `timeline.updates` | timeguru | kanban-app, dashboard-backend |
 | `alerts.critical` | any | all services |
 | `state.drift.detected` | kenoma | pleroma, anamnesis |
 

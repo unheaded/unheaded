@@ -1,4 +1,4 @@
-.TH ZHEN\-AGENTD 1 "2026-11-07" "unheaded 7c817b61" "Unheaded Kingdom"
+.TH ZHEN\-AGENTD 1 "2026-11-16" "unheaded e6b73f22" "Unheaded Kingdom"
 .SH NAME
 zhen\-agentd \- Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH SYNOPSIS
@@ -9,7 +9,7 @@ Serve the Zhenai agent runtime over HTTP for multi\-request use.
 .SH OPTIONS
 .TP
 .B \-\-action\-store \fISTRING\fR
-audit\-log backend: stderr (dev) | pg (production via The Well; requires WELL_DSN env) (default stderr)
+audit\-log backend: stderr (dev) | pg (production via The Well: unheaded_zhen.zhen_actions, DSN from env WELL_ZHEN_DSN) (default stderr)
 .TP
 .B \-\-agent\-root \fISTRING\fR
 with \-worker: agent worktrees live here, outside the project root (env ZHEN_AGENT_WT_ROOT) (default ~/.cache/unheaded/zhen\-worktrees)
@@ -42,7 +42,7 @@ with \-worker \-claude live: Claude model ID (default claude\-opus\-5\-5)
 source shard written by zhen\-codeindex, searched beside vor (env ZHEN_CODE_INDEX_DIR; empty: vor alone)
 .TP
 .B \-\-confirm\-queue \fIzhen\-claude confirm\fR
-queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
+queue agent\-loop writes the gate refuses pending confirmation in the Well (unheaded_zhen.zhen_pending_confirmations, DSN from env WELL_ZHEN_DSN) instead of denying them; Stevie decides with zhen\-claude confirm
 .TP
 .B \-\-corpus\-index \fISTRING\fR
 Grimoire corpus written by zhen\-codeindex \-\-corpus, searched beside vor (env ZHEN_CORPUS_INDEX_DIR; empty: not searched)
@@ -57,7 +57,7 @@ with \-worker \-claude live: effort (default low)
 GPU lease file shared with scripts/switch\-model.sh and forge\-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; "" = no lease; $XDG_RUNTIME_DIR/unheaded/gpu.lock when that is set (default /tmp/unheaded/gpu.lock)
 .TP
 .B \-\-host \fISTRING\fR
-HTTP listen host (use 0.0.0.0 for non\-loopback) (default 127.0.0.1)
+HTTP listen host: loopback, or a private address on 'UNHEADED_MODULE_BIND_ALLOW (ADR\-149) (default 127.0.0.1)
 .TP
 .B \-\-kanban\-store \fISTRING\fR
 kanban\-task backend for kanban_create / kanban_update tool calls: memory (in\-process, dev) | pg (production via The Well; DSN from WELL_KANBAN_DSN, else WELL_DSN). Without this, kanban_* tool calls pass the gate but fail at dispatch. (default memory)
@@ -72,7 +72,7 @@ with \-worker: local model name when the family names none (default local)
 with \-overnight: cards tried per night (default 5)
 .TP
 .B \-\-memory\-store \fISTRING\fR
-memory backend for /api/v1/memory/recall and /remember (zhen\-cli /recall, /remember): none (503) | pg (unheaded_app.zhen_memories, DSN from env WELL_APP_ZHEN_DSN) (default none)
+memory backend for /api/v1/memory/recall and /remember (zhen\-cli /recall, /remember): none (503) | pg (unheaded_zhen.zhen_memories, DSN from env WELL_ZHEN_DSN) (default none)
 .TP
 .B \-\-metrics\-addr \fISTRING\fR
 also serve /metrics alone on this host:port (env ZHEN_METRICS_ADDR), e.g. the WireGuard address Prometheus scrapes, '[fd00:dead:beef::1]:20111'; the API stays on \-host
@@ -117,7 +117,7 @@ with \-worker: review notes (one Markdown file per run, 0600) (default ~/.local/
 with \-worker: routing table (scripts/two\-brains/thresholds.py) (default configs/zhen\-routing.yaml)
 .TP
 .B \-\-scheduler
-run approved runbooks on the schedule in \-schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_APP_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR\-028)
+run approved runbooks on the schedule in \-schedules: one Kanban card and one zhen_agent_runs row (mode scheduled; DSN from env WELL_ZHEN_DSN, in memory without it) per run, every call through the Champion gate; heartbeat gauge zhen_scheduler_heartbeat_timestamp_seconds (replaces raft/zhen_scheduler.py, ADR\-028)
 .TP
 .B \-\-schedules \fISTRING\fR
 with \-scheduler: the schedule file (env ZHEN_SCHEDULES); read\-only to the daemon (default configs/zhen\-schedules.yaml)
@@ -132,7 +132,7 @@ with \-overnight: when this file exists the night stops (a card in flight finish
 with \-overnight: local\-time window HH:MM\-HH:MM (may cross midnight) (default 01:00\-07:00)
 .TP
 .B \-\-worker
-work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a `zhen block) into local zhen/<card> branches for review; never pushes (DSN from env WELL_APP_ZHEN_DSN)
+work eligible Kanban cards from the Well (owner zhen, opted in by an operator, a `zhen block) into local zhen/<card> branches for review; never pushes (runs from env WELL_ZHEN_DSN, cards from WELL_APP_ZHEN_DSN)
 .TP
 .B \-h, \-\-help
 display this help and exit

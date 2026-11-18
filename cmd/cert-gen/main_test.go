@@ -116,8 +116,8 @@ func TestDefaultServices_NamesAreLowercaseHyphenated(t *testing.T) {
 // the legacy gateway.
 func TestDefaultServices_CoverFirstPartyComposeServices(t *testing.T) {
 	t.Parallel()
-	want := []string{"wotan", "timeguru", "captain", "architect", "micromanager", "akira", "monad",
-		"sophia", "dashboard-backend", "kanban-app", "cuirass", "auth", "sword", "logstore-writer", "unheaded-cli"}
+	want := []string{"wotan", "timeguru", "akira", "dashboard-backend", "kanban-app", "cuirass", "auth",
+		"sword", "logstore-writer", "unheaded-cli"}
 	have := map[string]bool{}
 	for _, s := range defaultServices {
 		have[s.Name] = true

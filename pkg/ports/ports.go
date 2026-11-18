@@ -31,16 +31,13 @@ const (
 	WotanGRPC = 18001
 
 	// Core Services (19000-19999)
-	Timeguru     = 19000
-	Architect    = 19001
-	Captain      = 19002
-	Micromanager = 19003
-	Monad        = 19004
-	Sophia       = 19005
-	Cuirass      = 19006
-	KeyMgmt      = 19007
-	PQCVerifier  = 19008
-	Shield       = 19009 // zero-trust gateway daemon (services/shield)
+	Timeguru = 19000
+	// 19001-19005, 19080, 19081 retired 2026-11 (ADR-147 decision 7): architect, captain,
+	// micromanager, the monad and sophia services and their sidecars. Not reused.
+	Cuirass     = 19006
+	KeyMgmt     = 19007
+	PQCVerifier = 19008
+	Shield      = 19009 // zero-trust gateway daemon (services/shield)
 
 	// Monad CPU Application Services (19010-19019)
 	Firewall     = 19010

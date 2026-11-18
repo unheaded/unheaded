@@ -96,7 +96,7 @@ steps:
   - name: configure-custom-dns
     action: shell
     command: |
-      /snap/bin/lxc exec pihole -- pihole-FTL --config dns.hosts '["192.168.69.184 west","192.168.69.184 west.lab","192.168.13.2 west.p2p","192.168.13.1 east","192.168.13.1 east.lab","192.168.13.1 east.p2p","10.10.10.1 lxd.west","10.10.10.10 wotan.west","10.10.10.20 services.west","10.10.10.100 gateway.west","10.0.3.1 lxc.west","172.17.0.1 docker.west","127.0.0.1 unheaded-daemon.local","127.0.0.1 wotan.local","127.0.0.1 timeguru.local","127.0.0.1 architect.local","127.0.0.1 captain.local","127.0.0.1 micromanager.local","127.0.0.1 monad.local","127.0.0.1 sophia.local","127.0.0.1 dashboard.local","127.0.0.1 kanban.local","127.0.0.1 zhen.local","127.0.0.1 pihole.west","127.0.0.2 dns.west","127.0.0.2 pihole.local"]'
+      /snap/bin/lxc exec pihole -- pihole-FTL --config dns.hosts '["192.168.69.184 west","192.168.69.184 west.lab","192.168.13.2 west.p2p","192.168.13.1 east","192.168.13.1 east.lab","192.168.13.1 east.p2p","10.10.10.1 lxd.west","10.10.10.10 wotan.west","10.10.10.20 services.west","10.10.10.100 gateway.west","10.0.3.1 lxc.west","172.17.0.1 docker.west","127.0.0.1 unheaded-daemon.local","127.0.0.1 wotan.local","127.0.0.1 timeguru.local","127.0.0.1 dashboard.local","127.0.0.1 kanban.local","127.0.0.1 zhen.local","127.0.0.1 pihole.west","127.0.0.2 dns.west","127.0.0.2 pihole.local"]'
     notes: |
       Pi-hole v6 uses dns.hosts array in pihole.toml (NOT custom.list file).
       pihole-FTL --config writes to pihole.toml and live-reloads.

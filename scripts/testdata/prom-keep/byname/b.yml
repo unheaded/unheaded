@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Fixture for scripts/test-prom-keep-list.sh: a series chosen by regex on
+# __name__ cannot be listed, so the generator refuses it.
+groups:
+  - name: fixture
+    rules:
+      - alert: ByName
+        expr: count({__name__=~"x.*"}) > 0

@@ -28,11 +28,7 @@ func TestScanOwn_ListedFilesGiveRows(t *testing.T) {
 	if sha.Name != "SHA-256 (hand-written, FIPS 180-4)" || sha.Primitive != primHash || sha.ParamSet != "SHA-256" {
 		t.Errorf("listed SHA-256 asset = %+v", sha)
 	}
-	kdf := one(t, assets, "services/sophia/hkdf_derive.go", 6, kindOwnPrimitive)
-	if kdf.Primitive != primKDF || kdf.ParamSet != "HKDF-SHA-256" {
-		t.Errorf("listed HKDF asset = %+v", kdf)
-	}
-	for _, a := range []Asset{sha, kdf} {
+	for _, a := range []Asset{sha} {
 		if a.AssetType != assetAlgorithm || a.Scanner != "source" || a.Owner != ownerFirstParty || a.LinkState != linkEnabled || a.PQStatus != pqNA {
 			t.Errorf("%s: %+v", a.Ref(), a)
 		}
@@ -57,7 +53,6 @@ func TestLint_HandWrittenSHA256OutsideTheTableFails(t *testing.T) {
 	}
 	for _, k := range []string{
 		"crates/upc-api/src/surface_hash.rs " + ruleOwnPrimitive, // listed
-		"services/sophia/hkdf_derive.go " + ruleOwnPrimitive,     // listed
 		"pkg/rogue/sha_test.go " + ruleOwnPrimitive,              // a Go test file
 		"crates/rogue/tests/vectors.rs " + ruleOwnPrimitive,      // a Rust integration test
 		"docs/notes.md " + ruleOwnPrimitive,                      // prose

@@ -268,13 +268,13 @@ class TestPlanAction(unittest.TestCase):
             triggered_by='zhen',
             model='mistral-7b',
             confidence=0.85,
-            trace_id='trace-abc',
+            trace_id='0123456789abcdef0123456789abcdef',  # 128-bit, uuid column (052)
         )
         action = self.conn._db['actions'][action_id]
         self.assertEqual(action['triggered_by'], 'zhen')
         self.assertEqual(action['model'], 'mistral-7b')
         self.assertAlmostEqual(action['confidence'], 0.85)
-        self.assertEqual(action['trace_id'], 'trace-abc')
+        self.assertEqual(action['trace_id'], '0123456789abcdef0123456789abcdef')
 
     def test_plan_default_parameters(self):
         action_id = self.am.plan_action(
@@ -691,7 +691,7 @@ class TestFullWorkflow(unittest.TestCase):
             intent='Write haproxy config',
             parameters={'path': 'haproxy.cfg', 'content': 'frontend...'},
             revertable=True,
-            trace_id='trace-lifecycle',
+            trace_id='fedcba9876543210fedcba9876543210',
         )
         action = self.am.get_action(action_id)
         self.assertEqual(action['status'], 'planned')

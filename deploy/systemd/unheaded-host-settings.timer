@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: run the host-settings drift check daily and ten minutes after boot
+# (S-WEST-GROUND, ADR-147). HostSettingsCheckStale fires if it stops running.
+[Unit]
+Description=Unheaded: daily host-settings drift check
+
+[Timer]
+OnBootSec=10min
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -32,18 +32,76 @@ var wotanClientStreamUp = auto.NewGaugeVec(
 	[]string{"topic"},
 )
 
+// wotanClientPolls counts every HTTP poll a stream makes. A gRPC stream makes
+// none, so a rate above zero is a stream on the fallback (ADR-147 Phase 6).
+var wotanClientPolls = auto.NewCounterVec(
+	prom.CounterOpts{
+		Name: "unheaded_wotan_client_polls_total",
+		Help: "HTTP polls (GET .../messages) the Wotan client made for a topic's stream; a gRPC stream makes none",
+	},
+	[]string{"topic"},
+)
+
+// wotanClientStreamRefused counts per-topic stream refusals (REV-9).
+var wotanClientStreamRefused = auto.NewCounterVec(
+	prom.CounterOpts{
+		Name: "unheaded_wotan_client_stream_refused_total",
+		Help: "Topic streams Wotan refused (PermissionDenied, Unauthenticated, NotFound, InvalidArgument, FailedPrecondition), by topic and code; a refusal does not degrade the client to HTTP",
+	},
+	[]string{"topic", "code"},
+)
+
+// wotanClientStreamTransport is 1 for the transport a topic's stream uses
+// now; the series for the other transport is absent.
+var wotanClientStreamTransport = auto.NewGaugeVec(
+	prom.GaugeOpts{
+		Name: "unheaded_wotan_client_stream_transport",
+		Help: "1 for the transport a topic's Wotan stream uses now (grpc or http-poll); the other is absent",
+	},
+	[]string{"topic", "transport"},
+)
+
+// The two values of a stream's transport (Health.StreamTransport, the
+// transport label).
+const (
+	streamGRPC = "grpc"
+	streamPoll = "http-poll"
+)
+
 // streamState is one topic's stream liveness.
 type streamState struct {
-	up      atomic.Bool
-	lastMsg atomic.Int64 // unix nanos of the last message delivered; 0 = none
+	up        atomic.Bool
+	lastMsg   atomic.Int64 // unix nanos of the last message delivered; 0 = none
+	transport atomic.Value // string: streamGRPC or streamPoll; unset = not yet open
+}
+
+// setStreamTransport records which transport topic's stream uses now. Only
+// the stream's own goroutine calls it.
+func (c *Client) setStreamTransport(topic, transport string) {
+	if c.isClosed() {
+		return
+	}
+	prev, _ := c.streamFor(topic).transport.Swap(transport).(string)
+	if prev == transport {
+		return
+	}
+	if prev != "" {
+		wotanClientStreamTransport.DeletePartialMatch(metrics.Labels{"topic": topic, "transport": prev})
+	}
+	wotanClientStreamTransport.WithLabelValues(topic, transport).Set(1)
 }
 
 // Health is the client's runtime view of Wotan for a service's /health
 // detail. Degraded is not dead: a service keeps answering 200 and shows this.
 type Health struct {
-	Transport   string          `json:"transport"`    // "gRPC" or "HTTP"
+	// Transport is "gRPC" only while the client is on gRPC and no stream
+	// polls; "HTTP" otherwise.
+	Transport   string          `json:"transport"`
 	GRPCHealthy bool            `json:"grpc_healthy"` // last ProbeGRPC / stream outcome
 	Streams     map[string]bool `json:"streams"`      // topic -> alive
+	// StreamTransport is each open stream's transport: "grpc" or
+	// "http-poll" (ADR-147 Phase 6).
+	StreamTransport map[string]string `json:"stream_transport"`
 	// LastMessageAge is how long ago each topic last delivered a message;
 	// topics that have not delivered one are absent.
 	LastMessageAge        map[string]time.Duration `json:"-"`
@@ -101,6 +159,9 @@ func (c *Client) forgetStream(topic string) {
 	delete(c.streams, topic)
 	c.streamsMu.Unlock()
 	wotanClientStreamUp.DeletePartialMatch(metrics.Labels{"topic": topic})
+	// The polls counter stays: a counter only rises (pkg/metrics has no
+	// delete for one), and a scrape after the stream ended still adds up.
+	wotanClientStreamTransport.DeletePartialMatch(metrics.Labels{"topic": topic})
 }
 
 // Health returns the transport, gRPC health and every live stream's state.
@@ -109,6 +170,7 @@ func (c *Client) Health() Health {
 		Transport:             c.Transport().String(),
 		GRPCHealthy:           c.IsGRPCHealthy(),
 		Streams:               map[string]bool{},
+		StreamTransport:       map[string]string{},
 		LastMessageAge:        map[string]time.Duration{},
 		LastMessageAgeSeconds: map[string]float64{},
 	}
@@ -117,6 +179,12 @@ func (c *Client) Health() Health {
 	defer c.streamsMu.Unlock()
 	for topic, st := range c.streams {
 		h.Streams[topic] = st.up.Load()
+		if tr, _ := st.transport.Load().(string); tr != "" {
+			h.StreamTransport[topic] = tr
+			if tr == streamPoll {
+				h.Transport = TransportHTTP.String()
+			}
+		}
 		if t := st.lastMsg.Load(); t > 0 {
 			age := now.Sub(time.Unix(0, t))
 			h.LastMessageAge[topic] = age

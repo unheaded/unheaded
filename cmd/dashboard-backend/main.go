@@ -39,7 +39,6 @@
 package main
 
 import (
-	"bufio"
 	"context"
 	"embed"
 	"flag"
@@ -55,10 +54,10 @@ import (
 	ebpfPkg "unheaded/cmd/dashboard-backend/internal/ebpf"
 	"unheaded/cmd/dashboard-backend/internal/events"
 	"unheaded/cmd/dashboard-backend/internal/health"
-	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/server"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -89,10 +88,6 @@ var (
 	debug         = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs      = flag.Bool("json", false, "Output logs in JSON format")
 
-	// Scraper settings
-	scrapeInterval = flag.Duration("scrape-interval", 15*time.Second, "Metrics scrape interval")
-	scrapeTimeout  = flag.Duration("scrape-timeout", 10*time.Second, "Metrics scrape timeout")
-
 	// Health settings
 	healthInterval = flag.Duration("health-interval", 15*time.Second, "Health check interval")
 	healthTimeout  = flag.Duration("health-timeout", 5*time.Second, "Health check timeout")
@@ -108,8 +103,9 @@ var (
 	servicesFile = flag.String("services-file", "", "Path to services endpoint file (name=host:port per line)")
 	vizDir       = flag.String("viz-dir", "", "Path to advanced visualizations directory (dashboard/), served under /viz/")
 
-	// VictoriaMetrics direct push (Approach C)
-	vmURL = flag.String("vm-url", "", "VictoriaMetrics base URL for direct metric push (e.g. http://localhost:8428)")
+	// Every metric the page shows is read from VictoriaMetrics (ADR-147
+	// decision 9); the dashboard keeps no series of its own.
+	vmURL = flag.String("vm-url", "", "VictoriaMetrics base URL every metric is read from (e.g. http://victoria:8428)")
 
 	// Compliance crosswalk (ADR-097)
 	complianceRoot     = flag.String("compliance-root", "", "Directory holding compliance/catalog/ (empty: /api/v1/compliance/* answer 503)")
@@ -172,11 +168,23 @@ func main() {
 		Str("transport", string(transportCfg.Type)).
 		Msg("transport config initialized")
 
+	// The process's one Wotan client (ADR-147 Phase 7): the eBPF ingestor,
+	// the event streamer, the health persister, log forwarding, discovery
+	// and health reports share it. A live view: streams start at the live
+	// position, not with Wotan's held history.
+	wc, err := transport.NewWotanClient(transportCfg, wotanClient.WithLiveStreams())
+	if err != nil {
+		log.Warn().Err(err).Msg("Wotan client: events, eBPF ingestion, health persistence, log forwarding, discovery and health reports off")
+		healthSrv.SetGRPCStatus(false)
+	} else {
+		defer func() { _ = wc.Close() }() // process exit: nothing buffered that a close error could lose
+	}
+
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if wotanHTTP != "" {
+	if wotanHTTP != "" && wc != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "dashboard-backend"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wc, transportCfg.WotanHTTPAddr, "dashboard-backend"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -208,6 +216,7 @@ func main() {
 	config := &server.Config{
 		ListenAddr:   *listenAddr,
 		WotanAddr:    wotanHTTP,
+		WotanClient:  wc,
 		ServiceName:  "dashboard-backend",
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -222,13 +231,6 @@ func main() {
 			AllowedOrigins: parseAllowedOrigins(*wsAllowedOrigins),
 		},
 
-		ScraperConfig: &scraper.Config{
-			ScrapeInterval:  *scrapeInterval,
-			ScrapeTimeout:   *scrapeTimeout,
-			RetentionPeriod: 1 * time.Hour,
-			MaxSamples:      1000,
-		},
-
 		HealthConfig: &health.Config{
 			PollInterval:      *healthInterval,
 			PollTimeout:       *healthTimeout,
@@ -240,6 +242,7 @@ func main() {
 
 		EventsConfig: &events.Config{
 			WotanAddr:         wotanHTTP,
+			Client:            wc,
 			ServiceName:       "dashboard-backend",
 			Topics:            getEventTopics(),
 			BufferSize:        1000,
@@ -265,26 +268,10 @@ func main() {
 	// WOTAN_GRPC_ADDR, then the transport default). It used to need the flag
 	// or env explicitly, so the deb (no dashboard.env) never started it and
 	// /api/v1/flows and /api/v1/ebpf/* stayed dead on east.
-	grpcAddr := transportCfg.WotanGRPCAddr
-	if grpcAddr != "" {
-		log.Info().Str("grpc_addr", grpcAddr).Msg("creating TopicStreamClient for eBPF event ingestion")
-
-		httpFallback, _ := wotanClient.NewClient(wotanHTTP)
-		tsc, err := wotanClient.NewTopicStreamClient(grpcAddr,
-			wotanClient.WithHTTPFallback(httpFallback),
-			// The dashboard is a live view: replaying Wotan's held history on
-			// every start re-counted ~30k old events as just ingested and
-			// flooded the WebSocket broadcast.
-			wotanClient.WithLiveStart(),
-		)
-		if err != nil {
-			log.Warn().Err(err).Msg("failed to create TopicStreamClient, eBPF events disabled")
-			healthSrv.SetGRPCStatus(false)
-		} else {
-			ingestorConfig := ebpfPkg.DefaultIngestorConfig()
-			config.EBPFIngestor = ebpfPkg.NewIngestor(ingestorConfig, tsc, log)
-			log.Info().Msg("eBPF event ingestor configured")
-		}
+	if wc != nil {
+		ingestorConfig := ebpfPkg.DefaultIngestorConfig()
+		config.EBPFIngestor = ebpfPkg.NewIngestor(ingestorConfig, wc, log)
+		log.Info().Str("grpc_addr", transportCfg.WotanGRPCAddr).Msg("eBPF event ingestor configured on the process's Wotan client")
 	}
 
 	// Create server
@@ -305,8 +292,9 @@ func main() {
 	defer cancel()
 
 	// Service discovery registration
-	discovery.Start(ctx, transportCfg, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
-	healthreport.StartService(ctx, transportCfg, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
+	critalert.Attach(ctx, wc, "dashboard-backend") // ADR-147 Phase 8: state on /metrics
+	discovery.Start(ctx, wc, "dashboard-backend", ports.PortOf(*listenAddr, ports.DashboardBackend))
+	healthreport.StartService(ctx, wc, "dashboard-backend", healthreport.HealthURL(*listenAddr, ports.PortOf(*listenAddr, ports.DashboardBackend))) // ADR-029: a vote on Akira's ballot
 
 	// Profiling. Off unless PPROF_ADDR is set, and it must be a loopback address
 	// (anything else is refused): reach it inside the container with
@@ -330,7 +318,7 @@ func main() {
 		Str("addr", *listenAddr).
 		Str("wotan", wotanHTTP).
 		Int("max_connections", *maxConnections).
-		Dur("scrape_interval", *scrapeInterval).
+		Str("vm_url", *vmURL).
 		Dur("health_interval", *healthInterval).
 		Msg("dashboard backend running")
 
@@ -382,22 +370,17 @@ func parseAllowedOrigins(origins string) []string {
 // getEventTopics returns the list of Wotan topics to subscribe to
 func getEventTopics() []string {
 	return []string{
-		"metrics.*",
-		"health.*",
-		"alerts.*",
+		// Only what a running binary publishes (ADR-147 Phase 7, Step 112):
+		// metrics.*, health.*, alerts.*, decisions.*, state.* and
+		// architecture.* had no publisher once the role services left.
 		"timeline.*",
 		"tasks.*",
-		"decisions.*",
-		"state.*",
-		"architecture.*",
 		// Akira's consensus severity changes (ADR-029).
 		"system.health.consensus",
-		// Not ebpf.* / compute.*: the eBPF ingestor consumes those
-		// (ebpfPkg.Topics). Subscribed here too, each event reached the
-		// page a second time as a generic "event".
-		"traces.packet",
-		"traces.flow",
-		"traces.latency",
+		// Not ebpf.* / compute.* / traces.{packet,flow,latency}: the eBPF
+		// ingestor consumes those (ebpfPkg.Topics) and hands traces.* to the
+		// trace view itself (ADR-147 Phase 10). Subscribed here too, each
+		// event reached the page a second time as a generic "event".
 		"traces.correlated",
 	}
 }
@@ -421,27 +404,9 @@ func loadServiceEndpoints(path string) (map[string]string, error) {
 	}
 	defer f.Close()
 
-	endpoints := make(map[string]string)
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			return nil, fmt.Errorf("invalid line (expected name=host:port): %q", line)
-		}
-		name := strings.TrimSpace(parts[0])
-		addr := strings.TrimSpace(parts[1])
-		if name == "" || addr == "" {
-			return nil, fmt.Errorf("empty name or address in: %q", line)
-		}
-		endpoints[name] = addr
+	endpoints, err := health.ParseServiceEndpoints(f)
+	if err != nil {
+		return nil, err
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("read services file: %w", err)
-	}
-
 	return endpoints, nil
 }

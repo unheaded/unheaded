@@ -230,24 +230,6 @@ else
   json_add_result "monad_hbh_tunnel" "FAIL" "Check if BGP is generating traffic"
 fi
 
-print_check "Host-A services can reach Host-B services (10.30.10.0/24)"
-if ssh root@"$host_a_ip" "docker compose exec -T monad ping -c 1 -W 2 10.30.10.1" >/dev/null 2>&1; then
-  pass
-  json_add_result "service_reach_b" "PASS"
-else
-  fail
-  json_add_result "service_reach_b" "FAIL"
-fi
-
-print_check "Host-B services can reach Host-A services (10.10.10.0/24)"
-if ssh root@"$host_b_ip" "docker compose exec -T monad ping -c 1 -W 2 10.10.10.1" >/dev/null 2>&1; then
-  pass
-  json_add_result "service_reach_a" "PASS"
-else
-  fail
-  json_add_result "service_reach_a" "FAIL"
-fi
-
 # ============ WOTAN PUB/SUB CROSS-HOST ============
 print_header "5. WOTAN PUB/SUB (MESSAGE BUS)"
 
@@ -270,20 +252,8 @@ else
   json_add_result "wotan_publish" "FAIL"
 fi
 
-# ============ SOPHIA KNOWLEDGE GRAPH ============
-print_header "6. SOPHIA KNOWLEDGE GRAPH (DISTRIBUTED STATE)"
-
-print_check "Host-A Sophia has Host-B references"
-if ssh root@"$host_a_ip" "docker compose exec -T sophia curl -s http://localhost:19000/graph 2>/dev/null | jq '.graph[] | select(.id | contains(\"host-b\"))' | grep -q 'id'"; then   # was `|| [[ -z $output_json ]]`: always PASS without --json
-  pass
-  json_add_result "sophia_graph_sync" "PASS"
-else
-  fail
-  json_add_result "sophia_graph_sync" "FAIL"
-fi
-
 # ============ LATENCY & PERFORMANCE ============
-print_header "7. LATENCY & PERFORMANCE MEASUREMENTS"
+print_header "6. LATENCY & PERFORMANCE MEASUREMENTS"
 
 print_check "WireGuard tunnel latency < 10ms (ping RTT)"
 rtt=$(ssh root@"$host_a_ip" "ping -c 1 -W 2 fd00:dead:beef::2 2>/dev/null | grep 'time=' | grep -oP 'time=\K[0-9.]+' || echo '999'")
@@ -303,19 +273,6 @@ if [[ -n "$bgp_uptime" ]]; then
 else
   fail
   json_add_result "bgp_uptime" "FAIL"
-fi
-
-# ============ FAILOVER & RESILIENCE ============
-print_header "8. FAILOVER & RESILIENCE TEST"
-
-print_check "Test failover: Kill Host-A Monad, verify Host-B still healthy"
-# This is a soft check; actual failover testing should be manual
-if ssh root@"$host_b_ip" "docker compose ps monad | grep -q 'Up'" >/dev/null 2>&1; then
-  pass
-  json_add_result "failover_ready" "PASS"
-else
-  fail
-  json_add_result "failover_ready" "FAIL"
 fi
 
 # ============ SUMMARY ============
@@ -343,7 +300,6 @@ else
     echo "  - EVPN routes: EXCHANGING"
     echo "  - Service mesh: CONNECTED"
     echo "  - Message bus (Wotan): REPLICATED"
-    echo "  - Knowledge graph (Sophia): SYNCHRONIZED"
     echo ""
     echo "Unheaded Kingdom fabric is ready for production!"
     echo ""

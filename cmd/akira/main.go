@@ -36,6 +36,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/health"
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
@@ -179,24 +180,9 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 var defaultTargets = []health.ServiceTarget{
 	{Name: "wotan", Host: "localhost", Port: 18000, HealthPath: "/health"},
 	{Name: "timeguru", Host: "localhost", Port: 19000, HealthPath: "/health"},
-	{Name: "architect", Host: "localhost", Port: 19001, HealthPath: "/health"},
-	{Name: "captain", Host: "localhost", Port: 19002, HealthPath: "/health"},
-	{Name: "micromanager", Host: "localhost", Port: 19003, HealthPath: "/health"},
-	{Name: "monad", Host: "localhost", Port: 19004, HealthPath: "/health"},
-	{Name: "sophia", Host: "localhost", Port: 19005, HealthPath: "/health"},
 	{Name: "dashboard", Host: "localhost", Port: 20000, HealthPath: "/health"},
 	{Name: "kanban", Host: "localhost", Port: 20001, HealthPath: "/health"},
-	// The Zhen web UI is https whatever UNHEADED_TLS_ENABLED says:
-	// zhen-ui-front has no plaintext mode (ADR-138). The check goes through
-	// the front to the app's own /health, so it needs the CA that issued the
-	// front's certificate (UNHEADED_TLS_CA_CERT, as for the first-party
-	// targets).
-	{Name: "zhenai", Host: "localhost", Port: 20103, HealthPath: "/health", Scheme: "https"},
-	// Not first-party Go listeners: they never serve pkg/tls, so they stay
-	// plain http when the host turns UNHEADED_TLS_ENABLED on.
-	{Name: "inference", Host: "localhost", Port: 20100, HealthPath: "/health", Scheme: "http"},
 	{Name: "daemon", Host: "localhost", Port: 17000, HealthPath: "/health"},
-	{Name: "gateway", Host: "localhost", Port: 21000, HealthPath: "/health", Scheme: "http"},
 }
 
 func systemctlRestart(unit string) ([]byte, error) {
@@ -212,6 +198,7 @@ func main() {
 	remediate := flag.Bool("remediate", false, "restart a service in this node's own targets (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for the signed topics (consensus, remediate); default: the --wotan host on port 18001")
+	discoverFlag := flag.String("discover-subnets", "", "read system.discovery and check admitted announcements from these comma-separated `PREFIXES` (default: the config's discover.subnets; none: off)")
 	pprofAddr := flag.String("pprof", "", "serve net/http/pprof on this loopback `ADDR` (e.g. 127.0.0.1:6060); off when empty")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "akira",
@@ -271,13 +258,9 @@ func main() {
 	var wotan *wotanClient.Client
 	if *wotanAddr != "" {
 		httpAddr := strings.TrimPrefix(*wotanAddr, "http://")
-		var c *wotanClient.Client
-		var err error
-		if healthSigner != nil {
-			c, err = wotanClient.NewClientWithGRPC(httpAddr, wotanGRPCAddr(*wotanAddr, *wotanGRPC))
-		} else {
-			c, err = wotanClient.NewClient(httpAddr)
-		}
+		// The one client (ADR-147 Phase 7) streams over gRPC whether or not
+		// a signing key is set: the key decides only what is published.
+		c, err := wotanClient.NewClientWithGRPC(httpAddr, wotanGRPCAddr(*wotanAddr, *wotanGRPC))
 		if err != nil {
 			log.Warn().Err(err).Str("addr", *wotanAddr).Msg("Wotan connection failed — running without publish")
 		} else {
@@ -294,6 +277,9 @@ func main() {
 			}
 		}
 	}
+	// Every service on the bus tracks critical alerts (ADR-147 Phase 8);
+	// the state is on /metrics (unheaded_critical_alerts_state).
+	critalert.Attach(context.Background(), wotan, "akira")
 	var wp *wotanPublisher
 	if wotan != nil {
 		wp = newWotanPublisher(wotan, healthSigner, metrics.DefaultRegistry)
@@ -314,6 +300,13 @@ func main() {
 		log.Fatal().Err(err).Msg("TLS: refusing to start")
 	}
 	akira.SetHTTPClient(checkClient)
+	subnets, err := discoverSubnets(*configPath, *discoverFlag)
+	if err != nil {
+		log.Fatal().Err(err).Msg("service discovery: refusing to start")
+	}
+	if wotan != nil {
+		startDiscovery(context.Background(), wotan, subnets, akira)
+	}
 
 	// Every other reporter's reports are votes too (ADR-029: every node a
 	// watchdog). This node's own are recorded locally by CheckAll.

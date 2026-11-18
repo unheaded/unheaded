@@ -2,7 +2,7 @@
 # Nginx Per-App Sidecar Load Balancer — TEMPLATE
 # ============================================================================
 # Usage: Copy and customize per service. Replace:
-#   {{SERVICE_NAME}}   — e.g., wotan, monad, sophia
+#   {{SERVICE_NAME}}   — e.g., wotan, dashboard
 #   {{LISTEN_PORT}}    — Nginx sidecar listen port (e.g., 18080)
 #   {{UPSTREAM_HOST}}  — Actual service hostname (e.g., wotan)
 #   {{UPSTREAM_PORT}}  — Actual service port (e.g., 18000)

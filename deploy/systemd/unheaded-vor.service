@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# vor: the Zhen retrieval corpus server (DP-712). vor lives in its own
-# repository; this unit runs the installed binary.
+# vor: the sheet and corpus server (DP-712). The wiki's search, the MCP
+# server and Zhen are its clients. vor lives in its own repository; this
+# unit runs the installed binary.
 #
 # Install (S-HOST-TIDY; users first: deploy/sysusers.d/unheaded.conf):
 #   sudo install -m 0755 vor /usr/local/bin/
@@ -16,9 +17,15 @@
 # text or a new export.
 
 [Unit]
-Description=vor retrieval corpus server for Zhen
+Description=vor sheet and corpus server
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-056-pgvector-auxiliary-corpus-sharding.md
 After=network.target
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (180 starts x RestartSec 5s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 50 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=180
 
 [Service]
 Type=simple

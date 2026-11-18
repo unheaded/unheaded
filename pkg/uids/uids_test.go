@@ -130,6 +130,14 @@ var hostOnly = map[string]string{
 	"ci-status": "unheaded-ci-status",
 	// The Well's weekly retention job: deploy/systemd/unheaded-well-retention.service.
 	"well-retention": "unheaded-well-retention",
+	// The platform's schedules, the module fragments oneshot and the module
+	// listener guard (ADR-149): deploy/systemd/unheaded-health-sweep.service,
+	// unheaded-ioc-audit.service, unheaded-zhen-module.service,
+	// unheaded-module-guard.service.
+	"health-sweep": "unheaded-health-sweep",
+	"ioc-audit":    "unheaded-ioc-audit",
+	"modules":      "unheaded-modules",
+	"module-guard": "unheaded-module-guard",
 	// The built-in issuer (ADR-103): deploy/systemd/unheaded-auth.service.
 	// It also runs as compose service "auth" with the same uid; listing it
 	// here keeps the sysusers pin checked.
@@ -179,8 +187,6 @@ var composeOnly = map[string]bool{
 	"nginx-dashboard":   true,
 	"nginx-gateway":     true,
 	"nginx-kanban":      true,
-	"nginx-monad":       true,
-	"nginx-sophia":      true,
 	"nginx-wotan":       true,
 	"open-webui":        true,
 	"qdrant":            true,

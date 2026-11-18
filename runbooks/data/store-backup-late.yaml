@@ -1,0 +1,65 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: store-backup-late
+  description: A ClickHouse or VictoriaMetrics backup set, or the weekly restore drill, is late (StoreBackupLate, StoreBackupMissing, StoreDrillLate, the store-backups SLO)
+  owner: zhenai
+  estimated_duration: 20m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147 decision 6 (S-SEE-AND-SURVIVE Phases 8, 9 and 13). Three root
+  units, the Well's pattern: unheaded-clickhouse-backup (04:15),
+  unheaded-victoria-backup (04:45) and unheaded-store-drill (Sundays
+  05:40). Each writes its .prom file in /var/lib/unheaded/textfile only on
+  success, so a failure shows as an old timestamp. Sets live on the NVMe:
+  /srv/backups/unheaded-clickhouse/ch-<UTC> and
+  /srv/backups/unheaded-victoria/vm-<UTC>, each with <name>.meta.env,
+  <name>.SHA256SUMS and LATEST; the newest 14 are kept. wiki/Well-Backups.md
+  "ClickHouse and VictoriaMetrics" has the detail.
+
+  A run refuses ("refusing ... share disk") when the set root is on the
+  same physical disk as the store's data: a copy on the same disk is not a
+  backup. After S-WEST-GROUND moves the database volumes to the NVMe the
+  sets must leave it: change CH_BACKUP_DIR and VM_BACKUP_DIR in the units
+  and CLICKHOUSE_BACKUP_DIR in compose's .env, recreate ClickHouse, run both
+  backups and the drill again.
+
+steps:
+  - name: units
+    action: shell
+    command: |
+      systemctl status unheaded-clickhouse-backup unheaded-victoria-backup unheaded-store-drill --no-pager
+    description: "The last run of each and its result"
+
+  - name: timers
+    action: shell
+    command: |
+      systemctl list-timers unheaded-clickhouse-backup.timer unheaded-victoria-backup.timer unheaded-store-drill.timer --no-pager
+    description: "When each last ran and runs next; a timer missing here is not enabled"
+
+  - name: journal
+    action: shell
+    command: |
+      journalctl -u unheaded-clickhouse-backup -u unheaded-victoria-backup -u unheaded-store-drill -n 40 --no-pager
+    description: "The reason a run failed: share disk, no /backups mount, a count mismatch in the drill, a damaged set"
+
+  - name: latest
+    action: manual
+    command: |
+      sudo cat /srv/backups/unheaded-clickhouse/LATEST /srv/backups/unheaded-victoria/LATEST
+    description: "MANUAL (root-owned). The newest set of each"
+
+  - name: run-now
+    action: manual
+    command: |
+      sudo systemctl start unheaded-clickhouse-backup.service
+      sudo systemctl start unheaded-victoria-backup.service
+      sudo systemctl start unheaded-store-drill.service
+    description: "MANUAL, after the cause is fixed. Only the one that is late; the drill restores into throwaway containers and touches no live store"

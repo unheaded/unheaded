@@ -1,0 +1,77 @@
+# Host Settings
+
+What a host's layout is made of, where each value lives, and how to set it for another host. Nothing about one host is written into code: a host's values are in files named after it, or in an env file on the host. West is the worked example (ADR-147 plan 4, S-WEST-GROUND; Stevie, 2026-11-17: "document and ensure this isn't hard coded, and is configurable").
+
+## One manifest per host
+
+`deploy/host-settings/<host>.tsv` lists every host file the repository is the source for: host path, repository path, mode (tab-separated). `scripts/check-host-settings.sh --host <host>` compares them and prints `OK`, `DRIFT` or `SKIP` with the path, never a line of a file.
+
+| Mode | Meaning |
+|---|---|
+| `exact` | byte for byte; for a file under `/etc/sysctl.d/` each key is also read from the running kernel |
+| `contains` | every non-comment line of the repository file is a whole line of the host file; for `/etc/fstab` each bind target must also be mounted |
+| `redact` | keys and passwords masked on both sides, then compared (WireGuard, FRR) |
+| `absent` | the host path must not exist |
+| `swap` | the host path is an active swap; the `swap` rows are the host's whole active swap list (no `swap` row, no swap check) |
+
+Run with no argument, the script checks the repository instead: every manifest parses, every repository path exists, no sysctl source reserves huge pages (ADR-147 decision 12), no slice file sets a share (decision 13), and the unit below names no host and no home directory.
+
+## West's files
+
+| Host path | Repository file | What to change for another host |
+|---|---|---|
+| `/etc/sysctl.d/99-unheaded.conf` | `deploy/sysctl.d/99-unheaded-west.conf` | Copy to `99-unheaded-<host>.conf`; `scripts/bootstrap-llm-lab.sh` installs the one named after the host (`SYSCTL_SOURCE=` overrides) |
+| `/etc/fstab` (lines) | `deploy/host-settings/west-fstab.fragment` | The volume (`/dev/ubuntu-vg/unheaded-data` on `/srv/unheaded-data`), the five store binds, and the backup bind (`/var/backups/srv-backups` on `/srv/backups`, on the other disk) |
+| `/etc/systemd/system/docker.service.d/10-unheaded-data.conf` | `deploy/host-settings/west-docker-data.conf` | The five bind targets again: Docker waits for them. They follow from Docker's data root, the compose project name (`unheaded-dev`) and the monitoring directory's name |
+| `/usr/local/lib/unheaded/nft/west.nft` | `deploy/nftables/west.nft` | Copy to `<host>.nft` and edit only the `define` block at its top (below) |
+| `/etc/wireguard/wg0.conf`, `/etc/frr/frr.conf` | `config/wireguard/west.conf`, `routing/frr/west.conf` | Per host by name |
+| the four slices | `deploy/systemd/*.slice` | The same on every host; no numbers until plan 8 |
+| `/swap.img` | (a `swap` row) | The host's own swap list |
+
+## The input filter's values
+
+`deploy/nftables/west.nft` names each interface, address and port set once, in a `define` block; the rules use the names. The loaded ruleset is the same as before the block existed (both loaded in a private namespace and compared, 2026-11-17).
+
+| Name | West's value | What it is |
+|---|---|---|
+| `LAN_IF`, `LAN_V4` | `wlp17s0`, `192.168.69.128/25` | the LAN interface and the prefix that is offered services |
+| `PEER_IF`, `PEER_V4` | `enp16s0`, `192.168.13.1` | the link to the second host and its address |
+| `OVERLAY_IF` | `wg0` | the WireGuard overlay |
+| `LXD_IF`, `DOCKER_IF`, `DOCKER_BR_IF` | `lxdbr0`, `docker0`, `br-*` | container bridges |
+| `ADMIN_V4` | `192.168.69.132` | the one LAN host let in to LXD's API (`LXD_API_TCP`, 8443) |
+| `SSH_TCP`, `LAN_TCP` | 7375; ssh, 80, 443, 18888, 16666, 20000 to 20002, 20103 | what the LAN may reach on the host |
+| `LAN_FWD_PORTS` | 53, 3000, 3001, 16666, 20000 to 20002, 20103 | Docker-published ports the LAN may reach |
+| `SCRAPE_TCP`, `TO_PEER_TCP` | 8428, 9100, 9110, 9323, 16666-26666; 9100, 9110, 16666-26666 | bridges to the host; containers to the second host |
+| `LXD_UDP`, `LXD_DNS_TCP`, `SYSLOG_PORT` | 53 and 67; 53; 514 | containers to the LXD bridge |
+
+The two rates (ping 10 a second, drop logs 5 a minute) stay in the rules: nft takes only a literal number after `limit rate`. Apply a ruleset with `scripts/host/nft-apply-confirm.sh FILE [SECONDS]` (it reverts by itself unless confirmed; state under `UNHEADED_NFT_STATE`, default `/var/lib/unheaded/nft`).
+
+## The daily drift check
+
+`unheaded-host-settings.timer` runs the check as root and writes `unheaded_host_settings_drift_files` for `HostSettingsDrift`. One unit for every host; its values come from `/etc/unheaded/host-settings.env` (example: `deploy/systemd/host-settings.env.example`):
+
+| Variable | Default | What it is |
+|---|---|---|
+| `HOST_SETTINGS_REPO` | none; required | the checkout that holds the manifest |
+| `HOST_SETTINGS_HOST` | the host's short name | which manifest |
+| `HOST_SETTINGS_TEXTFILE` | `/var/lib/unheaded/textfile` | node_exporter's textfile directory (changing it also needs `ReadWritePaths=` in a drop-in) |
+
+The schedule (10 minutes after boot, then daily) is a systemd timer: `systemctl edit unheaded-host-settings.timer`. Runbook: `runbooks/infra/host-settings-drift.yaml`.
+
+## Other values a deployment sets
+
+| What | Where | Default |
+|---|---|---|
+| Which networks reach the kanban task list and the dashboard's `/metrics` without a credential (plan 4, WG3) | `AUTH_ANONYMOUS_FROM` in the compose secrets file; see [[Security]] | unset in the code: everyone. The compose files (same lane) default to loopback and the Docker ranges; a link to a second host or an overlay is added per deployment, as the example in `db/.env.example` shows for west |
+| Where backup sets go, and whether they must be on another disk than the data | `WELL_BACKUP_DIR`, `WELL_BACKUP_OTHER_DISK`, `CH_BACKUP_OTHER_DISK`, `VM_BACKUP_OTHER_DISK`; see [[Well-Backups]] | `/srv/backups/...`; the guard is on in the units |
+| Each container's pid limit and the slice containers run in (plan 4 Phase 7; on `sprint/s-west-ground-compose` until that phase merges it) | `UNHEADED_PIDS_LIMIT`, `UNHEADED_CH_PIDS_LIMIT`, `UNHEADED_CGROUP_PARENT` in the compose env file, and again in `monitoring/.env` for the monitoring stack | 512, 2048, `unheaded-env.slice` |
+| What `scripts/check-compose-pids.sh` holds the limits against (same lane) | `COMPOSE_PIDS_THREADS_MAX`, `COMPOSE_PIDS_SHARE_PERCENT`, `COMPOSE_PIDS_PER_SERVICE_MAX`, `COMPOSE_PIDS_PER_FILE_MAX`, `COMPOSE_PIDS_SLICE` | 115473 (west's `kernel.threads-max`), 15, 4096, 20000, `unheaded-env.slice` |
+| A Well role's connection limit | `<ROLE>_CONNECTION_LIMIT` and `scripts/well/set-role-limits.sh`; see [[The-Well]] | the ledger's (app_zhen 20) |
+| What is mailed | `mailer.delivery`, `mailer.immediate`, the caps; see [[Alerting]] | one digest a day |
+
+## A second host
+
+1. Copy `deploy/host-settings/west.tsv` to `<host>.tsv` and keep only the rows the host has.
+2. Copy each west-named file a row points at (`99-unheaded-west.conf`, `west-fstab.fragment`, `west-docker-data.conf`, `west.nft`) to the host's name and edit it; for the filter, only the `define` block.
+3. `scripts/check-host-settings.sh` (the repository check), then on the host `scripts/check-host-settings.sh --host <host> --allow-skip`.
+4. Install the unit, the timer and `/etc/unheaded/host-settings.env` with `HOST_SETTINGS_REPO` set.

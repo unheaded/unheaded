@@ -7,7 +7,10 @@
 # Alertmanager's page (ssh -L 9093:127.0.0.1:9093 west) and in Grafana, that
 # Prometheus is evaluating rules and Alertmanager is receiving them. If it is
 # missing there, the alerting path is broken and nothing else on the page
-# can be trusted, quiet or not. Named Watchdog until 2026-11-11 (Stevie: the
+# can be trusted, quiet or not. Since ADR-147 (S-SEE-AND-SURVIVE Phase 2)
+# Alertmanager also hands it to alert-mailer every 5 minutes (the pipeline
+# route); none for pipeline.silent_after mails "alert pipeline silent"
+# (runbooks/observe/alert-pipeline-silent.yaml). Named Watchdog until 2026-11-11 (Stevie: the
 # name said nothing about what it was).
 #
 # A host that stops reporting at all is heartbeat.yml's HeartbeatMissing.

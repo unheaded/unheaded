@@ -1,5 +1,7 @@
 # Docker Infrastructure Manifest
 
+> **Note 2026-11-16:** `docker/services/monad/` and `docker/services/sophia/` were removed with the role services (ADR-147 decision 7, archived in `unheaded-role-services`). The list below is the record of what was created and is kept as written.
+
 ## Files Created
 
 ### Base Image Pattern

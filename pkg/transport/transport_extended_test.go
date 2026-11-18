@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // ---------------------------------------------------------------------------
@@ -69,9 +71,9 @@ func TestHTTPConnection_Close_SetsUnhealthy(t *testing.T) {
 
 	// Strip the http:// prefix — wotanClient.NewClient prepends it.
 	addr := srv.Listener.Addr().String()
-	hc, err := newHTTPConnection(context.Background(), addr)
+	hc, err := wrapForTest(addr)
 	if err != nil {
-		t.Fatalf("newHTTPConnection: %v", err)
+		t.Fatalf("wrapForTest: %v", err)
 	}
 
 	if !hc.Healthy() {
@@ -89,80 +91,6 @@ func TestHTTPConnection_Close_SetsUnhealthy(t *testing.T) {
 
 	// Close again should be safe (nil client path)
 	err = hc.Close()
-	if err != nil {
-		t.Errorf("second Close: %v", err)
-	}
-}
-
-// ---------------------------------------------------------------------------
-// grpcConnection tests
-// ---------------------------------------------------------------------------
-
-func TestGRPCConnection_Type(t *testing.T) {
-	gc := &grpcConnection{}
-	if gc.Type() != GRPC {
-		t.Errorf("grpcConnection.Type() = %q, want %q", gc.Type(), GRPC)
-	}
-}
-
-func TestGRPCConnection_Healthy(t *testing.T) {
-	gc := &grpcConnection{}
-	if gc.Healthy() {
-		t.Error("new grpcConnection should not be healthy by default")
-	}
-	gc.healthy.Store(true)
-	if !gc.Healthy() {
-		t.Error("grpcConnection.Healthy() should return true after storing true")
-	}
-}
-
-func TestGRPCConnection_Publish_NilClient(t *testing.T) {
-	gc := &grpcConnection{} // client is nil
-	err := gc.Publish(context.Background(), "test.topic", []byte("hello"))
-	if err != ErrNotConnected {
-		t.Errorf("Publish with nil client: got %v, want ErrNotConnected", err)
-	}
-}
-
-func TestGRPCConnection_Subscribe_NilClient(t *testing.T) {
-	gc := &grpcConnection{} // client is nil
-	_, err := gc.Subscribe(context.Background(), "test.topic")
-	if err != ErrNotConnected {
-		t.Errorf("Subscribe with nil client: got %v, want ErrNotConnected", err)
-	}
-}
-
-func TestGRPCConnection_Close_NilClient(t *testing.T) {
-	gc := &grpcConnection{} // client is nil
-	err := gc.Close()
-	if err != nil {
-		t.Errorf("Close with nil client: got %v, want nil", err)
-	}
-}
-
-func TestGRPCConnection_Close_SetsUnhealthy(t *testing.T) {
-	// newGRPCConnection uses lazy connect via grpc.NewClient, so it won't
-	// fail even with an unreachable address.
-	gc, err := newGRPCConnection(context.Background(), "localhost:19999")
-	if err != nil {
-		t.Fatalf("newGRPCConnection: %v", err)
-	}
-
-	if !gc.Healthy() {
-		t.Error("new grpcConnection should be healthy after construction")
-	}
-
-	err = gc.Close()
-	if err != nil {
-		t.Errorf("Close: %v", err)
-	}
-
-	if gc.Healthy() {
-		t.Error("grpcConnection should be unhealthy after Close")
-	}
-
-	// Close again — nil client path
-	err = gc.Close()
 	if err != nil {
 		t.Errorf("second Close: %v", err)
 	}
@@ -247,8 +175,8 @@ func TestHealthServer_HTTPHealthEndpoint_DegradedFields(t *testing.T) {
 	if resp.Service != "svc-degraded" {
 		t.Errorf("service = %q, want svc-degraded", resp.Service)
 	}
-	if !resp.GRPC {
-		t.Error("GRPC should be true")
+	if resp.GRPC != nil {
+		t.Errorf("GRPC = %v, want null: nothing set it (ADR-147, Developer D18)", *resp.GRPC)
 	}
 	if resp.HTTP {
 		t.Error("HTTP should be false")
@@ -289,34 +217,6 @@ func TestHTTPConnectionImplementsConnection(t *testing.T) {
 	var _ Connection = (*httpConnection)(nil)
 }
 
-func TestGRPCConnectionImplementsConnection(t *testing.T) {
-	var _ Connection = (*grpcConnection)(nil)
-}
-
-// ---------------------------------------------------------------------------
-// grpcConnection: Publish/Subscribe with cancelled context (nil client guard)
-// ---------------------------------------------------------------------------
-
-func TestGRPCConnection_Publish_CancelledContext_NilClient(t *testing.T) {
-	gc := &grpcConnection{}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	err := gc.Publish(ctx, "t", []byte("d"))
-	if err != ErrNotConnected {
-		t.Errorf("got %v, want ErrNotConnected", err)
-	}
-}
-
-func TestGRPCConnection_Subscribe_CancelledContext_NilClient(t *testing.T) {
-	gc := &grpcConnection{}
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	_, err := gc.Subscribe(ctx, "t")
-	if err != ErrNotConnected {
-		t.Errorf("got %v, want ErrNotConnected", err)
-	}
-}
-
 func TestHTTPConnection_Publish_CancelledContext_NilClient(t *testing.T) {
 	hc := &httpConnection{}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -341,22 +241,15 @@ func TestHTTPConnection_Subscribe_CancelledContext_NilClient(t *testing.T) {
 // newHTTPConnection error path: empty addr triggers wotan-client error
 // ---------------------------------------------------------------------------
 
-func TestNewHTTPConnection_EmptyAddr(t *testing.T) {
-	_, err := newHTTPConnection(context.Background(), "")
-	if err == nil {
-		t.Fatal("newHTTPConnection('') should return error")
+// wrapForTest is WrapHTTPClient over a client for addr, as logagg.Connect
+// builds it (the HTTP and gRPC connection constructors went with ADR-147
+// Phase 7: a library takes the process's client, it does not build one).
+func wrapForTest(addr string) (*httpConnection, error) {
+	c, err := wotanClient.NewClient(addr)
+	if err != nil {
+		return nil, err
 	}
-}
-
-// ---------------------------------------------------------------------------
-// newGRPCConnection error path: empty addr triggers wotan-client error
-// ---------------------------------------------------------------------------
-
-func TestNewGRPCConnection_EmptyAddr(t *testing.T) {
-	_, err := newGRPCConnection(context.Background(), "")
-	if err == nil {
-		t.Fatal("newGRPCConnection('') should return error")
-	}
+	return WrapHTTPClient(c, addr).(*httpConnection), nil
 }
 
 // ---------------------------------------------------------------------------
@@ -374,9 +267,9 @@ func TestHTTPConnection_Publish_Error(t *testing.T) {
 	defer srv.Close()
 
 	addr := srv.Listener.Addr().String()
-	hc, err := newHTTPConnection(context.Background(), addr)
+	hc, err := wrapForTest(addr)
 	if err != nil {
-		t.Fatalf("newHTTPConnection: %v", err)
+		t.Fatalf("wrapForTest: %v", err)
 	}
 	defer hc.Close()
 
@@ -404,9 +297,9 @@ func TestHTTPConnection_Subscribe_Error(t *testing.T) {
 	defer srv.Close()
 
 	addr := srv.Listener.Addr().String()
-	hc, err := newHTTPConnection(context.Background(), addr)
+	hc, err := wrapForTest(addr)
 	if err != nil {
-		t.Fatalf("newHTTPConnection: %v", err)
+		t.Fatalf("wrapForTest: %v", err)
 	}
 	defer hc.Close()
 
@@ -416,48 +309,5 @@ func TestHTTPConnection_Subscribe_Error(t *testing.T) {
 	}
 	if hc.Healthy() {
 		t.Error("httpConnection should be unhealthy after subscribe error")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// grpcConnection: Publish error path (non-nil client, but no server)
-// ---------------------------------------------------------------------------
-
-func TestGRPCConnection_Publish_Error(t *testing.T) {
-	// Create a gRPC connection to an address with no server.
-	// Lazy connect means newGRPCConnection succeeds, but Publish will fail
-	// because the underlying TopicStreamClient requires a subscription.
-	gc, err := newGRPCConnection(context.Background(), "localhost:29995")
-	if err != nil {
-		t.Fatalf("newGRPCConnection: %v", err)
-	}
-	defer gc.Close()
-
-	err = gc.Publish(context.Background(), "test.topic", []byte("hello"))
-	if err == nil {
-		t.Fatal("Publish should fail — not subscribed on wotan client")
-	}
-	if gc.Healthy() {
-		t.Error("grpcConnection should be unhealthy after publish error")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// grpcConnection: Subscribe error path (non-nil client, but no server)
-// ---------------------------------------------------------------------------
-
-func TestGRPCConnection_Subscribe_Error(t *testing.T) {
-	gc, err := newGRPCConnection(context.Background(), "localhost:29994")
-	if err != nil {
-		t.Fatalf("newGRPCConnection: %v", err)
-	}
-	defer gc.Close()
-
-	_, err = gc.Subscribe(context.Background(), "test.topic")
-	if err == nil {
-		t.Fatal("Subscribe should fail — not subscribed on wotan client")
-	}
-	if gc.Healthy() {
-		t.Error("grpcConnection should be unhealthy after subscribe error")
 	}
 }

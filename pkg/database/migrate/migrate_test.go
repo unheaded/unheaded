@@ -221,6 +221,34 @@ func TestThrough(t *testing.T) {
 	}
 }
 
+// Two plans' files in one tree, applied in two sittings: apply -through cuts
+// the plan after one file, across every database, and what comes after it
+// stays pending (050 now; 051 to 053 with the Zhen move).
+func TestThroughLeavesLaterFilesPending(t *testing.T) {
+	f := func(db, file string) File { return File{Entry: Entry{DB: db, File: file}} }
+	p := Compute(Set{Files: []File{
+		f("app", "049_o.sql"), f("app", "050_t.sql"), f("postgres", "051_z.sql"), f("zhen", "052_s.sql"), f("app", "053_d.sql"),
+	}}, Ledger{"app": {"049_o.sql": Record{DB: "app", File: "049_o.sql"}}})
+	q, err := p.Through("050_t.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := q.Pending(); len(got) != 1 || got[0].File.File != "050_t.sql" {
+		t.Fatalf("through 050: %+v", got)
+	}
+	if got := p.Pending(); len(got) != 4 {
+		t.Fatalf("the whole plan lost entries: %+v", got)
+	}
+	// One database, then the cut: 053 is the same database as 050 and stays out.
+	a, err := p.ForDB("app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a, err = a.Through("050_t.sql"); err != nil || len(a.Pending()) != 1 {
+		t.Fatalf("app through 050: %+v, %v", a.Pending(), err)
+	}
+}
+
 func TestForDB(t *testing.T) {
 	f := func(db, file string) File { return File{Entry: Entry{DB: db, File: file}} }
 	p := Compute(Set{Files: []File{f("postgres", "002_a.sql"), f("app", "007_g.sql"), f("ops", "007_g.sql")}}, Ledger{})

@@ -69,6 +69,9 @@ const (
 type Config struct {
 	// WotanAddr is the Wotan server address
 	WotanAddr string
+	// Client is the process's one Wotan client (ADR-147 Phase 7); the
+	// streamer joins and streams its topics on it and never closes it.
+	Client *wotanClient.Client
 	// ServiceName is the name of this service
 	ServiceName string
 	// Topics are the topics to subscribe to
@@ -86,14 +89,12 @@ func DefaultConfig() *Config {
 	return &Config{
 		WotanAddr:   "localhost:18000", // Wotan HTTP (18001 is gRPC)
 		ServiceName: "dashboard-backend",
+		// Only what a running binary publishes (ADR-147 Phase 7):
+		// metrics.*, health.*, alerts.*, decisions.*, state.* had no
+		// publisher on west.
 		Topics: []string{
-			"metrics.*",
-			"health.*",
-			"alerts.*",
 			"timeline.*",
 			"tasks.*",
-			"decisions.*",
-			"state.*",
 		},
 		BufferSize:        1000,
 		RetentionPeriod:   1 * time.Hour,
@@ -443,9 +444,9 @@ func (s *Streamer) connectionLoop(ctx context.Context) {
 
 // connect establishes connection to Wotan
 func (s *Streamer) connect(ctx context.Context) error {
-	client, err := wotanClient.NewClient(s.config.WotanAddr)
-	if err != nil {
-		return fmt.Errorf("create client: %w", err)
+	client := s.config.Client
+	if client == nil {
+		return errors.New("no Wotan client")
 	}
 
 	// Subscribe to topics
@@ -483,9 +484,7 @@ func (s *Streamer) disconnect() {
 	s.client = nil
 	s.connMu.Unlock()
 
-	if client != nil {
-		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
-	}
+	_ = client // the process's client: its owner (main) closes it
 }
 
 // streamMessages streams messages from subscribed topics.
@@ -952,67 +951,6 @@ func (s *Streamer) PublishToWotan(ctx context.Context, topic string, event Event
 		Msg("published event to wotan")
 
 	return nil
-}
-
-// PublishMetricEvent publishes a metrics event to Wotan
-func (s *Streamer) PublishMetricEvent(ctx context.Context, serviceName string, metricName string, value float64, labels map[string]interface{}) error {
-	event := Event{
-		Type:     EventTypeMetrics,
-		Severity: SeverityInfo,
-		Source:   serviceName,
-		Title:    fmt.Sprintf("Metric: %s", metricName),
-		Data: map[string]interface{}{
-			"metric_name": metricName,
-			"value":       value,
-			"labels":      labels,
-		},
-	}
-
-	topic := fmt.Sprintf("metrics.%s", serviceName)
-	return s.PublishToWotan(ctx, topic, event)
-}
-
-// PublishHealthEvent publishes a health event to Wotan
-func (s *Streamer) PublishHealthEvent(ctx context.Context, serviceName string, status string, message string) error {
-	severity := SeverityInfo
-	switch status {
-	case "unhealthy", "error":
-		severity = SeverityError
-	case "degraded", "warning":
-		severity = SeverityWarning
-	case "critical":
-		severity = SeverityCritical
-	}
-
-	event := Event{
-		Type:     EventTypeHealth,
-		Severity: severity,
-		Source:   serviceName,
-		Title:    fmt.Sprintf("Health: %s is %s", serviceName, status),
-		Message:  message,
-		Data: map[string]interface{}{
-			"status":  status,
-			"service": serviceName,
-		},
-	}
-
-	topic := fmt.Sprintf("health.%s", serviceName)
-	return s.PublishToWotan(ctx, topic, event)
-}
-
-// PublishAlertEvent publishes an alert event to Wotan
-func (s *Streamer) PublishAlertEvent(ctx context.Context, severity Severity, title, message string, data map[string]interface{}) error {
-	event := Event{
-		Type:     EventTypeAlert,
-		Severity: severity,
-		Source:   s.config.ServiceName,
-		Title:    title,
-		Message:  message,
-		Data:     data,
-	}
-
-	topic := "alerts." + string(severity)
-	return s.PublishToWotan(ctx, topic, event)
 }
 
 // GetWotanClient returns the underlying Wotan client (if connected)

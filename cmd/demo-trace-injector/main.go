@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 //
 // demo-trace-injector — publishes realistic synthetic eBPF trace events to the
-// Wotan topics the dashboard ingestor consumes (ebpf.flow.events /
-// ebpf.latency.events / ebpf.packet.events), so the Flow Graph, Latency, and
+// Wotan topics the dashboard ingestor consumes (traces.flow /
+// traces.latency / traces.packet), so the Flow Graph, Latency, and
 // Events dashboard tabs show live data for a demo/README GIF when the real XDP
 // trace pipeline isn't running on this host.
 //
@@ -85,14 +85,10 @@ type svc struct {
 }
 
 var services = []svc{
-	{"monad", "10.10.10.20", 19004, 1},
-	{"sophia", "10.10.10.21", 19005, 2},
 	{"wotan", "10.10.10.10", 18001, 3},
 	{"dashboard", "10.10.10.30", 20000, 4},
 	{"kanban", "10.10.10.31", 20001, 5},
 	{"timeguru", "10.10.10.22", 19000, 6},
-	{"captain", "10.10.10.23", 19002, 7},
-	{"architect", "10.10.10.24", 19001, 8},
 }
 
 // latency profile per op: base + jitter (nanoseconds)
@@ -125,7 +121,7 @@ func main() {
 		log.Fatalf("wotan client: %v", err)
 	}
 	ctx := context.Background()
-	topics := []string{"ebpf.flow.events", "ebpf.latency.events", "ebpf.packet.events"}
+	topics := []string{"traces.flow", "traces.latency", "traces.packet"}
 	for _, t := range topics {
 		if _, err := c.Subscribe(ctx, t, "trace-collector"); err != nil {
 			log.Printf("subscribe %s: %v", t, err)
@@ -163,7 +159,7 @@ func main() {
 				},
 				EventType: "update",
 			}
-			publish(ctx, c, "ebpf.flow.events", fe)
+			publish(ctx, c, "traces.flow", fe)
 
 			// A couple of packet events per flow (feeds Events + packet counters).
 			for p := 0; p < 2; p++ {
@@ -183,7 +179,7 @@ func main() {
 						LatencyHintNs: uint32(rand.Intn(400000) + 50000), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					},
 				}
-				publish(ctx, c, "ebpf.packet.events", pe)
+				publish(ctx, c, "traces.packet", pe)
 			}
 			pubs++
 		}
@@ -197,7 +193,7 @@ func main() {
 					LatencyNs: lo.base + uint64(rand.Int63n(int64(lo.span))), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					Operation: lo.op,
 				}
-				publish(ctx, c, "ebpf.latency.events", le)
+				publish(ctx, c, "traces.latency", le)
 			}
 		}
 

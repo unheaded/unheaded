@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"bytes"
 	"runtime"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"testing"
@@ -120,6 +121,10 @@ func TestGoCollector_PublishesTheClientGolangNames(t *testing.T) {
 		"go_memstats_stack_sys_bytes":      "gauge",
 		"go_memstats_sys_bytes":            "gauge",
 		"go_threads":                       "gauge",
+		// client_golang v1.20+ default; ADR-147 (Developer D22).
+		"go_sched_gomaxprocs_threads": "gauge",
+		"go_gc_gomemlimit_bytes":      "gauge",
+		"go_gc_gogc_percent":          "gauge",
 	}
 	got := gatherOurs(t)
 	for name, typ := range want {
@@ -254,6 +259,29 @@ func TestGoCollector_EveryRuntimeKeyExists(t *testing.T) {
 	for _, k := range goRMKeys {
 		if _, ok := gc.index[k]; !ok {
 			t.Errorf("runtime/metrics has no %q on %s", k, runtime.Version())
+		}
+	}
+}
+
+// The runtime's limits are what a container's runtime was told (ADR-147,
+// Developer D22, 1.6): GOMAXPROCS from the cgroup, GOMEMLIMIT and GOGC from
+// the environment. No service exported them, so none could be read.
+func TestGoCollectorRuntimeLimits(t *testing.T) {
+	got := gatherOurs(t)
+	for name, want := range map[string]float64{
+		"go_sched_gomaxprocs_threads": float64(runtime.GOMAXPROCS(0)),
+		"go_gc_gomemlimit_bytes":      float64(debug.SetMemoryLimit(-1)),
+		"go_gc_gogc_percent":          100,
+	} {
+		f := got[name]
+		if f == nil || f.typ != "gauge" {
+			t.Errorf("%s: missing or not a gauge", name)
+			continue
+		}
+		for series, v := range f.samples {
+			if v != want {
+				t.Errorf("%s = %v, want %v", series, v, want)
+			}
 		}
 	}
 }

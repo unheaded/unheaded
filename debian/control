@@ -60,36 +60,6 @@ Depends: libc6, unheaded-keygen (= ${binary:Version})
 Description: Unheaded timeguru — timeline and task tracking service
  Binary timeguru, unit unheaded-timeguru.service.
 
-Package: unheaded-captain
-Architecture: amd64
-Depends: libc6, unheaded-keygen (= ${binary:Version})
-Description: Unheaded captain — strategy service
- Binary captain, unit unheaded-captain.service.
-
-Package: unheaded-architect
-Architecture: amd64
-Depends: libc6, unheaded-keygen (= ${binary:Version})
-Description: Unheaded architect — design service
- Binary architect, unit unheaded-architect.service.
-
-Package: unheaded-micromanager
-Architecture: amd64
-Depends: libc6, unheaded-keygen (= ${binary:Version})
-Description: Unheaded micromanager — execution service
- Binary micromanager, unit unheaded-micromanager.service.
-
-Package: unheaded-monad
-Architecture: amd64
-Depends: libc6, unheaded-keygen (= ${binary:Version})
-Description: Unheaded monad — unified state management service
- Binary monad, unit unheaded-monad.service.
-
-Package: unheaded-sophia
-Architecture: amd64
-Depends: libc6, unheaded-keygen (= ${binary:Version})
-Description: Unheaded sophia — knowledge graph and microcode ROM service
- Binary sophia, unit unheaded-sophia.service.
-
 Package: unheaded-auth
 Architecture: amd64
 Depends: libc6, unheaded-keygen (= ${binary:Version})

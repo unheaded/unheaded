@@ -11,6 +11,12 @@
 
 mod auth;
 
+/// The dashboard's trace topics. The trace-collector publishes each trace
+/// event once, on traces.* (ADR-147 Phase 10); the ebpf.packet.events and
+/// ebpf.latency.events mirrors this collector used to write are gone.
+const TOPIC_PACKET: &str = "traces.packet";
+const TOPIC_LATENCY: &str = "traces.latency";
+
 use std::collections::HashMap;
 use std::net::Ipv4Addr;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -697,7 +703,7 @@ async fn main() -> anyhow::Result<()> {
             tokio::select! {
                 _ = interval.tick() => {
                     if pub_clone.connect_grpc().await {
-                        pub_clone.drain_buffer("ebpf.packet.events").await;
+                        pub_clone.drain_buffer(TOPIC_PACKET).await;
                     }
                 }
                 _ = shutdown_clone.notified() => break,
@@ -749,7 +755,7 @@ async fn read_packet_events(
 
                     let json = format_packet_event(&event);
                     let payload = serde_json::to_vec(&json).unwrap();
-                    publisher.publish("ebpf.packet.events", payload).await;
+                    publisher.publish(TOPIC_PACKET, payload).await;
                 }
             }
         }
@@ -780,7 +786,7 @@ async fn read_latency_events(
 
                     let json = format_latency_event(&event);
                     let payload = serde_json::to_vec(&json).unwrap();
-                    publisher.publish("ebpf.latency.events", payload).await;
+                    publisher.publish(TOPIC_LATENCY, payload).await;
                 }
             }
         }
@@ -1145,8 +1151,7 @@ mod tests {
         );
         let p = WotanPublisher::new(format!("http://{addr}"), "http://127.0.0.1:1".into(), auth);
         assert!(p.connect_grpc().await, "connect to mock Wotan");
-        p.publish("ebpf.packet.events", br#"{"x":1}"#.to_vec())
-            .await;
+        p.publish("traces.packet", br#"{"x":1}"#.to_vec()).await;
         server.abort();
         let got = seen.lock().unwrap().clone();
         got
@@ -1161,7 +1166,7 @@ mod tests {
         // The token the minter has cached for aud=wotan: sub=ebpf-collector.
         assert_eq!(authz.as_deref(), auth.header().unwrap().as_deref());
         assert!(authz.as_deref().unwrap().starts_with("Bearer ey"));
-        assert_eq!(req.topic, "ebpf.packet.events");
+        assert_eq!(req.topic, "traces.packet");
         // Wotan takes only a member UUID as sender_id; an unnamed publish
         // is approved on the token's subject.
         assert_eq!(req.sender_id, "");
@@ -1245,10 +1250,10 @@ mod tests {
         let (base, server) = mock_wotan_http(3);
         let auth = test_auth();
         let p = WotanPublisher::new("http://127.0.0.1:1".into(), base, auth.clone());
-        p.publish_http_once("ebpf.latency.events", br#"{"rtt":5}"#)
+        p.publish_http_once("traces.latency", br#"{"rtt":5}"#)
             .unwrap();
         // The subscriber id is reused: no second join.
-        p.publish_http_once("ebpf.latency.events", br#"{"rtt":6}"#)
+        p.publish_http_once("traces.latency", br#"{"rtt":6}"#)
             .unwrap();
         let seen = server.join().unwrap();
         let want = auth.header().unwrap();
@@ -1258,13 +1263,13 @@ mod tests {
         }
         assert!(seen[0]
             .line
-            .starts_with("POST /api/v1/topics/ebpf.latency.events/subscribe "));
+            .starts_with("POST /api/v1/topics/traces.latency/subscribe "));
         let join: serde_json::Value = serde_json::from_str(&seen[0].body).unwrap();
         assert_eq!(join["display_name"], "ebpf-collector");
         for (s, rtt) in seen[1..].iter().zip([5, 6]) {
             assert!(s
                 .line
-                .starts_with("POST /api/v1/topics/ebpf.latency.events/publish "));
+                .starts_with("POST /api/v1/topics/traces.latency/publish "));
             let b: serde_json::Value = serde_json::from_str(&s.body).unwrap();
             assert_eq!(b["subscriber_id"], "6f1c2b9e-0000-4000-8000-000000000001");
             assert_eq!(b["payload"], format!(r#"{{"rtt":{rtt}}}"#));
@@ -1279,7 +1284,7 @@ mod tests {
             base,
             auth::WotanAuth::default(),
         );
-        p.publish_http_once("ebpf.packet.events", b"{}").unwrap();
+        p.publish_http_once("traces.packet", b"{}").unwrap();
         let seen = server.join().unwrap();
         assert!(seen.iter().all(|s| s.authorization.is_none()));
     }
@@ -1302,9 +1307,7 @@ mod tests {
             .unwrap();
         });
         let p = WotanPublisher::new("http://127.0.0.1:1".into(), base, test_auth());
-        let err = p
-            .publish_http_once("ebpf.packet.events", b"{}")
-            .unwrap_err();
+        let err = p.publish_http_once("traces.packet", b"{}").unwrap_err();
         h.join().unwrap();
         assert!(
             err.contains("pending") && err.contains("auto_approve"),

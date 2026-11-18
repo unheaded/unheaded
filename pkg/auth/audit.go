@@ -14,6 +14,9 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Audit event types.
@@ -92,14 +95,28 @@ func (a *AuditLogger) Log(event AuditEvent) {
 
 	data, err := json.Marshal(event)
 	if err != nil {
+		auditWriteFailures.Inc()
 		return
 	}
 	data = append(data, '\n')
 
 	a.mu.Lock()
-	_, _ = a.w.Write(data)
+	written, err := a.w.Write(data)
 	a.mu.Unlock()
+	if err != nil || written < len(data) {
+		auditWriteFailures.Inc()
+	}
 }
+
+// auditWriteFailures counts audit lines that could not be written whole
+// (a marshal error, a write error, a short write). It used to be
+// `_, _ = a.w.Write(data)`: a lost audit line left no trace (ADR-147,
+// BlackMage F11; NIST AU-5). monitoring/prometheus/rules/compliance.yml
+// AuditWriteFailing reads it.
+var auditWriteFailures = auto.NewCounter(prom.CounterOpts{
+	Name: "unheaded_auth_audit_write_failures_total",
+	Help: "Audit lines pkg/auth could not write whole (marshal error, write error or short write)",
+})
 
 // capAuditField shortens s to maxAuditField bytes.
 func capAuditField(s string) string {

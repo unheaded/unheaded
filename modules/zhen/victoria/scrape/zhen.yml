@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Loaded by VictoriaMetrics through scrape_config_files while the Zhen module is on (ADR-149).
+# VictoriaMetrics reads such a file as a bare list of scrape configs
+# (Prometheus's own scrape_config_files want a scrape_configs: key; see
+# modules/zhen/prometheus/scrape/zhen.yml).
+- job_name: "zhen-agentd"
+  scrape_interval: 15s
+  static_configs:
+    - targets: ["[fd00:dead:beef::1]:20111"]
+      labels: {host: west}

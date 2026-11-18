@@ -11,11 +11,9 @@
    - 3 stages: builder → certs → final (distroless)
    - Documents hardening strategy
 
-2. **7 Service Dockerfiles**
-   - 5 × distroless/static-debian12 (Go services)
-   - 1 × Node.js 22 Alpine → nginx Alpine (frontend)
-   - 1 × Go service (dashboard-backend)
-   - 4 × debian:bookworm-slim (eBPF/privileged)
+2. **5 Service Dockerfiles**
+   - 3 × distroless/static-debian12 (protocol-api, dashboard-backend, trace-collector)
+   - 2 × debian:bookworm-slim (eBPF/privileged: shield, unheaded-daemon)
 
 3. **.dockerignore** (global, all builds)
    - Optimizes build context
@@ -32,21 +30,21 @@
 ```bash
 cd /path/to/unheaded
 docker build \
-  -f docker/services/monad/Dockerfile \
+  -f docker/services/protocol-api/Dockerfile \
   --build-arg VERSION=v1.0.0 \
   --build-arg COMMIT=$(git rev-parse --short HEAD) \
   --build-arg BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
-  -t unheaded-monad:v1.0.0 .
+  -t unheaded-protocol-api:v1.0.0 .
 ```
 
-### All 7 Services (Parallel)
+### All 5 Services (Parallel)
 ```bash
 #!/bin/bash
 export VERSION=v1.0.0
 export BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 export COMMIT=$(git rev-parse --short HEAD)
 
-for service in monad sophia shield unheaded-daemon dashboard-backend \
+for service in shield unheaded-daemon dashboard-backend \
                protocol-api trace-collector; do
   docker build \
     -f docker/services/${service}/Dockerfile \
@@ -56,13 +54,12 @@ for service in monad sophia shield unheaded-daemon dashboard-backend \
     -t unheaded-${service}:${VERSION} . &
 done
 wait
-echo "All 7 services built successfully!"
+echo "All 5 services built successfully!"
 ```
 
 ## Service Categories
 
 ### Standard (distroless)
-- monad, sophia
 - protocol-api, trace-collector
 - dashboard-backend
 
@@ -85,8 +82,6 @@ echo "All 7 services built successfully!"
 
 | Service | Port(s) |
 |---------|---------|
-| monad | 50051 |
-| sophia | 50052 |
 | shield | 50055 |
 | protocol-api | 50056 |
 | dashboard-backend | 8080 |
@@ -97,7 +92,7 @@ echo "All 7 services built successfully!"
 ```bash
 # List all service Dockerfiles
 find /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/services -name "Dockerfile" | wc -l
-# Should output: 7
+# Should output: 5
 
 # Verify base Dockerfile
 ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/base/Dockerfile.base
@@ -112,8 +107,8 @@ ls -la /sessions/great-dreamy-ptolemy/mnt/tmp/unheaded/docker/*.md
 ## Next Steps
 
 1. **Review** docker/README.md for detailed build instructions
-2. **Build** one service to test: `docker build -f docker/services/monad/Dockerfile ...`
-3. **Scan** with Trivy: `trivy image unheaded-monad:v1.0.0`
+2. **Build** one service to test: `docker build -f docker/services/protocol-api/Dockerfile ...`
+3. **Scan** with Trivy: `trivy image unheaded-protocol-api:v1.0.0`
 4. **Push** to registry: `docker tag ... && docker push ...`
 5. **Deploy** using docker-compose or Kubernetes
 
@@ -125,8 +120,6 @@ docker/
 │   └── Dockerfile.base                    (82 lines)
 ├── services/
 │   ├── .dockerignore                      (16 lines)
-│   ├── monad/Dockerfile                   (30 lines)
-│   ├── sophia/Dockerfile                  (30 lines)
 │   ├── shield/Dockerfile                  (30 lines) ★ eBPF
 │   ├── unheaded-daemon/Dockerfile         (30 lines) ★ eBPF
 │   ├── dashboard-backend/Dockerfile       (30 lines)
@@ -136,7 +129,7 @@ docker/
 ├── MANIFEST.md                             (inventory & stats)
 └── QUICKSTART.md                           (this file)
 
-Total: 8 Dockerfiles
+Total: 6 Dockerfiles
 ```
 
 ---

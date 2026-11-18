@@ -138,10 +138,10 @@ func TestFindPort_KnownNameReturnsPort(t *testing.T) {
 	t.Parallel()
 	targets := []health.ServiceTarget{
 		{Name: "wotan", Port: 18000},
-		{Name: "monad", Port: 19004},
+		{Name: "kanban", Port: 20001},
 	}
-	if got := findPort("monad", targets); got != 19004 {
-		t.Errorf("findPort(monad) = %d, want 19004", got)
+	if got := findPort("kanban", targets); got != 20001 {
+		t.Errorf("findPort(kanban) = %d, want 20001", got)
 	}
 }
 
@@ -199,6 +199,22 @@ func TestDefaultTargets_AllUseHealthPath(t *testing.T) {
 	for _, tgt := range defaultTargets {
 		if tgt.HealthPath != "/health" {
 			t.Errorf("%s HealthPath = %q, want /health (convention)", tgt.Name, tgt.HealthPath)
+		}
+	}
+}
+
+// A module or a service no deployment runs must not be a built-in target:
+// a host without it would report a failure every sweep (ADR-147, A7).
+func TestDefaultTargets_NameNoModuleOrAbsentService(t *testing.T) {
+	t.Parallel()
+	for _, tgt := range defaultTargets {
+		switch tgt.Name {
+		case "zhenai", "inference", "gateway":
+			t.Errorf("default target %q: not part of every host", tgt.Name)
+		}
+		switch tgt.Port {
+		case 20100, 20103, 21000:
+			t.Errorf("default target %q on port %d: not part of every host", tgt.Name, tgt.Port)
 		}
 	}
 }

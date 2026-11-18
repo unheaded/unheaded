@@ -10,8 +10,10 @@
 #
 # TraceCollectorDown is promoted to a ticket in observability/alerting/
 # policy.yaml (no SLO covers the collector). TraceCollectorHighLatency is a
-# cause, recorded only: trace_collector_batch_latency_seconds is the time to
-# publish one batch to Wotan, so it is usually Wotan being slow.
+# cause, recorded only: trace_publisher_flush_duration_seconds is the time to
+# flush one batch to Wotan, so it is usually Wotan being slow. Until
+# 2026-11-15 it read trace_collector_batch_latency_seconds, which nothing
+# observes (count 0 for 14 days; S-WATCH-TRUE, ADR-147 SSV-12).
 #
 # heimdall's two rules were removed 2026-11-15 (S-WATCH-TRUE, W2, answered
 # 2026-11-12): no host runs heimdall-daemon. A rule returns with its producer and a test
@@ -32,17 +34,22 @@ groups:
           description: "{{ $labels.instance }} has failed every scrape for 5 minutes: no eBPF events reach Wotan from {{ $labels.host }}"
           runbook_url: "runbooks/observe/trace-collector-down.yaml"
 
-      # p99 over 10m, only while batches are being published (an idle
-      # collector has no latency to judge).
+      # Share of flushes to Wotan over 100 ms, only while flushes happen. The
+      # histogram is trace_publisher_flush_duration_seconds (top bucket 0.1 s);
+      # trace_collector_batch_latency_seconds was never observed (S-WATCH-TRUE).
       - alert: TraceCollectorHighLatency
         expr: |
-          histogram_quantile(0.99, sum by (job, instance, host, le) (rate(trace_collector_batch_latency_seconds_bucket[10m]))) > 1
-          and sum by (job, instance, host) (rate(trace_collector_batch_latency_seconds_count[10m])) > 0
+          (
+            sum by (job, instance, host) (rate(trace_publisher_flush_duration_seconds_count[10m]))
+            - sum by (job, instance, host) (rate(trace_publisher_flush_duration_seconds_bucket{le="0.1"}[10m]))
+          )
+          / sum by (job, instance, host) (rate(trace_publisher_flush_duration_seconds_count[10m])) > 0.01
+          and sum by (job, instance, host) (rate(trace_publisher_flush_duration_seconds_count[10m])) > 0
         for: 15m
         labels:
           severity: warning
           urgency: none
         annotations:
-          summary: "Trace collector on {{ $labels.host }}: batches take over 1s to reach Wotan"
-          description: "p99 batch publish latency {{ $value | humanizeDuration }} over 10m; Wotan is slow or the collector is backlogged"
+          summary: "Trace collector on {{ $labels.host }}: over 1% of flushes to Wotan take over 100 ms"
+          description: "Over 10m, more than 1% of {{ $labels.instance }}'s flushes to Wotan were slower than 100 ms; Wotan is slow or the collector is backlogged"
           runbook_url: "runbooks/observe/high-latency.yaml"

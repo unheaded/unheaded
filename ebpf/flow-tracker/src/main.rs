@@ -19,13 +19,13 @@
 use aya_ebpf::{
     bindings::TC_ACT_PIPE,
     macros::{classifier, map},
-    maps::{HashMap, LruHashMap, RingBuf},
+    maps::{HashMap, LruHashMap},
     programs::TcContext,
 };
 use unheaded_common::{
-    ConnectionState, Direction, FlowEvent, FlowEventType, FlowKey, FlowState, TraceId, ETH_HLEN,
-    ETH_P_IP, IPPROTO_TCP, IPPROTO_UDP, IPV4_MIN_HLEN, MAX_FLOWS, RING_BUFFER_SIZE, TCP_FLAG_ACK,
-    TCP_FLAG_FIN, TCP_FLAG_RST, TCP_FLAG_SYN, TCP_MIN_HLEN,
+    ConnectionState, Direction, FlowKey, FlowState, TraceId, ETH_HLEN, ETH_P_IP, IPPROTO_TCP,
+    IPPROTO_UDP, IPV4_MIN_HLEN, MAX_FLOWS, TCP_FLAG_ACK, TCP_FLAG_FIN, TCP_FLAG_RST, TCP_FLAG_SYN,
+    TCP_MIN_HLEN,
 };
 
 /// Main flow state map using LRU for automatic expiration.
@@ -38,10 +38,6 @@ static FLOWS: LruHashMap<FlowKey, FlowState> = LruHashMap::with_max_entries(MAX_
 /// Used for quick lookup when we know a flow should have a trace.
 #[map]
 static TRACE_ASSOC: HashMap<u32, TraceId> = HashMap::with_max_entries(MAX_FLOWS, 0);
-
-/// Ring buffer for flow events to userspace.
-#[map]
-static FLOW_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUFFER_SIZE, 0);
 
 /// Per-CPU counters for statistics.
 #[map]
@@ -67,8 +63,7 @@ const STAT_FLOWS_CLOSED: u32 = 3;
 const STAT_TCP_SYNS: u32 = 4;
 const STAT_TCP_FINS: u32 = 5;
 const STAT_TCP_RSTS: u32 = 6;
-const STAT_EVENTS_SENT: u32 = 7;
-const STAT_EVENTS_DROPPED: u32 = 8;
+// 7, 8 retired 2026-11: FLOW_EVENTS removed, 94% of its events were dropped and nothing read it (ADR-147, BlackMage F8). Not reused.
 const STAT_MIGRATIONS: u32 = 10;
 const STAT_MIGRATION_EXPIRED: u32 = 11;
 const STAT_CANCELLED: u32 = 12;
@@ -260,19 +255,17 @@ fn process_tcp(
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
     // Look up or create flow state
-    let (flow_state, is_new) = get_or_create_flow(&flow_key, now);
+    let (_, is_new) = get_or_create_flow(&flow_key, now);
 
     if is_new {
         increment_stat(STAT_FLOWS_NEW);
-        send_flow_event(&flow_key, &flow_state, FlowEventType::New);
     }
 
     // RFC 9114 §4.1.1 — Per-flow cancellation check
     if let Some(cancel) = unsafe { CANCEL_FLOWS.get(&flow_key) } {
         let flags = cancel.flags;
         if flags & 1 != 0 {
-            // Flow is cancelled — emit ANOMALY event and drop
-            send_flow_event(&flow_key, &flow_state, FlowEventType::Anomaly);
+            // Flow is cancelled: count it and drop
             increment_stat(STAT_CANCELLED);
             return Ok(());
         }
@@ -310,11 +303,8 @@ fn process_tcp(
         let old_state = state.state;
         state.state = tcp_state_transition(state.state, flags, is_forward);
 
-        // Send event on state change
+        // On a state change: count a closed flow (userspace reads FLOWS)
         if old_state != state.state {
-            let flow_state_copy = *state;
-            send_flow_event(&flow_key, &flow_state_copy, FlowEventType::StateChange);
-
             // Track closed flows
             if state.state == ConnectionState::Closed {
                 increment_stat(STAT_FLOWS_CLOSED);
@@ -356,19 +346,17 @@ fn process_udp(
 
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
-    let (flow_state, is_new) = get_or_create_flow(&flow_key, now);
+    let (_, is_new) = get_or_create_flow(&flow_key, now);
 
     if is_new {
         increment_stat(STAT_FLOWS_NEW);
-        send_flow_event(&flow_key, &flow_state, FlowEventType::New);
     }
 
     // RFC 9114 §4.1.1 — Per-flow cancellation check
     if let Some(cancel) = unsafe { CANCEL_FLOWS.get(&flow_key) } {
         let flags = cancel.flags;
         if flags & 1 != 0 {
-            // Flow is cancelled — emit ANOMALY event and drop
-            send_flow_event(&flow_key, &flow_state, FlowEventType::Anomaly);
+            // Flow is cancelled: count it and drop
             increment_stat(STAT_CANCELLED);
             return Ok(());
         }
@@ -558,30 +546,6 @@ fn tcp_state_transition(current: ConnectionState, flags: u8, is_forward: bool) -
             ConnectionState::TimeWait
         }
         ConnectionState::Closed => ConnectionState::Closed,
-    }
-}
-
-/// Send flow event to userspace via ring buffer.
-#[inline(always)]
-fn send_flow_event(flow_key: &FlowKey, flow_state: &FlowState, event_type: FlowEventType) {
-    let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
-
-    let event = FlowEvent {
-        timestamp_ns: now,
-        flow_key: *flow_key,
-        state: *flow_state,
-        event_type,
-        _pad: [0; 7],
-    };
-
-    if let Some(mut buf) = FLOW_EVENTS.reserve::<FlowEvent>(0) {
-        unsafe {
-            core::ptr::write(buf.as_mut_ptr(), event);
-            buf.submit(0);
-        }
-        increment_stat(STAT_EVENTS_SENT);
-    } else {
-        increment_stat(STAT_EVENTS_DROPPED);
     }
 }
 

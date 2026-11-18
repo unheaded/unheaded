@@ -5,10 +5,10 @@
 // +build integration
 
 // Integration tests for Champion against real PostgreSQL (The Well).
-// Run with: WELL_TEST_APP_DSN='host=... user=app_zhen password=... dbname=unheaded_app sslmode=require' \
+// Run with: WELL_TEST_ZHEN_DSN='host=... user=app_zhen password=... dbname=unheaded_zhen sslmode=require' \
 //   go test ./pkg/champion/... -tags=integration -count=1
 // against a Well bootstrapped from db/ (zhen_actions comes from the
-// migrations, never from the test). Skipped when WELL_TEST_APP_DSN is unset;
+// migrations, never from the test). Skipped when WELL_TEST_ZHEN_DSN is unset;
 // there is no default credential.
 
 package champion_test
@@ -25,11 +25,11 @@ import (
 	"unheaded/pkg/champion/pgstore"
 )
 
-// connectPG opens WELL_TEST_APP_DSN and checks the zhen_actions shape.
+// connectPG opens WELL_TEST_ZHEN_DSN and checks the zhen_actions shape.
 func connectPG(t *testing.T) *sql.DB {
-	dsn := os.Getenv("WELL_TEST_APP_DSN")
+	dsn := os.Getenv("WELL_TEST_ZHEN_DSN")
 	if dsn == "" {
-		t.Skip("WELL_TEST_APP_DSN not set")
+		t.Skip("WELL_TEST_ZHEN_DSN not set")
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

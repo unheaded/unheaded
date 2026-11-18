@@ -1,0 +1,66 @@
+# Prometheus alert rules - Zhen's scheduler (S-CHAMPION-HARDENING Phase 8)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# zhen-agentd -scheduler runs approved runbooks on a schedule
+# (configs/zhen-schedules.yaml) and sets
+# zhen_scheduler_heartbeat_timestamp_seconds on every 60 s tick, paused or
+# not. Two ways it stops: the daemon is gone or runs without -scheduler
+# (the series is absent), or the ticker is stuck while the daemon still
+# answers /metrics (the series stays, its value goes stale). Fifteen minutes
+# of either is ZhenSchedulerStalled, as two rules under the one name: the
+# label reason says which case it is (absent or stale), so the first look
+# goes to the right place (S-WATCH-TRUE, D-13). A scheduled job that fails
+# is not this alert: it is a failed zhen_agent_runs row and a card in review.
+#
+# Producer: zhen-agentd -metrics-addr on west's WireGuard address, scraped
+# as job zhen-agentd (prometheus.yml). On a host where the unit runs without
+# -scheduler (E4) the series is absent and reason="absent" fires: that is
+# the truth (no Zhen schedule runs), not noise.
+
+groups:
+  - name: zhen
+    interval: 1m
+    rules:
+      # reason="absent": no heartbeat series at all for 15 minutes.
+      - alert: ZhenSchedulerStalled
+        expr: |
+          absent_over_time(zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd"}[15m])
+        for: 1m
+        labels:
+          severity: warning
+          urgency: none
+          reason: absent
+        annotations:
+          summary: "Zhen's scheduler has not ticked for over 15 minutes"
+          description: "No zhen_scheduler_heartbeat_timestamp_seconds from zhen-agentd for 15 minutes: scheduled runbooks are not running (zhen-agentd down, not scraped, or started without -scheduler)"
+          runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
+
+      # reason="stale": the series is still scraped, its value stopped moving.
+      - alert: ZhenSchedulerStalled
+        expr: |
+          time() - max by (job, instance) (zhen_scheduler_heartbeat_timestamp_seconds{job="zhen-agentd"}) > 900
+        for: 1m
+        labels:
+          severity: warning
+          urgency: none
+          reason: stale
+        annotations:
+          summary: "Zhen's scheduler has not ticked for over 15 minutes"
+          description: "zhen-agentd still answers /metrics but its last scheduler tick is over 15 minutes old: scheduled runbooks are not running (the ticker is stuck; the daemon is up)"
+          runbook_url: "runbooks/observe/zhen-scheduler-stalled.yaml"
+
+      # Zhen's own backup set (ADR-149, D6): unheaded-zhen-backup.timer runs
+      # nightly while the switch is on and writes zhen_backup.prom. A day
+      # and two hours without a set is stale.
+      - alert: ZhenBackupStale
+        expr: |
+          time() - max by (host) (unheaded_zhen_backup_last_success_timestamp_seconds) > 26 * 3600
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Zhen's database has had no backup set for over a day"
+          description: "No complete set of unheaded_zhen from unheaded-zhen-backup.service for 26 hours: read journalctl -u unheaded-zhen-backup and /srv/backups/unheaded-zhen/LATEST"
+          runbook_url: "wiki/Well-Backups.md"

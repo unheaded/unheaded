@@ -2,6 +2,8 @@
 
 > **Status of the items marked "(Future)" below (2026-10-27).** VXLAN overlay and BGP EVPN: the Sleipnir (BGP) vision in ADR-69420, not scheduled; the live overlay is WireGuard `fd00:dead:beef::/48`. Vault: not planned; secrets are 0400 files per service under `/etc/unheaded` (ADR-103). Secret rotation: ADR-103 (not built) and the credential rotation in S-CLEAN-SLATE E6. Container-to-container mTLS: ADR-034 / ADR-105, tracked as FND-017. alerting-service: built as Alertmanager + alert-mailer (ADR-100).
 
+> **Role services (2026-11-17).** Captain, Micromanager and Architect (10.10.10.21-23) were removed 2026-11 (ADR-147) and are no longer drawn; the Layer of Execution & Order went with them.
+
 ```
                             +-----------------------------------------+
                             |    Self-hosting is proof.               |
@@ -53,25 +55,14 @@
              |                   ||                   |
              |     LAYER OF VISION & STRATEGY        |
              |                                        |
-             |   +----------+      +-----------+      |
-             |   | CAPTAIN  |      | TIMEGURU  |      |
-             |   | Strategy |      | Timeline  |      |
-             |   | & Vision |      | & Fate    |      |
-             |   +----+-----+      +-----+-----+      |
-             |________|__________________|____________|
-                      |                  |
-              ________|__________________|________
-             |                                    |
-             |     LAYER OF EXECUTION & ORDER     |
-             |                                    |
-             |   +-------------+  +-----------+   |
-             |   |MICROMANAGER |  | ARCHITECT |   |
-             |   |   Tasks &   |  |  Design & |   |
-             |   |     QA      |  |  Patterns |   |
-             |   +------+------+  +-----+-----+   |
-             |__________|_______________|_________|
-                        |               |
-              __________|_______________|__________
+             |                     +-----------+      |
+             |                     | TIMEGURU  |      |
+             |                     | Timeline  |      |
+             |                     | & Fate    |      |
+             |                     +-----+-----+      |
+             |___________________________|____________|
+                                         |
+              ___________________________|_________
              |                                     |
              |     LAYER OF COORDINATION           |
              |                                     |
@@ -137,14 +128,7 @@ flowchart TB
 
     subgraph VISION["LAYER OF VISION & STRATEGY"]
         direction LR
-        CAPTAIN["Captain<br/>Strategy & Vision<br/>10.10.10.21:8000"]
         TIMEGURU["Timeguru<br/>Timeline & Fate<br/>10.10.10.20:8000"]
-    end
-
-    subgraph EXECUTION["LAYER OF EXECUTION & ORDER"]
-        direction LR
-        MICROMANAGER["Micromanager<br/>Tasks & QA<br/>10.10.10.22:8000"]
-        ARCHITECT["Architect<br/>Design & Patterns<br/>10.10.10.23:8000"]
     end
 
     subgraph COORDINATION["LAYER OF COORDINATION"]
@@ -175,8 +159,7 @@ flowchart TB
     end
 
     CROWN --> VISION
-    VISION --> EXECUTION
-    EXECUTION --> COORDINATION
+    VISION --> COORDINATION
     COORDINATION --> OBSERVATION
     OBSERVATION --> VOID
     VOID --> FOUNDATION
@@ -184,7 +167,6 @@ flowchart TB
 
     style CROWN fill:#7c3aed,stroke:#a78bfa,stroke-width:3px
     style VISION fill:#4f46e5,stroke:#818cf8,stroke-width:2px
-    style EXECUTION fill:#3730a3,stroke:#6366f1,stroke-width:2px
     style COORDINATION fill:#1e1b4b,stroke:#4f46e5,stroke-width:2px
     style OBSERVATION fill:#312e81,stroke:#4338ca,stroke-width:2px
     style VOID fill:#0f0a1a,stroke:#6b21a8,stroke-width:2px,stroke-dasharray: 5 5
@@ -242,15 +224,15 @@ flowchart TB
     |                       THE GAUNTLETS                                |
     |                    (Agent Services)                                |
     |                                                                    |
-    |   +------------+  +------------+  +-------------+  +------------+  |
-    |   | CAPTAIN    |  | TIMEGURU   |  | MICROMANAGER|  | ARCHITECT  |  |
-    |   |.21:8000    |  |.20:8000    |  |.22:8000     |  |.23:8000    |  |
-    |   |            |  |            |  |             |  |            |  |
-    |   | Strategy   |  | Timeline   |  | Tasks       |  | Design     |  |
-    |   | Decisions  |  | Tracking   |  | & QA        |  | Patterns   |  |
-    |   +-----+------+  +-----+------+  +------+------+  +------+-----+  |
-    |         |               |                |                |        |
-    |         +-------+-------+-------+--------+----------------+        |
+    |   +------------+                                                   |
+    |   | TIMEGURU   |                                                   |
+    |   |.20:8000    |                                                   |
+    |   |            |                                                   |
+    |   | Timeline   |                                                   |
+    |   | Tracking   |                                                   |
+    |   +-----+------+                                                   |
+    |         |                                                          |
+    |         +-------+                                                  |
     |                 |                                                  |
     |                 v Publish to Wotan                                |
     +-------------------------------------------------------------------+
@@ -338,10 +320,7 @@ flowchart TB
 
     subgraph GAUNTLETS["THE GAUNTLETS - Agent Services"]
         direction LR
-        CAP["Captain<br/>.21:8000<br/>Strategy"]
         TIME["Timeguru<br/>.20:8000<br/>Timeline"]
-        MICRO["Micromanager<br/>.22:8000<br/>Tasks & QA"]
-        ARCH["Architect<br/>.23:8000<br/>Design"]
     end
 
     subgraph GREAVES["THE GREAVES - Observation Layer"]
@@ -682,13 +661,13 @@ flowchart TB
     |         |   Interval: 300ms  |  Detect Mult: 3  |  Echo: On     |       |
     |         +--------------------------------------------------------+       |
     |                                                                          |
-    |   +--------+     +--------+     +--------+     +--------+     +--------+ |
-    |   |WOTAN  |<===>|TIMEGURU|<===>|CAPTAIN |<===>|MICRO-  |<===>|ARCHITECT||
-    |   |.10     |     |.20     |     |.21     |     |MANAGER |     |.23     | |
-    |   |        |     |        |     |        |     |.22     |     |        | |
-    |   +---+----+     +---+----+     +---+----+     +---+----+     +---+----+ |
-    |       |              |              |              |              |      |
-    |       +--------------+--------------+--------------+--------------+      |
+    |   +--------+     +--------+                                              |
+    |   |WOTAN  |<===>|TIMEGURU|                                               |
+    |   |.10     |     |.20     |                                              |
+    |   |        |     |        |                                              |
+    |   +---+----+     +---+----+                                              |
+    |       |              |                                                   |
+    |       +--------------+--------------+                                    |
     |                                     |                                    |
     |                           +---------v---------+                          |
     |                           |    MESH FABRIC    |                          |
@@ -805,9 +784,6 @@ flowchart TB
 
         subgraph AGENTS["Agent Services"]
             TIME["Timeguru<br/>10.10.10.20<br/>:8000"]
-            CAP["Captain<br/>10.10.10.21<br/>:8000"]
-            MICRO["Micromanager<br/>10.10.10.22<br/>:8000"]
-            ARCH["Architect<br/>10.10.10.23<br/>:8000"]
         end
 
         subgraph APPS["Applications"]
@@ -1341,7 +1317,7 @@ flowchart TB
     |   |    +-- api-signing-key.txt      (For response signing)           |   |
     |   +------------------------------------------------------------------+   |
     |                                                                          |
-    |   [Similar for: captain, micromanager, architect, dashboard-backend]     |
+    |   [Similar for: dashboard-backend]                                       |
     +--------------------------------------------------------------------------+
                                        |
                                        | 4. Secret Rotation (Future)
@@ -1728,7 +1704,7 @@ flowchart TB
 | **The Complete Knight** | Full Service Stack | All armor pieces (components) connected |
 | **The Shield** | Gateway (nginx) | First line of defense, TLS termination |
 | **The Breastplate** | Wotan Message Bus | Core message routing backbone |
-| **The Gauntlets** | Agent Services | Timeguru, Captain, Micromanager, Architect |
+| **The Gauntlets** | Agent Services | Timeguru |
 | **The Greaves** | Observation Layer | Dashboard Backend, Trace Collector |
 | **The Sabatons** | eBPF Layer | Foundation touching the ground (kernel) |
 | **The Arcane Hollows** | Hidden Infrastructure | Secrets, observability, control plane |
@@ -1748,9 +1724,6 @@ flowchart TB
 | Wotan | 10.10.10.10 | 8080, 9090 | The Breastplate |
 | Trace Collector | 10.10.10.11 | 8081 | The Greaves (Left) |
 | Timeguru | 10.10.10.20 | 8000 | The Gauntlet (Time) |
-| Captain | 10.10.10.21 | 8000 | The Gauntlet (Strategy) |
-| Micromanager | 10.10.10.22 | 8000 | The Gauntlet (Tasks) |
-| Architect | 10.10.10.23 | 8000 | The Gauntlet (Design) |
 | Dashboard Backend | 10.10.10.30 | 8082, 8083 | The Greaves (Right) |
 | Kanban App | 10.10.10.200 | 8001 | The Meta Moment |
 | Demo App | 10.10.10.254 | 8000 | User Zone (Isolated) |

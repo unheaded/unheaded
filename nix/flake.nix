@@ -8,10 +8,11 @@
   #
   # Architecture:
   #   - 4 shared modules (base, common, hardening, networking)
-  #   - 10 container definitions:
+  #   - 7 container definitions:
   #     - Control plane: cuirass
-  #     - Message bus: wotan
-  #     - Agent services: timeguru, captain, micromanager, architect, developer
+  #     - Message bus: wotan, wotan-service
+  #     - Agent services: timeguru
+  #     - Gateway: gateway
   #     - Applications: kanban, dashboard
   #   - Security: seccomp, capabilities, read-only FS, minimal capabilities
   #   - Network: isolated mesh with default-deny, explicit allow rules
@@ -136,31 +137,11 @@
           ./containers/timeguru-service.nix
         ];
 
-        captain = mkContainer "captain" [
-          ./containers/captain-service.nix
-        ];
-
-        micromanager = mkContainer "micromanager" [
-          ./containers/micromanager-service.nix
-        ];
-
-        architect = mkContainer "architect" [
-          ./containers/architect-service.nix
-        ];
-
         # developer: Placeholder - no service code yet, will be added post-alpha
 
         # ---------------------------------------------------------------------
         # STATE & KNOWLEDGE SERVICES
         # ---------------------------------------------------------------------
-        monad = mkContainer "monad" [
-          ./containers/monad-service.nix
-        ];
-
-        sophia = mkContainer "sophia" [
-          ./containers/sophia-service.nix
-        ];
-
         # Legacy compatibility (duplicate for service discovery)
         wotan-service = mkContainer "wotan-service" [
           ./containers/wotan-service.nix
@@ -202,11 +183,6 @@
         # For now, these are placeholders that reference local paths
         wotan = prev.callPackage ./packages/wotan.nix { };
         timeguru = prev.callPackage ./packages/timeguru.nix { };
-        captain = prev.callPackage ./packages/captain.nix { };
-        micromanager = prev.callPackage ./packages/micromanager.nix { };
-        architect = prev.callPackage ./packages/architect.nix { };
-        monad = prev.callPackage ./packages/monad.nix { };
-        sophia = prev.callPackage ./packages/sophia.nix { };
         kanban-app = prev.callPackage ./packages/kanban-app.nix { };
         dashboard-app = prev.callPackage ./packages/dashboard-app.nix { };
         cuirass = prev.callPackage ./packages/cuirass.nix { };
@@ -245,7 +221,7 @@
               echo "Generating LXD profiles for Unheaded containers..."
 
               # Generate profiles for each container
-              for container in wotan timeguru captain micromanager architect monad sophia gateway kanban dashboard cuirass; do
+              for container in wotan timeguru gateway kanban dashboard cuirass; do
                 echo "Processing: $container"
                 nix eval .#nixosConfigurations.$container.config.unheaded --json > profiles/$container.json
               done
@@ -266,11 +242,6 @@
               nix build \
                 .#nixosConfigurations.wotan.config.system.build.toplevel \
                 .#nixosConfigurations.timeguru.config.system.build.toplevel \
-                .#nixosConfigurations.captain.config.system.build.toplevel \
-                .#nixosConfigurations.micromanager.config.system.build.toplevel \
-                .#nixosConfigurations.architect.config.system.build.toplevel \
-                .#nixosConfigurations.monad.config.system.build.toplevel \
-                .#nixosConfigurations.sophia.config.system.build.toplevel \
                 .#nixosConfigurations.gateway.config.system.build.toplevel \
                 .#nixosConfigurations.kanban.config.system.build.toplevel \
                 .#nixosConfigurations.dashboard.config.system.build.toplevel \

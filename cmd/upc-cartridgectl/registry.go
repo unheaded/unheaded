@@ -4,28 +4,24 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strings"
 	"time"
 )
 
 // The cartridge registry (ADR-108 D-C4). A record names an image by its
 // sha256; the image bytes and seal are stored content-addressed on disk.
-// Where the record lives is the registry backend: Sophia (category
-// "cartridge", root key 0x15, assigned by the RFC Editor in S-TRUE-WIRE
-// Phase 1; sophia-dictionary-03) or a file-backed directory with the same
-// schema while the stack is down. Records written before the assignment
-// under "x-cartridge" are still read, never written.
+// The record lives in a file-backed directory. Its category is the Sophia
+// dictionary's "cartridge" (root key 0x15, assigned by the RFC Editor in
+// S-TRUE-WIRE Phase 1; sophia-dictionary-03). The Sophia HTTP service that
+// could also hold records was removed (ADR-147 decision 7); --sophia is
+// refused by name.
 // The storage location is not trusted either way: every load re-verifies
 // the seal on the bytes it reads.
 
@@ -189,127 +185,3 @@ func (r *FileRegistry) List() ([]Record, error) {
 	}
 	return out, nil
 }
-
-// SophiaRegistry stores records as Sophia knowledge entries
-// (subject "cartridge/<name>", predicate "cartridge.record", object the
-// sha256, the record in metadata) and the bytes in Blobs.
-type SophiaRegistry struct {
-	BaseURL string
-	Token   string // bearer token for Sophia's service auth ("" = none)
-	Blobs   *FileRegistry
-	Client  *http.Client
-}
-
-func (r *SophiaRegistry) do(req *http.Request) ([]byte, error) {
-	if r.Token != "" {
-		req.Header.Set("Authorization", "Bearer "+r.Token)
-	}
-	c := r.Client
-	if c == nil {
-		c = &http.Client{Timeout: 10 * time.Second}
-	}
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode/100 != 2 {
-		return nil, fmt.Errorf("sophia: %s: %s", resp.Status, bytes.TrimSpace(b))
-	}
-	return b, nil
-}
-
-// Put stores the bytes, then the record in Sophia.
-func (r *SophiaRegistry) Put(rec Record, raw, seal []byte) error {
-	if !nameRE.MatchString(rec.Name) {
-		return ErrName
-	}
-	// The local store keeps the bytes and a mirror of the record (for List);
-	// Get answers from Sophia.
-	if err := r.Blobs.Put(rec, raw, seal); err != nil {
-		return err
-	}
-	var meta map[string]any
-	rb, _ := json.Marshal(rec)
-	_ = json.Unmarshal(rb, &meta)
-	body, err := json.Marshal(map[string]any{
-		"type": "fact", "subject": Namespace + "/" + rec.Name, "predicate": predicate,
-		"object": rec.SHA256, "source": "upc-cartridgectl", "confidence": 1.0, "metadata": meta,
-	})
-	if err != nil {
-		return err
-	}
-	req, err := http.NewRequest(http.MethodPost, strings.TrimRight(r.BaseURL, "/")+"/api/v1/knowledge", bytes.NewReader(body))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	_, err = r.do(req)
-	return err
-}
-
-type sophiaRow struct {
-	Object    string          `json:"object"`
-	CreatedAt string          `json:"created_at"`
-	Metadata  json.RawMessage `json:"metadata"`
-}
-
-func (r *SophiaRegistry) query(subject string) ([]sophiaRow, error) {
-	q := url.Values{"subject": {subject}, "predicate": {predicate}, "limit": {"1000"}}
-	req, err := http.NewRequest(http.MethodGet, strings.TrimRight(r.BaseURL, "/")+"/api/v1/knowledge?"+q.Encode(), nil)
-	if err != nil {
-		return nil, err
-	}
-	b, err := r.do(req)
-	if err != nil {
-		return nil, err
-	}
-	var env struct {
-		Data struct {
-			Knowledge []sophiaRow `json:"knowledge"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(b, &env); err != nil {
-		return nil, fmt.Errorf("sophia: %w", err)
-	}
-	return env.Data.Knowledge, nil
-}
-
-// Get returns the newest record for name.
-func (r *SophiaRegistry) Get(name string) (Record, []byte, []byte, error) {
-	var rec Record
-	if !nameRE.MatchString(name) {
-		return rec, nil, nil, ErrName
-	}
-	rows, err := r.query(Namespace + "/" + name)
-	if err != nil {
-		return rec, nil, nil, err
-	}
-	if len(rows) == 0 {
-		// A record registered before the root key was assigned.
-		if rows, err = r.query(LegacyNamespace + "/" + name); err != nil {
-			return rec, nil, nil, err
-		}
-	}
-	if len(rows) == 0 {
-		return rec, nil, nil, ErrNotFound
-	}
-	sort.Slice(rows, func(i, j int) bool { return rows[i].CreatedAt < rows[j].CreatedAt })
-	newest := rows[len(rows)-1]
-	if err := json.Unmarshal(newest.Metadata, &rec); err != nil {
-		return rec, nil, nil, fmt.Errorf("sophia record: %w", err)
-	}
-	if rec.SHA256 != newest.Object || rec.Name != name {
-		return rec, nil, nil, ErrBlob
-	}
-	raw, seal, err := r.Blobs.getBlobs(rec.SHA256)
-	return rec, raw, seal, err
-}
-
-// List returns the records the blob store knows names for (Sophia's query
-// API matches exact subjects only, so the file store's index is used).
-func (r *SophiaRegistry) List() ([]Record, error) { return r.Blobs.List() }

@@ -40,22 +40,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -o /build/bin/timeguru ./services/timeguru/cmd/timeguru && \
     CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
-    -o /build/bin/captain ./services/captain/cmd/captain && \
-    CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
-    -o /build/bin/architect ./services/architect/cmd/architect && \
-    CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
-    -o /build/bin/micromanager ./services/micromanager/cmd/micromanager && \
-    CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
     -o /build/bin/unheaded-daemon ./cmd/unheaded-daemon && \
-    CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
-    -o /build/bin/monad ./cmd/monad && \
-    CGO_ENABLED=0 GOOS=linux go build \
-    -ldflags "-X unheaded/pkg/cmdline.Version=${VERSION}" \
-    -o /build/bin/sophia ./cmd/sophia && \
     CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME}" \
     -o /build/bin/dashboard-backend ./cmd/dashboard-backend && \
@@ -144,56 +129,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 ENTRYPOINT ["/app/timeguru"]
 
 # ============================================================================
-# STAGE 4: CAPTAIN - THE COMMANDER'S QUARTERS
-# ============================================================================
-FROM runtime AS captain
-
-# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
-RUN addgroup -S -g 16724 captain && \
-    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16724 -G captain captain
-
-WORKDIR /app
-
-COPY --from=builder /build/bin/captain /app/captain
-
-RUN mkdir -p /data && chown 16724:16724 /data
-
-USER 16724:16724
-
-EXPOSE 19002
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/healthprobe", "19002"]
-
-ENTRYPOINT ["/app/captain"]
-
-# ============================================================================
-# STAGE 5: ARCHITECT - THE SAGE'S LAIR
-# ============================================================================
-FROM runtime AS architect
-
-# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
-RUN addgroup -S -g 16723 architect && \
-    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16723 -G architect architect
-
-WORKDIR /app
-
-COPY --from=builder /build/bin/architect /app/architect
-
-RUN mkdir -p /data && chown 16723:16723 /data
-
-USER 16723:16723
-
-EXPOSE 19001
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/healthprobe", "19001"]
-
-ENTRYPOINT ["/app/architect"]
-
-# ============================================================================
-# STAGE 6: MICROMANAGER - THE WAR ROOM
-# ============================================================================
 # Akira: consensus health (ADR-029). Checks the services and tallies every
 # reporter's votes; remediation is off unless started with --remediate.
 FROM runtime AS akira
@@ -249,76 +184,6 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD ["/usr/local/bin/healthprobe", "http://127.0.0.1:19120/health"]
 
 ENTRYPOINT ["/app/kev-poller", "--state-dir", "/data", "--stack", "/etc/unheaded/kev-stack.yaml"]
-
-# ============================================================================
-FROM runtime AS micromanager
-
-# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
-RUN addgroup -S -g 16725 micromanager && \
-    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16725 -G micromanager micromanager
-
-WORKDIR /app
-
-COPY --from=builder /build/bin/micromanager /app/micromanager
-
-RUN mkdir -p /data && chown 16725:16725 /data
-
-USER 16725:16725
-
-EXPOSE 19003
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/healthprobe", "19003"]
-
-ENTRYPOINT ["/app/micromanager"]
-
-# ============================================================================
-# STAGE 7: MONAD - THE ONE (Unified State Management)
-# ============================================================================
-FROM runtime AS monad
-
-# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
-RUN addgroup -S -g 16726 monad && \
-    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16726 -G monad monad
-
-WORKDIR /app
-
-COPY --from=builder /build/bin/monad /app/monad
-
-RUN mkdir -p /data && chown 16726:16726 /data
-
-USER 16726:16726
-
-EXPOSE 19004
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/healthprobe", "19004"]
-
-ENTRYPOINT ["/app/monad"]
-
-# ============================================================================
-# STAGE 8: SOPHIA - DIVINE WISDOM (Knowledge Graph)
-# ============================================================================
-FROM runtime AS sophia
-
-# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
-RUN addgroup -S -g 16727 sophia && \
-    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16727 -G sophia sophia
-
-WORKDIR /app
-
-COPY --from=builder /build/bin/sophia /app/sophia
-
-RUN mkdir -p /data && chown 16727:16727 /data
-
-USER 16727:16727
-
-EXPOSE 19005
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD ["/usr/local/bin/healthprobe", "19005"]
-
-ENTRYPOINT ["/app/sophia"]
 
 # ============================================================================
 # STAGE 9: CUIRASS - THE CORE HEART (Control Plane)
@@ -495,9 +360,9 @@ RUN mkdir -p /data /var/lib/unheaded /etc/supervisor.d && \
 COPY config/supervisor/all-in-one.ini /etc/supervisor.d/unheaded.ini
 
 # What the programs in all-in-one.ini listen on at their defaults (pkg/ports):
-# unheaded-daemon 17000, wotan 18000/18001, timeguru..sophia 19000-19005,
+# unheaded-daemon 17000, wotan 18000/18001, timeguru 19000,
 # dashboard 20000, kanban 20001.
-EXPOSE 17000 18000 18001 19000 19001 19002 19003 19004 19005 20000 20001
+EXPOSE 17000 18000 18001 19000 20000 20001
 
 USER 16759:16759
 

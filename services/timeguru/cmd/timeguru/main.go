@@ -23,6 +23,8 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
+	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -41,7 +43,6 @@ import (
 const (
 	defaultPort         = "19000"
 	defaultWotanAddr    = "localhost:18000" // HTTP control plane
-	defaultDBPath       = "./data/timeguru.db"
 	defaultTimelinePath = "./references/timeline.md"
 	shutdownTimeout     = 30 * time.Second
 	fileWatchInterval   = 5 * time.Second
@@ -57,7 +58,6 @@ type Config struct {
 	Port          string
 	WotanAddr     string // HTTP control plane (subscribe, publish)
 	WotanGRPCAddr string // gRPC data plane (streaming) — preferred for perf
-	DBPath        string
 	TimelinePath  string
 	SyncDir       string // directory for synced timeline files (JSON/TOML/YAML/MD)
 }
@@ -79,18 +79,16 @@ func main() {
 		Str("port", config.Port).
 		Str("wotan_http", config.WotanAddr).
 		Str("wotan_grpc", config.WotanGRPCAddr).
-		Str("db_path", config.DBPath).
 		Str("timeline_path", config.TimelinePath).
 		Str("sync_dir", config.SyncDir).
 		Msg("configuration loaded")
 
-	// Initialize storage
-	store, err := storage.NewStore(config.DBPath)
-	if err != nil {
-		log.Fatal().Err(err).Msg("failed to initialize storage")
-	}
+	// The timeline lives in memory, built from the file, with the Well's
+	// timeline_milestones as its one home (ADR-147, migration 050). The Well
+	// is connected in the background below; until then timeguru serves the
+	// file read-only.
+	store := storage.New()
 	defer store.Close()
-	log.Info().Msg("storage initialized (Crystal Grotto connected)")
 
 	// Try to load timeline from markdown file on startup
 	timelineLoaded := false
@@ -114,11 +112,11 @@ func main() {
 	}
 	healthSrv := transport.NewHealthServer("timeguru")
 
-	// Initialize wotan client using transport config addresses. Creating
-	// it does not need Wotan up; the subscriptions start below and keep
-	// retrying in the background.
-	var wotan *wotanClient.Client
-	wotan, err = initWotan(transportCfg.WotanHTTPAddr, transportCfg.WotanGRPCAddr)
+	// The process's one Wotan client (ADR-147 Phase 7): discovery, health
+	// reports, log forwarding and the subscriptions below all use it.
+	// Creating it does not need Wotan up; the subscriptions keep retrying
+	// in the background.
+	wotan, err := initWotan(transportCfg)
 	if err != nil {
 		log.Warn().Err(err).Msg("Wotan client could not be created (bad address?), continuing without Wotan integration")
 		wotan = nil
@@ -131,7 +129,7 @@ func main() {
 	var logConn transport.Connection
 	if wotan != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "timeguru"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wotan, transportCfg.WotanHTTPAddr, "timeguru"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -142,8 +140,18 @@ func main() {
 
 	// Initialize HTTP handler
 	handler := api.NewHandler(store)
+	handler.SetWellHealth(func() any { return store.WellState() })
+	// crit is set once the subscriptions start (below), after serving
+	// begins, so /health reads it through an atomic pointer.
+	var crit atomic.Pointer[critalert.Tracker]
 	if wotan != nil {
 		handler.SetWotanHealth(func() any { return wotan.Health() })
+		handler.SetCriticalAlerts(func() any {
+			if t := crit.Load(); t != nil {
+				return t.Health()
+			}
+			return nil
+		})
 	}
 
 	// Initialize file syncer if sync directory is configured
@@ -216,8 +224,8 @@ func main() {
 	defer stop()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.Start(ctx, transportCfg, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
-	healthreport.StartService(ctx, transportCfg, "timeguru", healthreport.HealthURL(":"+config.Port, ports.PortOf(":"+config.Port, ports.Timeguru))) // ADR-029: a vote on Akira's ballot
+	discovery.Start(ctx, wotan, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
+	healthreport.StartService(ctx, wotan, "timeguru", healthreport.HealthURL(":"+config.Port, ports.PortOf(":"+config.Port, ports.Timeguru))) // ADR-029: a vote on Akira's ballot
 
 	// TLS from UNHEADED_TLS_* (S-IRON-GATE Phase 8): misconfigured TLS is a
 	// startup failure, never a plaintext listener.
@@ -246,7 +254,7 @@ func main() {
 	// This sits AFTER the listener is bound: the first cut announced right
 	// after the Wotan connect, kanban refetched immediately, and hit
 	// connection refused because /timeline was not serving yet.
-	// Wotan subscriptions (alerts.critical, timeline.updates) join in the
+	// Wotan subscriptions (alerts.critical through pkg/critalert, timeline.updates) join in the
 	// background and retry until Wotan answers; the startup announcement
 	// goes out once the timeline topic is joined.
 	if wotan != nil {
@@ -254,8 +262,12 @@ func main() {
 		if timelineLoaded {
 			onJoined = func() { publishTimelineUpdate(wotan, "timeline_loaded") }
 		}
-		startWotanSubscriptions(ctx, wotan, onJoined)
+		crit.Store(startWotanSubscriptions(ctx, wotan, onJoined))
 	}
+
+	// The Well: retried every 1 s, doubling to 30 s, until it answers with
+	// migration 050 applied; a Well without it is fatal, as kanban's is.
+	go store.Connect(ctx, connectWell, time.Second, 30*time.Second)
 
 	// Start file watcher for timeline.md auto-reload + sync
 	if config.TimelinePath != "" {
@@ -301,7 +313,6 @@ func loadConfig() Config {
 		Port:          getEnv("PORT", defaultPort),
 		WotanAddr:     getEnv("WOTAN_ADDR", defaultWotanAddr),
 		WotanGRPCAddr: getEnv("WOTAN_GRPC_ADDR", "localhost:18001"),
-		DBPath:        getEnv("DB_PATH", defaultDBPath),
 		TimelinePath:  getEnv("TIMELINE_PATH", defaultTimelinePath),
 		SyncDir:       os.Getenv("SYNC_DIR"), // empty = disabled
 	}
@@ -312,9 +323,6 @@ func loadConfig() Config {
 	}
 	if config.WotanAddr == "" {
 		config.WotanAddr = defaultWotanAddr
-	}
-	if config.DBPath == "" {
-		config.DBPath = defaultDBPath
 	}
 
 	// Default sync dir to the directory containing timeline.md
@@ -333,6 +341,36 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
+// connectWell opens timeguru's connection to the Well as app_timeguru. A
+// Well without migration 050 stops the process: retrying cannot fix it.
+func connectWell(ctx context.Context) (storage.Backend, error) {
+	db, err := database.Connect(ctx, database.AppTimeguruConfig())
+	if err != nil {
+		log.Warn().Err(err).Msg("the Well is not answering; serving timeline.md read-only, retrying")
+		return nil, err
+	}
+	// Two connections: a reload or an API update at a time. The Connect
+	// default (10) would take the Well's budget to 54 of 47
+	// (docs/architecture/THE_WELL_OPERATIONS.md, Connection Budget).
+	db.SetMaxOpenConns(2)
+	db.SetMaxIdleConns(1)
+	if err := database.RequireMigrations(ctx, db, database.TimelineMigration); err != nil {
+		_ = db.Close()
+		log.Fatal().Err(err).Msg("the Well lacks timeguru's migration (db/migrations/050)")
+	}
+	log.Info().Msg("connected to the Well (timeline_milestones)")
+	return wellBackend{TimelineStore: database.NewTimelineStore(db), db: db}, nil
+}
+
+// wellBackend is the store with its pool: storage.Store.Connect closes a
+// pool that fails to attach, and Close closes the one that did.
+type wellBackend struct {
+	*database.TimelineStore
+	db interface{ Close() error }
+}
+
+func (w wellBackend) Close() error { return w.db.Close() }
+
 // loadTimelineFromFile parses timeline.md and stores it
 func loadTimelineFromFile(filePath string, store *storage.Store) error {
 	p, err := parser.NewMarkdownParser(filePath)
@@ -348,8 +386,8 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	if err := store.SaveTimeline(ctx, tl); err != nil {
-		return fmt.Errorf("save timeline: %w", err)
+	if err := store.Load(ctx, tl, fileModTime(filePath)); err != nil {
+		return fmt.Errorf("load timeline: %w", err)
 	}
 
 	log.Info().
@@ -359,6 +397,16 @@ func loadTimelineFromFile(filePath string, store *storage.Store) error {
 		Msg("loaded timeline from file")
 
 	return nil
+}
+
+// fileModTime is the file's modification time, or now when it cannot be
+// read (then the file wins over every row).
+func fileModTime(path string) time.Time {
+	fi, err := os.Stat(path)
+	if err != nil {
+		return time.Now()
+	}
+	return fi.ModTime()
 }
 
 // watchTimelineFile watches for changes to timeline.md and reloads + syncs
@@ -396,10 +444,10 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 				}
 
 				saveCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-				if err := store.SaveTimeline(saveCtx, tl); err != nil {
-					log.Error().Err(err).Msg("save error on reload")
-					cancel()
-					continue
+				if err := store.Load(saveCtx, tl, fileModTime(filePath)); err != nil {
+					// The file is served either way; the Well catches up
+					// on the next change.
+					log.Error().Err(err).Msg("the Well did not take the reloaded timeline")
 				}
 				cancel()
 
@@ -446,8 +494,8 @@ func registerAPIRoutes(mux *http.ServeMux, handler *api.Handler) {
 
 // wrapAuth puts auth in front of the mux (S-IRON-GATE Phase 6): with
 // AUTH_ENABLED=true every route but /health, /ready and /metrics needs a
-// token from an AUTH_ALLOW_CALLERS caller (kanban-app reads the timeline,
-// micromanager and kanban-app may write), and a write needs a write role.
+// token from an AUTH_ALLOW_CALLERS caller (kanban-app, which reads the
+// timeline and may write it), and a write needs a write role.
 func wrapAuth(h http.Handler, cfg auth.ServiceAuthConfig) (http.Handler, error) {
 	return auth.NewServiceHandler(h, cfg, auth.ServiceRoutes{})
 }
@@ -482,40 +530,29 @@ func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	}
 }
 
-// initWotan creates the Wotan client: HTTP for the control plane
-// (subscribe/publish), gRPC for streaming when grpcAddr is set. It does not
-// talk to Wotan; startWotanSubscriptions joins the topics. It used to
-// subscribe here once and, when Wotan was not up yet, timeguru ran without
-// Wotan until it was restarted.
-func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
-	var client *wotanClient.Client
-	var err error
-	if grpcAddr != "" {
-		client, err = wotanClient.NewClientWithGRPC(httpAddr, grpcAddr)
-		if err != nil {
-			return nil, fmt.Errorf("create dual-transport client: %w", err)
-		}
-		log.Info().Str("http", httpAddr).Str("grpc", grpcAddr).Msg("Wotan client created (dual transport)")
-	} else {
-		client, err = wotanClient.NewClient(httpAddr)
-		if err != nil {
-			return nil, fmt.Errorf("create HTTP client: %w", err)
-		}
-		log.Info().Str("http", httpAddr).Msg("Wotan client created (HTTP-only)")
+// initWotan creates the process's one Wotan client: HTTP for the control
+// plane (subscribe/publish), gRPC for streams (transport.NewWotanClient;
+// a missing gRPC address is an error). It does not talk to Wotan;
+// startWotanSubscriptions joins the topics. It used to subscribe here once
+// and, when Wotan was not up yet, timeguru ran without Wotan until it was
+// restarted.
+func initWotan(cfg transport.Config) (*wotanClient.Client, error) {
+	client, err := transport.NewWotanClient(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create Wotan client: %w", err)
 	}
-
+	log.Info().Str("http", cfg.WotanHTTPAddr).Str("grpc", cfg.WotanGRPCAddr).Msg("Wotan client created")
 	return client, nil
 }
 
-// startWotanSubscriptions joins alerts.critical (required by CLAUDE.md) and
-// the timeline topic in the background, streaming both, and keeps retrying
+// startWotanSubscriptions attaches pkg/critalert (alerts.critical, as every
+// service on the bus does) and joins the timeline topic in the background,
+// streaming both, and keeps retrying
 // (1 s doubling to 30 s) until ctx ends, so a Wotan that starts after
 // timeguru, or restarts, is picked up without restarting timeguru. onJoined,
 // if not nil, runs once the timeline topic is first joined.
-func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, onJoined func()) {
-	go func() {
-		_ = client.SubscribeWithRetry(ctx, "alerts.critical", wotanDisplayName, handleAlert)
-	}()
+func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, onJoined func()) *critalert.Tracker {
+	crit := critalert.Attach(ctx, client, wotanDisplayName)
 	go func() {
 		_ = client.SubscribeWithRetry(ctx, wotanTopic, wotanDisplayName, handleTimelineMessage)
 	}()
@@ -533,6 +570,7 @@ func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, on
 			onJoined()
 		}()
 	}
+	return crit
 }
 
 // publishTimelineUpdate publishes an update event to Wotan with trace_id
@@ -564,13 +602,4 @@ func handleTimelineMessage(msg *wotanClient.Message) {
 		Str("topic", msg.Topic).
 		Str("sender", msg.SenderID).
 		Msg("received message (processing deferred)")
-}
-
-// handleAlert logs a critical alert from Wotan.
-func handleAlert(msg *wotanClient.Message) {
-	log.Warn().
-		Str("message_id", msg.MessageID).
-		Int64("seq", msg.Seq).
-		Str("payload", msg.Payload).
-		Msg("CRITICAL ALERT received")
 }

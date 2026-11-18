@@ -118,11 +118,6 @@ write_files:
           # Upstreams
           upstream wotan       { server 10.10.10.10:18001; keepalive 32; }
           upstream timeguru    { server 10.10.10.20:19000; keepalive 32; }
-          upstream captain     { server 10.10.10.21:19002; keepalive 32; }
-          upstream micromanager { server 10.10.10.22:19003; keepalive 32; }
-          upstream architect   { server 10.10.10.23:19001; keepalive 32; }
-          upstream monad       { server 10.10.10.27:19004; keepalive 32; }
-          upstream sophia      { server 10.10.10.26:19005; keepalive 32; }
           upstream kanban      { server 10.10.10.200:20001; keepalive 32; }
           upstream dashboard   { server 10.10.10.201:20000; keepalive 32; }
           upstream wiki_server { server 10.10.10.29:20002; keepalive 32; }
@@ -145,11 +140,6 @@ write_files:
 
               location /api/wotan/         { proxy_pass http://wotan/;        limit_req zone=api burst=100 nodelay; }
               location /api/timeguru/      { proxy_pass http://timeguru/;     limit_req zone=api burst=100 nodelay; }
-              location /api/captain/       { proxy_pass http://captain/;      limit_req zone=api burst=100 nodelay; }
-              location /api/micromanager/  { proxy_pass http://micromanager/; limit_req zone=api burst=100 nodelay; }
-              location /api/architect/     { proxy_pass http://architect/;    limit_req zone=api burst=100 nodelay; }
-              location /api/monad/         { proxy_pass http://monad/;        limit_req zone=api burst=100 nodelay; }
-              location /api/sophia/        { proxy_pass http://sophia/;       limit_req zone=api burst=100 nodelay; }
               location /kanban/            { proxy_pass http://kanban/;       }
               location /dashboard/         { proxy_pass http://dashboard/;    }
               location /wiki/              { proxy_pass http://wiki_server/;  }

@@ -133,11 +133,6 @@ func resolveServiceConfigs(services string) []iac.ServiceConfig {
 	allServices := []svcDef{
 		{"wotan", 18000},
 		{"timeguru", 19000},
-		{"architect", 19001},
-		{"captain", 19002},
-		{"micromanager", 19003},
-		{"monad", 19004},
-		{"sophia", 19005},
 		{"dashboard-backend", 20000},
 		{"kanban-app", 20001},
 		{"unheaded-daemon", 17000},

@@ -1,0 +1,60 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: module-listener-public
+  description: A module (Zhen) listens where the public side of the host can reach it (ModuleListenerPublic), or the guard that would see it stopped (ModuleListenerGuardNotRunning)
+  owner: sentinel
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-149 decision 6 (ADR-147 decision 15 (c)): a module's listener is on
+  loopback, a Unix socket, or a private address on the host's allowlist
+  (modules/<name>/module.yaml bind_allow), never a wildcard or a globally
+  routable address. unheaded-module-guard.timer reads the listening sockets
+  every 5 minutes and writes unheaded_module_listener_public{module,port,addr}
+  for each offender; ModuleListenerPublic pages on any.
+
+  First act, then read: stop the module with its switch
+  (sudo systemctl disable --now unheaded-zhen.target), which is the
+  platform's normal state. Never add the address to the allowlist to quiet
+  the page: a global address can never be listed, and a private one is
+  listed only by a change to module.yaml that a person reviews.
+
+  ModuleListenerGuardNotRunning: the guard has not written for 30 minutes,
+  so a public listener would go unseen; read its unit and timer.
+
+steps:
+  - name: what-is-firing
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:8428/api/v1/query' --data-urlencode 'query=unheaded_module_listener_public' |
+        python3 -c 'import json,sys; [print(r["metric"].get("host", "-"), r["metric"]["module"], r["metric"]["port"], r["metric"]["addr"]) for r in json.load(sys.stdin)["data"]["result"]] or print("(no offending listener)")'
+    description: "Which module, port and address the guard saw"
+
+  - name: listeners
+    action: shell
+    command: "ss -ltn | grep -E ':(8081|20103|20111|20112)[[:space:]]'"
+    description: "Every listener on the Zhen module's ports (modules/zhen/module.yaml ports); a 0.0.0.0, *, [::] or global address is the finding"
+
+  - name: units
+    action: shell
+    command: "systemctl status zhen-agentd unheaded-zhen-ui-front unheaded-zhen-app unheaded-llama --no-pager"
+    description: "The units' command lines: which flag or drop-in put the listener there (-host, --listen, --host, -metrics-addr)"
+
+  - name: guard-timer
+    action: shell
+    command: "systemctl list-timers unheaded-module-guard.timer --no-pager"
+    description: "For ModuleListenerGuardNotRunning: the guard's timer is loaded and fires every 5 minutes"
+
+  - name: switch-off
+    action: manual
+    command: "sudo systemctl disable --now unheaded-zhen.target"
+    description: "MANUAL. Before anything else when ModuleListenerPublic fires: the module goes off and its listeners with it"

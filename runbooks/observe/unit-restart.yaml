@@ -1,0 +1,49 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: unit-restart
+  description: A host unit has failed (UnitFailed) or keeps restarting (UnitRestartLoop)
+  owner: zhenai
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-147 SS3 (S-SEE-AND-SURVIVE Phase 6): every restarting unit carries
+  StartLimitIntervalSec=15min and StartLimitBurst=10, so after 10 starts in
+  15 minutes systemd gives up and the unit stays failed (UnitFailed). Before
+  that, UnitRestartLoop says it restarted 3 times in 30 minutes. The series
+  come from unheaded-host-state.timer through huginn.
+
+  A unit that gave up stays failed: start it again only after the cause is
+  fixed, with reset-failed first (the start limit counts otherwise).
+
+steps:
+  - name: status
+    action: manual
+    command: |
+      systemctl status <unit> --no-pager
+    description: "MANUAL (read only). Put the alert's unit label in place of <unit>. Active, the last exit, and the last log lines"
+
+  - name: journal
+    action: manual
+    command: |
+      journalctl -u <unit> -n 50 --no-pager
+    description: "MANUAL (read only). The last 50 lines: the reason it exits is usually the line before 'Main process exited'"
+
+  - name: restarts
+    action: manual
+    command: |
+      systemctl status <unit> --no-pager | grep -E 'Active:|Main PID'
+    description: "MANUAL (read only). How long since the last start"
+
+  - name: start-again
+    action: manual
+    command: |
+      sudo systemctl reset-failed <unit> && sudo systemctl start <unit>
+    description: "MANUAL, after the cause is fixed. reset-failed clears the start-limit count"

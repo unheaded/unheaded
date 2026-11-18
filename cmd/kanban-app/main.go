@@ -17,6 +17,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"embed"
 	"encoding/json"
 	"errors"
@@ -28,11 +29,15 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
+	"github.com/rs/zerolog"
+
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
@@ -57,7 +62,6 @@ type Config struct {
 	Port            string
 	TimeGuruAddr    string
 	WotanAddr       string
-	DataDir         string // Directory for SQLite persistence (default: ./data)
 	ReadTimeout     time.Duration
 	WriteTimeout    time.Duration
 	ShutdownTimeout time.Duration
@@ -84,7 +88,8 @@ type Task struct {
 type Server struct {
 	config          Config
 	httpServer      *http.Server
-	store           TaskStore // SQLite or Postgres persistence
+	store           TaskStore // the Well (through well), or a test's store
+	well            *wellGate // the Well's gate; nil for a server given its own store
 	tasks           []Task    // DEPRECATED: Use store or taskManager instead
 	tasksMu         sync.RWMutex
 	sseClients      map[chan []byte]bool
@@ -108,6 +113,12 @@ type Server struct {
 	// runbooks lists runbooks/ for the Runbooks view (runbooks.go); nil:
 	// the runbook routes answer 503.
 	runbooks *runbookCatalog
+
+	// The Zhen module's runs (unheaded_zhen, ADR-149): a small pool opened on
+	// the first card detail read while the module is on (zhenruns.go).
+	runsMu   sync.Mutex
+	runsDB   *sql.DB
+	openRuns func(context.Context, database.Config) (*sql.DB, error)
 }
 
 // initMetrics registers every series this service publishes. Values are read
@@ -162,8 +173,18 @@ func (s *Server) SetLogPublisher(p *logagg.Publisher) error {
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
-// Initializes task store: prefers Postgres, falls back to SQLite, then in-memory.
+// Its task store is the Well, through a gate that waits for it.
 func NewServer(cfg Config) *Server {
+	g := newWellGate()
+	s := newServerOnGate(cfg, g)
+	openWell(s.ctx, g)
+	return s
+}
+
+// newServerOnGate is the standalone server on a Well gate the caller has
+// opened (NewServer's own, or main's when the TaskManager does not start:
+// one gate per process, REV-5).
+func newServerOnGate(cfg Config, g *wellGate) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Server{
 		config:     cfg,
@@ -174,41 +195,45 @@ func NewServer(cfg Config) *Server {
 	}
 	s.initMetrics()
 
-	// Try Postgres first
-	pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
-	pgStore, pgStoreErr := wellStore(pgDB, pgErr)
-	switch {
-	case pgStoreErr != nil:
-		log.Fatal().Err(pgStoreErr).Msg("The Well answers but is not migrated for kanban-app: refusing to start (run well-migrate; no SQLite fallback, it would split the board)")
-	case pgStore != nil:
-		// The Well is the source of cards; a fresh Well gets the
-		// Genesis cards from migration 034, not from this binary.
-		s.store = pgStore
-		log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
-	default:
-		log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite")
-	}
-
-	// SQLite fallback
-	if s.store == nil {
-		dbPath := cfg.DataDir + "/kanban.db"
-		if cfg.DataDir == "" {
-			dbPath = "./data/kanban.db"
-		}
-		store, err := openSQLiteStore(dbPath)
-		if err != nil {
-			// No database: an empty, read-only board.
-			log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — empty read-only board")
-		} else {
-			s.store = store
-		}
-	}
+	// The Well is the source of cards (a fresh Well gets the Genesis cards
+	// from migration 034). Without it the board waits, read-only, and the
+	// gate connects it when it answers (well_wait.go).
+	s.well = g
+	s.store = g
 
 	// Create standalone TimelineManager for direct Timeguru HTTP polling
 	s.timelineManager = NewTimelineManager(func(eventType string, data interface{}) {
 		s.broadcastUpdate(eventType, data)
 	})
 	return s
+}
+
+// serverWithWotan builds the server on the Wotan client with gate as its
+// task store. When the TaskManager does not start (Wotan late) it returns
+// the standalone server and the error.
+func serverWithWotan(cfg Config, busClient WotanClient, gate *wellGate, initTimeout time.Duration) (*Server, error) {
+	var server *Server
+	broadcast := func(eventType string, data interface{}) {
+		if server != nil {
+			server.broadcastUpdate(eventType, data)
+		}
+	}
+	var kanbanStore TaskStore = gate
+	taskManager, err := NewTaskManager(busClient, broadcast, kanbanStore)
+	if err != nil {
+		server = newServerOnGate(cfg, gate)
+		return server, err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), initTimeout)
+	defer cancel()
+	if err := taskManager.Initialize(ctx); err != nil {
+		taskManager.streamCancel() // not Close: that closes the process's one Wotan client
+		server = newServerOnGate(cfg, gate)
+		return server, err
+	}
+	server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
+	server.well = gate
+	return server, nil
 }
 
 // NewServerWithTaskManager creates a server with Wotan integration and shared Store.
@@ -270,10 +295,10 @@ func (s *Server) buildHandler(authCfg auth.ServiceAuthConfig) (http.Handler, err
 
 	// Apply middleware stack (order matters!)
 	var handler http.Handler = mux
-	handler = s.loggingMiddleware(handler)                     // Logging (innermost — sees request ID)
-	handler = requestIDMiddleware(handler)                     // X-Request-ID injection
-	handler = requestSizeLimitMiddleware(1024 * 1024)(handler) // 1MB max request
-	handler = securityHeadersMiddleware(handler)               // Security headers
+	handler = httputil.AccessLogFunc(handler, logRequest, getRequestID) // Logging (innermost — sees request ID); probes at debug
+	handler = requestIDMiddleware(handler)                              // X-Request-ID injection
+	handler = requestSizeLimitMiddleware(1024 * 1024)(handler)          // 1MB max request
+	handler = securityHeadersMiddleware(handler)                        // Security headers
 
 	// Auth (AUTH_ENABLED=true, ADR-103): reads open, writes need an operator
 	// session (board login) or a token.
@@ -436,43 +461,24 @@ func (s *Server) pollTimeguru(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// loggingMiddleware logs HTTP requests
-func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-
-		// Wrap response writer to capture status
-		wrapped := &statusWriter{ResponseWriter: w, status: 200}
-
-		next.ServeHTTP(wrapped, r)
-
-		log.Info().
-			Str("method", r.Method).
-			Str("path", r.URL.Path).
-			Int("status", wrapped.status).
-			Dur("duration", time.Since(start)).
-			Str("remote_addr", r.RemoteAddr).
-			Str("request_id", getRequestID(r.Context())).
-			Msg("request")
-	})
-}
-
-type statusWriter struct {
-	http.ResponseWriter
-	status int
-}
-
-func (w *statusWriter) WriteHeader(status int) {
-	w.status = status
-	w.ResponseWriter.WriteHeader(status)
-}
-
-// Flush proxies to the underlying ResponseWriter if it supports http.Flusher.
-// Required for SSE (Server-Sent Events) and streaming responses.
-func (w *statusWriter) Flush() {
-	if f, ok := w.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
+// logRequest writes one request line through the service's logger at the
+// level httputil chooses: probe paths answered well at debug, a failing
+// probe at warn, every other request at info.
+func logRequest(a httputil.AccessRecord) {
+	ev := log.Info()
+	switch a.Level() {
+	case zerolog.DebugLevel:
+		ev = log.Debug()
+	case zerolog.WarnLevel:
+		ev = log.Warn()
 	}
+	ev.Str("method", a.Method).
+		Str("path", a.Path).
+		Int("status", a.Status).
+		Dur("duration", a.Duration).
+		Str("remote_addr", a.RemoteAddr).
+		Str("request_id", a.RequestID).
+		Msg("request")
 }
 
 // writable: a write lands in a database (The Well or SQLite), directly or
@@ -518,7 +524,7 @@ func storeReadFailed(w http.ResponseWriter, taskID string, err error) {
 
 // handleTasks routes task operations (GET, POST, PUT, DELETE)
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
-	if s.refuseIfReadOnly(w, r) {
+	if s.refuseWhileWaiting(w) || s.refuseIfReadOnly(w, r) {
 		return
 	}
 	switch r.Method {
@@ -762,6 +768,9 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 
 // handleTaskByID handles requests to /api/v1/tasks/:id
 func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
+	if s.refuseWhileWaiting(w) {
+		return
+	}
 	// Extract task ID from path
 	path := r.URL.Path
 	prefix := "/api/v1/tasks/"
@@ -1228,6 +1237,19 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleHealth returns health status
+// kanbanCrit is the process's critical-alert tracker (ADR-147 Phase 8),
+// set at startup and read by /health.
+var kanbanCrit atomic.Pointer[critalert.Tracker]
+
+// kanbanCritHealth is /health's critical_alerts detail (nil before the
+// tracker starts). Phase 8 said kanban-app carried it; it did not.
+func kanbanCritHealth() any {
+	if t := kanbanCrit.Load(); t != nil {
+		return t.Health()
+	}
+	return nil
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -1249,6 +1271,9 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		"timeline_subscribed": timelineSubscribed,
 		"timeline_http":       timelineHTTP,
 		"timeguru_addr":       s.config.TimeGuruAddr,
+		"well":                s.wellState(),
+		"well_queued":         s.taskManager.WellQueued(),
+		"critical_alerts":     kanbanCritHealth(),
 	})
 }
 
@@ -1434,7 +1459,6 @@ func main() {
 		Port:            getEnv("PORT", "20001"),
 		TimeGuruAddr:    getEnv("TIMEGURU_ADDR", "localhost:19000"),
 		WotanAddr:       getEnv("WOTAN_ADDR", "localhost:18000"),
-		DataDir:         getEnv("DATA_DIR", "./data"),
 		ReadTimeout:     30 * time.Second,
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
@@ -1452,11 +1476,24 @@ func main() {
 	// Health server — dual-protocol health tracking
 	healthSrv := transport.NewHealthServer("kanban-app")
 
+	// WOTAN_ADDR = HTTP control plane (subscribe, publish, the polling
+	// fallback); WOTAN_GRPC_ADDR = gRPC streams. The process's one Wotan
+	// client (ADR-147 Phase 7) carries tasks.*, timeline.updates, runbook
+	// progress, log forwarding, discovery and health reports.
+	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:18001")
+	if wotanGRPCAddr != "" {
+		transportCfg.WotanGRPCAddr = wotanGRPCAddr
+	}
+	wc, wcErr := transport.NewWotanClient(transportCfg)
+	if wcErr != nil {
+		log.Warn().Err(wcErr).Msg("Wotan client: log forwarding, discovery and health reports off")
+	}
+
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if cfg.WotanAddr != "" {
+	if cfg.WotanAddr != "" && wc != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "kanban-app"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wc, transportCfg.WotanHTTPAddr, "kanban-app"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -1473,24 +1510,13 @@ func main() {
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
-	discovery.Start(discoveryCtx, transportCfg, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
-	healthreport.StartService(discoveryCtx, transportCfg, "kanban-app", healthreport.HealthURL(":"+cfg.Port, ports.PortOf(":"+cfg.Port, ports.KanbanApp))) // ADR-029: a vote on Akira's ballot
+	kanbanCrit.Store(critalert.Attach(discoveryCtx, wc, "kanban-app")) // ADR-147 Phase 8
+	discovery.Start(discoveryCtx, wc, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
+	healthreport.StartService(discoveryCtx, wc, "kanban-app", healthreport.HealthURL(":"+cfg.Port, ports.PortOf(":"+cfg.Port, ports.KanbanApp))) // ADR-029: a vote on Akira's ballot
 
-	// Initialize Wotan client
-	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
-	// WOTAN_GRPC_ADDR = gRPC data plane (TopicStream) — primary transport for streaming
-	//
-	// Transport strategy (Campaign 1 — TopicStream gRPC Sprint):
-	//   1. If WOTAN_GRPC_ADDR is set → create TopicStreamClient (gRPC streaming primary)
-	//      with HTTP Client as circuit-breaker fallback
-	//   2. If gRPC unavailable → create plain HTTP Client (polling mode)
-	//   3. If WOTAN_ENABLED=false → standalone mode (no Wotan)
+	// Wotan for tasks (WOTAN_ENABLED=false: standalone mode, no Wotan).
 	var server *Server
 	wotanEnabled := getEnv("WOTAN_ENABLED", "true") == "true"
-	wotanGRPCAddr := getEnv("WOTAN_GRPC_ADDR", "localhost:18001")
-	if wotanGRPCAddr != "" {
-		transportCfg.WotanGRPCAddr = wotanGRPCAddr
-	}
 
 	if wotanEnabled {
 		log.Info().
@@ -1499,55 +1525,11 @@ func main() {
 			Msg("Initializing Wotan client")
 
 		var busClient WotanClient
-		var err error
-		var transportName string
-
-		if wotanGRPCAddr != "" {
-			// Primary path: TopicStreamClient with gRPC streaming + HTTP fallback
-			// Create HTTP client first as circuit-breaker fallback
-			httpFallback, httpErr := wotanClient.NewClient(cfg.WotanAddr)
-			if httpErr != nil {
-				log.Warn().Err(httpErr).Msg("HTTP fallback client creation failed — TopicStream will run without fallback")
-			}
-
-			var tsOpts []wotanClient.TopicStreamOption
-			tsOpts = append(tsOpts, wotanClient.WithRetryPolicy(
-				100*time.Millisecond, // initial backoff
-				30*time.Second,       // max backoff cap
-				10,                   // max consecutive failures before circuit break
-			))
-			tsOpts = append(tsOpts, wotanClient.WithBufferSize(256))
-			if httpFallback != nil {
-				tsOpts = append(tsOpts, wotanClient.WithHTTPFallback(httpFallback))
-			}
-
-			tsc, tsErr := wotanClient.NewTopicStreamClient(wotanGRPCAddr, tsOpts...)
-			if tsErr != nil {
-				log.Warn().Err(tsErr).Msg("TopicStreamClient creation failed — falling back to HTTP polling client")
-				busClient, err = wotanClient.NewClient(cfg.WotanAddr)
-				transportName = "http-poll"
-			} else {
-				// Probe gRPC health to provide an informative startup log message.
-				// The client will handle reconnection automatically regardless of the probe's outcome.
-				probeCtx, probeCancel := context.WithTimeout(context.Background(), 3*time.Second)
-				defer probeCancel()
-				if pingErr := tsc.Ping(probeCtx); pingErr != nil {
-					log.Warn().Err(pingErr).Msg("gRPC health probe failed. Client will attempt to connect in the background")
-					transportName = "grpc-stream (degraded)"
-				} else {
-					transportName = "grpc-stream"
-				}
-				busClient = tsc
-			}
-		} else {
-			// No gRPC address — HTTP-only mode
-			bc, bcErr := wotanClient.NewClient(cfg.WotanAddr)
-			if bcErr != nil {
-				err = bcErr
-			} else {
-				busClient = bc
-				transportName = "http-poll"
-			}
+		err := wcErr
+		transportName := ""
+		if wc != nil {
+			busClient = wc
+			transportName = wc.Health().Transport
 		}
 
 		if transportName != "" {
@@ -1561,66 +1543,19 @@ func main() {
 			healthSrv.SetGRPCStatus(false)
 			server = NewServer(cfg)
 		} else {
-			// Initialize task store: prefer Postgres, fall back to SQLite.
-			var kanbanStore TaskStore
-
-			pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
-			pgStore, pgStoreErr := wellStore(pgDB, pgErr)
-			switch {
-			case pgStoreErr != nil:
-				log.Fatal().Err(pgStoreErr).Msg("The Well answers but is not migrated for kanban-app: refusing to start (run well-migrate; no SQLite fallback, it would split the board)")
-			case pgStore != nil:
-				kanbanStore = pgStore
-				log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")
-			default:
-				log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite fallback")
-			}
-
-			if kanbanStore == nil {
-				// SQLite fallback
-				dbPath := cfg.DataDir + "/kanban.db"
-				if cfg.DataDir == "" {
-					dbPath = "./data/kanban.db"
-				}
-				sqliteStore, sqliteErr := openSQLiteStore(dbPath)
-				if sqliteErr != nil {
-					log.Warn().Err(sqliteErr).Str("path", dbPath).Msg("SQLite store init failed — TaskManager will run in-memory only")
-				} else {
-					kanbanStore = sqliteStore
-				}
-			}
-
-			// Create TaskManager with broadcast function and Store
-			broadcast := func(eventType string, data interface{}) {
-				if server != nil {
-					server.broadcastUpdate(eventType, data)
-				}
-			}
-
-			taskManager, err := NewTaskManager(busClient, broadcast, kanbanStore)
-			if err != nil {
-				log.Error().
-					Err(err).
-					Msg("Failed to create TaskManager, falling back to standalone mode")
+			// The task store is the Well, through one gate that waits for
+			// it (well_wait.go): one start path with NewServer's.
+			gate := newWellGate()
+			openWell(context.Background(), gate)
+			var initErr error
+			server, initErr = serverWithWotan(cfg, busClient, gate, 10*time.Second)
+			if initErr != nil {
+				log.Error().Err(initErr).Msg("TaskManager did not start, falling back to standalone mode")
 				healthSrv.SetGRPCStatus(false)
-				server = NewServer(cfg)
 			} else {
-				// Initialize TaskManager (loads tasks from Store + subscribes to Wotan)
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				if err := taskManager.Initialize(ctx); err != nil {
-					log.Error().
-						Err(err).
-						Msg("Failed to initialize TaskManager, falling back to standalone mode")
-					healthSrv.SetGRPCStatus(false)
-					cancel()
-					server = NewServer(cfg)
-				} else {
-					cancel()
-					server = NewServerWithTaskManager(cfg, taskManager, kanbanStore)
-					log.Info().
-						Str("transport", transportName).
-						Msg("Wotan integration enabled with persistent store")
-				}
+				log.Info().
+					Str("transport", transportName).
+					Msg("Wotan integration enabled with persistent store")
 			}
 		}
 	} else {

@@ -6,9 +6,41 @@
 # confirmed). A drop in any input base chain is final, so every path the host
 # relies on must be accepted here, including LXD's DHCP/DNS.
 #
-# Interfaces (2026-09-30): wlp17s0 home LAN 192.168.69.128/25 + ISP IPv6;
-# enp16s0 P2P to east 192.168.13.0/30; wg0 overlay (only peer: east);
-# lxdbr0 LXD containers; docker0 and br-* Docker bridges.
+# Another host: copy this file to <host>.nft and edit only the define block
+# below. Every interface, address and port set the rules use is named there
+# once; the rules below it should not need changes. The comments beside the
+# rules explain west's choices and name west's values, so reword them for the
+# new host. The rates are the one exception, see the end of the block.
+
+# Interfaces (2026-09-30).
+define LAN_IF = "wlp17s0"        # home LAN, 192.168.69.128/25 + ISP IPv6
+define PEER_IF = "enp16s0"       # P2P link to the peer host east, 192.168.13.0/30
+define OVERLAY_IF = "wg0"        # WireGuard overlay (only peer: east)
+define LXD_IF = "lxdbr0"         # LXD container bridge
+define DOCKER_IF = "docker0"     # Docker default bridge
+define DOCKER_BR_IF = "br-*"     # Docker user-defined bridges (wildcard)
+
+# Addresses.
+define LAN_V4 = 192.168.69.128/25    # LAN prefix that is offered services
+define PEER_V4 = 192.168.13.1        # east's address on the P2P link
+define ADMIN_V4 = 192.168.69.132     # admin laptop: the one LAN host let in to LXD's API
+
+# Ports, input chain.
+define SSH_TCP = 7375                # sshd; also inside LAN_TCP
+define LAN_TCP = { $SSH_TCP, 80, 443, 18888, 16666, 20000, 20001, 20002, 20103 }    # LAN: ssh, haproxy edge, apt repo, web UIs
+define LXD_API_TCP = 8443            # LXD API, from ADMIN_V4 only
+define LXD_UDP = { 53, 67 }          # containers to the LXD bridge's dnsmasq: DNS, DHCP
+define LXD_DNS_TCP = 53              # containers to the LXD bridge's dnsmasq: DNS over TCP
+define SYSLOG_PORT = 514             # syslog relay from containers (ADR-124), TCP and UDP
+define SCRAPE_TCP = { 8428, 9100, 9110, 9323, 16666-26666 }    # Docker bridges to host: VictoriaMetrics, exporters, services
+
+# Ports, forward chain.
+define LAN_FWD_PORTS = { 53, 3000, 3001, 16666, 20000, 20001, 20002, 20103 }    # Docker-published ports the LAN may reach, TCP and UDP
+define TO_PEER_TCP = { 9100, 9110, 16666-26666 }    # containers to east: node_exporter, huginn, services
+
+# Rates stay in the rules: nft (1.1.5) takes only a literal number after
+# "limit rate", not a variable. Ping is 10/second (two rules in input); the
+# drop logs are 5/minute (end of input, and container_to_east).
 
 table inet unheaded
 delete table inet unheaded
@@ -32,21 +64,21 @@ table inet unheaded {
 
 		# east: the P2P link and the overlay are both ours (BGP, BFD, WireGuard,
 		# apt repo on 18888, node_exporter scrapes).
-		iifname "enp16s0" ip saddr 192.168.13.1 accept
-		iifname "enp16s0" ip6 saddr fe80::/10 accept
-		iifname "wg0" accept
+		iifname $PEER_IF ip saddr $PEER_V4 accept
+		iifname $PEER_IF ip6 saddr fe80::/10 accept
+		iifname $OVERLAY_IF accept
 
 		# LXD containers: DHCP and DNS from lxdbr0's dnsmasq.
-		iifname "lxdbr0" udp dport { 53, 67 } accept
-		iifname "lxdbr0" tcp dport 53 accept
+		iifname $LXD_IF udp dport $LXD_UDP accept
+		iifname $LXD_IF tcp dport $LXD_DNS_TCP accept
 		# Syslog relay (ADR-124): the Pi-hole container forwards its logs here.
-		iifname "lxdbr0" tcp dport 514 accept
-		iifname "lxdbr0" udp dport 514 accept
+		iifname $LXD_IF tcp dport $SYSLOG_PORT accept
+		iifname $LXD_IF udp dport $SYSLOG_PORT accept
 
 		# Docker bridges: the monitoring stack scrapes host ports, and
 		# Prometheus remote-writes to VictoriaMetrics (8428) over the host.
-		iifname "docker0" tcp dport { 8428, 9100, 9110, 9323, 16666-26666 } accept
-		iifname "br-*" tcp dport { 8428, 9100, 9110, 9323, 16666-26666 } accept
+		iifname $DOCKER_IF tcp dport $SCRAPE_TCP accept
+		iifname $DOCKER_BR_IF tcp dport $SCRAPE_TCP accept
 
 		# Home LAN (Stevie 2026-11-03): ssh, the haproxy edge, the apt repo
 		# (plain HTTP on 18888), and the web UIs on their direct ports. DNS
@@ -55,9 +87,9 @@ table inet unheaded {
 		# Docker's chains. LXD's 8443 is the laptop only. Nothing else
 		# (node_exporter, huginn, dockerd metrics, BGP) is offered to the LAN,
 		# and nothing at all to the ISP IPv6 prefix except ssh over link-local.
-		iifname "wlp17s0" ip saddr 192.168.69.128/25 tcp dport { 7375, 80, 443, 18888, 16666, 20000, 20001, 20002, 20103 } accept
-		iifname "wlp17s0" ip saddr 192.168.69.132 tcp dport 8443 accept comment "LXD: Stevie's laptop only"
-		iifname "wlp17s0" ip6 saddr fe80::/10 tcp dport 7375 accept
+		iifname $LAN_IF ip saddr $LAN_V4 tcp dport $LAN_TCP accept
+		iifname $LAN_IF ip saddr $ADMIN_V4 tcp dport $LXD_API_TCP accept comment "LXD: Stevie's laptop only"
+		iifname $LAN_IF ip6 saddr fe80::/10 tcp dport $SSH_TCP accept
 
 		limit rate 5/minute log prefix "unheaded-drop: " level info
 		counter
@@ -83,20 +115,20 @@ table inet unheaded {
 		# Docker-published ports (2026-11-04 review): DNAT skips input, so scope
 		# them here. Nothing published reaches the ISP IPv6 prefix; the LAN gets
 		# only the agreed UIs and Pi-hole's DNS; everything else is dropped.
-		iifname "wlp17s0" ct status dnat meta nfproto ipv6 counter drop comment "no published port on the ISP prefix"
-		iifname "wlp17s0" ct status dnat ip saddr 192.168.69.128/25 meta l4proto { tcp, udp } ct original proto-dst { 53, 3000, 3001, 16666, 20000, 20001, 20002, 20103 } accept
-		iifname "wlp17s0" ct status dnat counter drop comment "published ports stay off the LAN unless agreed"
+		iifname $LAN_IF ct status dnat meta nfproto ipv6 counter drop comment "no published port on the ISP prefix"
+		iifname $LAN_IF ct status dnat ip saddr $LAN_V4 meta l4proto { tcp, udp } ct original proto-dst $LAN_FWD_PORTS accept
+		iifname $LAN_IF ct status dnat counter drop comment "published ports stay off the LAN unless agreed"
 
-		iifname "lxdbr0" oifname { "enp16s0", "wg0" } jump container_to_east
-		iifname "docker0" oifname { "enp16s0", "wg0" } jump container_to_east
-		iifname "br-*" oifname { "enp16s0", "wg0" } jump container_to_east
+		iifname $LXD_IF oifname { $PEER_IF, $OVERLAY_IF } jump container_to_east
+		iifname $DOCKER_IF oifname { $PEER_IF, $OVERLAY_IF } jump container_to_east
+		iifname $DOCKER_BR_IF oifname { $PEER_IF, $OVERLAY_IF } jump container_to_east
 
 		# ADR-014: TCP over the overlay never fragments inside WireGuard.
-		oifname "wg0" tcp flags syn tcp option maxseg size set rt mtu
+		oifname $OVERLAY_IF tcp flags syn tcp option maxseg size set rt mtu
 	}
 
 	chain container_to_east {
-		tcp dport { 9100, 9110, 16666-26666 } accept comment "node_exporter, huginn, services"
+		tcp dport $TO_PEER_TCP accept comment "node_exporter, huginn, services"
 		limit rate 5/minute log prefix "unheaded-fwd-drop: " level info
 		counter drop comment "containers are masqueraded as west; nothing else reaches east as the host"
 	}

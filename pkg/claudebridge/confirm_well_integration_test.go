@@ -6,7 +6,8 @@
 package claudebridge
 
 // Runs only under scripts/well/test-zhen-confirm.sh, against a throwaway
-// server, as app_zhen (WELL_TEST_APP_DSN). Never the real Well.
+// server, as app_zhen on unheaded_zhen (WELL_TEST_ZHEN_DSN; ADR-149). Never
+// the real Well.
 
 import (
 	"context"
@@ -23,9 +24,9 @@ import (
 )
 
 func TestWellConfirmQueue_RoundTrip(t *testing.T) {
-	dsn := os.Getenv("WELL_TEST_APP_DSN")
+	dsn := os.Getenv("WELL_TEST_ZHEN_DSN")
 	if dsn == "" {
-		t.Skip("WELL_TEST_APP_DSN unset (run scripts/well/test-zhen-confirm.sh)")
+		t.Skip("WELL_TEST_ZHEN_DSN unset (run scripts/well/test-zhen-confirm.sh)")
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

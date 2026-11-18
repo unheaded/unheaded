@@ -1,0 +1,91 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: alert-pipeline-silent
+  description: The mailer has had no pipeline receipt from Alertmanager for pipeline.silent_after; no alert can reach anyone until it is back
+  owner: zhenai
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: ""
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_alert_runbooks.py
+
+notes: |
+  ADR-116 R4, ADR-147 stage 1 (S-SEE-AND-SURVIVE Phase 2). The mail
+  "[page] alert pipeline silent" comes from alert-mailer itself, not from a
+  rule. AlertPipelineHeartbeat (monitoring/prometheus/rules/
+  alert-pipeline-heartbeat.yml) is always firing; Alertmanager hands it to
+  the mailer's POST /v1/alerts/pipeline every 5 minutes (the first route in
+  monitoring/alertmanager/alertmanager.yml, generated from policy.yaml
+  pipeline:). When none has arrived for pipeline.silent_after (20m), the
+  mailer mails once. When receipts come back it mails "alert pipeline back"
+  once.
+
+  Under mailer.delivery: digest (the policy since 2026-11-17: one mail a
+  day) neither is a mail of its own. "alert pipeline silent" is the first
+  line of the next 09:00 digest, which goes out for it even with nothing
+  else open, and the return is one line under "Resolved since the last
+  digest". Both show at once in the outbox with outcome "digest":
+  curl -s localhost:19130/v1/outbox.
+
+  Why the mailer and not a rule: a rule cannot report that its own
+  evaluator is down. Prometheus stopped, Alertmanager stopped, or the route
+  between them and the mailer broken all look the same from inside: silence.
+
+  Three causes, in the order to check them:
+  1. Prometheus is down or not evaluating rules (the heartbeat never fires).
+  2. Alertmanager is down, or Prometheus cannot reach it.
+  3. The route is broken: Alertmanager has the heartbeat but cannot reach
+     alert-mailer:19130 (network, a renamed container, a config that did not
+     load).
+
+  The mailer's own gauge unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds
+  says when the last receipt came. If the mailer itself is down, nothing
+  mails at all: AlertMailerDown (watchers.yml) is on Alertmanager's page,
+  and east watching west is plan 6's.
+
+steps:
+  - name: containers
+    action: shell
+    command: |
+      docker ps --all --filter name=unheaded-prometheus --filter name=unheaded-alertmanager --filter name=unheaded-alert-mailer --format '{{.Names}} {{.Status}}'
+    description: "Each of the three should say Up. Exited or missing: that is the cause; go to start-what-is-down"
+
+  - name: prometheus-healthy
+    action: shell
+    command: |
+      curl -s -m5 127.0.0.1:9090/-/healthy
+    description: "Prometheus answers 'Prometheus Server is Healthy.' Nothing: cause 1"
+
+  - name: alertmanager-healthy
+    action: shell
+    command: |
+      curl -s -m5 127.0.0.1:9093/-/healthy
+    description: "Alertmanager answers OK. Nothing: cause 2"
+
+  - name: heartbeat-at-alertmanager
+    action: shell
+    command: |
+      curl -s -m5 127.0.0.1:9093/api/v2/alerts | grep -c AlertPipelineHeartbeat
+    description: "Expected 1: Prometheus evaluates and Alertmanager receives. 0 with both healthy: Prometheus is not sending to Alertmanager (cause 1 or 2)"
+
+  - name: last-receipt
+    action: shell
+    command: |
+      curl -s -m5 127.0.0.1:19130/metrics | grep '^unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds'
+    description: "Unix time of the last receipt; compare with date +%s. Heartbeat at Alertmanager (1 above) but an old receipt: cause 3"
+
+  - name: alertmanager-log
+    action: shell
+    command: |
+      docker logs --since 30m unheaded-alertmanager 2>&1 | tail -20
+    description: "Notify errors for receiver pipeline name the route's fault (connection refused, no such host, a 4xx from the mailer)"
+
+  - name: start-what-is-down
+    action: manual
+    command: |
+      cd /home/govan/tmp/unheaded/monitoring && sudo docker compose up -d <service>
+    description: "MANUAL. Put prometheus, alertmanager or alert-mailer in place of <service>, whichever is down. Restart policy stays as compose has it. The mailer mails 'alert pipeline back' at the next receipt (within about 5 minutes)"

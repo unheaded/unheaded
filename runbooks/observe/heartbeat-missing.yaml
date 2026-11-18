@@ -28,7 +28,10 @@ notes: |
   urgency none, and firing is the healthy state. If it is missing from Alertmanager
   (http://127.0.0.1:9093 on west, ssh -L 9093:127.0.0.1:9093 west), rule
   evaluation or delivery is broken and every quiet alert is suspect: start
-  with the monitoring-stack step.
+  with the monitoring-stack step. Since ADR-147 (S-SEE-AND-SURVIVE Phase 2)
+  its absence is also mailed: Alertmanager hands it to alert-mailer every 5
+  minutes, and after pipeline.silent_after (20m) without one the mailer
+  mails "alert pipeline silent" (runbooks/observe/alert-pipeline-silent.yaml).
 
   Planned work on east (reboot, link maintenance): silence first,
   scripts/monitoring/maintenance.sh 30m "reboot east".

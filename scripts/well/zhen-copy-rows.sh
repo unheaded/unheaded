@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2026 Stevie Bellis.
+#
+# zhen-copy-rows.sh: copy Zhen's rows from unheaded_app into unheaded_zhen
+# (ADR-149; S-ZHEN-SWITCH Phase 8B, Step 276). Attended only: Zhen stopped
+# (Step 271, no app_zhen session), 051 and 052 applied (Step 273), 053 not.
+# Runs psql as the Well's superuser inside its container.
+#
+#   1. refuses unless unheaded_app's zhen_* tables are exactly the eight
+#      below, unheaded_zhen's eight exist and are empty, and every non-empty
+#      zhen_actions.trace_id is a uuid (052 makes the column uuid);
+#   2. counts each source table;
+#   3. streams every table through the column map below (COPY (SELECT ...)
+#      TO STDOUT) into ONE transaction in unheaded_zhen, triggers off
+#      (session_replication_role = replica, as pg_dump --disable-triggers),
+#      sets each id sequence to the source sequence's state, and checks every
+#      target count against step 2; COMMIT is the stream's last line, so a
+#      failed or cut stream ends the session without it and all eight roll
+#      back;
+#   4. counts the source again: a row written during the copy stops here;
+#   5. records the counts for 053's guard:
+#        ALTER DATABASE unheaded_app SET unheaded.zhen_rows_copied =
+#          'copied <UTC time>: zhen_action_snapshots=<n>,...'
+#      053 drops nothing unless each table still holds its recorded count.
+#
+# The map is where 052's tightened columns get their values: a NULL becomes
+# the column's default (sources '[]', tokens and elapsed_ms 0, model and
+# feedback '', source 'user', parameters/result/metadata '{}', revertable
+# false, triggered_by 'user', confidence 0, created_at/snapshot_at the copy's
+# time, planned_at the action's started_at or completed_at, else the copy's
+# time); a '' trace_id becomes NULL. Nothing else changes.
+# tests/scripts/test_zhen_copy_rows.py holds the map to 052's columns.
+#
+#   sudo scripts/well/zhen-copy-rows.sh
+#   WELL_CONTAINER=unheaded-postgres WELL_SUPERUSER=unheaded (defaults)
+set -euo pipefail
+
+CONTAINER="${WELL_CONTAINER:-unheaded-postgres}"
+SUPERUSER="${WELL_SUPERUSER:-unheaded}"
+[[ "$CONTAINER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]] || { echo "WELL_CONTAINER: not a container name" >&2; exit 2; }
+[[ "$SUPERUSER" =~ ^[a-z_][a-z0-9_]{0,62}$ ]] || { echo "WELL_SUPERUSER: not a role name" >&2; exit 2; }
+DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
+
+# table|target columns|source expressions, parents first.
+MAP=(
+	"zhen_conversations|id, session_id, role, content, sources, model, tokens_input, tokens_output, elapsed_ms, feedback, created_at, client|id, session_id, role, content, coalesce(sources, '[]'::jsonb), coalesce(model, ''), coalesce(tokens_input, 0), coalesce(tokens_output, 0), coalesce(elapsed_ms, 0), coalesce(feedback, ''), created_at, client"
+	"zhen_memories|id, question, answer, embedding, source, model, created_at|id, question, answer, embedding, coalesce(source, 'user'), model, coalesce(created_at, now())"
+	"zhen_actions|id, session_id, action_type, status, intent, parameters, result, result_summary, error, revertable, reverted_by, reverts_action, triggered_by, model, confidence, planned_at, started_at, completed_at, elapsed_ms, trace_id, parent_action|id, session_id, action_type, status, intent, coalesce(parameters, '{}'::jsonb), coalesce(result, '{}'::jsonb), coalesce(result_summary, ''), coalesce(error, ''), coalesce(revertable, false), reverted_by, reverts_action, coalesce(triggered_by, 'user'), coalesce(model, ''), coalesce(confidence, 0), coalesce(planned_at, started_at, completed_at, now()), started_at, completed_at, coalesce(elapsed_ms, 0), nullif(trace_id, '')::uuid, parent_action"
+	"zhen_action_snapshots|id, action_id, resource_type, resource_id, content_before, content_after, metadata, snapshot_at|id, action_id, resource_type, resource_id, content_before, content_after, coalesce(metadata, '{}'::jsonb), coalesce(snapshot_at, now())"
+	"zhen_pending_confirmations|id, created_at, expires_at, source_service, emitted_by, project_root, tool, call, call_sha256, summary, card_id, status, decided_at, decided_by|id, created_at, expires_at, source_service, emitted_by, project_root, tool, call, call_sha256, summary, card_id, status, decided_at, decided_by"
+	"zhen_agent_runs|id, card_id, claimed_at, lease_until, status, mode, family, branch, base_commit, head_commit, route_summary, claude_nano_usd, review_reason, reviewed_at, error|id, card_id, claimed_at, lease_until, status, mode, family, branch, base_commit, head_commit, route_summary, claude_nano_usd, review_reason, reviewed_at, error"
+	"zhen_captures|id, captured_at, ingested_at, source, backend, model, author_kind, task_family, conversation_id, run_id, record_id, schema, redaction_version, prompt, response, tool_trace, truncated, purge_after, promoted, quarantined|id, captured_at, ingested_at, source, backend, model, author_kind, task_family, conversation_id, run_id, record_id, schema, redaction_version, prompt, response, tool_trace, truncated, purge_after, promoted, quarantined"
+	"zhen_capture_labels|id, capture_id, kind, value, source_ref, created_at|id, capture_id, kind, value, source_ref, created_at"
+)
+# Tables whose id comes from a sequence (serial in unheaded_app, identity in unheaded_zhen).
+SEQ_TABLES=(zhen_conversations zhen_memories zhen_actions zhen_action_snapshots zhen_capture_labels)
+
+psql_in() { # db [psql args...]: statements on stdin
+	local db="$1"; shift
+	"${DOCKER[@]}" exec -i "$CONTAINER" psql -X -q -At -v ON_ERROR_STOP=1 -U "$SUPERUSER" -d "$db" "$@"
+}
+q() { psql_in "$1" -c "$2"; }
+
+TABLES=()
+for m in "${MAP[@]}"; do TABLES+=("${m%%|*}"); done
+want="$(printf '%s\n' "${TABLES[@]}" | sort)"
+list_sql="SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') AND c.relname LIKE 'zhen\_%' ORDER BY 1"
+
+# 1. Preconditions.
+have="$(q unheaded_app "$list_sql")"
+if [[ "$have" != "$want" ]]; then
+	echo "[REFUSE] unheaded_app's zhen_* tables are not the eight this script copies:" >&2
+	diff <(echo "$want") <(echo "$have") | sed -n 's/^[<>] /    /p' >&2
+	exit 1
+fi
+if [[ "$(q unheaded_zhen "$list_sql")" != "$want" ]]; then
+	echo "[REFUSE] unheaded_zhen lacks 052's eight tables (apply 051 and 052 first, plan Step 273)" >&2
+	exit 1
+fi
+for t in "${TABLES[@]}"; do
+	if [[ "$(q unheaded_zhen "SELECT EXISTS (SELECT 1 FROM public.$t)")" != f ]]; then
+		echo "[REFUSE] unheaded_zhen.$t already holds rows; empty it first (plan Step 278)" >&2
+		exit 1
+	fi
+done
+bad="$(q unheaded_app "SELECT count(*) FROM public.zhen_actions WHERE trace_id <> '' AND trace_id !~* '^([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'")"
+if [[ "$bad" != 0 ]]; then
+	echo "[REFUSE] $bad zhen_actions row(s) carry a trace_id that is not a uuid; 052's column is uuid (a person decides: NULL them or keep them elsewhere)" >&2
+	exit 1
+fi
+
+# 2. Source counts.
+declare -A before
+for t in "${TABLES[@]}"; do before[$t]="$(q unheaded_app "SELECT count(*) FROM public.$t")"; done
+
+# 3. One stream, one transaction.
+{
+	echo "BEGIN;"
+	echo "SET LOCAL session_replication_role = replica;"
+	for m in "${MAP[@]}"; do
+		t="${m%%|*}"; rest="${m#*|}"; cols="${rest%%|*}"; exprs="${rest#*|}"
+		echo "COPY public.$t ($cols) FROM STDIN;"
+		q unheaded_app "COPY (SELECT $exprs FROM public.$t ORDER BY 1) TO STDOUT"
+		printf '%s\n' '\.'
+	done
+	for t in "${SEQ_TABLES[@]}"; do
+		state="$(q unheaded_app "SELECT last_value || ',' || is_called FROM $(q unheaded_app "SELECT pg_get_serial_sequence('public.$t', 'id')")")"
+		[[ "$state" =~ ^[0-9]+,(true|false)$ ]] || { echo "[FAIL] sequence state of $t: $state" >&2; exit 1; }
+		echo "SELECT setval(pg_get_serial_sequence('public.$t', 'id'), ${state%,*}, ${state#*,});"
+	done
+	echo "DO \$\$ BEGIN"
+	for t in "${TABLES[@]}"; do
+		echo "  IF (SELECT count(*) FROM public.$t) <> ${before[$t]} THEN RAISE EXCEPTION '$t: copied % row(s), expected ${before[$t]}', (SELECT count(*) FROM public.$t); END IF;"
+	done
+	echo "END \$\$;"
+	echo "COMMIT;"
+} | psql_in unheaded_zhen >/dev/null
+echo "[OK] copied into unheaded_zhen in one transaction; target counts checked before COMMIT"
+
+# 4. Nothing wrote to the source meanwhile.
+record=""
+for t in "${TABLES[@]}"; do
+	n="$(q unheaded_app "SELECT count(*) FROM public.$t")"
+	if [[ "$n" != "${before[$t]}" ]]; then
+		echo "[FAIL] unheaded_app.$t went from ${before[$t]} to $n rows during the copy: something writes (plan Step 278)" >&2
+		exit 1
+	fi
+	record+="${record:+,}$t=$n"
+	printf '%s\t%s\n' "$t" "$n"
+done
+
+# 5. What 053 checks before it drops anything.
+q postgres "ALTER DATABASE unheaded_app SET unheaded.zhen_rows_copied = 'copied $(date -u +%FT%TZ): $record'" >/dev/null
+echo "[OK] unheaded.zhen_rows_copied recorded on unheaded_app; 053 may run while these counts hold"

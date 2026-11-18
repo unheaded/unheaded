@@ -73,13 +73,13 @@ Any replacement MUST:
         └──┬──┬──┬───┘  └────────────┘
            │  │  │
      ┌─────▼┐ ▼──▼───┐
-     │Nginx ││Nginx   │   ... 6 Nginx sidecars total
-     │wotan ││monad   │   Each: /stub_status + JSON access logs
+     │Nginx ││Nginx   │   ... 4 Nginx sidecars total
+     │wotan ││kanban  │   Each: /stub_status + JSON access logs
      └──┬───┘└──┬─────┘
         │       │
-     ┌──▼──┐ ┌──▼──┐
-     │wotan│ │monad│     Actual application services
-     └─────┘ └─────┘
+     ┌──▼──┐ ┌──▼───┐
+     │wotan│ │kanban│    Actual application services
+     └─────┘ └──────┘
 ```
 
 ## Port Allocations (Doom Range)
@@ -92,8 +92,6 @@ Any replacement MUST:
 | HAProxy Internal | 21081 | Service routing |
 | HAProxy Internal Stats | 21405 | Stats UI + Prometheus /metrics |
 | Nginx Wotan | 18080 | Sidecar for wotan :18000 |
-| Nginx Monad | 19080 | Sidecar for monad :19004 |
-| Nginx Sophia | 19081 | Sidecar for sophia :19005 |
 | Nginx Dashboard | 20080 | Sidecar for dashboard :20000 |
 | Nginx Kanban | 20081 | Sidecar for kanban :20001 |
 | Nginx Gateway | 21090 | Sidecar for gateway :21000 |
@@ -158,7 +156,7 @@ curl -s http://localhost:21404/metrics   # Prometheus metrics
 **Config files:**
 - `docker/haproxy/edge/haproxy.cfg`
 - `docker/haproxy/internal/haproxy.cfg`
-- `docker/nginx/nginx-{wotan,monad,sophia,dashboard,kanban,gateway}.conf`
+- `docker/nginx/nginx-{wotan,dashboard,kanban,gateway}.conf`
 - `docker/docker-compose.loadbalancers.yml`
 
 **Networks:** `lb-edge` (HAProxy ↔ internal), `lb-internal` (internal ↔ Nginx sidecars). Both bridged to `unheaded-telemetry` for metrics scraping.
@@ -280,8 +278,6 @@ Add to `/etc/prometheus/prometheus.yml`:
     static_configs:
       - targets:
           - '[fd00:dead:beef:1::101]:18080'
-          - '[fd00:dead:beef:1::102]:19080'
-          - '[fd00:dead:beef:1::103]:19081'
           - '[fd00:dead:beef:1::201]:20080'
           - '[fd00:dead:beef:1::200]:20081'
           - '[fd00:dead:beef::1]:21090'
@@ -382,7 +378,7 @@ lxc exec haproxy-internal -- systemctl enable --now haproxy
 
 ```bash
 # Template: create one per service
-for svc in wotan monad sophia dashboard kanban gateway; do
+for svc in wotan dashboard kanban gateway; do
   lxc launch ubuntu:22.04 nginx-${svc} \
     --config limits.cpu=1 \
     --config limits.memory=256MB
@@ -462,7 +458,7 @@ ctr run -d \
 ### Nginx Sidecars
 
 ```bash
-for svc in wotan monad sophia dashboard kanban gateway; do
+for svc in wotan dashboard kanban gateway; do
   ctr run -d \
     --net-host \
     --mount type=bind,src=$(pwd)/docker/nginx/nginx-${svc}.conf,dst=/etc/nginx/nginx.conf,options=ro \
@@ -560,16 +556,11 @@ let
   # Map Docker hostnames to NixOS container IPs
   backendMap = {
     "nginx-wotan:18080"        = "[fd00:dead:beef:1::101]:18080";
-    "nginx-monad:19080"        = "[fd00:dead:beef:1::102]:19080";
-    "nginx-sophia:19081"       = "[fd00:dead:beef:1::103]:19081";
     "nginx-dashboard:20080"    = "[fd00:dead:beef:1::201]:20080";
     "nginx-kanban:20081"       = "[fd00:dead:beef:1::200]:20081";
     "nginx-gateway:21090"      = "[fd00:dead:beef::1]:21090";
     "nginx-anamnesis:19082"    = "[fd00:dead:beef:1::104]:19082";
     "nginx-timeguru:19090"     = "[fd00:dead:beef:1::120]:19090";
-    "nginx-captain:19091"      = "[fd00:dead:beef:1::121]:19091";
-    "nginx-micromanager:19092" = "[fd00:dead:beef:1::122]:19092";
-    "nginx-architect:19093"    = "[fd00:dead:beef:1::123]:19093";
     "nginx-cuirass:17080"      = "[fd00:dead:beef:1::105]:17080";
   };
 
@@ -709,13 +700,8 @@ in
 
   services.unheaded.nginx-sidecars = {
     wotan       = { port = 18080; upstream = "[fd00:dead:beef:1::101]:18000"; };
-    monad       = { port = 19080; upstream = "[fd00:dead:beef:1::102]:19004"; };
-    sophia      = { port = 19081; upstream = "[fd00:dead:beef:1::103]:19005"; };
     anamnesis   = { port = 19082; upstream = "[fd00:dead:beef:1::104]:5002";  };
     timeguru    = { port = 19090; upstream = "[fd00:dead:beef:1::120]:19000"; };
-    captain     = { port = 19091; upstream = "[fd00:dead:beef:1::121]:19002"; };
-    micromanager= { port = 19092; upstream = "[fd00:dead:beef:1::122]:19003"; };
-    architect   = { port = 19093; upstream = "[fd00:dead:beef:1::123]:19001"; };
     dashboard   = { port = 20080; upstream = "[fd00:dead:beef:1::201]:20000"; };
     kanban      = { port = 20081; upstream = "[fd00:dead:beef:1::200]:20001"; };
     gateway     = { port = 21090; upstream = "[fd00:dead:beef::1]:21000";     };
@@ -731,7 +717,7 @@ in
 nixos-rebuild switch --flake .#west
 
 # Verify
-systemctl status haproxy haproxy-internal nginx-wotan nginx-monad
+systemctl status haproxy haproxy-internal nginx-wotan nginx-kanban
 curl -s http://127.0.0.1:21404/healthz
 curl -s http://127.0.0.1:21405/healthz
 ```

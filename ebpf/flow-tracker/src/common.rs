@@ -32,12 +32,8 @@
 //!   offset 64: state        u8  (ConnectionState)
 //!   offset 65: _pad         [u8; 7]
 //!
-//! FlowEvent (104 bytes):
-//!   offset 0:  timestamp_ns u64
-//!   offset 8:  flow_key     FlowKey (16 bytes)
-//!   offset 24: state        FlowState (72 bytes)
-//!   offset 96: event_type   u8 (0=New, 1=StateChange, 2=Expired, 3=Update, 4=Anomaly)
-//!   offset 97: _pad         [u8; 7]
+//! FlowEvent (104 bytes) and the FLOW_EVENTS ring were removed 2026-11
+//! (ADR-147, BlackMage F8): nothing read them.
 
 // This file is intentionally documentation-only.
 // The actual types are defined in unheaded-common (ebpf/common/src/lib.rs)

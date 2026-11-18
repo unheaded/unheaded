@@ -208,10 +208,31 @@ tests:
       - eval_time: 42m
         alertname: VectorSinkDroppingEvents
         exp_alerts:
-          - exp_labels: {severity: critical, urgency: none, instance: west}
+          - exp_labels: {severity: critical, urgency: none, instance: west, component_id: clickhouse}
             exp_annotations:
-              summary: "Vector on west discarded journal rows bound for ClickHouse"
-              description: "The audit sink is configured to block, never drop; a discard means its buffer config changed. Check config/vector."
+              summary: "Vector on west: sink clickhouse discarded events"
+              description: "Sink clickhouse discarded events: a buffer with when_full: drop_newest is full (well_logs today; the ClickHouse sink blocks instead). Check config/vector."
+              runbook_url: "runbooks/observe/log-pipeline.yaml"
+
+  # Any component that discards fires (ADR-147 SSV-13): well_logs at 2m. A
+  # Vector with no discarded series at all (the normal state) stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'vector_buffer_discarded_events_total{job="vector",instance="v",component_id="well_logs"}'
+        values: '0 0 5 5'
+      - series: 'up{job="vector",instance="quiet"}'
+        values: '1x10'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: VectorSinkDroppingEvents
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: VectorSinkDroppingEvents
+        exp_alerts:
+          - exp_labels: {severity: critical, urgency: none, instance: v, component_id: well_logs}
+            exp_annotations:
+              summary: "Vector on v: sink well_logs discarded events"
+              description: "Sink well_logs discarded events: a buffer with when_full: drop_newest is full (well_logs today; the ClickHouse sink blocks instead). Check config/vector."
               runbook_url: "runbooks/observe/log-pipeline.yaml"
 
   # The relay stops answering at 31m: quiet at 40m, firing after for: 10m.

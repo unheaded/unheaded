@@ -5,7 +5,6 @@ package main
 
 import (
 	"net/http"
-	"path/filepath"
 	"testing"
 
 	"unheaded/pkg/auth"
@@ -19,11 +18,7 @@ import (
 // /health stays open.
 func TestAuthE2E_Timeguru(t *testing.T) {
 	f := authtest.New(t, "timeguru", "kanban-app", "micromanager", "sword")
-	st, err := storage.NewStore(filepath.Join(t.TempDir(), "timeguru.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = st.Close() })
+	st := storage.New() // no Well: reads serve, writes answer 503
 	handler := api.NewHandler(st)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handler.HandleHealth)

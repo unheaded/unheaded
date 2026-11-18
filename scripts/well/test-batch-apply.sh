@@ -7,7 +7,8 @@
 #   1. a Well bootstrapped through 029 (the live ledger's last file);
 #   2. batch-apply refuses without WELL_MIGRATE_PASSWORD; --dry-run lists
 #      exactly the manifest's entries after 029 and changes nothing;
-#      --from refuses when an older file is pending;
+#      --from refuses when an older file is pending; --through lists only
+#      the files up to its number;
 #   3. Appendix A1: a batch that fails part-way (a broken file after the
 #      real ones) leaves files applied; batch-rollback without --yes changes
 #      nothing, with --yes puts every touched database (postgres included)
@@ -15,8 +16,9 @@
 #      written before the backup; a corrupt set or a stray directory is
 #      refused;
 #   4. the real batch applies, status is clean, every file is in its ledger;
-#   5. rollback of that batch returns every ledger to 029; apply again
-#      works; a third run finds nothing pending.
+#   5. rollback of that batch returns every ledger to 029; a batch with
+#      --through applies its part and leaves the rest pending; apply again
+#      finishes it; a third run finds nothing pending.
 #
 #   timeout 900 scripts/well/test-batch-apply.sh [image]   # default postgres:16.15-alpine
 set -euo pipefail
@@ -92,6 +94,18 @@ got="$(sed -n 's/^  \([a-z_]*\)\t\(.*\)$/\1\t\2/p' "$TMP/out")"
 [[ ! -e "$TMP/backups" && "$(ledger_max)" == "$AT029" ]] && pass "dry run backed up nothing and changed nothing" || fail "dry run left a trace"
 run 1 "--from 031 refuses while 030 is pending" batch --dry-run --from 031
 run 0 "--from 030 accepts" batch --dry-run --from 030
+# --through: the first pending number alone (two sittings' files in one tree).
+FIRST="$(head -1 <<<"$EXPECT" | cut -f2 | cut -c1-3)"
+NOW="$(awk -F'\t' -v t="$FIRST" 'substr($2, 1, 3) + 0 <= t + 0' <<<"$EXPECT")"
+LATER="$(awk -F'\t' -v t="$FIRST" 'substr($2, 1, 3) + 0 > t + 0' <<<"$EXPECT")"
+[[ -n "$NOW" && -n "$LATER" ]] || fail "the manifest after 029 cannot be split at $FIRST"
+run 0 "--through $FIRST dry run" batch --dry-run --from 030 --through "$FIRST"
+got="$(sed -n 's/^  \([a-z_]*\)\t\(.*\)$/\1\t\2/p' "$TMP/out")"
+[[ "$got" == "$NOW" ]] && grep -q "left pending for a later batch ($(wc -l <<<"$LATER"))" "$TMP/out" &&
+	pass "--through $FIRST lists only the files up to $FIRST and counts the rest" || fail "--through list differs: got [$got] want [$NOW]"
+run 2 "--through below --from is refused" batch --dry-run --from 031 --through 030
+run 0 "--through 029: nothing to apply" batch --dry-run --through 029
+grep -q "nothing pending through 029" "$TMP/out" && [[ "$(ledger_max)" == "$AT029" ]] && pass "--through 029 says so and changes nothing" || fail "--through 029: $(tail -1 "$TMP/out")"
 
 # Rows written before the batch: a rollback must keep them.
 sq unheaded_app "INSERT INTO kanban_tasks (id, title) VALUES ('pre-batch-card', 'written before the batch')" >/dev/null
@@ -156,6 +170,14 @@ PRE2="$(find "$TMP/backups" -mindepth 1 -maxdepth 1 -type d -name 'pre-batch-*' 
 [[ "$PRE2" != "$PRE1" ]] || fail "no new pre-batch directory"
 run 0 "rollback of the real batch" rollback --yes "$PRE2"
 [[ "$(ledger_max)" == "$AT029" ]] && pass "every ledger back at 029" || fail "ledgers $(ledger_max), want $AT029"
+sleep 1
+run 0 "a batch --through $FIRST" batch --from 030 --through "$FIRST"
+grep -q "done through $FIRST; $(wc -l <<<"$LATER") later file(s) left pending" "$TMP/out" && pass "it says what it left pending" || fail "--through report: $(tail -1 "$TMP/out")"
+rc=0; WELL_MIGRATE_PASSWORD="$PW" "$TMP/well-migrate" -dir "$R/db/migrations" status >"$TMP/out" 2>&1 || rc=$?
+((rc == 3)) && [[ "$(awk '$1 == "pending" {print $2 "\t" $3}' "$TMP/out")" == "$LATER" ]] &&
+	pass "after --through $FIRST exactly the later files are pending" || fail "after --through: status rc $rc"
+PRE3="$(find "$TMP/backups" -mindepth 1 -maxdepth 1 -type d -name 'pre-batch-*' | sort | tail -1)"
+[[ "$PRE3" != "$PRE2" && "$(cat "$PRE3/pending.tsv")" == "$NOW" ]] && pass "its pending.tsv records its own part only" || fail "pending.tsv of the --through batch: $(cat "$PRE3/pending.tsv" 2>/dev/null)"
 sleep 1
 run 0 "apply again after the rollback" batch
 rc=0; WELL_MIGRATE_PASSWORD="$PW" "$TMP/well-migrate" -dir "$R/db/migrations" status >/dev/null 2>&1 || rc=$?

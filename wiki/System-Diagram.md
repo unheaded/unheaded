@@ -10,8 +10,7 @@ How the pieces connect: the planes, the hosts, and what is live today. Layer-by-
           ┌───────────────────┼──────────────────────────────────────────┐
           │ application       ▼                                          │
           │   dashboard-backend :20000   kanban-app :20001   wiki :20002 │
-          │   timeguru 19000 · architect 19001 · captain 19002 ·         │
-          │   micromanager 19003 · monad 19004 · sophia 19005            │
+          │   timeguru 19000 · akira 19100                               │
           └───────────┬──────────────────────────────────┬───────────────┘
                       │ publish / subscribe              │ SQL (TLS 1.3)
           ┌───────────▼───────────┐          ┌───────────▼───────────┐
@@ -38,7 +37,7 @@ How the pieces connect: the planes, the hosts, and what is live today. Layer-by-
 | Host | Role | Live |
 |------|------|------|
 | west | Dev + test host, compose stack | The Well, kanban-app, dashboard-backend, Wotan, Akira (compose); Huginn (systemd); backup + drill timers. VictoriaMetrics is down, so Huginn's pushes fail (FND-001) |
-| east | Staging, bare metal (4 core, 8 GB) | Kingdom services as `.deb` systemd units (Wotan, Akira, Timeguru, Architect, Captain, Micromanager, dashboard-backend, kanban-app, unheaded-daemon); Huginn (pushes to west's VictoriaMetrics), node_exporter, kev-poller, trace-collector, baseline; offsite backup target + daily check ([[Systemd Units|Systemd-Units]]) |
+| east | Staging, bare metal (4 core, 8 GB) | Kingdom services as `.deb` systemd units (Wotan, Akira, Timeguru, dashboard-backend, kanban-app, unheaded-daemon, and Architect, Captain, Micromanager: the last three until plan 6 removes them); Huginn (pushes to west's VictoriaMetrics), node_exporter, kev-poller, trace-collector, baseline; offsite backup target + daily check ([[Systemd Units|Systemd-Units]]) |
 
 West ↔ east is a point-to-point link (192.168.13.1 ↔ 192.168.13.2). West is not up 24/7.
 

@@ -7,10 +7,12 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 `observability/alerting/policy.yaml` decides what reaches a human:
 
 - **SLOs**: each has a name, an objective (99.5% or 99% over 28 days), whether it can page, and a `good` expression that is 1 when the service is fine this minute. A missing series counts as bad.
-- **mailer**: `mode` (`dry-run` or `send`), `max_per_day` (hard cap, 6), `digest_at` (09:00) and `timezone` (America/Chicago).
+- **mailer**: `mode` (`dry-run` or `send`), `delivery` (`digest` or `immediate`), `immediate` (alerts mailed at once whatever `delivery` says), `max_per_day` (hard cap, 6), `max_per_hour` (3), `run_days` (raised caps on listed dates), `digest_at` (09:00) and `timezone` (America/Chicago).
 - **page** timing, and **promote**: cause alerts that should notify anyway. Keep it short; each entry needs a reason. Today: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket).
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
+
+**Prometheus keeps what its rules read (ADR-147 decisions 9, 10).** Every scrape job in `monitoring/prometheus/prometheus.yml` but `prometheus` and `alert-mailer` carries a `metric_relabel_configs` keep generated from the rules (`monitoring/prometheus/rule-series.txt`, 42 series on 2026-11-15); 30 days of those, nothing else. After adding a rule that reads a new series: `python3 scripts/gen-prom-keep-list.py`. `scripts/check-prometheus-rules.sh` runs `--check` first and fails until you do; a reader of Prometheus' own API that needs a series no rule reads lists it in `monitoring/prometheus/keep-extra.txt`. `up` and `scrape_*` are made by Prometheus and always kept.
 
 ## Urgency
 
@@ -23,6 +25,29 @@ Every alert carries `urgency`:
 | `none` | Nobody. All 44 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, log-volume spam/silence, compliance, Well backups, KEV, trace collector, AlertPipelineHeartbeat, security detections in `detection.yml`: SSH login from a new source, SSH auth-failure bursts, outbound volume, …), except the three the policy promotes: `HeartbeatMissing` (page), `TraceCollectorDown` and `SSHLoginNewSource` (ticket). DGA, beaconing and DNS tunnelling have no rule: there is no DNS query log source yet (threat register DET-01). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
+
+### One mail a day (`delivery: digest`)
+
+The table above is `delivery: immediate`. Since 2026-11-17 the policy says `delivery: digest` (Stevie: "cap it to 1 digest email per day ... it's a lab"), and the mailer sends the 09:00 digest and nothing else:
+
+| What happens | Under `delivery: digest` |
+|---|---|
+| A page fires | Not mailed. `/v1/outbox` shows it at once with outcome `digest`; it is listed first in the next digest, under "Urgent", and the subject counts it: `[digest] 3 open (1 urgent)`. |
+| A page resolves | One line under "Resolved since the last digest". |
+| The alert path goes silent (`pipeline.silent_after`) | Not mailed. The next digest opens with it and goes out for it even with nothing else open; its return is one resolved line. |
+| A ticket | As before. |
+| A day with nothing open, resolved or held back | No mail. |
+
+To tune it, edit the `mailer:` block and restart the mailer (no regeneration: the generated files do not read these keys):
+
+| Want | Edit |
+|---|---|
+| Pages by mail again | `delivery: immediate` |
+| One alert mailed at once, the rest in the digest (an intrusion or an indicator of compromise from an IDS or IPS) | Promote it with `urgency: page`, then add its name to `immediate:`. `go run ./cmd/alert-policy --check` refuses a name that is not a promoted page. |
+| More or fewer mails on a day when alerts are mailed at once | `max_per_day`, `max_per_hour`; for single dates, `run_days` |
+| Another hour for the digest | `digest_at` |
+
+`curl -s localhost:19130/v1/status` shows the delivery in force.
 
 ## SLOs
 
@@ -93,7 +118,9 @@ curl -s 127.0.0.1:19130/v1/outbox    # last 50 mails: sent, dry-run, capped, fai
 
 Its state (cap count, open tickets, outbox) lives in the `alert_mailer_data` volume and survives restarts.
 
-**Mode is `send` (since 2026-10-27, 265badbb).** Short term it sends from personal Gmail to stevie@bellis.tech; the Workspace account below is the longer-term sender. One synthetic page went through `smtp.gmail.com:587` with outbox outcome `sent` before the flip. `dry-run` (2026-10-20 → 10-27) decides everything as if sending, including the cap, and sends nothing; switch back to it in the policy if the outbox shows noise, and fix the SLO, not the mailer.
+**Mode (2026-11-15):** `dry-run` on west since 2026-11-10 (Stevie: while the kingdom ran as a test cut); `send` again in `policy.yaml` on Stevie's ADR-147 decision 2, live once S-SEE-AND-SURVIVE Phase 15 restarts the mailer with a test mail. On a date listed in `mailer.run_days.dates` the caps are 24 a day and 6 an hour (a load run's stop marks late in the day still mail); add the date before the run, delete it after.
+
+**Mode was `send` from 2026-10-27 (265badbb).** Short term it sends from personal Gmail to stevie@bellis.tech; the Workspace account below is the longer-term sender. One synthetic page went through `smtp.gmail.com:587` with outbox outcome `sent` before the flip. `dry-run` (2026-10-20 → 10-27) decides everything as if sending, including the cap, and sends nothing; switch back to it in the policy if the outbox shows noise, and fix the SLO, not the mailer.
 
 ### Switching to send (Gmail)
 
@@ -131,6 +158,10 @@ scripts/monitoring/maintenance.sh 30m "reboot west"   # 30m of work, at most 24h
 scripts/monitoring/maintenance.sh --list
 scripts/monitoring/maintenance.sh --end
 ```
+
+**Planned stops (ADR-147 decision 4).** A silence stops mail; the SLO budgets still burn. A planned-stop mark stops that too: `scripts/monitoring/planned-stop.sh all 30m` (or an SLO name, or one container's name) writes `unheaded_planned_stop_until_timestamp_seconds{scope}` into huginn's textfile directory (`planned_stop.prom`, root's: it uses `sudo -n` as a normal user). Every SLO's `slo:good` counts a minute under a mark for its name or `all` as good, and ContainerStopped stays quiet for the marked container. `planned-stop.sh --list` shows the marks; `--end [scope]` ends them. `maintenance.sh --planned 30m "why"` (or `--planned=<scope>`) silences and marks in one go; `maintenance.sh --end` ends both. `kingdom-shutdown.sh` marks `all` for 2 hours (`--planned 8h` for a longer planned stop, at most 30d) and `kingdom-startup.sh` replaces it with 15 minutes of warm-up. It runs on every reboot (`kingdom-shutdown.service`), so its mark ends on its own: until 2026-11-15 it lasted 30 days, and a reboot with no startup muted ContainerStopped and read every SLO good for a month. A live mark still does that while it lasts: `planned-stop.sh --list` after a restart.
+
+**ci-develop** is recorded and notifies no one (`notify: false`, Stevie 2026-11-15, ADR-147 decision 4: out of the alert set until CI is fixed): its `slo:good` and budget are still there to read.
 
 Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
 
@@ -185,6 +216,36 @@ Off until configured. To turn it on (the E-D host window):
    `deploy/systemd/unheaded-heartbeat.{service,timer}`; enable the timer.
 
 Runbook: `runbooks/observe/heartbeat-missing.yaml`.
+
+**The pipeline's own receipt (ADR-147, ADR-116 R4).** A rule cannot report that its own evaluator is down, so the mailer does: Alertmanager hands it `AlertPipelineHeartbeat` every 5 minutes (`POST /v1/alerts/pipeline`, the first route in `alertmanager.yml`, from `pipeline: silent_after: 20m` in the policy). With no receipt for 20 minutes it mails "alert pipeline silent" once (Prometheus, Alertmanager or the route is down), and "alert pipeline back" once when receipts return. Both count against the caps, and both go out even when a cap is spent (nothing else would retry them; review 2026-11-15), at most four such mails a day. `unheaded_alert_mailer_pipeline_last_seen_timestamp_seconds` is the last receipt. Runbook: `runbooks/observe/alert-pipeline-silent.yaml`.
+
+## Containers, resources and the watchers (ADR-147)
+
+Before ADR-147 no alert read a resource, a stopped container or the monitoring path. All of these are `urgency: none` in their rule files; the mail comes from `promote:` in the policy (SS1 A, 2026-11-15, taken on the plan's recommendation: Stevie to confirm). The container and unit series come from `unheaded-host-state.timer` through huginn, the cgroup series from huginn itself ([[Huginn|Service-Huginn]]), the rest from node_exporter and Prometheus.
+
+| Alert | File | Fires when | Urgency | Runbook |
+|---|---|---|---|---|
+| ContainerStopped | `containers.yml` | a compose container that ran in the last 7 days is stopped for 2m, with no planned-stop mark | page | `container-stopped.yaml` |
+| MemoryKill | `containers.yml` | `oom_kill` rises in `system.slice` or `unheaded.slice` (kept 30m) | page | `memory-kill.yaml` |
+| HostOOMKill | `containers.yml` | `node_vmstat_oom_kill` rises anywhere (login sessions too) | none | `memory-kill.yaml` |
+| ContainerUnhealthy | `containers.yml` | running and failing its healthcheck for 5m | none | `container-stopped.yaml` |
+| ContainerCPUThrottled | `containers.yml` | over 25% of CPU periods throttled for 30m | none | `host-pressure.yaml` |
+| ContainerMemoryNearLimit | `containers.yml` | over 95% of its memory limit for 30m | none | `memory-kill.yaml` |
+| HostMemoryPressure | `resources.yml` | PSI memory full over 10% (5m rate) for 10m | page | `host-pressure.yaml` |
+| HostSwapping | `resources.yml` | swap-in over 1,000 pages/s for 15m | ticket | `host-pressure.yaml` |
+| HostSwapNearFull | `resources.yml` | swap over 80% used for 30m | ticket | `host-pressure.yaml` |
+| HostIOPressure | `resources.yml` | PSI io full over 30% (15m rate) for 30m | ticket | `host-pressure.yaml` |
+| HostCPUPressure | `resources.yml` | PSI cpu some over 50% (15m rate) for 30m | none | `host-pressure.yaml` |
+| HostTemperatureNearCritical | `resources.yml` | a sensor within 5 C of its critical mark for 10m | ticket | `host-temperature.yaml` |
+| UnitFailed | `resources.yml` | a watched unit is `failed` for 5m | page | `unit-restart.yaml` |
+| UnitRestartLoop | `resources.yml` | 3 restarts in 30 minutes | ticket | `unit-restart.yaml` |
+| HostStateStale | `resources.yml` | `host_state.prom` over 5 minutes old, or Docker did not answer | ticket | `monitoring-path.yaml` |
+| VictoriaMetricsDown, HuginnDown | `watchers.yml` | `up` 0 for 5m (Prometheus scrapes VictoriaMetrics as job `victoria`) | ticket | `monitoring-path.yaml` |
+| AlertMailerDown | `watchers.yml` | `up` 0 for 5m; it cannot mail about itself | none | `monitoring-path.yaml` |
+| PrometheusRemoteWriteFailing | `watchers.yml` | samples refused, or the queue over 5 minutes behind, for 15m | ticket | `monitoring-path.yaml` |
+| AlertmanagerNotReached | `watchers.yml` | notification errors or no Alertmanager discovered for 10m | none | `monitoring-path.yaml` |
+
+`HostDiskFull` is promoted to a page and `HostDiskAlmostFull` and `NodeExporterDown` to tickets at the same time. Each bar comes from five days of west's own series (`resources.yml`'s header). Two rules that could not fire were repaired: **TraceCollectorHighLatency** now reads the share of flushes to Wotan over 100 ms from `trace_publisher_flush_duration_seconds` (the old `trace_collector_batch_latency_seconds` was never observed), and **VectorSinkDroppingEvents** reads every component's discards (the ClickHouse sink it read blocks and never discards; `well_logs` is the one that can).
 
 ## Postmortems
 

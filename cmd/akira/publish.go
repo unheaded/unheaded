@@ -6,16 +6,13 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"net"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/metrics"
-	"unheaded/pkg/ports"
+	"unheaded/pkg/transport"
 	"unheaded/pkg/wotansig"
 )
 
@@ -83,17 +80,5 @@ func loadHealthSigner() (*wotansig.TopicSigner, error) {
 
 // wotanGRPCAddr is --wotan-grpc, or the --wotan host on Wotan's gRPC port.
 func wotanGRPCAddr(httpAddr, grpcAddr string) string {
-	if grpcAddr != "" {
-		return grpcAddr
-	}
-	hostport := httpAddr
-	if i := strings.Index(hostport, "://"); i >= 0 {
-		hostport = hostport[i+3:]
-	}
-	hostport = strings.TrimSuffix(hostport, "/")
-	host := hostport
-	if h, _, err := net.SplitHostPort(hostport); err == nil {
-		host = h
-	}
-	return net.JoinHostPort(host, strconv.Itoa(ports.WotanGRPC))
+	return transport.WotanGRPCAddr(httpAddr, grpcAddr)
 }

@@ -13,7 +13,7 @@ import (
 // and each holds a goroutine and a channel for as long as the client keeps
 // it open. Past maxSSEClients a new stream is refused.
 func TestHandleSSE_RefusesPastTheCap(t *testing.T) {
-	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	server := NewServer(Config{Port: "0"})
 	t.Cleanup(func() {
 		if server.store != nil {
 			server.store.Close()

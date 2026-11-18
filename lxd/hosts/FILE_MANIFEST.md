@@ -14,13 +14,13 @@ lxd/hosts/
 ├── host-a/                             # The Forge (full stack)
 │   ├── preseed.yaml                    # LXD initialization preseed (1.5KB)
 │   ├── init.sh                         # Bootstrap script (4.4KB)
-│   ├── launch-all.sh                   # Deploy all 25 services (7.9KB)
+│   ├── launch-all.sh                   # Deploy all 19 services (7.9KB)
 │   └── static-ips.yaml                 # IP address reference (2.9KB)
 │
 └── host-b/                             # The Outpost (minimal)
     ├── preseed.yaml                    # Minimal LXD preseed (1.6KB)
     ├── init.sh                         # Bootstrap with WireGuard setup (5.7KB)
-    └── launch-minimal.sh                # Deploy 6 core + telemetry (6.1KB)
+    └── launch-minimal.sh                # Deploy 4 core + telemetry (6.1KB)
 ```
 
 ## File Details
@@ -54,8 +54,8 @@ lxd/hosts/
 
 **Contents**:
 - System overview diagram
-- host-a detailed specification (25 services)
-- host-b detailed specification (6 core + telemetry)
+- host-a detailed specification (19 services)
+- host-b detailed specification (4 core + telemetry)
 - Service breakdown by phase (10 phases)
 - Service dependency chains
 - Inter-host communication
@@ -110,7 +110,7 @@ lxd/hosts/
 - Network: "unheaded" bridge (10.20.0.0/16, fd00:dead:beef:1::/64)
 - Storage: "unheaded-ssd" ZFS pool (200GB)
 - Default profile: 2 CPU, 512MB memory, 8GB disk per container
-- 30 total containers (25 services + 5 telemetry)
+- 24 total containers (19 services + 5 telemetry)
 
 **Key Settings**:
 ```yaml
@@ -150,18 +150,18 @@ storage_pools:
 - 1: Failed (not root, missing preseed, etc.)
 
 #### launch-all.sh (7.9KB)
-**Purpose**: Deploy all 25 services + telemetry containers on host-a
+**Purpose**: Deploy all 19 services + telemetry containers on host-a
 
 **Usage**: `./launch-all.sh`
 
 **10 Launch Phases**:
 1. **Phase 1**: Message bus (wotan)
-2. **Phase 2**: Protocol layer (monad, sophia, anamnesis)
+2. **Phase 2**: Protocol layer (anamnesis)
 3. **Phase 3**: eBPF control (shield, unheaded-daemon)
 4. **Phase 4**: Routing (gateway, service-discovery)
 5. **Phase 5**: Presentation (dashboard-backend, frontend, protocol-api)
 6. **Phase 6**: Observability (trace-collector, doom)
-7. **Phase 7**: Services batch 1 (kanban, captain, micromanager, timeguru, architect, developer)
+7. **Phase 7**: Services batch 1 (kanban, timeguru, developer)
 8. **Phase 8**: Services batch 2 (lore, busboy, kingdom, blackmage, moatghost)
 9. **Phase 9**: Adversary (lich - last)
 10. **Phase 10**: Telemetry stack (prometheus, grafana, loki, victoriametrics, ebpf-exporter)
@@ -210,7 +210,7 @@ storage_pools:
 - Network: "unheaded-outpost" bridge (10.21.0.0/16, fd00:dead:beef:2::/64)
 - Storage: "unheaded-minimal" ZFS pool (50GB)
 - Default profile: 1 CPU, 256MB memory, 4GB disk per container
-- 9 total containers (6 core + 3 telemetry agents)
+- 7 total containers (4 core + 3 telemetry agents)
 
 **Key Differences from host-a**:
 - Smaller resources per container
@@ -246,13 +246,13 @@ storage_pools:
 - WireGuard optional (skipped if no config)
 
 #### launch-minimal.sh (6.1KB)
-**Purpose**: Deploy 6 core services + 3 telemetry agents on host-b
+**Purpose**: Deploy 4 core services + 3 telemetry agents on host-b
 
 **Usage**: `./launch-minimal.sh`
 
 **4 Launch Phases**:
 1. **Phase 1**: Message bus (wotan - local)
-2. **Phase 2**: Protocol layer (monad, sophia, anamnesis - local)
+2. **Phase 2**: Protocol layer (anamnesis - local)
 3. **Phase 3**: Gateway and dashboard (gateway, dashboard-backend)
 4. **Phase 4**: Telemetry agents (prometheus-agent, promtail, node-exporter)
 
@@ -315,8 +315,8 @@ storage_pools:
 - Network connectivity to host-a
 
 ### Service binaries required:
-- 25 service binaries for host-a
-- 9 service binaries for host-b (6 core + 3 telemetry)
+- 19 service binaries for host-a
+- 7 service binaries for host-b (4 core + 3 telemetry)
 - All binaries must exist at repo/bin/ before deployment
 
 ---

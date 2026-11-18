@@ -40,6 +40,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/cmdline"
+	"unheaded/pkg/critalert"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/healthreport"
 	"unheaded/pkg/httputil"
@@ -130,6 +131,9 @@ type Daemon struct {
 	// Transport
 	transportCfg transport.Config
 	healthSrv    *transport.HealthServer
+	// wotanBase is the process's one Wotan client (main builds it; ADR-147
+	// Phase 7); initWotan joins the Cuirass topics on it.
+	wotanBase *wotanClient.Client
 
 	// HTTP server
 	httpServer *http.Server
@@ -226,7 +230,7 @@ type LXDClient interface {
 	ListContainers(ctx context.Context) (map[string]*ContainerState, error)
 }
 
-// MockLXDClient is the default LXDClient (LXD_BACKEND unset or "mock"):
+// MockLXDClient is the LXDClient for LXD_BACKEND=mock (tests and dev runs):
 // container operations are tracked in memory only. lxdREST is the real one.
 type MockLXDClient struct {
 	mu         sync.RWMutex
@@ -411,8 +415,9 @@ type Config struct {
 	// for game-day windows only. Off by default.
 	Chaos bool
 
-	// LXDBackend is "mock" (the default), "unix" (LXDSocket) or "https"
-	// (LXDURL with a client certificate and the pinned server certificate).
+	// LXDBackend is "https" (LXDURL with a client certificate and the pinned
+	// server certificate), "unix" (LXDSocket) or "mock" (tests and dev runs).
+	// It has no default: unset, Cuirass refuses to start (ADR-147).
 	LXDBackend    string
 	LXDSocket     string
 	LXDURL        string
@@ -560,11 +565,18 @@ func main() {
 	// Create transport health server
 	healthSrv := transport.NewHealthServer("unheaded-daemon")
 
+	// The process's one Wotan client (ADR-147 Phase 7): the Cuirass topics,
+	// log forwarding, discovery and health reports share it.
+	wc, err := transport.NewWotanClient(transportCfg)
+	if err != nil {
+		log.Warn().Err(err).Msg("Wotan client: Cuirass events, log forwarding, discovery and health reports off")
+	}
+
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if cfg.WotanAddr != "" {
+	if cfg.WotanAddr != "" && wc != nil {
 		var err error
-		if logConn, err = logagg.Connect(context.Background(), transportCfg, "unheaded-daemon"); err != nil {
+		if logConn, err = logagg.Connect(context.Background(), wc, transportCfg.WotanHTTPAddr, "unheaded-daemon"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
 			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
 			logConn = nil
@@ -577,11 +589,13 @@ func main() {
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
-	discovery.Start(discoveryCtx, transportCfg, "unheaded-daemon", ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))
-	healthreport.StartService(discoveryCtx, transportCfg, "unheaded-daemon", healthreport.HealthURL(cfg.HTTPAddr, ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))) // ADR-029: a vote on Akira's ballot
+	critalert.Attach(discoveryCtx, wc, wotanDisplayName) // ADR-147 Phase 8: state on /metrics
+	discovery.Start(discoveryCtx, wc, "unheaded-daemon", ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))
+	healthreport.StartService(discoveryCtx, wc, "unheaded-daemon", healthreport.HealthURL(cfg.HTTPAddr, ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))) // ADR-029: a vote on Akira's ballot
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)
+	daemon.wotanBase = wc
 	if err := daemon.SetLogPublisher(logPublisher); err != nil {
 		log.Warn().Err(err).Msg("log forwarding counters not served on /metrics")
 	}
@@ -762,9 +776,9 @@ func (d *Daemon) Shutdown(ctx context.Context) error {
 
 // initWotan initializes the Wotan client and subscribes to required topics
 func (d *Daemon) initWotan() error {
-	client, err := wotanClient.NewClient(d.config.WotanAddr)
-	if err != nil {
-		return fmt.Errorf("create wotan client: %w", err)
+	client := d.wotanBase
+	if client == nil {
+		return errors.New("no Wotan client (WOTAN_GRPC_ADDR unset?)")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -774,23 +788,20 @@ func (d *Daemon) initWotan() error {
 	// "cuirass-<node id>" embedded the container id, so no allowlist could
 	// match it and both subscriptions sat pending: nothing was published.
 	// Subscribe to drift topic
-	_, err = client.Subscribe(ctx, TopicCuirassDrift, wotanDisplayName)
+	_, err := client.Subscribe(ctx, TopicCuirassDrift, wotanDisplayName)
 	if err != nil {
-		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassDrift, err)
 	}
 
 	// Subscribe to metrics topic
 	_, err = client.Subscribe(ctx, TopicCuirassMetrics, wotanDisplayName)
 	if err != nil {
-		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassMetrics, err)
 	}
 
 	// Join the chaos topic (to publish chaos requests on it)
 	_, err = client.Subscribe(ctx, TopicCuirassChaos, wotanDisplayName)
 	if err != nil {
-		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassChaos, err)
 	}
 
@@ -1282,7 +1293,7 @@ func (d *Daemon) SetLogPublisher(p *logagg.Publisher) error {
 func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
 	backend := d.config.LXDBackend
 	if backend == "" {
-		backend = "mock"
+		backend = "unset" // main refuses to start like this; a test daemon can still answer
 	}
 	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		// Which LXD and which modes are live: mock and real look alike
@@ -1679,7 +1690,7 @@ func loadConfig(path string) *Config {
 		NodeName:         getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
 		HTTPAddr:         getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
 		GRPCAddr:         getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
-		LXDBackend:       getEnvOrDefault("LXD_BACKEND", "mock"),
+		LXDBackend:       os.Getenv("LXD_BACKEND"), // no default: newLXDClient refuses an unset backend (ADR-147)
 		LXDSocket:        getEnvOrDefault("LXD_SOCKET", "/var/snap/lxd/common/lxd/unix.socket"),
 		LXDURL:           os.Getenv("LXD_URL"),
 		LXDProject:       os.Getenv("LXD_PROJECT"),

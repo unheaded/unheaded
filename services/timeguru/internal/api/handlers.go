@@ -31,8 +31,10 @@ import (
 var (
 	// The store's own value: a separate errors.New here never matched what
 	// the store returns, so a missing timeline answered 500, not 404.
-	ErrNotFound          = storage.ErrNotFound
-	ErrMilestoneNotFound = errors.New("milestone not found")
+	ErrNotFound = storage.ErrNotFound
+	// The store's own value too: a separate errors.New never matched what
+	// the store wraps, so an unknown milestone answered 500, not 404.
+	ErrMilestoneNotFound = storage.ErrMilestoneNotFound
 	ErrInvalidRequest    = errors.New("invalid request")
 )
 
@@ -58,6 +60,10 @@ type Handler struct {
 	syncer *tsync.Syncer // optional file syncer, nil if not configured
 	// wotanHealth, when set before serving, supplies /health's Wotan detail.
 	wotanHealth func() any
+	// critHealth supplies /health's critical_alerts detail.
+	critHealth func() any
+	// wellHealth supplies /health's well detail ("connected", "waiting").
+	wellHealth func() any
 }
 
 // NewHandler creates a new Handler with defensive validation
@@ -101,6 +107,11 @@ type HealthResponse struct {
 	Timestamp time.Time `json:"timestamp"`
 	// Wotan is the Wotan client's Health() (transport, streams), when set.
 	Wotan any `json:"wotan,omitempty"`
+	// CriticalAlerts is pkg/critalert's state (ADR-147 Phase 8).
+	CriticalAlerts any `json:"critical_alerts,omitempty"`
+	// Well is "connected" or "waiting" (ADR-147 Phase 16: without the Well
+	// timeguru serves the file read-only).
+	Well any `json:"well,omitempty"`
 }
 
 // KanbanTask represents a task in kanban format for the frontend
@@ -481,6 +492,10 @@ func (h *Handler) HandleUpdateMilestone(w http.ResponseWriter, r *http.Request, 
 	// Update milestone
 	err := h.store.UpdateMilestone(ctx, milestoneID, req.Progress, req.Status)
 	if err != nil {
+		if errors.Is(err, storage.ErrWellUnavailable) {
+			h.writeWellUnavailable(w)
+			return
+		}
 		if errors.Is(err, ErrMilestoneNotFound) {
 			h.writeError(w, http.StatusNotFound, "NOT_FOUND",
 				fmt.Sprintf("milestone %q not found", milestoneID), err)
@@ -526,7 +541,29 @@ func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	if h.wotanHealth != nil {
 		resp.Wotan = h.wotanHealth()
 	}
+	if h.critHealth != nil {
+		resp.CriticalAlerts = h.critHealth()
+	}
+	if h.wellHealth != nil {
+		resp.Well = h.wellHealth()
+	}
 	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// SetWellHealth sets where /health reads the Well's state from.
+func (h *Handler) SetWellHealth(f func() any) {
+	h.wellHealth = f
+}
+
+// writeWellUnavailable answers a write made while the Well is not
+// connected: 503 {"error":"the Well is unavailable"}.
+func (h *Handler) writeWellUnavailable(w http.ResponseWriter) {
+	h.writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": storage.ErrWellUnavailable.Error()})
+}
+
+// SetCriticalAlerts sets where /health reads the critical-alert state from.
+func (h *Handler) SetCriticalAlerts(f func() any) {
+	h.critHealth = f
 }
 
 // SetWotanHealth sets where /health reads the Wotan client's state from.
@@ -717,6 +754,14 @@ func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	if err := h.store.SaveTimeline(ctx, tl); err != nil {
+		if errors.Is(err, storage.ErrWellUnavailable) {
+			h.writeWellUnavailable(w)
+			return
+		}
+		if errors.Is(err, storage.ErrWellLimit) {
+			h.writeError(w, http.StatusBadRequest, "WELL_LIMIT", err.Error(), nil)
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, "SAVE_ERROR", "failed to save imported timeline", err)
 		return
 	}

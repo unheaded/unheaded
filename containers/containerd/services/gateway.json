@@ -126,6 +126,6 @@
     "io.unheaded.network.bridge": "br-unheaded",
     "io.unheaded.restart.policy": "always",
     "io.unheaded.restart.delay": "5s",
-    "io.unheaded.depends_on": "wotan,timeguru,captain,micromanager,architect,monad,sophia"
+    "io.unheaded.depends_on": "wotan,timeguru"
   }
 }

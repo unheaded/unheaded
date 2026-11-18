@@ -50,27 +50,18 @@ readonly DOOM_RANGE_HIGH=26666
 readonly WEST_HEALTH_PORTS=(
     "18000:wotan"
     "19000:timeguru"
-    "19001:architect"
-    "19002:captain"
-    "19003:micromanager"
-    "19004:monad"
-    "19005:sophia"
     "20000:dashboard"
     "20001:kanban"
 )
 
 readonly EAST_HEALTH_PORTS=(
     "18000:wotan"
-    "19004:monad"
-    "19005:sophia"
     "20000:dashboard"
 )
 
 # Service -> binary name mapping
 declare -A SVC_BIN_MAP=(
-    [wotan]=wotan [timeguru]=timeguru [captain]=captain
-    [architect]=architect [micromanager]=micromanager
-    [monad]=monad [sophia]=sophia
+    [wotan]=wotan [timeguru]=timeguru
     [dashboard]=dashboard-backend [kanban]=kanban-app
 )
 
@@ -264,7 +255,7 @@ start_east_native() {
 BIN_DIR="/tmp/unheaded-bin"
 LOG_DIR="/tmp/unheaded-logs"
 mkdir -p "$LOG_DIR"
-for svc_port in "wotan:18000" "monad:19004" "sophia:19005" "dashboard-backend:20000"; do
+for svc_port in "wotan:18000" "dashboard-backend:20000"; do
     svc="${svc_port%%:*}"
     port="${svc_port##*:}"
     if pgrep -f "${BIN_DIR}/${svc}" >/dev/null 2>&1; then

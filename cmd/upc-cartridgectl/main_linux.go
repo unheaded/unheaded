@@ -60,17 +60,26 @@ func parseSub(fs *flag.FlagSet, args []string) {
 }
 
 type globals struct {
-	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin, eventsGroup string
+	registryDir, sophiaURL, pubKeyPath, pinDir, obj, cartBin, eventsGroup string // sophiaURL: refused (refuseRemoved)
 	lab, allowUntrusted                                                   bool
 	pub                                                                   *mldsa65.PublicKey
 }
 
 func (g *globals) registry() Registry {
-	files := &FileRegistry{Dir: g.registryDir}
-	if g.sophiaURL == "" {
-		return files
+	return &FileRegistry{Dir: g.registryDir}
+}
+
+// errSophiaRemoved answers --sophia: the Sophia HTTP service that could hold
+// cartridge records was removed (ADR-147 decision 7, archived in
+// unheaded-role-services).
+var errSophiaRemoved = errors.New("--sophia: the Sophia service was removed (ADR-147 decision 7); records live in --registry-dir")
+
+// refuseRemoved fails a flag whose backend no longer exists, by name.
+func (g *globals) refuseRemoved() error {
+	if g.sophiaURL != "" {
+		return errSophiaRemoved
 	}
-	return &SophiaRegistry{BaseURL: g.sophiaURL, Token: os.Getenv("SOPHIA_TOKEN"), Blobs: files}
+	return nil
 }
 
 func (g *globals) prepare(raw, seal []byte) (*Prepared, error) {
@@ -99,7 +108,7 @@ func main() {
 	g := &globals{}
 	fs := flag.NewFlagSet("upc-cartridgectl", flag.ExitOnError)
 	fs.StringVar(&g.registryDir, "registry-dir", "/var/lib/unheaded/cartridges", "file-backed registry: records + content-addressed images (0700)")
-	fs.StringVar(&g.sophiaURL, "sophia", "", "Sophia base URL: keep records in Sophia (namespace cartridge; x-cartridge records still read); SOPHIA_TOKEN = bearer token")
+	fs.StringVar(&g.sophiaURL, "sophia", "", "refused: the Sophia service was removed (ADR-147 decision 7); records live in --registry-dir")
 	fs.StringVar(&g.pubKeyPath, "pubkey", "", "pinned ML-DSA-65 public key that cartridge seals must verify against")
 	fs.BoolVar(&g.lab, "lab", false, "accept UNSIGNED cartridges (lab only; marked lab=\"1\")")
 	fs.StringVar(&g.pinDir, "pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned interpreter")
@@ -115,6 +124,9 @@ func main() {
 		os.Exit(code)
 	}
 	args := fs.Args()
+	if err := g.refuseRemoved(); err != nil {
+		fatal("%v", err)
+	}
 	if g.pubKeyPath != "" {
 		pub, err := gungnir.LoadPublicKeyFile(g.pubKeyPath)
 		if err != nil {

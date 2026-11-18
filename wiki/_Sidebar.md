@@ -133,9 +133,6 @@
 **Services**
 - [[Wotan|Service-Wotan]]
 - [[Timeguru|Service-Timeguru]]
-- [[Captain|Service-Captain]]
-- [[Architect|Service-Architect]]
-- [[Micromanager|Service-Micromanager]]
 - [[Dashboard|Service-Dashboard-Backend]]
 - [[Kanban|Service-Kanban-App]]
 - [[Akira|Service-Akira]]
@@ -181,6 +178,7 @@
 - [[Overlay Network|Overlay-Network]]
 - [[Alerting]]
 - [[Systemd Units|Systemd-Units]]
+- [[Host Settings|Host-Settings]]
 - [[Runbooks]]
 
 **Storage**

@@ -1,4 +1,4 @@
-.TH ANOMALY 1 "2026-10-29" "unheaded 158367ea" "Unheaded Kingdom"
+.TH ANOMALY 1 "2026-11-16" "unheaded e6b73f22" "Unheaded Kingdom"
 .SH NAME
 anomaly \- Run the Anomaly Detection service and bridge MBC cartridge scores into it (ADR\-108).
 .SH SYNOPSIS
@@ -19,6 +19,9 @@ bpffs directory of the pinned cartridge interpreter (default /sys/fs/bpf/unheade
 .TP
 .B \-\-wotan \fISTRING\fR
 Wotan HTTP address: publish anomaly.scores there (default: in\-process intake)
+.TP
+.B \-\-wotan\-grpc \fISTRING\fR
+Wotan gRPC address for streams (default: the \-\-wotan host on port 18001)
 .TP
 .B \-h, \-\-help
 display this help and exit

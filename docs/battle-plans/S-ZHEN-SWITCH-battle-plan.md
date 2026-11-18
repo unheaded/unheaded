@@ -781,6 +781,10 @@ Expected: no `FAIL` line; the ratchet prints `[PASS]`. Any other output: fix it 
 
 ## PHASE 8: LIVE ON WEST (Steps 238-297)
 
+**Amended 2026-11-17: read `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` before running any step from Step 238 on.** The four plans were merged as one branch, so this plan's own merge steps are replaced by that page's block C, its live phases run in that page's order, and the steps that page lists under "Amendments" run as amended there.
+
+**Migration numbers, amended 2026-11-17:** the three files are `051_zhen_database.sql`, `052_zhen_schema.sql` and `053_app_drop_zhen.sql` (S-WASTE-OUT took 050). Where a step below says 050, 051 or 052 for them, read 051, 052 and 053.
+
 **Goal**: 8A installs the switch, the platform timers, the guard and the readers on west and leaves Zhen on as found. 8B, attended, moves Zhen's tables into `unheaded_zhen` and gives them their own backup set.
 **Prerequisite**: G-EW open (Step 18 rerun shows it). Phases 1-7 gates. D1, D3, D4, D5 answered for 8A; D2, D6 for 8B. An unanswered or different answer: the steps it blocks are `[BLOCKED]`.
 **Time**: 8A 90 min, unattended. 8B about 2 h with Stevie; Zhen is stopped for about 20 min of it.
@@ -868,7 +872,7 @@ Expected: no `FAIL` line; the ratchet prints `[PASS]`. Any other output: fix it 
 ### 8B: Zhen's tables move (ATTENDED)
 
 - [ ] **Step 265** [STEVIE] ~1m: "Move Zhen's tables into their own database now? About 2 hours; Zhen stops for about 20 minutes; nothing else stops. S-WEST-GROUND's database move is not in this sitting." A no: Steps 266-296 are `[BLOCKED]`; Z5, Z14, Z15 stay open with that reason; go to Phase 9.
-- [ ] **Step 266** [B] ~3m: Preconditions. `git -C /home/govan/tmp/unheaded log --oneline -1 -- db/migrations/052_app_drop_zhen.sql` (on develop); `tail -5 /home/govan/tmp/unheaded/docs/battle-plans/progress/S-WEST-GROUND-progress.md` (no move in flight). Stevie puts the migration password in the shell without echo: `read -rs WELL_MIGRATE_PASSWORD && export WELL_MIGRATE_PASSWORD`.
+- [ ] **Step 266** [B] ~3m: Preconditions. `git -C /home/govan/tmp/unheaded log --oneline -1 -- db/migrations/053_app_drop_zhen.sql` (on develop; amended 2026-11-17, the file was written as 052); `tail -5 /home/govan/tmp/unheaded/docs/battle-plans/progress/S-WEST-GROUND-progress.md` (no move in flight). Stevie puts the migration password in the shell without echo: `read -rs WELL_MIGRATE_PASSWORD && export WELL_MIGRATE_PASSWORD`.
 - [ ] **Step 267** [B] ~2m: `cd /home/govan/tmp/unheaded && go run ./cmd/well-migrate status; echo exit=$?`
   Expected: `exit=3` with 050 pending in `postgres`, 052 in `unheaded_app`, and `unheaded_zhen` reported missing or with 051 pending. Any other pending file → stop: it is not this plan's; "For Stevie".
 - [ ] **Step 268** [S][B] ~3m: Z5 and Z14 before (Step 19's command, if Step 19 used Erda's figures) and exact counts per table, into the rollback directory (counts only, no rows):
@@ -883,20 +887,20 @@ Expected: no `FAIL` line; the ratchet prints `[PASS]`. Any other output: fix it 
 - [ ] **Step 271** [S][B] ~2m: Stop Zhen without disabling the switch: `sudo systemctl stop unheaded-zhen.target; systemctl is-active zhen-agentd unheaded-zhen-ui-front`, then Step 19's sessions query.
 - [ ] **Step 272** [V] ~1m: `inactive` twice; `sessions|0`. Above 0 → `SELECT application_name, client_addr, backend_start FROM pg_stat_activity WHERE usename = 'app_zhen'`: a `zhen-claude` or `zhen-cli` in a shell; Stevie closes it.
 - [ ] **Step 273** [B] ~2m: `cd /home/govan/tmp/unheaded && go run ./cmd/well-migrate apply -db postgres -yes 2>&1 | tail -3 && go run ./cmd/well-migrate apply -db unheaded_zhen -yes 2>&1 | tail -3`
-- [ ] **Step 274** [V] ~1m: Both report their file applied; `go run ./cmd/well-migrate status -db unheaded_zhen` → clean; `sudo docker exec -i unheaded-postgres psql -U unheaded -X -At -d postgres -c "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname='unheaded_zhen'" -c "SELECT rolconnlimit FROM pg_roles WHERE rolname='app_zhen'"` → `unheaded_zhen|well_zhen_owner`, `12`.
+- [ ] **Step 274** [V] ~1m: Both report their file applied; `go run ./cmd/well-migrate status -db unheaded_zhen` → clean; `sudo docker exec -i unheaded-postgres psql -U unheaded -X -At -d postgres -c "SELECT datname, pg_get_userbyid(datdba) FROM pg_database WHERE datname='unheaded_zhen'" -c "SELECT rolconnlimit FROM pg_roles WHERE rolname='app_zhen'"` → `unheaded_zhen|well_zhen_owner`, `20` (amended 2026-11-17: migration 051 sets 20 since REV-5; Stevie confirmed 20 the same day and asked that it be adjustable: a deployment sets `APP_ZHEN_CONNECTION_LIMIT` and runs `scripts/well/set-role-limits.sh`, and this step then expects that number).
 - [ ] **Step 275** [D] ~5m: 050 failed part way (notx): the runner reports which statement. Fix forward only if the cause is clear (a role name that differs live); otherwise Appendix A procedure 4 (before 052: drop what 050 made) and `[STUCK]`.
-- [ ] **Step 276** [S][B] ~5m: Copy the rows, triggers off for the load, one transaction.
+- [ ] **Step 276** [S][B] ~5m: Copy the rows, triggers off for the load, one transaction. (Amended 2026-11-15, REV-6: 052 tightens columns, so a plain `pg_dump --data-only` no longer fits; the script maps each old column to the new one, a NULL to the column's default, a '' trace id to NULL, checks counts on both sides and records them for 053.)
   ```bash
-  sudo docker exec -i unheaded-postgres pg_dump -U unheaded -d unheaded_app --data-only --disable-triggers -t 'public.zhen_*' | sudo docker exec -i unheaded-postgres psql -U unheaded -X -q -d unheaded_zhen -v ON_ERROR_STOP=1 --single-transaction; echo "exit=${PIPESTATUS[*]}"
+  cd /home/govan/tmp/unheaded && sudo scripts/well/zhen-copy-rows.sh; echo "exit=$?"
   ```
-- [ ] **Step 277** [V] ~3m: `exit=0 0`. Step 268's loop with `-d unheaded_zhen` into `$RB/counts-after.tsv`; `sudo diff $RB/counts-before.tsv $RB/counts-after.tsv && echo same` → `same`. For every sequence in `unheaded_zhen`: `SELECT last_value` is at least the `max` of its column.
+- [ ] **Step 277** [V] ~3m: `exit=0`, and the script's eight `table<TAB>count` lines. Step 268's loop with `-d unheaded_zhen` into `$RB/counts-after.tsv`; `sudo diff $RB/counts-before.tsv $RB/counts-after.tsv && echo same` → `same`. For every sequence in `unheaded_zhen`: `SELECT last_value` is at least the `max` of its column.
 - [ ] **Step 278** [D] ~5m: A count differs → something wrote during the copy: back to Step 271 after `TRUNCATE` of the tables in `unheaded_zhen` only (`psql -d unheaded_zhen`, superuser; 051's triggers refuse it otherwise: `SET session_replication_role = replica` first). A sequence behind → `SELECT setval('<seq>', (SELECT max(<col>) FROM <table>))` in `unheaded_zhen`.
 - [ ] **Step 279** [S][B] ~2m: The fingerprint, live.
   ```bash
   cd /home/govan/tmp/unheaded && for d in unheaded_app unheaded_zhen; do sudo docker exec -i unheaded-postgres psql -U unheaded -X -At -d $d < scripts/well/zhen-schema-fingerprint.sql > /var/tmp/zhen-switch/fp-$d.txt; done; diff /var/tmp/zhen-switch/fp-unheaded_app.txt /var/tmp/zhen-switch/fp-unheaded_zhen.txt
   ```
-  Expected: one line, the foreign key to `kanban_tasks`. More → the live `unheaded_app` differs from the migrations: stop, `[STUCK]`, "For Stevie" (Appendix A procedure 4, before 052).
-- [ ] **Step 280** [S][B] ~1m: Record that the rows are copied, for 052's guard: `sudo docker exec -i unheaded-postgres psql -U unheaded -X -d postgres -c "ALTER DATABASE unheaded_app SET unheaded.zhen_rows_copied = '$(date -u +%F)'"`
+  Then `python3 -I scripts/well/zhen_schema_diff.py /var/tmp/zhen-switch/fp-unheaded_app.txt /var/tmp/zhen-switch/fp-unheaded_zhen.txt` (REV-6). Expected: `same but for the <n> listed change(s)` (`scripts/well/zhen-schema-changes.txt`: the foreign key to `kanban_tasks` and 052's tightened columns). An `unexpected:` line → the live `unheaded_app` differs from the migrations: stop, `[STUCK]`, "For Stevie" (Appendix A procedure 4, before 053).
+- [ ] **Step 280** [V] ~1m: The copy recorded itself for 053's guard (REV-6: the script sets `unheaded.zhen_rows_copied` to `copied <time>: <table>=<count>,...`; 053 drops nothing unless every zhen_* table still holds its count): `sudo docker exec -i unheaded-postgres psql -U unheaded -X -At -d postgres -c "SELECT array_to_string(s.setconfig, ',') FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase WHERE d.datname = 'unheaded_app'"` names all eight tables.
 - [ ] **Step 281** [B] ~2m: `cd /home/govan/tmp/unheaded && go run ./cmd/well-migrate apply -db unheaded_app -yes 2>&1 | tail -3`
 - [ ] **Step 282** [V] ~1m: `go run ./cmd/well-migrate status; echo exit=$?` → `exit=0`; Step 19's table query on `unheaded_app` → `tables|0|<13 minus the moved>`; `kanban_zhen_optin` still there (`\dt kanban_zhen_optin`); `SELECT count(*) FROM pg_db_role_setting s JOIN pg_database d ON d.oid=s.setdatabase WHERE d.datname='unheaded_app' AND array_to_string(s.setconfig, ',') LIKE '%zhen_rows_copied%'` → 0.
 - [ ] **Step 283** [S][B] ~3m: Zhen's DSN for its own tables, written without printing the file.

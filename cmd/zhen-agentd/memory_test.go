@@ -154,11 +154,11 @@ func TestMemoryRemember_Refusals(t *testing.T) {
 	}
 }
 
-// The SQL store against a real unheaded_app (skipped without one).
+// The SQL store against a real unheaded_zhen (ADR-149; skipped without one).
 func TestPGMemoryStore_Live(t *testing.T) {
-	dsn := os.Getenv("WELL_TEST_APP_DSN")
+	dsn := os.Getenv("WELL_TEST_ZHEN_DSN")
 	if dsn == "" {
-		t.Skip("WELL_TEST_APP_DSN unset")
+		t.Skip("WELL_TEST_ZHEN_DSN unset")
 	}
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {

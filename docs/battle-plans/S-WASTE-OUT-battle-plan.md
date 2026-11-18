@@ -955,6 +955,8 @@ Expected: no `FAIL`, every line `ok` or `no test files`. In a lane, the same fro
 
 ## PHASE 17: THE E-GATE AND THE LIVE BEFORES (Steps 305-319)
 
+**Amended 2026-11-17: read `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` before running any step from Step 305 on.** The four plans were merged as one branch, so this plan's own merge steps are replaced by that page's block C, its live phases run in that page's order, and the steps that page lists under "Amendments" run as amended there.
+
 **Goal**: The evidence week is over by Stevie's word; the befores that need SQL, ClickHouse or a fresh reading are taken.
 **Prerequisite**: Phase 16 gate. Not before 2026-11-17 18:34Z.
 **Time**: 1.5 h, with two 1 h gaps for deltas (do Phase 18's builds meanwhile).
@@ -1089,14 +1091,14 @@ Expected: no `FAIL`, every line `ok` or `no test files`. In a lane, the same fro
 - [ ] **Step 339** [B] ~1m: `sudo docker ps --format '{{.Names}}' | sort > /home/govan/tmp/wt/S-WASTE-OUT-scratch/ps-before.txt; wc -l < /home/govan/tmp/wt/S-WASTE-OUT-scratch/ps-before.txt; date -u +%FT%TZ`
 - [ ] **Step 340** [STEVIE][S] ~5m: `app_timeguru`'s password. Stevie puts `APP_TIMEGURU_PASSWORD` in `/home/govan/tmp/unheaded/.env` if it is not there, then runs, touching that role only:
   ```bash
-  cd /home/govan/tmp/unheaded && set -a && . ./.env && set +a && env -u APP_KANBAN_PASSWORD -u APP_ZHEN_PASSWORD -u APP_AUTH_PASSWORD -u OPS_WRITER_PASSWORD -u OPS_READER_PASSWORD -u CONFIG_ADMIN_PASSWORD -u CONFIG_READER_PASSWORD -u HUGINN_READER_PASSWORD scripts/well/set-role-passwords.sh 2>&1 | tail -2
+  cd /home/govan/tmp/unheaded && ( set -a && . ./.env && set +a && for v in $(compgen -v | grep -E '_PASSWORD$' | grep -vx APP_TIMEGURU_PASSWORD); do unset "$v"; done; scripts/well/set-role-passwords.sh 2>&1 | tail -2 )
   ```
-  No value is printed by anyone.
+  Expect one line, `[well] app_timeguru: password set from APP_TIMEGURU_PASSWORD`. No value is printed by anyone. (Amended 2026-11-17: the first version unset eight variables by name and missed `POSTGRES_PASSWORD`, `WELL_BACKUP_PASSWORD`, `RETENTION_RUNNER_PASSWORD` and `LOG_WRITER_PASSWORD`, so it would have set five roles, not one.)
 - [ ] **Step 341** [STEVIE][S] ~5m: Migration 050, dry run then apply, with a backup of `unheaded_app` first.
   ```bash
-  sudo install -d -o govan -g govan -m 0700 /srv/backups/unheaded-well/pre-050 && cd /home/govan/tmp/unheaded && set -a && . ./.env && set +a && WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD scripts/well/batch-apply.sh --dry-run --from 050 2>&1 | tail -4
+  sudo install -d -o govan -g govan -m 0700 /srv/backups/unheaded-well/pre-050 && cd /home/govan/tmp/unheaded && set -a && . ./.env && set +a && WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD scripts/well/batch-apply.sh --dry-run --from 050 --through 050 2>&1 | tail -4
   ```
-  Expect `pending (1)` naming `050_app_timeline_milestones.sql`. Then the same with `WELL_BATCH_BACKUP_ROOT=/srv/backups/unheaded-well/pre-050` and without `--dry-run`. Anything else pending → stop, read the ledger, apply nothing.
+  Expect `pending (1) through 050:` naming `050_app_timeline_milestones.sql`, and `left pending for a later batch (3)` naming 051, 052 and 053 (S-ZHEN-SWITCH's, applied in its Phase 8B). Then the same with `WELL_BATCH_BACKUP_ROOT=/srv/backups/unheaded-well/pre-050` and without `--dry-run`; it ends `done through 050; 3 later file(s) left pending`. A file below 050 pending, or any other left pending → stop, read the ledger, apply nothing. (Amended 2026-11-17: `--through` was added that day, integration commit `18fae670`; without it the batch would run on into 053, which refuses until the rows are copied.)
 - [ ] **Step 342** [V] ~1m: `. /home/govan/tmp/wt/S-WASTE-OUT-scratch/lib.sh; pg unheaded_app "select filename from well_schema_migrations where filename like '050%'"; pg unheaded_app "select string_agg(column_name, ',' order by ordinal_position) from information_schema.columns where table_name='timeline_milestones'"` → the file; `milestone_key,name,status,progress_pct,eta,owner,risk,description,updated_at`. Else → `scripts/well/batch-rollback.sh` with the pre-050 backup (read its usage line), and timeguru keeps its old image.
 - [ ] **Step 343** [S][B] ~3m: The trace collector and the eBPF pair, together.
   ```bash

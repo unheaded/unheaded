@@ -62,8 +62,12 @@ type Ingestor struct {
 	latency   *LatencyHistogram
 	events    *EventRing
 	listeners []func(EventEnvelope)
-	listMu    sync.RWMutex
-	created   time.Time // start of the counters' window
+	// msgListeners see each message as it arrives, before it is parsed:
+	// the server's trace view reads traces.* through them (ADR-147
+	// Phase 10: one subscription per topic, fanned out in the process).
+	msgListeners []func(topic, payload string, at time.Time)
+	listMu       sync.RWMutex
+	created      time.Time // start of the counters' window
 
 	// Counters
 	packetsIngested   atomic.Int64
@@ -187,12 +191,25 @@ func (ing *Ingestor) OnEvent(fn func(EventEnvelope)) {
 	ing.listeners = append(ing.listeners, fn)
 }
 
+// OnMessage registers a listener for every message on every ingestor topic,
+// raw, with the time Wotan stamped it (now when it carries none). It runs
+// inline on the topic's stream before the ingestor parses the message, so
+// it must not block.
+func (ing *Ingestor) OnMessage(fn func(topic, payload string, at time.Time)) {
+	ing.listMu.Lock()
+	defer ing.listMu.Unlock()
+	ing.msgListeners = append(ing.msgListeners, fn)
+}
+
 // Topics are the Wotan topics the ingestor consumes. Nothing else in the
-// dashboard should subscribe to them, or the page gets each event twice.
+// dashboard should subscribe to them, or the page gets each event twice:
+// the trace view reads traces.* through OnMessage. The trace-collector
+// publishes each trace event once, on traces.* (ADR-147 Phase 10; the
+// ebpf.{packet,flow,latency}.events mirrors are gone).
 var Topics = []string{
-	"ebpf.packet.events",
-	"ebpf.flow.events",
-	"ebpf.latency.events",
+	"traces.packet",
+	"traces.flow",
+	"traces.latency",
 	"ebpf.syscall.events",
 	"compute.hop",
 	"compute.miss",
@@ -205,7 +222,7 @@ var Topics = []string{
 	"anamnesis.chaos",
 	// cmd/perf-benchmark -scenario e2e-trace (M-089): a synthetic packet
 	// between RFC 2544 benchmark addresses, so the measured path is a real
-	// event's without publishing on ebpf.packet.events.
+	// event's without publishing on traces.packet.
 	"bench.perf.packet",
 }
 
@@ -251,8 +268,26 @@ func (ing *Ingestor) streamTopic(ctx context.Context, topic string) {
 			if msg == nil {
 				continue
 			}
+			ing.notifyMessage(topic, msg)
 			ing.dispatch(topic, msg.Payload)
 		}
+	}
+}
+
+// notifyMessage hands one raw message to the OnMessage listeners.
+func (ing *Ingestor) notifyMessage(topic string, msg *wotanClient.Message) {
+	ing.listMu.RLock()
+	ls := ing.msgListeners
+	ing.listMu.RUnlock()
+	if len(ls) == 0 {
+		return
+	}
+	at := msg.CreatedAt
+	if at.IsZero() {
+		at = time.Now()
+	}
+	for _, fn := range ls {
+		fn(topic, msg.Payload, at)
 	}
 }
 

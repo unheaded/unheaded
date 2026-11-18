@@ -41,6 +41,8 @@ type GoCollector struct {
 type goSnapshot struct {
 	goroutines, threads float64
 
+	gomaxprocs, gomemlimit, gogc float64
+
 	gcCount     uint64
 	gcPauseSum  float64
 	gcQuantiles [5]float64 // min, 25%, 50%, 75%, max — debug.ReadGCStats' order
@@ -74,6 +76,12 @@ const (
 	rmProfBuckets   = "/memory/classes/profiling/buckets:bytes"
 	rmMetadataOther = "/memory/classes/metadata/other:bytes"
 	rmOther         = "/memory/classes/other:bytes"
+
+	// What the runtime was told (ADR-147, Developer D22): GOMAXPROCS (from
+	// the cgroup's CPU limit since Go 1.25), GOMEMLIMIT and GOGC.
+	rmGOMAXPROCS  = "/sched/gomaxprocs:threads"
+	rmGOMEMLIMIT  = "/gc/gomemlimit:bytes"
+	rmGOGCPercent = "/gc/gogc:percent"
 )
 
 var goRMKeys = []string{
@@ -81,6 +89,7 @@ var goRMKeys = []string{
 	rmHeapGoal, rmTotal, rmHeapObjBytes, rmHeapUnused, rmHeapReleased, rmHeapFree,
 	rmHeapStacks, rmOSStacks, rmMSpanInuse, rmMSpanFree, rmMCacheInuse,
 	rmMCacheFree, rmProfBuckets, rmMetadataOther, rmOther,
+	rmGOMAXPROCS, rmGOMEMLIMIT, rmGOGCPercent,
 }
 
 // goSnapshotTTL bounds how long one runtime reading is reused. It must be
@@ -142,13 +151,17 @@ func (gc *GoCollector) read() goSnapshot {
 	s.lastGC = float64(st.LastGC.UnixNano()) / 1e9
 
 	rtmetrics.Read(gc.samples)
-	deriveMemstats(&s, func(k string) uint64 {
+	get := func(k string) uint64 {
 		i, ok := gc.index[k]
 		if !ok || gc.samples[i].Value.Kind() != rtmetrics.KindUint64 {
 			return 0
 		}
 		return gc.samples[i].Value.Uint64()
-	})
+	}
+	deriveMemstats(&s, get)
+	s.gomaxprocs = float64(get(rmGOMAXPROCS))
+	s.gomemlimit = float64(get(rmGOMEMLIMIT))
+	s.gogc = float64(get(rmGOGCPercent))
 	return s
 }
 
@@ -231,6 +244,9 @@ func (gc *GoCollector) Collectors() []Collector {
 		g(m("stack_sys_bytes"), "Number of bytes obtained from system for stack allocator.", func(s goSnapshot) float64 { return s.stackSys }),
 		g(m("sys_bytes"), "Number of bytes obtained from system.", func(s goSnapshot) float64 { return s.sys }),
 		g("go_threads", "Number of OS threads created.", func(s goSnapshot) float64 { return s.threads }),
+		g("go_sched_gomaxprocs_threads", "The current runtime.GOMAXPROCS setting, or the number of operating system threads that can execute user-level Go code simultaneously. Sourced from /sched/gomaxprocs:threads.", func(s goSnapshot) float64 { return s.gomaxprocs }),
+		g("go_gc_gomemlimit_bytes", "Go runtime memory limit configured by the user, otherwise math.MaxInt64. This value is set by the GOMEMLIMIT environment variable, and the runtime/debug.SetMemoryLimit function. Sourced from /gc/gomemlimit:bytes.", func(s goSnapshot) float64 { return s.gomemlimit }),
+		g("go_gc_gogc_percent", "Heap size target percentage configured by the user, otherwise 100. This value is set by the GOGC environment variable, and the runtime/debug.SetGCPercent function. Sourced from /gc/gogc:percent.", func(s goSnapshot) float64 { return s.gogc }),
 	}
 }
 

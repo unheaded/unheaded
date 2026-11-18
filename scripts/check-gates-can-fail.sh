@@ -483,6 +483,36 @@ provoke_prometheus_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_prom_keep_list() {
+    # Contract (ADR-147 decisions 9, 10): Prometheus keeps only the series
+    # its rules read, so a rule may not read one the keep-list lacks.
+    local f="monitoring/prometheus/rules/wotan.yml"
+    backup "${f}"
+    sed -i 's|(increase(unheaded_wotan_topic_permission_refusals_total\[15m\])) > 0$|(increase(unheaded_wotan_topic_permission_refusals_total[15m])) > 0 or provoke_unlisted_total|' "${REPO_ROOT}/${f}"
+    grep -q ' or provoke_unlisted_total$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_module_rules() {
+    # Contract (ADR-149): a module's rules are checked like the platform's.
+    # Make the module's rule test expect a label the alert does not carry.
+    local f="modules/zhen/prometheus/rules/tests/zhen_test.yml"
+    backup "${f}"
+    sed -i '0,/reason: absent/s//reason: absentX/' "${REPO_ROOT}/${f}"
+    grep -q 'reason: absentX' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_module_binds() {
+    # Contract (ADR-149): no module unit listens on a public address. Put
+    # zhen-agentd's API on the wildcard.
+    local f="deploy/systemd/zhen-agentd.service"
+    backup "${f}"
+    sed -i 's|-host 127.0.0.1|-host 0.0.0.0|' "${REPO_ROOT}/${f}"
+    grep -q -- '-host 0.0.0.0' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -663,18 +693,20 @@ provoke_well_llm_requests() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_zhen_confirm() {
     # Contract (S-TWO-BRAINS Step 67): confirmation states move one way.
-    # Drop the transition trigger from 031.
-    local f="db/migrations/031_app_zhen_pending_confirmations.sql"
+    # Drop the transition trigger. Since ADR-149 the table is built by 052
+    # in unheaded_zhen (053 drops 031's copy), so the provocation goes there.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
-    sed -i '/^CREATE OR REPLACE TRIGGER trg_zhen_confirm_transition/,/EXECUTE FUNCTION zhen_confirm_transition();$/d' "${REPO_ROOT}/${f}"
+    sed -i '/^CREATE TRIGGER trg_zhen_confirm_transition/,/EXECUTE FUNCTION zhen_confirm_transition();$/d' "${REPO_ROOT}/${f}"
     ! grep -q 'TRIGGER trg_zhen_confirm_transition' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_zhen_agent_runs() {
     # Contract (S-TWO-BRAINS Step 202): one active run per card. Drop the
-    # partial unique index from 032, so a claim race has several winners.
-    local f="db/migrations/032_app_zhen_agent_runs.sql"
+    # partial unique index, so a claim race has several winners. Since
+    # ADR-149 the table is built by 052 in unheaded_zhen.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
     sed -i '/zhen_agent_runs_one_active/d' "${REPO_ROOT}/${f}"
     ! grep -q 'zhen_agent_runs_one_active' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -684,7 +716,8 @@ provoke_well_zhen_agent_runs() {
 provoke_well_zhen_captures() {
     # Contract (S-TWO-BRAINS Step 346): re-labelling is idempotent, one
     # label per (capture, kind, source row). Turn the UNIQUE into a no-op.
-    local f="db/migrations/033_app_zhen_captures.sql"
+    # Since ADR-149 the table is built by 052 in unheaded_zhen.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
     sed -i 's/CONSTRAINT zhen_capture_labels_once UNIQUE (capture_id, kind, source_ref)/CONSTRAINT zhen_capture_labels_once CHECK (true)/' "${REPO_ROOT}/${f}"
     grep -q 'zhen_capture_labels_once CHECK (true)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -705,7 +738,7 @@ provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
     # honours only the first.
-    local f="deploy/systemd/unheaded-sophia.service"
+    local f="deploy/systemd/unheaded-timeguru.service"
     backup "${f}"
     sed -i 's/^SystemCallFilter=~@privileged @resources @reboot @module @swap$/SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap/' "${REPO_ROOT}/${f}"
     grep -q '^SystemCallFilter=~@privileged ~@resources' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
@@ -769,6 +802,16 @@ provoke_vector_config() {
     backup "${f}"
     sed -i 's|incorrect password attempts?|incorrect passwd attempts?|' "${REPO_ROOT}/${f}"
     grep -q 'incorrect passwd attempts?' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_store_backups() {
+    # Contract (ADR-147 decision 6): a drill refuses a set whose bytes no
+    # longer match its SHA256SUMS. Make the checksum step always pass.
+    local f="scripts/backup/clickhouse-drill.sh"
+    backup "${f}"
+    sed -i 's|sha256sum -c --quiet --strict "../$NAME.SHA256SUMS" >/dev/null 2>&1)|true)|' "${REPO_ROOT}/${f}"
+    ! grep -q 'sha256sum -c --quiet --strict' "${REPO_ROOT}/${f}" || { echo "provocation anchor still present in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -1084,6 +1127,54 @@ provoke_unit_ceilings() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_start_limits() {
+    # Contract (ADR-147 SS3): every restarting unit can trip its start limit.
+    # Without StartLimitIntervalSec, kev-poller (RestartSec 30s) falls back to
+    # systemd's 10 s / 5 starts, which it can never reach.
+    local f="deploy/systemd/unheaded-kev-poller.service"
+    backup "${f}"
+    sed -i '/^StartLimitIntervalSec=/d' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_ceilings_compose() {
+    # Contract (ADR-147 Phase 14): every compose service built from our
+    # Dockerfile with a memory limit sets GOMEMLIMIT below it. Drop akira's.
+    local f="docker-compose.yml"
+    backup "${f}"
+    awk '/^  akira:$/ {a=1} /^  [a-z][a-z0-9_-]*:$/ && !/^  akira:$/ {a=0} a && /^ *GOMEMLIMIT:/ {next} {print}' \
+        "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_ceilings_compose_yaml() {
+    # Contract (REV-7): a compose file the check cannot parse fails it. The
+    # second file is the one broken: the first's "ok" lines used to carry
+    # the count, and the parser's exit code was lost in a process
+    # substitution, so the check passed.
+    local f="monitoring/docker-compose.yml"
+    backup "${f}"
+    printf 'services:\n  broken: [unclosed\n' >>"${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_host_settings() {
+    # Contract (S-WEST-GROUND, ADR-147 decision 12): west's sysctl source
+    # reserves no huge pages. Set them back to 1024.
+    local f="deploy/sysctl.d/99-unheaded-west.conf"
+    backup "${f}"
+    sed -i 's/^vm.nr_hugepages = 0$/vm.nr_hugepages = 1024/' "${REPO_ROOT}/${f}"
+    cmp -s "${REPO_ROOT}/${f}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" && { echo "provocation changed nothing in ${f}" >&2; return 1; }
+    return 0
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_json_responses() {
     # Contract: no handler encodes JSON to its ResponseWriter. Put one back
     # in Wotan's topic publish, which still imports encoding/json for its
@@ -1220,11 +1311,23 @@ provoke_well_deploy_journal() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_zhen_conversations() {
     # Contract (S-ZHEN-POLISH, migration 045): a conversation's client is
-    # web or cli. Turn the CHECK into a no-op.
-    local f="db/migrations/045_app_zhen_conversations_client.sql"
+    # web or cli. Turn the CHECK into a no-op. Since ADR-149 the table is
+    # built by 052 in unheaded_zhen.
+    local f="db/migrations/052_zhen_schema.sql"
     backup "${f}"
     sed -i "s/CHECK (client IN ('web', 'cli'))/CHECK (true)/" "${REPO_ROOT}/${f}"
     if grep -q "client IN ('web', 'cli')" "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_zhen_database() {
+    # Contract (S-ZHEN-SWITCH Step 196, ADR-149): 053 drops Zhen's tables
+    # from unheaded_app only after their rows were copied. Turn the
+    # "rows not copied" refusal into a no-op.
+    local f="db/migrations/053_app_drop_zhen.sql"
+    backup "${f}"
+    sed -i "s/^    IF total > 0 AND rec = '' THEN$/    IF false THEN/" "${REPO_ROOT}/${f}"
+    grep -q '^    IF false THEN$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -1311,7 +1414,7 @@ check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its 
 check-log-sources|provoke_log_sources|fast|a systemd unit file with no row in config/logging/sources.yaml
 check-haproxy-cfg|provoke_haproxy_cfg|slow|req.hdr(X-Trace-Id) restored in the internal haproxy config's log-format (needs docker)
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
-check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
+check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-timeguru.service
 check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare, restored in unheaded-wotan.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address
@@ -1360,14 +1463,17 @@ well/test-offsite-check|provoke_well_offsite_check|fast|offsite-check.sh countin
 well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
 well/test-pq-groups|provoke_well_pq_groups|slow|the hybrid group removed from the PG18 ssl_groups include (needs docker)
 well/test-llm-requests|provoke_well_llm_requests|slow|llm_requests' UPDATE/DELETE trigger removed from 030 (needs docker)
-well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 031 (needs docker)
-well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 032, so a claim race has several winners (needs docker)
-well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 033 (needs docker)
+well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 052 (needs docker)
+well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 052, so a claim race has several winners (needs docker)
+well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 052 (needs docker)
 well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys turned into CHECK (true) in 036 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
+check-prometheus-rules|provoke_prom_keep_list|fast|a rule reads a series the keep-list lacks
+check-prometheus-rules|provoke_module_rules|slow|a module rule test expects the wrong label (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
+backup/test-store-backups|provoke_store_backups|slow|clickhouse-drill.sh's SHA256SUMS check made to always pass, so a damaged set drills clean (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
 nix/yggdrasil/scripts/yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
@@ -1378,7 +1484,8 @@ well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE 
 well/test-log-events|provoke_well_log_events|slow|log_writer granted SELECT on log_events in 048 (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 well/test-deploy-journal|provoke_well_deploy_journal|slow|chaos_journal's UPDATE/DELETE trigger removed from 039 (needs docker)
-well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 045 (needs docker)
+well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 052 (needs docker)
+well/test-zhen-database|provoke_well_zhen_database|slow|053's refusal to drop zhen tables whose rows were not copied turned into IF false (needs docker)
 check-ebpf-insns|provoke_ebpf_insns|slow|shield-ebpf's verified-instruction baseline cut by 20 %, so today's counts read as 25 % growth (needs sudo on the baseline's kernel; in CI on any other, the recorded numbers)
 check-spdx|provoke_spdx|fast|a tracked .rs file with no SPDX header
 check-trivy-misconfig|provoke_trivy_misconfig|slow|the first row of the trivy misconfig baseline dropped, so a finding the scan still reports is unlisted (needs docker and the network once for the pinned checks bundle)
@@ -1390,6 +1497,11 @@ check-netip|provoke_netip|fast|the net.IP baseline lowered by one, so today's co
 check-sbom-trend|provoke_sbom_trend|fast|go_components baseline lowered by one, so today's modules read as one added (needs go)
 gen-man|provoke_gen_man|fast|the hidden --man flag removed from cmdline.ParseSet, so no binary answers it (builds all 60; needs go)
 check-unit-ceilings|provoke_unit_ceilings|fast|GOMEMLIMIT removed from unheaded-wotan.service
+check-unit-start-limits|provoke_unit_start_limits|fast|StartLimitIntervalSec removed from unheaded-kev-poller.service
+check-unit-ceilings|provoke_unit_ceilings_compose|fast|GOMEMLIMIT removed from the akira service
+check-unit-ceilings|provoke_unit_ceilings_compose_yaml|fast|monitoring/docker-compose.yml no longer parses
+check-module-binds|provoke_module_binds|fast|zhen-agentd bound to 0.0.0.0
+check-host-settings|provoke_host_settings|fast|vm.nr_hugepages set back to 1024 in west's sysctl source
 check-http-timeouts|provoke_http_timeouts|fast|ReadHeaderTimeout deleted from timeguru's http.Server
 check-json-responses|provoke_json_responses|fast|Wotan's topic publish encodes straight to its ResponseWriter again (needs go)
 check-version-flag|provoke_version_flag|fast|cmdline.PrintVersion stripped of its (unheaded) marker, so every rebuilt binary prints the wrong shape (builds 60: 55 under cmd/, 5 shipped from services/; needs go)
@@ -1417,6 +1529,7 @@ lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs); pro
 rolling-previous|records what rolling-upgrade moves and puts it back; no verdict of its own, proven by tests/runbooks/test_rolling_rollback.py
 apt-repo|keeps the signed apt repo on west (runbooks/deploy/apt-repo-publish.yaml); its refusals and signatures are proven by tests/apt/apt_repo_test.sh (security.yml)
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
+well/set-role-limits|sets role connection limits from the environment; no verdict of its own, proven by tests/scripts/test_set_role_limits.py
 lib/fetch-tool|library sourced by ci-install-tools and the check-* scripts (download once, sha256 on every use); no verdict of its own
 lib/tool-pins|version, sha256 and digest pins sourced by lib/fetch-tool, the check-* scripts and security.yml's trivy step; no verdict of its own (check-tool-freshness is the gate on it)
 verify-release|verifies a published release by tag (needs the network and a real release); its pass/fail contract is proven offline by tests/release/verify_release_test.sh (CI job release-verify)
@@ -1424,6 +1537,8 @@ well/make-tls|makes TLS material outside the repo; exercised by well/test-config
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
 monitoring/maintenance|creates or ends an Alertmanager silence for planned work (ADR-100); no verdict of its own
+monitoring/host-state-textfile|writes container and unit state for node_exporter's textfile collector (unheaded-host-state.timer); no verdict of its own, proven by test-host-state-textfile
+monitoring/planned-stop|marks a container stop as planned so ContainerStopped and the SLOs do not count it; no verdict of its own, proven by test-planned-stop
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
 wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 wireguard/psk-gate|forced command for the rotation key on east (DP-05); what it lets through and what it refuses are proven by wireguard/test-rotate-psk
@@ -1586,7 +1701,12 @@ prepare_gate() {
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
-for name in $(gate_rows | cut -d'|' -f1); do
+# One pass per registry ROW, not per name: a gate with two provocations
+# (check-prometheus-rules, check-unit-ceilings) has two rows, and a lookup by
+# name ran its first one twice (S-WASTE-OUT Phase 14). Rows come on fd 3, so
+# a gate that reads stdin cannot eat them.
+while IFS= read -r entry <&3; do
+    name="${entry%%|*}"
     # A registry name is scripts/<name>.sh, or a repo path without .sh for
     # a gate that lives elsewhere (nix/yggdrasil/scripts/...).
     gate="scripts/${name}.sh"
@@ -1594,7 +1714,6 @@ for name in $(gate_rows | cut -d'|' -f1); do
     [ -f "${gate}" ] || continue
     [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
     prepare_gate "${name}"
-    entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"
 
@@ -1618,7 +1737,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
 
     # Phase 1 — green on a clean tree. If it is already red, the provocation
     # result would be meaningless.
-    log="${GATE_LOG_DIR}/${name//\//_}"
+    log="${GATE_LOG_DIR}/${name//\//_}.${fn}"
     rc=0
     env "${GATE_ENV[@]}" "${REPO_ROOT}/${gate}" >"${log}.clean.log" 2>&1 || rc=$?
     if [ "${rc}" -ne 0 ]; then
@@ -1656,7 +1775,7 @@ for name in $(gate_rows | cut -d'|' -f1); do
         row_output "${log}.provoked.log"
         FAILURES=$((FAILURES + 1))
     fi
-done
+done 3< <(gate_rows)
 
 # Print these EVERY run. A gate we cannot test is a real gap in coverage, and a
 # gap you cannot see is indistinguishable from one that does not exist.

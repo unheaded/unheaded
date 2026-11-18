@@ -1,0 +1,60 @@
+# promtool test rules host-settings_test.yml (from this directory)
+rule_files:
+  - ../host-settings.yml
+evaluation_interval: 1m
+tests:
+  # No drift for 2 h: quiet.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_host_settings_drift_files{host="west"}'
+        values: '0x120'
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: HostSettingsDrift
+        exp_alerts: []
+
+  # Drift of 2 for 40 m: fires after 30 m.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_host_settings_drift_files{host="west"}'
+        values: '2x40'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: HostSettingsDrift
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: HostSettingsDrift
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "2 host setting(s) on west differ from the repository"
+              description: "On west: sudo systemctl start unheaded-host-settings.service; journalctl -u unheaded-host-settings -n 60 --no-pager lists the DRIFT lines"
+              runbook_url: "runbooks/infra/host-settings-drift.yaml"
+
+  # A check that last completed at t=0 and never again: stale after 2 days (+1 h).
+  - interval: 1h
+    input_series:
+      - series: 'unheaded_host_settings_checked_timestamp_seconds{host="west"}'
+        values: '0x80'
+    alert_rule_test:
+      - eval_time: 49h
+        alertname: HostSettingsCheckStale
+        exp_alerts: []
+      - eval_time: 72h
+        alertname: HostSettingsCheckStale
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, host: west}
+            exp_annotations:
+              summary: "The host-settings check on west has not completed for over two days"
+              description: "Last completed 3d 0h 0m 0s ago; see journalctl -u unheaded-host-settings"
+              runbook_url: "runbooks/infra/host-settings-drift.yaml"
+
+  # A fresh check every hour: quiet.
+  - interval: 1h
+    input_series:
+      - series: 'unheaded_host_settings_checked_timestamp_seconds{host="west"}'
+        values: '0+3600x80'
+    alert_rule_test:
+      - eval_time: 72h
+        alertname: HostSettingsCheckStale
+        exp_alerts: []

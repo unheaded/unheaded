@@ -5,6 +5,7 @@ package logagg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -31,8 +32,10 @@ func SetupServiceLogger(serviceName string, conn transport.Connection) zerolog.L
 // levels is every level Publisher can emit; Connect joins one topic per level.
 var levels = []string{"trace", "debug", "info", "warn", "error", "fatal", "panic"}
 
-// Connect opens the connection used for log forwarding and joins the
+// Connect wraps c, the process's one Wotan client (transport.NewWotanClient),
+// as the connection used for log forwarding and joins the
 // logs.<service>.<level> topics, with serviceName as the display name.
+// httpAddr is Wotan's HTTP address, kept for the connection's own record.
 //
 // Wotan's membership model (7b16ba9d) only lets an approved subscriber
 // publish to a topic, and the HTTP API enforces it server-side. A log
@@ -49,13 +52,12 @@ var levels = []string{"trace", "debug", "info", "warn", "error", "fatal", "panic
 // the process: on east five services that started alongside Wotan at 18:15
 // and 18:17 on 2026-10-20 ("join logs.X.trace: ... connection refused")
 // forwarded no logs until they were redeployed 17 hours later.
-func Connect(ctx context.Context, cfg transport.Config, serviceName string) (transport.Connection, error) {
-	client, err := wotanClient.NewClient(cfg.WotanHTTPAddr)
-	if err != nil {
-		return nil, fmt.Errorf("logagg: wotan client: %w", err)
+func Connect(ctx context.Context, client *wotanClient.Client, httpAddr, serviceName string) (transport.Connection, error) {
+	if client == nil {
+		return nil, errors.New("logagg: no Wotan client")
 	}
 	conn := &joiningConn{
-		Connection: transport.WrapHTTPClient(client, cfg.WotanHTTPAddr),
+		Connection: transport.WrapHTTPClient(client, httpAddr),
 		client:     client,
 		name:       serviceName,
 		nextJoin:   make(map[string]time.Time),

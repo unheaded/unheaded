@@ -9,7 +9,7 @@ Plan to split the monorepo into one Go module per service, each with its own rep
 | Tier | Repos | Depends on |
 |------|-------|------------|
 | 1: core | `unheaded/wotan`, `unheaded/gateway` | nothing internal |
-| 2: application | timeguru, captain, architect, monad, sophia (`wotan`); micromanager (`wotan`, `timeguru`) | Tier 1 |
+| 2: application | timeguru (`wotan`) | Tier 1 |
 | 3: orchestrator | `unheaded/unheaded` | all services, as modules |
 
 ## Shared code

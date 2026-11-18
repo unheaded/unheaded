@@ -1,7 +1,7 @@
 # Cuirass against the real LXD daemon on this host (S-REAL-STEEL Phase 5,
 # Step 142). Layer it over docker-compose.yml:
 #
-#   sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml up -d
+#   sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml --profile lxd up -d cuirass
 #
 # What it changes: the Cuirass container talks to LXD over HTTPS with the
 # restricted client certificate scripts/cuirass-lxd-trust.sh made (project
@@ -14,7 +14,7 @@
 #
 #   CUIRASS_ENFORCE=true CUIRASS_PRUNE=true sudo -E docker compose ... up -d cuirass
 #
-# Back to the mock backend: bring the stack up without this file.
+# Cuirass has no default backend (ADR-147): without this file it is not started.
 services:
   cuirass:
     environment:

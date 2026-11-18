@@ -2,10 +2,12 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
-# Checks unheaded_app.zhen_agent_runs (db/migrations/032) on a throwaway
-# PostgreSQL server bootstrapped by db/init.sh from the manifest, never
-# the real Well:
-#   1. the bootstrap records 032; the table belongs to well_app_owner;
+# Checks zhen_agent_runs (db/migrations/032; since ADR-149 in unheaded_zhen,
+# made by 052, while the board, kanban_tasks and kanban_zhen_optin, stays in
+# unheaded_app) on a throwaway PostgreSQL server bootstrapped by db/init.sh
+# from the manifest, never the real Well:
+#   1. the bootstrap records 032 in unheaded_app and 052 in unheaded_zhen;
+#      the table belongs to well_zhen_owner;
 #   2. a claim race: eight app_zhen sessions INSERT a claim for one card
 #      at once, exactly one wins; a second card is unaffected;
 #   3. claimed -> running -> succeeded -> accepted works, and so do
@@ -16,12 +18,18 @@
 #      outcome is fixed; a review is recorded only with accept/reject;
 #      DELETE and TRUNCATE are refused;
 #   5. after a run ends, the card can be claimed again;
-#   6. CHECKs: branch zhen/../x, branch main, bad id, bad family;
+#   6. CHECKs: branch zhen/../x, branch main, bad id, bad family; a run
+#      naming no card is NOT refused here (no foreign key across
+#      databases: pkg/zhenagent's Claim checks the board);
 #   7. app_zhen moves a card (status, commits) and takes FOR UPDATE SKIP
-#      LOCKED on it, but cannot change its title or delete it;
+#      LOCKED on it, but cannot change its title or delete it; a card with
+#      runs can be hard-deleted (well-retention holds such cards instead);
 #   8. pkg/zhenagent's SQL store (build tag wellint) against the same
-#      server as app_zhen (WELL_TEST_APP_DSN; cards created as app_kanban,
-#      WELL_TEST_KANBAN_DSN); a skipped Go test counts as a failure;
+#      server: runs as app_zhen on unheaded_zhen (WELL_TEST_ZHEN_DSN), the
+#      board as app_zhen on unheaded_app (WELL_TEST_APP_DSN), cards created
+#      as app_kanban (WELL_TEST_KANBAN_DSN), runs read as app_kanban on
+#      unheaded_zhen (WELL_TEST_KANBAN_ZHEN_DSN); a skipped Go test counts as
+#      a failure;
 #   9. scheduled runs (037): born without a branch or base commit, finish
 #      succeeded or failed, never take a head commit or a review; every
 #      other mode still needs both; an unknown mode is refused;
@@ -32,14 +40,15 @@
 #  12. zhen_actions.status (047) takes the Champion gate's verdicts
 #      (accepted, denied, denied_<reason> up to 40 characters) and still
 #      refuses anything else; pkg/champion's integration tests (build tag
-#      integration) and zhen-agentd's SQL memory store run as app_zhen,
+#      integration) and zhen-agentd's SQL memory store run as app_zhen on
+#      unheaded_zhen,
 #      zhen-agentd's kanban store as app_kanban; a skipped one counts as
 #      a failure.
 #
 #   scripts/well/test-zhen-agent-runs.sh [--sql-only] [--keep] [image]   # default postgres:16.15-alpine
 #
 # --keep leaves the server running for a demo (Step 216) and writes the
-# throwaway DSNs (app_zhen, app_kanban, ops_writer; passwords that exist
+# throwaway DSNs (app_zhen on both databases, app_kanban, ops_writer; passwords that exist
 # only in this container) to $KEEP_ENV (default ./qa-zhen-agent-runs.env,
 # 0600). Stop it with `docker stop <name>` (printed).
 #
@@ -93,10 +102,15 @@ for _ in $(seq 1 60); do
 done
 PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
-sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
-zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
-kb() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_app -c "$1"; }
-own() { sq "SET ROLE well_app_owner; $1"; }
+# Zhen's tables (unheaded_zhen): sq superuser, zh app_zhen, kb app_kanban,
+# own well_zhen_owner. The board (unheaded_app): sa, za, ka.
+sq() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_zhen -c "$1"; }
+zh() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_zhen -c "$1"; }
+kb() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_zhen -c "$1"; }
+own() { sq "SET ROLE well_zhen_owner; $1"; }
+sa() { "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app -c "$1"; }
+za() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$ZPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_zhen -d unheaded_app -c "$1"; }
+ka() { "${DOCKER[@]}" exec -i -e PGPASSWORD="$KPW" "$N" psql -X -q -At -v ON_ERROR_STOP=1 -h 127.0.0.1 -U app_kanban -d unheaded_app -c "$1"; }
 # The passwords exist only inside this throwaway container.
 sq "ALTER ROLE app_zhen PASSWORD '$ZPW'; ALTER ROLE app_kanban PASSWORD '$KPW';" >/dev/null
 "${DOCKER[@]}" exec -i "$N" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops -c "ALTER ROLE ops_writer PASSWORD '$OPW';" >/dev/null
@@ -114,7 +128,7 @@ refused() { # label cmd...
 }
 
 SHA=$(printf 'a%.0s' $(seq 1 40))
-card() { sq "INSERT INTO kanban_tasks (id, title, status, owner) VALUES ('$1', 'card $1', 'todo', 'zhen')" >/dev/null; }
+card() { sa "INSERT INTO kanban_tasks (id, title, status, owner) VALUES ('$1', 'card $1', 'todo', 'zhen')" >/dev/null; }
 # shellcheck disable=SC2016  # the SQL's quotes, not the shell's
 claim() { # id card [branch] [status] [family]
 	echo "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family, branch, base_commit${4:+, status})
@@ -123,10 +137,12 @@ claim() { # id card [branch] [status] [family]
 setst() { echo "UPDATE zhen_agent_runs SET status = '$2' WHERE id = '$1'"; }
 
 # 1. Ledger and owner.
-if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '032_app_zhen_agent_runs.sql'")" == 1 ]]; then
+if [[ "$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '032_app_zhen_agent_runs.sql'")" == 1 ]]; then
 	pass "bootstrap recorded 032 in unheaded_app"; else fail "032 not in the ledger"; fi
-if [[ "$(sq "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'zhen_agent_runs'::regclass")" == well_app_owner ]]; then
-	pass "owned by well_app_owner"; else fail "owner"; fi
+if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '052_zhen_schema.sql'")" == 1 ]]; then
+	pass "bootstrap recorded 052 in unheaded_zhen"; else fail "052 not in unheaded_zhen's ledger"; fi
+if [[ "$(sq "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'zhen_agent_runs'::regclass")" == well_zhen_owner ]]; then
+	pass "owned by well_zhen_owner"; else fail "owner"; fi
 
 # 2. The claim race: eight sessions, one card.
 card race-card
@@ -176,20 +192,24 @@ refused "branch zhen/../x" zh "$(claim 0000000000000006 chk-card 'zhen/../x')"
 refused "branch main" zh "$(claim 0000000000000007 chk-card main)"
 refused "id not 16 hex" zh "$(claim XYZ chk-card)"
 refused "family with a space" zh "$(claim 0000000000000008 chk-card zhen/chk-card '' 'repo task')"
-refused "unknown card" zh "$(claim 0000000000000009 no-such-card)"
+# No foreign key across databases (052): the database takes a run for a
+# card it cannot see; pkg/zhenagent's Claim (run first, card second) cancels it.
+ok "a run naming no card (no cross-database key)" zh "$(claim 0000000000000009 no-such-card)"
 
 # 7. The card columns app_zhen may move.
-ok "app_zhen moves a card" zh "UPDATE kanban_tasks SET status = 'in-progress', commits = '[{\"branch\":\"zhen/id-card\"}]' WHERE id = 'id-card'"
-ok "app_zhen FOR UPDATE SKIP LOCKED" zh "BEGIN; SELECT id FROM kanban_tasks WHERE owner = 'zhen' AND status = 'todo' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED; COMMIT;"
-refused "app_zhen UPDATE of a card title" zh "UPDATE kanban_tasks SET title = 'pwned' WHERE id = 'id-card'"
-refused "app_zhen UPDATE of a card owner" zh "UPDATE kanban_tasks SET owner = 'zhen' WHERE id = 'race-card'"
-refused "app_zhen DELETE of a card" zh "DELETE FROM kanban_tasks WHERE id = 'id-card'"
-refused "hard delete of a card with runs" sq "DELETE FROM kanban_tasks WHERE id = 'id-card'"
+ok "app_zhen moves a card" za "UPDATE kanban_tasks SET status = 'in-progress', commits = '[{\"branch\":\"zhen/id-card\"}]' WHERE id = 'id-card'"
+ok "app_zhen FOR UPDATE SKIP LOCKED" za "BEGIN; SELECT id FROM kanban_tasks WHERE owner = 'zhen' AND status = 'todo' ORDER BY created_at LIMIT 1 FOR UPDATE SKIP LOCKED; COMMIT;"
+refused "app_zhen UPDATE of a card title" za "UPDATE kanban_tasks SET title = 'pwned' WHERE id = 'id-card'"
+refused "app_zhen UPDATE of a card owner" za "UPDATE kanban_tasks SET owner = 'zhen' WHERE id = 'race-card'"
+refused "app_zhen DELETE of a card" za "DELETE FROM kanban_tasks WHERE id = 'id-card'"
+# The runs no longer hold the card in its own database (ADR-149);
+# well-retention reads unheaded_zhen and holds such a card instead.
+ok "hard delete of a card with runs (no cross-database key)" sa "DELETE FROM kanban_tasks WHERE id = 'id-card'"
 
 # 9. Scheduled runs (037): no branch, no base commit, never reviewed.
-if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '037_app_zhen_agent_runs_scheduled.sql'")" == 1 ]]; then
+if [[ "$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '037_app_zhen_agent_runs_scheduled.sql'")" == 1 ]]; then
 	pass "bootstrap recorded 037 in unheaded_app"; else fail "037 not in the ledger"; fi
-sq "INSERT INTO kanban_tasks (id, title, status, type, owner) VALUES ('sched-card', 'Scheduled: sweep', 'in-progress', 'scheduled-run', 'zhen-scheduler')" >/dev/null
+sa "INSERT INTO kanban_tasks (id, title, status, type, owner) VALUES ('sched-card', 'Scheduled: sweep', 'in-progress', 'scheduled-run', 'zhen-scheduler')" >/dev/null
 sched() { # id [extra-cols] [extra-vals]
 	echo "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family${2:-}) VALUES ('$1', 'sched-card', now() + interval '15 minutes', 'scheduled', 'service-health-sweep'${3:-})"
 }
@@ -206,7 +226,7 @@ refused "mode cron" zh "INSERT INTO zhen_agent_runs (id, card_id, lease_until, m
 
 # 10. The Kanban board reads runs (041): the columns the card modal shows,
 #     nothing else, and never writes.
-if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '041_app_kanban_reads_agent_runs.sql'")" == 1 ]]; then
+if [[ "$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '041_app_kanban_reads_agent_runs.sql'")" == 1 ]]; then
 	pass "bootstrap recorded 041 in unheaded_app"; else fail "041 not in the ledger"; fi
 ok "app_kanban reads a card's newest run" kb "SELECT id, status, mode, family, branch, head_commit, route_summary->>'review_note', review_reason, claimed_at, reviewed_at FROM zhen_agent_runs WHERE card_id = 'race-card' ORDER BY claimed_at DESC LIMIT 1"
 refused "app_kanban SELECT error" kb "SELECT error FROM zhen_agent_runs LIMIT 1"
@@ -216,28 +236,28 @@ refused "app_kanban UPDATE of a run" kb "UPDATE zhen_agent_runs SET status = 'ca
 refused "app_kanban INSERT of a run" kb "INSERT INTO zhen_agent_runs (id, card_id, lease_until, mode, family) VALUES ('00000000000000ff', 'sched-card', now() + interval '15 minutes', 'scheduled', 'x')"
 
 # 11. What hands a card to Zhen (049): the board writes it, the worker only reads.
-if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '049_app_kanban_zhen_optin.sql'")" == 1 ]]; then
+if [[ "$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '049_app_kanban_zhen_optin.sql'")" == 1 ]]; then
 	pass "bootstrap recorded 049 in unheaded_app"; else fail "049 not in the ledger"; fi
-if [[ "$(sq "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'kanban_zhen_optin'::regclass")" == well_app_owner ]]; then
+if [[ "$(sa "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'kanban_zhen_optin'::regclass")" == well_app_owner ]]; then
 	pass "kanban_zhen_optin owned by well_app_owner"; else fail "kanban_zhen_optin owner"; fi
 OPTSHA=$(printf 'a%.0s' $(seq 1 64))
 card opt-card
-ok "app_kanban records an opt-in" kb "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('opt-card', '$OPTSHA', 'stevie')"
-ok "app_zhen reads it" zh "SELECT card_sha256 FROM kanban_zhen_optin WHERE card_id = 'opt-card'"
-refused "app_zhen INSERT of an opt-in" zh "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('race-card', '$OPTSHA', 'zhen')"
-refused "app_zhen UPDATE of an opt-in" zh "UPDATE kanban_zhen_optin SET card_sha256 = '$OPTSHA'"
-refused "app_zhen DELETE of an opt-in" zh "DELETE FROM kanban_zhen_optin"
-refused "an opt-in on no card" kb "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('no-such-card', '$OPTSHA', 'stevie')"
-refused "a hash that is not one" kb "UPDATE kanban_zhen_optin SET card_sha256 = 'nope' WHERE card_id = 'opt-card'"
-refused "an opt-in by nobody" kb "UPDATE kanban_zhen_optin SET opted_in_by = '' WHERE card_id = 'opt-card'"
-ok "a hard-deleted card takes its opt-in with it" sq "DELETE FROM kanban_tasks WHERE id = 'opt-card'"
-if [[ "$(sq "SELECT count(*) FROM kanban_zhen_optin WHERE card_id = 'opt-card'")" == 0 ]]; then
+ok "app_kanban records an opt-in" ka "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('opt-card', '$OPTSHA', 'stevie')"
+ok "app_zhen reads it" za "SELECT card_sha256 FROM kanban_zhen_optin WHERE card_id = 'opt-card'"
+refused "app_zhen INSERT of an opt-in" za "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('race-card', '$OPTSHA', 'zhen')"
+refused "app_zhen UPDATE of an opt-in" za "UPDATE kanban_zhen_optin SET card_sha256 = '$OPTSHA'"
+refused "app_zhen DELETE of an opt-in" za "DELETE FROM kanban_zhen_optin"
+refused "an opt-in on no card" ka "INSERT INTO kanban_zhen_optin (card_id, card_sha256, opted_in_by) VALUES ('no-such-card', '$OPTSHA', 'stevie')"
+refused "a hash that is not one" ka "UPDATE kanban_zhen_optin SET card_sha256 = 'nope' WHERE card_id = 'opt-card'"
+refused "an opt-in by nobody" ka "UPDATE kanban_zhen_optin SET opted_in_by = '' WHERE card_id = 'opt-card'"
+ok "a hard-deleted card takes its opt-in with it" sa "DELETE FROM kanban_tasks WHERE id = 'opt-card'"
+if [[ "$(sa "SELECT count(*) FROM kanban_zhen_optin WHERE card_id = 'opt-card'")" == 0 ]]; then
 	pass "no opt-in outlives its card"; else fail "an opt-in outlived its card"; fi
 
 # 12. The Champion's action log takes the gate's verdicts (047). Before it,
 #     every 'accepted' and 'denied_*' UPDATE failed and a refused call
 #     stayed 'planned'.
-if [[ "$(sq "SELECT count(*) FROM well_schema_migrations WHERE filename = '047_app_zhen_actions_gate_status.sql'")" == 1 ]]; then
+if [[ "$(sa "SELECT count(*) FROM well_schema_migrations WHERE filename = '047_app_zhen_actions_gate_status.sql'")" == 1 ]]; then
 	pass "bootstrap recorded 047 in unheaded_app"; else fail "047 not in the ledger"; fi
 ACT="$(zh "INSERT INTO zhen_actions (session_id, action_type, status, intent) VALUES ('qa-047', 'tool_call_attempt', 'planned', 'qa') RETURNING id")"
 for st in accepted denied denied_path denied_untrusted_justification completed; do
@@ -251,7 +271,9 @@ done
 #    kanban-app's agent-run read (041) as app_kanban.
 if ((GO)); then
 	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
+	export WELL_TEST_ZHEN_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_zhen?sslmode=disable"
 	export WELL_TEST_KANBAN_DSN="postgres://app_kanban:$KPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
+	export WELL_TEST_KANBAN_ZHEN_DSN="postgres://app_kanban:$KPW@127.0.0.1:$PORT/unheaded_zhen?sslmode=disable"
 	if (cd "$R" && go test -count=1 -race -tags wellint ./pkg/zhenagent/ -run Well -v >"$TMP/go.out" 2>&1) && grep -q '^--- PASS: TestWellAgentRuns' "$TMP/go.out"; then
 		pass "go test -tags wellint ./pkg/zhenagent -run Well"
 	else
@@ -283,7 +305,7 @@ if ((GO)); then
 	else
 		fail "zhen-agentd kanban store"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
-	unset WELL_TEST_APP_DSN WELL_TEST_KANBAN_DSN
+	unset WELL_TEST_APP_DSN WELL_TEST_ZHEN_DSN WELL_TEST_KANBAN_DSN WELL_TEST_KANBAN_ZHEN_DSN
 fi
 
 if ((KEEP)); then
@@ -292,6 +314,7 @@ if ((KEEP)); then
 	cat >"$ENVF" <<EOF
 # throwaway Well $N on 127.0.0.1:$PORT; stop with: docker stop $N
 export WELL_APP_ZHEN_DSN='postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable'
+export WELL_ZHEN_DSN='postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_zhen?sslmode=disable'
 export WELL_OPS_DSN='postgres://ops_writer:$OPW@127.0.0.1:$PORT/unheaded_ops?sslmode=disable'
 export WELL_HOST=127.0.0.1 WELL_PORT=$PORT WELL_USER=app_kanban WELL_PASSWORD='$KPW' WELL_DB=unheaded_app WELL_SSLMODE=disable
 export QA_WELL_CONTAINER=$N

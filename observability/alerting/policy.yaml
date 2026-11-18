@@ -24,12 +24,25 @@
 #   curl -s localhost:19130/v1/outbox                     what the mailer sent / would send
 
 mailer:
-  # dry-run: decide and log every mail, send none. Run a week like this,
-  # read the outbox, tune, then switch to send.
-  # 2026-11-10 (Stevie): dry-run while the kingdom runs as a test cut on west.
-  # An Alertmanager silence does not hold back the daily digest; this does.
-  # Back to send at S-E1-LIVE Steps 81-83 and 102-109, with Stevie.
-  mode: dry-run
+  # dry-run: decide and log every mail, send none.
+  # 2026-11-10 (Stevie): dry-run while the kingdom ran as a test cut on west.
+  # 2026-11-15 (Stevie, ADR-147 decision 2): mail on. A stopped container and
+  # a memory kill each mail (promote: below). S-SEE-AND-SURVIVE Phase 15.
+  mode: send
+  # delivery: what is mailed.
+  #   digest     the daily digest and nothing else: at most one mail a day. A
+  #              page is recorded (outbox outcome "digest") and leads the
+  #              digest; a silent alert path is the digest's first line.
+  #   immediate  pages are mailed at once, tickets wait for the digest; the
+  #              caps below bound the day.
+  # 2026-11-17 (Stevie): "cap it to 1 digest email per day ... it's a lab, my
+  # email doesn't need the noise". To get pages by mail again: immediate.
+  delivery: digest
+  # Mailed at once whatever delivery says: an intrusion or an indicator of
+  # compromise from an IDS or IPS (Stevie, 2026-11-17). None exists yet. An
+  # entry must be promoted below with urgency: page; it counts against the
+  # caps like any mail.
+  immediate: []
   # Hard cap across everything, per calendar day in timezone. The last
   # allowed mail says so; past it nothing is sent until midnight, and the
   # next digest counts what was held back.
@@ -39,6 +52,13 @@ mailer:
   max_per_hour: 3
   digest_at: "09:00"
   timezone: America/Chicago
+  # Run days (ADR-147 decision 2): the caps above are raised on these dates
+  # (YYYY-MM-DD in timezone) so a stop mark that fires late in a load run is
+  # still mailed. Add a date before the run; delete it after.
+  run_days:
+    max_per_day: 24
+    max_per_hour: 6
+    dates: []
 
 # Alertmanager timing for urgency=page. Alertmanager passes every change in
 # the set of firing pages to the mailer within group_interval; the mailer
@@ -48,6 +68,13 @@ page:
   group_wait: 2m
   group_interval: 5m
   repeat_interval: 12h
+
+# The alert path's own receipt (ADR-116 R4, ADR-147 stage 1): Alertmanager
+# hands AlertPipelineHeartbeat to the mailer every 5 minutes. When none has
+# arrived for silent_after, the mailer mails once that Prometheus,
+# Alertmanager or the route is down, and once more when receipts return.
+pipeline:
+  silent_after: 20m
 
 # Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
@@ -83,6 +110,27 @@ promote:
       indicator and when it cannot see. One failed day is a card in Review;
       three days with no success means nobody read the card or the audit is
       blind, and no SLO shows either.
+  - alert: ZhenBackupStale
+    urgency: ticket
+    reason: >-
+      Zhen is a production application with its own data and backup scope
+      (ADR-147 decision 15 (b)); a day without a set is a ticket.
+  - alert: ModuleListenerPublic
+    urgency: page
+    reason: >-
+      ADR-147 decision 15 (c): a module is never reachable from the public
+      side; the guard saw it happen.
+  - alert: ModuleListenerGuardNotRunning
+    urgency: ticket
+    reason: >-
+      The guard above is the only live check of that rule.
+  - alert: HealthSweepNotSucceeding
+    urgency: ticket
+    reason: >-
+      The platform's own sweep of this host's services, every 6 hours. A day
+      with no success means a service is down and stayed down, or the timer
+      stopped: with restart `no` (ADR-147 decision 1) nothing brings either
+      back.
   - alert: WotanTopicPermissionRefused
     urgency: ticket
     reason: >-
@@ -104,6 +152,97 @@ promote:
     urgency: ticket
     reason: >-
       DP-710: outbound mail is watched. No SLO sees the mailer's own volume.
+  # ADR-147 (S-SEE-AND-SURVIVE, SS1 A taken on the plan's recommendation,
+  # 2026-11-15, Stevie to confirm): page only on what stays broken or stalls
+  # the host; the rest is a digest line.
+  - alert: ContainerStopped
+    urgency: page
+    reason: >-
+      ADR-147 decision 1: restart stays no on west, so a container that stops
+      stays down until a person starts it; decision 2: it mails. No SLO
+      covers 16 of the containers.
+  - alert: MemoryKill
+    urgency: page
+    reason: >-
+      Decision 2. A killed container stays down; a killed child leaves its
+      container up and broken. No SLO sees either.
+  - alert: HostMemoryPressure
+    urgency: page
+    reason: >-
+      Decision 12. A host stalled on memory stalls every service at once,
+      and on west the next swap is the database disk.
+  - alert: HostSwapping
+    urgency: ticket
+    reason: >-
+      Decision 12: swap use alerts.
+  - alert: HostSwapNearFull
+    urgency: ticket
+    reason: >-
+      Decision 12: swap use alerts.
+  - alert: HostIOPressure
+    urgency: ticket
+    reason: >-
+      West's databases share one 7,200 rpm disk; a sustained stall slows
+      every store, and no SLO reads latency yet.
+  - alert: HostTemperatureNearCritical
+    urgency: ticket
+    reason: >-
+      East has read 68 C against a 70 C mark; no SLO sees heat.
+  - alert: UnitFailed
+    urgency: page
+    reason: >-
+      SS3: a unit that has given up stays down like a stopped container.
+  - alert: UnitRestartLoop
+    urgency: ticket
+    reason: >-
+      A unit restarting for ever is a failure nobody is told about.
+  - alert: VictoriaMetricsDown
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: HuginnDown
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: HostStateStale
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: PrometheusRemoteWriteFailing
+    urgency: ticket
+    reason: >-
+      The SLO data and the stop-mark series come through these; without
+      them the SLOs cannot burn.
+  - alert: HostDiskFull
+    urgency: page
+    reason: >-
+      A full /var stops the Well, ClickHouse and Prometheus together; the
+      SLOs burn only afterwards.
+  - alert: HostDiskAlmostFull
+    urgency: ticket
+    reason: >-
+      Ten per cent left is days of warning, worth a digest line before
+      HostDiskFull pages.
+  - alert: NodeExporterDown
+    urgency: ticket
+    reason: >-
+      Every resource alert reads node_exporter; a host it cannot scrape has
+      no pressure, swap or heat alerts.
+  - alert: HostSettingsDrift
+    urgency: ticket
+    reason: >-
+      S-WEST-GROUND (ADR-147): a host that differs from its files in the
+      repository cannot be rebuilt from them, and every service stays healthy
+      while it drifts. Checked once a day, so a daily digest line is the most
+      it costs.
+  - alert: HostSettingsCheckStale
+    urgency: ticket
+    reason: >-
+      A drift check that has stopped running looks the same as a host with no
+      drift. No SLO sees a timer that does not fire.
 
 # Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
 # when both windows exceed burn x (1 - objective). page: false SLOs send the
@@ -118,9 +257,10 @@ promote:
 # bad, so a scrape target that disappears does not look healthy.
 window: 28d
 slos:
+  # East's Wotan is off until S-E1-LIVE Evening 10B; plan 6 adds its target and says "both hosts" again.
   - name: wotan
     service: wotan
-    description: The message bus answers on both hosts
+    description: The message bus answers on west
     objective: 99.5
     page: true
     good: avg(up{job="wotan"})
@@ -195,11 +335,13 @@ slos:
   # September and nobody was told (docs/incidents/2026-09-21-ci-clippy-red-on-develop.md).
   # unheaded-ci-status.timer on west writes the SLI from the public Actions
   # API every 10 minutes; data over 2 h old counts as red.
+  # ADR-147 decision 4 (Stevie, 2026-11-15): out of the alert set until CI is fixed. Recorded, not notified.
   - name: ci-develop
     service: github-actions
     description: Every workflow's latest finished run on develop is green
     objective: 99.0
     page: false
+    notify: false
     good: >-
       min(unheaded_ci_run_success)
       * (time() - max(unheaded_ci_run_checked_timestamp_seconds) < bool 7200)
@@ -207,3 +349,20 @@ slos:
       unheaded_ci_run_success == 0 names the workflow; the Actions API lists
       its failing run and step; reproduce the job in a clean clone.
     runbook: runbooks/observe/ci-red.yaml
+
+  # ADR-147 decision 6: ClickHouse (audit logs, 455 days) and VictoriaMetrics
+  # get nightly sets and a weekly restore drill, like the Well.
+  - name: store-backups
+    service: backups
+    description: A restorable copy of ClickHouse and of VictoriaMetrics is under a day old
+    objective: 99.0
+    page: false
+    good: >-
+      (time() - max(unheaded_store_backup_last_success_timestamp_seconds{store="clickhouse"}) < bool 26 * 3600)
+      * (time() - max(unheaded_store_backup_last_success_timestamp_seconds{store="victoria"}) < bool 26 * 3600)
+      * (time() - max(unheaded_store_drill_last_success_timestamp_seconds{store="clickhouse"}) < bool 8 * 86400)
+      * (time() - max(unheaded_store_drill_last_success_timestamp_seconds{store="victoria"}) < bool 8 * 86400)
+    checks: >-
+      journalctl -u unheaded-clickhouse-backup -u unheaded-victoria-backup -u unheaded-store-drill
+      on west; cat /srv/backups/unheaded-{clickhouse,victoria}/LATEST.
+    runbook: runbooks/data/store-backup-late.yaml

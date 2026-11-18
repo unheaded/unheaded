@@ -33,18 +33,39 @@ The allowlist is defined in `configs/wotan.yaml`:
 ```yaml
 topics:
   auto_approve:
-    - "service"          # default display_name for internal services
+    - "akira"
+    - "alert-mailer"
+    - "anomaly"
+    - "chaos-controller"
+    - "dashboard-backend"
+    - "ebpf-collector"
+    - "gateway"
+    - "heimdall"
+    - "kanban-app"
+    - "kev-poller"
+    - "loadbalancer"
+    - "perf-benchmark"
+    - "sword"
     - "timeguru"
-    - "captain"
-    - "architect"
-    - "micromanager"
-    - "monad"
-    - "sophia"
+    - "trace-collector"
+    - "unheaded-baseline"
+    - "unheaded-cli"
+    - "unheaded-daemon"
+    - "upc-cartridgectl"
+    - "zhen-agentd"
+    - "zhen-claude"
+  legacy_display_names:    # matched only while AUTH_ENABLED is off
+    - "service"
     - "dashboard"
     - "kanban"
+    - "kanban-app-timeline"
     - "daemon"
-    - "trace-collector"
+    - "cuirass"
+    - "anomaly-service"
     - "wiki"
+    - "zhenai"
+    - "zhen-eval"
+    - "runbook-runner"
 ```
 
 **Behavior:**
@@ -204,7 +225,7 @@ Subscribing and reading accept a pattern; publishing does not (`400`).
 |---|---|
 | `alerts.*` | `alerts.critical`, `alerts.warn` (exactly one segment) |
 | `ebpf.*.events` | `ebpf.flow.events`, `ebpf.packet.events` |
-| `logs.#` | `logs.sophia.info`, `logs.a.b.c` (one or more trailing segments) |
+| `logs.#` | `logs.timeguru.info`, `logs.a.b.c` (one or more trailing segments) |
 | `*` or `#` alone | every topic |
 
 `#` starts a URL fragment, so send it as `%23` (`/api/v1/topics/logs.%23/messages`).

@@ -50,7 +50,7 @@ Since 2026-11-15 the inventory also lists symmetric encryption, key derivation a
 | `kdf-import` | a Go import of HKDF (`crypto/hkdf`, `x/crypto/hkdf`), Argon2, scrypt, bcrypt or PBKDF2 | `kdf` |
 | `hash-import` | a Go import of SHA-3 (`crypto/sha3`, `x/crypto/sha3`) | `hash` |
 | `rust-crypto-dep` | a `[dependencies]` line in a `Cargo.toml` naming `x25519-dalek`, `aes-gcm`, `chacha20poly1305`, `hkdf`, `sha2`, `sha3` or `blake3` | per crate |
-| `own-primitive` | a primitive written in this repository, from a fixed table in `cmd/crypto-inventory/scan_own.go`: the SHA-256 in `crates/upc-api/src/surface_hash.rs` and the HKDF in `services/sophia/hkdf_derive.go` | `hash`, `kdf` |
+| `own-primitive` | a primitive written in this repository, from a fixed table in `cmd/crypto-inventory/scan_own.go`: the SHA-256 in `crates/upc-api/src/surface_hash.rs` (the HKDF in `services/sophia/hkdf_derive.go` left with the service, ADR-147) | `hash`, `kdf` |
 
 Not listed, on purpose: Go's `crypto/sha256` and `crypto/sha512`. They are digests everywhere they appear here (content ids, cache keys, signature pre-hashes), and a row per import would bury the constructions. A test pins the choice. `crypto/hmac` is not listed either.
 
@@ -71,7 +71,7 @@ ssh -vv east true 2>&1 | grep 'kex: algorithm'           # mlkem768x25519-sha256
 | The Well (PostgreSQL 16, P-256 only) | PG 16 takes one curve; PG 18 `ssl_groups` is needed | E1, FND-015, [[The Well|The-Well]] |
 | Host sshd accepts classical KEX | east hybrid-only since 2026-10-27 (`/etc/ssh/sshd_config.d/00-unheaded-kex.conf`; classical clients refused); west waits until its LAN clients are checked | E2, UH-PQC-03 |
 | WireGuard PSK | rotated live 2026-10-27 12:23Z (`scripts/wireguard/rotate-psk.sh --apply`); units installed on west, weekly timer not enabled: it runs as root and needs a root SSH key on east | E3, FND-016, [[Overlay Network|Overlay-Network]] |
-| Internal links (Wotan and the 13 first-party services) | compose: TLS 1.3 Strict hybrid with the dev CA (`scripts/gen-dev-certs.sh`; S-IRON-GATE Phase 8, live proof pending); hosts: units ready, certificates wait on a host window (E3). The dev edge (Traefik `web`) is still plaintext | FND-017 |
+| Internal links (Wotan and the 8 other first-party compose services) | compose: TLS 1.3 Strict hybrid with the dev CA (`scripts/gen-dev-certs.sh`; S-IRON-GATE Phase 8, live proof pending); hosts: units ready, certificates wait on a host window (E3). The dev edge (Traefik `web`) is still plaintext | FND-017 |
 | Certificates, handshake signatures | not exposed to harvest-now-decrypt-later | ADR-105 |
 
 CNSA 2.0 is not claimed (ML-KEM-768 / ML-DSA-65, not 1024 / 87).

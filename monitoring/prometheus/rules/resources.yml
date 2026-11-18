@@ -1,0 +1,127 @@
+# Prometheus alert rules - pressure, swap, heat and units (ADR-147 decisions 12 and 20)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Producers: node_exporter (job node_exporter, both hosts: node_pressure_*,
+# node_vmstat_pswpin, node_memory_Swap*, node_hwmon_temp_*), and
+# unheaded-host-state.timer through huginn's textfile directory (job huginn:
+# unheaded_unit_*, unheaded_host_state_*).
+#
+# Until ADR-147 no alert read a resource (Scientist F3). Decision 12: swap
+# use and memory pressure alert. Each bar is set from five days of west's
+# own series (2026-11-10 to 11-15): memory "full" peaked at 0.5% of the
+# time, I/O "full" at 13% over 15 minutes (p95 4.3%), CPU "some" at 2.1%,
+# swap-in at 327 pages/s, swap used 7% of 34 GiB; east's CPU sensor read
+# 60.75 C against a 70 C mark. A bar is a number for an alert, not a share
+# of the host (decision 13 does not apply).
+
+groups:
+  - name: host-pressure
+    interval: 1m
+    rules:
+      # Share of time every task stalled on memory (PSI "full").
+      - alert: HostMemoryPressure
+        expr: rate(node_pressure_memory_stalled_seconds_total[5m]) > 0.10
+        for: 10m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "Memory pressure on {{ $labels.instance }}: all tasks stalled over 10% of the time"
+          description: "PSI memory full over 5m has been above 10% for 10 minutes (west's 5-day peak was 0.5%). Every service on the host slows at once."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
+      - alert: HostSwapping
+        expr: rate(node_vmstat_pswpin[10m]) > 1000
+        for: 15m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.instance }} swaps in over 1,000 pages a second"
+          description: "Swap-in over 10m has been above 1,000 pages/s for 15 minutes (west's 5-day peak was 327)."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
+      - alert: HostSwapNearFull
+        expr: (node_memory_SwapTotal_bytes - node_memory_SwapFree_bytes) / node_memory_SwapTotal_bytes > 0.8 and node_memory_SwapTotal_bytes > 0
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Swap on {{ $labels.instance }} is over 80% used"
+          description: "Swap has been over 80% used for 30 minutes; past it the next allocation is a memory kill."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
+      - alert: HostIOPressure
+        expr: rate(node_pressure_io_stalled_seconds_total[15m]) > 0.30
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "I/O pressure on {{ $labels.instance }}: all tasks stalled on I/O over 30% of the time"
+          description: "PSI io full over 15m has been above 30% for 30 minutes (west's 5-day peak was 13%, p95 4.3%)."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
+      - alert: HostCPUPressure
+        expr: rate(node_pressure_cpu_waiting_seconds_total[15m]) > 0.50
+        for: 30m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "CPU pressure on {{ $labels.instance }}: tasks waited for a CPU over 50% of the time"
+          description: "PSI cpu some over 15m has been above 50% for 30 minutes (west's 5-day peak was 2.1%)."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
+      # Only sensors with a critical mark; a sensor without one is quiet.
+      - alert: HostTemperatureNearCritical
+        expr: node_hwmon_temp_celsius >= on (instance, chip, sensor) (node_hwmon_temp_crit_celsius - 5)
+        for: 10m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.chip }} {{ $labels.sensor }} on {{ $labels.instance }} is within 5 C of its critical mark"
+          description: "The sensor has read within 5 C of node_hwmon_temp_crit_celsius for 10 minutes."
+          runbook_url: "runbooks/observe/host-temperature.yaml"
+
+  - name: host-units
+    interval: 1m
+    rules:
+      # A unit that has given up (its start limit tripped, ADR-147 SS3)
+      # stays down like a stopped container.
+      - alert: UnitFailed
+        expr: unheaded_unit_failed == 1
+        for: 5m
+        labels:
+          severity: critical
+          urgency: none
+        annotations:
+          summary: "Unit {{ $labels.unit }} on {{ $labels.host }} has failed"
+          description: "systemd gave up on it; nothing restarts it. systemctl status {{ $labels.unit }}; reset-failed only after the cause is fixed."
+          runbook_url: "runbooks/observe/unit-restart.yaml"
+
+      - alert: UnitRestartLoop
+        expr: delta(unheaded_unit_restarts[30m]) >= 3
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Unit {{ $labels.unit }} on {{ $labels.host }} restarted 3 or more times in 30 minutes"
+          description: "NRestarts is climbing: it fails and systemd starts it again. journalctl -u {{ $labels.unit }} -n 50."
+          runbook_url: "runbooks/observe/unit-restart.yaml"
+
+      # While host_state.prom is stale ContainerStopped and UnitFailed
+      # cannot fire: this says so.
+      - alert: HostStateStale
+        expr: (time() - unheaded_host_state_last_run_timestamp_seconds > 300) or (unheaded_host_state_docker_ok == 0)
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "Container and unit state on {{ $labels.host }} is stale or Docker does not answer"
+          description: "host_state.prom is over 5 minutes old, or the last run could not reach Docker. Until it is fresh, ContainerStopped and UnitFailed cannot fire."
+          runbook_url: "runbooks/observe/monitoring-path.yaml"

@@ -10,6 +10,7 @@
 //	well-migrate apply                 # print what would run
 //	well-migrate apply -yes            # run it, in order, stop at the first failure
 //	well-migrate apply -db unheaded_ops -yes   # one database only (also status, baseline)
+//	well-migrate apply -through 050_app_timeline_milestones.sql -yes   # stop after one file
 //	well-migrate baseline -through 012_huginn_reader.sql -yes
 //	                                   # record pending files up to that entry WITHOUT running them
 //
@@ -57,7 +58,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	spec := cmdline.Spec{
 		Name:     "well-migrate",
 		Purpose:  "Apply the Well's SQL migrations from the manifest, with a ledger (ADR-101).",
-		Operands: "check | status | apply [-db D] [-yes] | baseline [-db D] -through FILE -yes",
+		Operands: "check | status | apply [-db D] [-through FILE] [-yes] | baseline [-db D] -through FILE -yes",
 		MaxArgs:  cmdline.Unlimited,
 	}
 	if len(args) == 1 && cmdline.IsVersionArg(args[0]) {
@@ -68,7 +69,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	lockTimeout := fl.Duration("lock-timeout", 5*time.Second, "lock wait limit inside each migration")
 	stmtTimeout := fl.Duration("statement-timeout", 5*time.Minute, "limit per statement")
 	usage := func() int {
-		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-db D] [-yes] | baseline [-db D] -through FILE -yes")
+		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-db D] [-through FILE] [-yes] | baseline [-db D] -through FILE -yes")
 		fmt.Fprintln(stderr, "Try 'well-migrate --help' for more information.")
 		return 2
 	}
@@ -87,6 +88,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	through := ""
 	if cmd == "baseline" {
 		sub.StringVar(&through, "through", "", "last manifest file the Well already has (required)")
+	}
+	if cmd == "apply" {
+		sub.StringVar(&through, "through", "", "last manifest file to apply; later files stay pending")
 	}
 	if err := sub.Parse(rest[1:]); err != nil || sub.NArg() != 0 {
 		return usage()
@@ -151,6 +155,17 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return fail(err)
 		}
 		if p, err = p.ForDB(*only); err != nil {
+			return fail(err)
+		}
+	}
+	// apply -through: one tree can hold two sittings' files (050, then 051
+	// to 053 with the Zhen move). Drift is judged on the whole plan first;
+	// the cut then leaves every later file pending.
+	if cmd == "apply" && through != "" {
+		if err := p.Drift(); err != nil {
+			return fail(err)
+		}
+		if p, err = p.Through(through); err != nil {
 			return fail(err)
 		}
 	}

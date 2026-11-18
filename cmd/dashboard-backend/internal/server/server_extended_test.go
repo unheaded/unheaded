@@ -114,9 +114,6 @@ func TestConfigValidate_DefaultsFilled(t *testing.T) {
 	if cfg.WebSocketConfig == nil {
 		t.Error("expected WebSocketConfig to be set")
 	}
-	if cfg.ScraperConfig == nil {
-		t.Error("expected ScraperConfig to be set")
-	}
 	if cfg.HealthConfig == nil {
 		t.Error("expected HealthConfig to be set")
 	}
@@ -211,7 +208,7 @@ func TestHandleAPIMetrics_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleAPIMetrics_GET(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/metrics", nil)
 	w := httptest.NewRecorder()
 	srv.handleAPIMetrics(w, req)
@@ -247,7 +244,7 @@ func TestHandleMetricsQuery_InvalidJSON(t *testing.T) {
 }
 
 func TestHandleMetricsQuery_WithDuration(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	body := `{"name":"test_metric","since_duration":"5m"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/query", strings.NewReader(body))
 	w := httptest.NewRecorder()
@@ -258,7 +255,7 @@ func TestHandleMetricsQuery_WithDuration(t *testing.T) {
 }
 
 func TestHandleMetricsQuery_WithSince(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	body := `{"name":"test_metric","since":"` + time.Now().Add(-1*time.Hour).Format(time.RFC3339) + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/query", strings.NewReader(body))
 	w := httptest.NewRecorder()
@@ -291,7 +288,7 @@ func TestHandleMetricsQuery_InvalidSinceTime(t *testing.T) {
 }
 
 func TestHandleMetricsQuery_DefaultSince(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	body := `{"name":"test"}`
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/metrics/query", strings.NewReader(body))
 	w := httptest.NewRecorder()
@@ -453,9 +450,6 @@ func TestHandleStats_GET(t *testing.T) {
 	if _, ok := resp["server"]; !ok {
 		t.Error("expected 'server' key")
 	}
-	if _, ok := resp["scraper"]; !ok {
-		t.Error("expected 'scraper' key")
-	}
 	if _, ok := resp["health"]; !ok {
 		t.Error("expected 'health' key")
 	}
@@ -570,7 +564,7 @@ func TestHandleAggregated_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleAggregated_GET(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/aggregated", nil)
 	w := httptest.NewRecorder()
 	srv.handleAggregated(w, req)
@@ -604,7 +598,7 @@ func TestHandleAggregatedMetrics_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleAggregatedMetrics_WithDuration(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/aggregated/metrics?since=5m", nil)
 	w := httptest.NewRecorder()
 	srv.handleAggregatedMetrics(w, req)
@@ -614,7 +608,7 @@ func TestHandleAggregatedMetrics_WithDuration(t *testing.T) {
 }
 
 func TestHandleAggregatedMetrics_WithRFC3339(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	since := time.Now().Add(-1 * time.Hour).Format(time.RFC3339)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/aggregated/metrics?since="+since, nil)
 	w := httptest.NewRecorder()
@@ -625,7 +619,7 @@ func TestHandleAggregatedMetrics_WithRFC3339(t *testing.T) {
 }
 
 func TestHandleAggregatedMetrics_DefaultSince(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/aggregated/metrics", nil)
 	w := httptest.NewRecorder()
 	srv.handleAggregatedMetrics(w, req)
@@ -744,7 +738,7 @@ func TestHandleLatency_MethodNotAllowed(t *testing.T) {
 }
 
 func TestHandleLatency_NoIngestor(t *testing.T) {
-	srv := newTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/latency", nil)
 	w := httptest.NewRecorder()
 	srv.handleLatency(w, req)
@@ -1253,17 +1247,11 @@ func TestGetterMethods(t *testing.T) {
 	if srv.GetWebSocketServer() == nil {
 		t.Error("GetWebSocketServer returned nil")
 	}
-	if srv.GetScraper() == nil {
-		t.Error("GetScraper returned nil")
-	}
 	if srv.GetHealthMonitor() == nil {
 		t.Error("GetHealthMonitor returned nil")
 	}
 	if srv.GetEventStreamer() == nil {
 		t.Error("GetEventStreamer returned nil")
-	}
-	if srv.GetMetricsAggregator() == nil {
-		t.Error("GetMetricsAggregator returned nil")
 	}
 	if srv.GetTraceBuffer() == nil {
 		t.Error("GetTraceBuffer returned nil")
@@ -1306,16 +1294,6 @@ func TestRegisterHealthCheck_NoAggregator(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "not initialized") {
 		t.Errorf("unexpected error: %v", err)
-	}
-}
-
-// ---- RecordMetric ----
-
-func TestRecordMetric(t *testing.T) {
-	srv := newTestServer(t)
-	err := srv.RecordMetric("test_metric", 42.0, map[string]string{"env": "test"})
-	if err != nil {
-		t.Errorf("RecordMetric: %v", err)
 	}
 }
 
@@ -1373,7 +1351,7 @@ func TestHandleStaticIndex_NotFound(t *testing.T) {
 // ---- Metrics Summary Endpoint ----
 
 func TestHandleMetricsSummary(t *testing.T) {
-	srv := newStartedTestServer(t)
+	srv := newVMServer(t, &fakeVM{}) // VictoriaMetrics answers, with no data
 
 	w := httptest.NewRecorder()
 	srv.handleMetricsSummary(w, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/summary", nil))
@@ -1390,15 +1368,15 @@ func TestHandleMetricsSummary(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
 		t.Fatalf("decode: %v (%s)", err, w.Body.String())
 	}
-	// Before two scrapes there is no rate: null, which the panel shows as
-	// "--", never a fabricated 0.
+	// With no data in VictoriaMetrics there is no rate: null, which the
+	// panel shows as "--", never a fabricated 0.
 	for _, k := range []string{"request_rate", "error_rate", "latency_ms", "dashboard_clients", "services_reporting"} {
 		if _, ok := body[k]; !ok {
 			t.Errorf("missing %q in %s", k, w.Body.String())
 		}
 	}
 	if string(body["request_rate"]) != "null" {
-		t.Errorf("request_rate before any scrape pair = %s, want null", body["request_rate"])
+		t.Errorf("request_rate with no data = %s, want null", body["request_rate"])
 	}
 	if string(body["dashboard_clients"]) != "0" {
 		t.Errorf("dashboard_clients = %s, want 0", body["dashboard_clients"])

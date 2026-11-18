@@ -10,6 +10,12 @@ Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/kanban-app
 After=network-online.target unheaded-wotan.service
 Wants=network-online.target
 Requires=unheaded-wotan.service
+# ADR-147 (SS3): it keeps restarting through the 15-minute boot window
+# (180 starts x RestartSec 5s), then stays failed and UnitFailed mails,
+# instead of restarting for ever (review 2026-11-15: 10 starts gave up
+# after 50 s).
+StartLimitIntervalSec=30min
+StartLimitBurst=180
 
 [Service]
 # Memory ceiling (S-LOW-FRUIT Phase 3): GOMEMLIMIT = MemoryHigh, so the Go GC
@@ -38,7 +44,7 @@ Environment=AUTH_TRUST_DIR=/etc/unheaded/trust.d
 # must list kanban-app in -audiences) or a token from these callers.
 Environment=AUTH_ENABLED=true
 Environment=AUTH_ISSUER_URL=https://%H:19020
-Environment=AUTH_ALLOW_CALLERS=zhen-agentd,micromanager
+Environment=AUTH_ALLOW_CALLERS=zhen-agentd
 ReadOnlyPaths=-/etc/unheaded/trust.d
 # TLS (S-IRON-GATE Phase 8, ADR-105, FND-017; deploy/systemd/README.md#tls):
 # TLS 1.3 with hybrid ML-KEM on the listener and every first-party link.

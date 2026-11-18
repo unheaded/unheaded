@@ -102,6 +102,8 @@ Copyright (c) 2026 Stevie Bellis.
 
 ## PHASE 0: THE GATE (Steps 1-24)
 
+**Amended 2026-11-17: read `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` before running any step from Step 2 on.** The four plans were merged as one branch, so this plan's own merge steps are replaced by that page's block C, its live phases run in that page's order, and the steps that page lists under "Amendments" run as amended there.
+
 **Goal**: Proof that the log store week has ended and that plan 1's backups and alerts exist; the rulings; the worktree.
 **Prerequisite**: none. Nothing in this phase changes the host.
 **Time**: 45 min.
@@ -238,7 +240,7 @@ Copyright (c) 2026 Stevie Bellis.
   /var/backups/srv-backups /srv/backups none bind,nofail,x-systemd.requires-mounts-for=/var 0 0
   ```
   `nofail` so a lost volume leaves west bootable with sshd up; the next file is what keeps Docker from starting on the stale copies underneath. The LV line and the `/srv/backups` line are appended in Phase 5 before the stack stops; the five data binds only while it is stopped.
-- [ ] **Step 43** [W] ~3m: `$WT/deploy/systemd/docker.service.d/10-unheaded-data.conf` (new directory): SPDX header, a comment ("Docker does not start unless the five database mounts are in place: without this a failed volume would let the stores start on the old copies underneath"), then
+- [ ] **Step 43** [W] ~3m: (Moved 2026-11-17 to `deploy/host-settings/west-docker-data.conf`, beside west's other host files; Step 165's install command names it.) `$WT/deploy/systemd/docker.service.d/10-unheaded-data.conf` (new directory): SPDX header, a comment ("Docker does not start unless the five database mounts are in place: without this a failed volume would let the stores start on the old copies underneath"), then
   ```
   [Unit]
   RequiresMountsFor=/var/lib/docker/volumes/unheaded-dev_postgres-data/_data /var/lib/docker/volumes/unheaded-dev_clickhouse-data/_data /var/lib/docker/volumes/unheaded-dev_victoria-data/_data /var/lib/docker/volumes/monitoring_prometheus_data/_data /var/lib/docker/volumes/unheaded-dev_vector-data/_data
@@ -382,7 +384,7 @@ Copyright (c) 2026 Stevie Bellis.
 
 ### 2F: The ruleset and the merge
 
-- [ ] **Step 95** [R] ~3m: `$WT/deploy/nftables/west.nft` lines 37-60. Decision 16 against it, port by port: 9100, 9110, 9323 and 19120 are not in the LAN set (closed); they are accepted from `docker0` and `br-*`, from east on `enp16s0`, and from `wg0` (open where decision 16 says). Nothing to edit for those.
+- [ ] **Step 95** [R] ~3m: (Since 2026-11-17 the interfaces, addresses and port sets are a `define` block at the top of the file; the loaded ruleset is unchanged.) `$WT/deploy/nftables/west.nft` lines 37-60. Decision 16 against it, port by port: 9100, 9110, 9323 and 19120 are not in the LAN set (closed); they are accepted from `docker0` and `br-*`, from east on `enp16s0`, and from `wg0` (open where decision 16 says). Nothing to edit for those.
 - [ ] **Step 96** [W] ~3m: `$PROG` "For Stevie": "`west.nft`'s LAN set still lists 16666 (doom-bridge, moved out 2026-11-04, nothing listens) and 20103 (Zhen's UI: decision 15 keeps it off a public side; the house LAN is not public). Left as you set them on 2026-11-03; say if either should go."
 - [ ] **Step 97** [W] ~5m: Only under WG3 ruling B. In `west.nft`: in the input line `iifname "wlp17s0" ip saddr 192.168.69.128/25 tcp dport { 7375, 80, 443, 18888, 16666, 20000, 20001, 20002, 20103 } accept` remove `20000, 20001, `; in the forward line `ct original proto-dst { 53, 3000, 3001, 16666, 20000, 20001, 20002, 20103 } accept` remove `20000, 20001, `; extend the comment above the input line: "20000 and 20001 left the LAN on 2026-11-<day> (ADR-147 decision 16): reach them with ssh -L."
 - [ ] **Step 98** [B][V] ~2m: `cd /home/govan/tmp/wt/S-WEST-GROUND && GOMAXPROCS=4 go test -count=1 ./deploy/nftables/ 2>&1 | tail -1; unshare -Urn nft -c -f deploy/nftables/west.nft && echo NFT_OK`. Expect: `ok`, `NFT_OK` (a private namespace: no root, nothing changed). Else two tries, `[STUCK]`, Phase 6 `[BLOCKED]`.
@@ -606,7 +608,7 @@ Copyright (c) 2026 Stevie Bellis.
   **Rollback:** `for t in $(awk '$1 ~ /^\/srv\/unheaded-data\// {print $2}' /home/govan/tmp/unheaded/deploy/host-settings/west-fstab.fragment); do sudo umount "$t"; done; sudo cp -p /etc/fstab.west-ground.$TS /etc/fstab && sudo systemctl daemon-reload`
 - [ ] **Step 165** [S][W] ~2m: Docker's requirement. Docker is not restarted: Phase 11's reboot proves the order.
   ```bash
-  sudo install -d -m 0755 /etc/systemd/system/docker.service.d && sudo install -m 0644 /home/govan/tmp/unheaded/deploy/systemd/docker.service.d/10-unheaded-data.conf /etc/systemd/system/docker.service.d/ && sudo systemctl daemon-reload && systemctl show docker.service -p RequiresMountsFor --value | tr ' ' '\n' | grep -c '^/var/lib/docker/volumes/'
+  sudo install -d -m 0755 /etc/systemd/system/docker.service.d && sudo install -m 0644 /home/govan/tmp/unheaded/deploy/host-settings/west-docker-data.conf /etc/systemd/system/docker.service.d/10-unheaded-data.conf && sudo systemctl daemon-reload && systemctl show docker.service -p RequiresMountsFor --value | tr ' ' '\n' | grep -c '^/var/lib/docker/volumes/'
   ```
   Expect `5` (4 under WG1 B).
   **Rollback:** `sudo rm /etc/systemd/system/docker.service.d/10-unheaded-data.conf && sudo systemctl daemon-reload`. Always before any unmount of a bind (Appendix A, E3).
@@ -759,7 +761,7 @@ Copyright (c) 2026 Stevie Bellis.
   cd /home/govan/tmp/unheaded && sudo docker compose config -q && echo CONFIG_OK; c=$(sudo docker compose config 2>/dev/null); echo "no-policy $(grep -c 'restart: "no"' <<<"$c") pids $(grep -c 'pids_limit:' <<<"$c") parent $(grep -c 'cgroup_parent: unheaded-env.slice' <<<"$c") anon $(grep -c 'AUTH_ANONYMOUS_FROM' <<<"$c")"; unset c
   ```
   Expect `CONFIG_OK`; `no-policy` equal to Step 15's `plain:` count; `pids` and `parent` equal to the number of services; `anon` 2 under WG3 A, 0 otherwise.
-- [ ] **Step 225** [STEVIE] ~1m: "Recreate every container now with its pid limit and slice (about 5 minutes)? Yes?"
+- [ ] **Step 225** [STEVIE] ~1m: (Amended 2026-11-17, before the question: since lane commit `6b50634b` the compose default for `AUTH_ANONYMOUS_FROM` holds only loopback and the Docker ranges; the link to east and the overlay are west's own and belong in west's compose secrets file. Stevie adds the line from `db/.env.example`, `AUTH_ANONYMOUS_FROM=127.0.0.0/8,::1/128,172.16.0.0/12,fd00:d0c0::/32,192.168.13.0/30,fd00:dead:beef::/48`, to `/etc/unheaded/compose.env`; an agent does not read or edit that file. Without it east's scrape of the two `/metrics` paths answers 401 after Step 227. Check without reading the file: `cd /home/govan/tmp/unheaded && sudo docker compose config 2>/dev/null | grep -c '192.168.13.0/30'` → 2.) "Recreate every container now with its pid limit and slice (about 5 minutes)? Yes?"
 - [ ] **Step 226** [B] ~2m: Step 157's command again (silence "S-WEST-GROUND: pid limits and slices"; the firing set to `alerts.before-recreate` in place of `alerts.before-move`; the two running lists); and `curl` Step 188's `sum(up)` to `up.before-recreate`.
 - [ ] **Step 227** [S][B] ~6m: Recreate what ran, with the override (no `-f`).
   ```bash
@@ -844,9 +846,9 @@ Copyright (c) 2026 Stevie Bellis.
 - [ ] **Step 253** [C] ~1m: **COMMIT** the files Step 251 changed and `deploy/host-settings/west.tsv` if a mode changed: "Steps 245-253: west's WireGuard and FRR files are what west runs (keys redacted)".
 - [ ] **Step 254** [W] ~3m: `wiki/Overlay-Network.md`: the sentence calling the repository files "copies of what is deployed" (`grep -n 'copies of what is deployed' wiki/*.md`) becomes true for west, checked daily by `unheaded-host-settings.timer`; east's files are plan 6's. Commit it.
 - [ ] **Step 255** [C] ~10m: **MERGE D** (Step 100 on `$WT`, then Step 102 with subject `[PLAN S-WEST-GROUND] Phase 8: west's host files match the host`), so the timer reads them from the main checkout.
-- [ ] **Step 256** [S][B] ~3m: The timer.
+- [ ] **Step 256** [S][B] ~3m: The timer. (Amended 2026-11-17: the unit names no host and no path; both come from `/etc/unheaded/host-settings.env`, installed first here. `HOST_SETTINGS_HOST` defaults to the host's short name, `west`.)
   ```bash
-  cd /home/govan/tmp/unheaded && sudo install -m 0644 deploy/systemd/unheaded-host-settings.service deploy/systemd/unheaded-host-settings.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-host-settings.timer && sudo systemctl start unheaded-host-settings.service; systemctl show unheaded-host-settings.service -p Result --value; cat /var/lib/unheaded/textfile/unheaded_host_settings.prom; stat -c '%a' /var/lib/unheaded/textfile/unheaded_host_settings.prom
+  cd /home/govan/tmp/unheaded && sudo install -m 0644 deploy/systemd/host-settings.env.example /etc/unheaded/host-settings.env && sudo sed -i 's|^HOST_SETTINGS_REPO=.*|HOST_SETTINGS_REPO=/home/govan/tmp/unheaded|' /etc/unheaded/host-settings.env && sudo install -m 0644 deploy/systemd/unheaded-host-settings.service deploy/systemd/unheaded-host-settings.timer /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-host-settings.timer && sudo systemctl start unheaded-host-settings.service; systemctl show unheaded-host-settings.service -p Result --value; cat /var/lib/unheaded/textfile/unheaded_host_settings.prom; stat -c '%a' /var/lib/unheaded/textfile/unheaded_host_settings.prom
   ```
   Expect `success`; `drift_files` 1 (`swapfile4`) or 0; `skipped_files 0`; `644`.
   **Rollback:** `sudo systemctl disable --now unheaded-host-settings.timer && sudo rm /etc/systemd/system/unheaded-host-settings.service /etc/systemd/system/unheaded-host-settings.timer /var/lib/unheaded/textfile/unheaded_host_settings.prom && sudo systemctl daemon-reload`

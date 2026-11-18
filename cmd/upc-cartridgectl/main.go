@@ -3,8 +3,8 @@
 
 // upc-cartridgectl — loads only signed, validated MBC cartridges into the
 // cartridge-ebpf interpreter (ADR-108), resolving them by name through the
-// cartridge registry (Sophia, or a file-backed registry while the stack is
-// down), swaps slots, drives the tick stage, and serves metrics.
+// file-backed cartridge registry, swaps slots, drives the tick stage, and
+// serves metrics.
 //
 //	upc-cartridgectl [global flags] up                     load + pin the interpreter
 //	upc-cartridgectl [global flags] down                   unpin (unloads it)
@@ -22,6 +22,6 @@
 //	                                                       DATA over Wotan, sealed (weights.go)
 //
 // Global flags: --registry-dir (default /var/lib/unheaded/cartridges),
-// --sophia URL (+ SOPHIA_TOKEN), --pubkey FILE, --lab, --pin-dir, --obj,
+// --pubkey FILE, --lab, --pin-dir, --obj (--sophia is refused: ADR-147),
 // --cart (the `cart` CLI used as the validator).
 package main

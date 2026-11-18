@@ -13,7 +13,7 @@ source "${SCRIPT_DIR}/lib.sh"
 
 tc_header "PHASE 3b: NIXOS ON LXD — WEST"
 
-NIXOS_SERVICES=(wotan timeguru captain architect micromanager monad sophia dashboard kanban)
+NIXOS_SERVICES=(wotan timeguru dashboard kanban)
 NIXOS_IMAGE_ALIAS="nixos-unheaded"
 
 # ── 3b.0 Check prerequisites ───────────────────────────────────────────
@@ -142,9 +142,9 @@ sleep 3
 tc_log "3b.4 Adding proxy devices..."
 
 declare -A PROXY_MAP=(
-    [unheaded-wotan]=18000 [unheaded-timeguru]=19000 [unheaded-architect]=19001
-    [unheaded-captain]=19002 [unheaded-micromanager]=19003 [unheaded-monad]=19004
-    [unheaded-sophia]=19005 [unheaded-dashboard]=20000 [unheaded-kanban]=20001
+    [unheaded-wotan]=18000 [unheaded-timeguru]=19000
+   
+    [unheaded-dashboard]=20000 [unheaded-kanban]=20001
 )
 for ctr in "${!PROXY_MAP[@]}"; do
     port="${PROXY_MAP[$ctr]}"

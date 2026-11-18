@@ -39,6 +39,7 @@ import (
 	"unheaded/pkg/cmdline"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/anomaly"
 )
@@ -101,6 +102,7 @@ func main() {
 	listen := flag.String("listen", "127.0.0.1:"+fmt.Sprint(ports.Anomaly), "HTTP listen address (loopback by default; off loopback needs AUTH_ENABLED=true)")
 	pinDir := flag.String("pin-dir", cartridge.DefaultPinDir, "bpffs directory of the pinned cartridge interpreter")
 	wotanAddr := flag.String("wotan", "", "Wotan HTTP address: publish anomaly.scores there (default: in-process intake)")
+	wotanGRPC := flag.String("wotan-grpc", "", "Wotan gRPC address for streams (default: the --wotan host on port "+fmt.Sprint(ports.WotanGRPC)+")")
 	noCart := flag.Bool("no-cartridge", false, "run the service without the cartridge bridge")
 	cmdline.Parse(cmdline.Spec{
 		Name:     "anomaly",
@@ -112,7 +114,12 @@ func main() {
 	log := logger.New(os.Stderr)
 	var wc *wotanClient.Client
 	if *wotanAddr != "" {
-		c, err := wotanClient.NewClient(*wotanAddr)
+		// The process's one Wotan client (ADR-147 Phase 7): the service's
+		// streams and the cartridge bridge's publishes share it.
+		c, err := transport.NewWotanClient(transport.Config{
+			WotanHTTPAddr: *wotanAddr,
+			WotanGRPCAddr: transport.WotanGRPCAddr(*wotanAddr, *wotanGRPC),
+		})
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "anomaly: wotan: %v\n", err)
 			os.Exit(1)
@@ -132,18 +139,12 @@ func main() {
 	if !*noCart {
 		out := sink(func(_ context.Context, b []byte) error { return svc.IngestScore(b) })
 		if wc != nil {
-			pub, err := wotanClient.NewClient(*wotanAddr)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "anomaly: wotan: %v\n", err)
-				os.Exit(1)
-			}
-			// Join with retry in the background: a Wotan that is not up yet
-			// used to make anomaly exit here. Until the join lands, forwards
-			// fail "not subscribed" and the bridge logs and carries on.
-			go func() {
-				_ = pub.SubscribeWithRetry(ctx, anomaly.ScoreTopic, "anomaly-bridge", nil)
-			}()
-			out = func(ctx context.Context, b []byte) error { return pub.Publish(ctx, anomaly.ScoreTopic, b) }
+			// The service joins anomaly.scores on wc as anomaly-service (to
+			// read it), and Wotan lets a member publish: the bridge publishes
+			// on that membership, with the anomaly identity's publish
+			// permission (configs/wotan.yaml). A second client, joined as
+			// anomaly-bridge, used to do it.
+			out = func(ctx context.Context, b []byte) error { return wc.Publish(ctx, anomaly.ScoreTopic, b) }
 		}
 		go func() {
 			if err := runBridge(ctx, *pinDir, out, os.Stderr); err != nil && !errors.Is(err, context.Canceled) {

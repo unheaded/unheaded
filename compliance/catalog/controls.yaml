@@ -1341,15 +1341,9 @@ controls:
     evidence:
       - {kind: gate-script, ref: scripts/compliance/check-service-auth.sh}
       - {kind: host-service, ref: "west:akira"}
-      - {kind: host-service, ref: "west:architect"}
-      - {kind: host-service, ref: "west:captain"}
-      - {kind: host-service, ref: "west:cuirass"}
       - {kind: host-service, ref: "west:dashboard-backend"}
       - {kind: host-service, ref: "west:kanban-app"}
       - {kind: host-service, ref: "west:logstore-writer"}
-      - {kind: host-service, ref: "west:micromanager"}
-      - {kind: host-service, ref: "west:monad"}
-      - {kind: host-service, ref: "west:sophia"}
       - {kind: host-service, ref: "west:timeguru"}
       - {kind: host-service, ref: "west:wotan"}
     mappings:
@@ -1585,6 +1579,7 @@ controls:
       - {kind: slo, ref: overlay}
       - {kind: slo, ref: log-shipping}
       - {kind: slo, ref: kev-feed}
+      - {kind: slo, ref: store-backups}
       - {kind: slo, ref: ci-develop}
     mappings:
       nist-800-53r5: [CA-7, SI-4]

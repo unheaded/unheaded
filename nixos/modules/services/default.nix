@@ -7,8 +7,6 @@
 {
   imports = [
     # Layer 1: Core Services
-    ./monad.nix                    # Monad register (20-byte IPv6 HbH extension header)
-    ./sophia.nix                   # Sophia BPF dictionary maps
     ./wotan.nix                    # Wotan message bus & event broker (NATS)
     ./anamnesis.nix                # Anamnesis event log & stream
     ./shield.nix                   # Shield eBPF policy enforcement
@@ -31,10 +29,7 @@
     ./lich.nix                     # Lich automated adversary & red team continuous
     
     # Layer 7: Strategy & Leadership
-    ./captain.nix                  # Captain executive strategy
-    ./micromanager.nix             # Micromanager engineering leadership
     ./timeguru.nix                 # Timeguru timeline & roadmap
-    ./architect.nix                # Architect infrastructure architecture
     ./developer.nix                # Developer development assistance
     
     # Layer 8: Coordination & Organization

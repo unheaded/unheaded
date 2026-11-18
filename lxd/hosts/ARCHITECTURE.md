@@ -17,7 +17,7 @@ The Unheaded Kingdom is deployed across two LXD hosts with distinct roles:
     │ 16+ cores        │              │ Consumer-grade   │
     │ 64GB RAM         │              │ 8GB RAM          │
     │ RX 7700 XT       │              │ No GPU           │
-    │ 25 services      │              │ 6 core + telemetry
+    │ 19 services      │              │ 4 core + telemetry
     └──────────────────┘              └──────────────────┘
             │                                  │
             │ 10.20.0.0/16                    │ 10.21.0.0/16
@@ -35,7 +35,7 @@ The Unheaded Kingdom is deployed across two LXD hosts with distinct roles:
 ## host-a: The Forge (Full Stack)
 
 ### Purpose
-Complete production deployment hosting all 25 services, compute workloads, and observability infrastructure.
+Complete production deployment hosting all 19 services, compute workloads, and observability infrastructure.
 
 ### Hardware Requirements
 - CPU: 16+ cores (deployment uses 51 CPU allocations)
@@ -54,18 +54,14 @@ DNS Domain: unheaded.internal
 DNS Mode: Managed by LXD
 ```
 
-### Service Breakdown (25 services)
+### Service Breakdown (19 services)
 
 #### Phase 1: Core Infrastructure (1)
 - **wotan** (10.20.1.1): Message bus - NATS/gRPC server
   - CPU: 4, Memory: 1GB
   - Ports: 50053 (gRPC), 4222 (NATS)
 
-#### Phase 2: Protocol Layer (3)
-- **monad** (10.20.1.2): Protocol logic
-  - CPU: 2, Memory: 512MB, Port: 50051
-- **sophia** (10.20.1.3): Protocol state management
-  - CPU: 2, Memory: 512MB, Port: 50052
+#### Phase 2: Protocol Layer (1)
 - **anamnesis** (10.20.1.4): Protocol history
   - CPU: 2, Memory: 512MB, Port: 50054
 
@@ -96,17 +92,11 @@ DNS Mode: Managed by LXD
   - CPU: 4, Memory: 1GB, Port: 16680
   - Profile: unheaded-gpu (GPU access)
 
-#### Phase 7-8: Business Services (11)
+#### Phase 7-8: Business Services (8)
 - **kanban** (10.20.1.20): Task management
   - CPU: 2, Memory: 512MB, Port: 3002
-- **captain** (10.20.1.15): Orchestration
-  - CPU: 1, Memory: 256MB, Port: 50058
-- **micromanager** (10.20.1.16): Resource management
-  - CPU: 1, Memory: 256MB, Port: 50059
 - **timeguru** (10.20.1.17): Time/scheduling service
   - CPU: 1, Memory: 256MB, Ports: 50060 (gRPC), 8600 (HTTP)
-- **architect** (10.20.1.18): Planning service
-  - CPU: 1, Memory: 256MB, Port: 50061
 - **developer** (10.20.1.19): Development tools
   - CPU: 1, Memory: 256MB, Port: 50062
 - **lore** (10.20.1.21): Knowledge base
@@ -143,7 +133,7 @@ Pool Name: unheaded-ssd
 Driver: ZFS
 Size: 200GB
 Container Root Allocations: 8GB per container
-Total Containers: 30 (25 services + 5 telemetry)
+Total Containers: 24 (19 services + 5 telemetry)
 ```
 
 ### Initialization Flow
@@ -176,8 +166,8 @@ Total Containers: 30 (25 services + 5 telemetry)
 Minimal distributed deployment for edge locations, development environments, or testing. Maintains cluster connectivity via WireGuard to host-a.
 
 ### Hardware Requirements
-- CPU: 4+ cores (deployment uses 10 CPU allocations)
-- RAM: 8GB (deployment uses 2.5GB across containers)
+- CPU: 4+ cores (deployment uses 8 CPU allocations)
+- RAM: 8GB (deployment uses 2GB across containers)
 - GPU: None required
 - Storage: 50GB+ ZFS pool
 
@@ -195,15 +185,11 @@ WireGuard Tunnel: wg0
   Configuration: wireguard.conf (user-provided)
 ```
 
-### Service Breakdown (6 core + telemetry)
+### Service Breakdown (4 core + telemetry)
 
-#### Core Services (6)
+#### Core Services (4)
 - **wotan** (10.21.1.1): Local message bus
   - CPU: 2, Memory: 512MB
-- **monad** (10.21.1.2): Protocol service
-  - CPU: 1, Memory: 256MB
-- **sophia** (10.21.1.3): State management
-  - CPU: 1, Memory: 256MB
 - **anamnesis** (10.21.1.4): History service
   - CPU: 1, Memory: 256MB
 - **gateway** (10.21.1.5): API gateway
@@ -228,7 +214,7 @@ Pool Name: unheaded-minimal
 Driver: ZFS
 Size: 50GB
 Container Root Allocations: 4GB per container
-Total Containers: 9 (6 core + 3 telemetry)
+Total Containers: 7 (4 core + 3 telemetry)
 ```
 
 ### Initialization Flow
@@ -261,11 +247,11 @@ Total Containers: 9 (6 core + 3 telemetry)
 ### host-a Full Chain
 ```
 wotan (message bus)
-  ├─ monad, sophia, anamnesis (protocol layer)
+  ├─ anamnesis (protocol layer)
   │   └─ shield, unheaded-daemon (eBPF control)
   │       └─ gateway, service-discovery (routing)
   │           ├─ dashboard-backend, protocol-api (presentation)
-  │           │   └─ kanban, captain, micromanager, timeguru, architect, developer, lore, busboy, kingdom, blackmage, moatghost (services)
+  │           │   └─ kanban, timeguru, developer, lore, busboy, kingdom, blackmage, moatghost (services)
   │           │       └─ lich (adversary - runs after all others)
   │           └─ trace-collector, doom (observability)
   │
@@ -275,7 +261,7 @@ wotan (message bus)
 ### host-b Minimal Chain
 ```
 wotan (local message bus)
-  └─ monad, sophia, anamnesis (protocol layer)
+  └─ anamnesis (protocol layer)
       └─ gateway, dashboard-backend (presentation)
           └─ prometheus-agent, promtail, node-exporter (telemetry agents)
 ```
@@ -307,16 +293,16 @@ host-b (10.21.0.0/16)
 ```
 Cores: 51 / 16+ available (overcommit 3.19x typical)
 Memory: 23.5GB / 64GB available (36.7% utilization)
-Storage: 240GB allocated (8GB × 30 containers) / 200GB pool
-Network: 30 containers on unheaded bridge (10.20.1.1-10.20.1.53)
+Storage: 192GB allocated (8GB × 24 containers) / 200GB pool
+Network: 24 containers on unheaded bridge (10.20.1.1-10.20.1.53)
 ```
 
 ### host-b (Outpost) Total Resource Usage
 ```
-Cores: 10 / 4+ available (overcommit 2.5x typical)
-Memory: 2.5GB / 8GB available (31.3% utilization)
-Storage: 36GB allocated (4GB × 9 containers) / 50GB pool
-Network: 9 containers on unheaded-outpost bridge (10.21.1.1-10.21.1.9)
+Cores: 8 / 4+ available (overcommit 2.0x typical)
+Memory: 2GB / 8GB available (25.0% utilization)
+Storage: 28GB allocated (4GB × 7 containers) / 50GB pool
+Network: 7 containers on unheaded-outpost bridge (10.21.1.1-10.21.1.9)
 ```
 
 ## Scaling Considerations

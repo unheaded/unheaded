@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -58,6 +59,7 @@ func TestHealthServer_DerivedStatus(t *testing.T) {
 
 func TestHealthServer_HTTPHealthEndpoint_Healthy(t *testing.T) {
 	hs := NewHealthServer("myservice")
+	hs.SetGRPCStatus(true) // unset, "grpc" is null (TestHealthServerDoesNotClaimGRPC)
 	mux := http.NewServeMux()
 	hs.RegisterHTTP(mux)
 
@@ -79,7 +81,7 @@ func TestHealthServer_HTTPHealthEndpoint_Healthy(t *testing.T) {
 	if resp.Service != "myservice" {
 		t.Errorf("resp.Service = %q, want %q", resp.Service, "myservice")
 	}
-	if !resp.GRPC || !resp.HTTP {
+	if resp.GRPC == nil || !*resp.GRPC || !resp.HTTP {
 		t.Errorf("resp.GRPC=%v, resp.HTTP=%v, want both true", resp.GRPC, resp.HTTP)
 	}
 }
@@ -173,5 +175,28 @@ func TestHealthStatusConstants(t *testing.T) {
 	}
 	if string(StatusDown) != "DOWN" {
 		t.Error("StatusDown mismatch")
+	}
+}
+
+// TestHealthServerDoesNotClaimGRPC: a server nobody told about gRPC says
+// nothing about it ("grpc": null), not a guess (ADR-147, Developer D18).
+func TestHealthServerDoesNotClaimGRPC(t *testing.T) {
+	h := NewHealthServer("svc")
+	mux := http.NewServeMux()
+	h.RegisterHTTP(mux)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	body := rec.Body.String()
+	if strings.Contains(body, `"grpc":true`) || !strings.Contains(body, `"grpc":null`) {
+		t.Fatalf("fresh server /health = %s, want \"grpc\":null", body)
+	}
+	if h.Status() != StatusHealthy {
+		t.Fatalf("status %s, want HEALTHY: unknown gRPC is not a failure", h.Status())
+	}
+	h.SetGRPCStatus(true)
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/health", nil))
+	if !strings.Contains(rec.Body.String(), `"grpc":true`) {
+		t.Fatalf("after SetGRPCStatus(true): %s", rec.Body.String())
 	}
 }

@@ -113,11 +113,6 @@ func defaultServices() []service {
 	return []service{
 		local("wotan", ports.WotanHTTP),
 		local("timeguru", ports.Timeguru),
-		local("architect", ports.Architect),
-		local("captain", ports.Captain),
-		local("micromanager", ports.Micromanager),
-		local("monad", ports.Monad),
-		local("sophia", ports.Sophia),
 		local("dashboard", ports.DashboardBackend),
 		local("kanban", ports.KanbanApp),
 		// The web UI is https with hybrid key exchange only (ADR-138): the

@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# VictoriaMetrics: nightly backup set (ADR-147 decision 6). Persistent=, so a run missed while west
+# was off starts soon after boot; the alerts in rules/backups.yml wait 45m.
+
+[Unit]
+Description=VictoriaMetrics: nightly backup set
+
+[Timer]
+OnCalendar=*-*-* 04:45:00
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

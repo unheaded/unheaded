@@ -181,7 +181,7 @@ func TestLatencyReader_PollOnce(t *testing.T) {
 	entryBytes := le.Encode()
 	loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultLatencyReaderConfig()
 	reader := NewLatencyReader(loader, publisher, config)
 
@@ -202,7 +202,7 @@ func TestLatencyReader_PollOnce(t *testing.T) {
 
 func TestLatencyReader_EmptyMap(t *testing.T) {
 	loader := NewMockBPFLoader()
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewLatencyReader(loader, publisher, DefaultLatencyReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -227,7 +227,7 @@ func TestLatencyReader_MultipleEntries(t *testing.T) {
 		loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 	}
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewLatencyReader(loader, publisher, DefaultLatencyReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -246,7 +246,7 @@ func TestLatencyReader_BadKey(t *testing.T) {
 	entryBytes := le.Encode()
 	loader.latencyMap.Insert([]byte("short"), entryBytes[:])
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewLatencyReader(loader, publisher, DefaultLatencyReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -265,7 +265,7 @@ func TestLatencyReader_BadEntry(t *testing.T) {
 	keyBytes := lk.Encode()
 	loader.latencyMap.Insert(keyBytes[:], []byte("short"))
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewLatencyReader(loader, publisher, DefaultLatencyReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -285,7 +285,7 @@ func TestLatencyReader_SampleChannel(t *testing.T) {
 	entryBytes := le.Encode()
 	loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewLatencyReader(loader, publisher, DefaultLatencyReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -318,7 +318,7 @@ func TestLatencyReader_DeleteAfterRead(t *testing.T) {
 	entryBytes := le.Encode()
 	loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultLatencyReaderConfig()
 	config.DeleteAfterRead = true
 	reader := NewLatencyReader(loader, publisher, config)
@@ -340,7 +340,7 @@ func TestLatencyReader_NoDeleteWhenDisabled(t *testing.T) {
 	entryBytes := le.Encode()
 	loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultLatencyReaderConfig()
 	config.DeleteAfterRead = false
 	reader := NewLatencyReader(loader, publisher, config)
@@ -368,7 +368,7 @@ func TestLatencyReader_PrometheusHistogramUpdated(t *testing.T) {
 		loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 	}
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	reader := NewLatencyReader(loader, publisher, DefaultLatencyReaderConfig())
 
 	reader.pollOnce(context.Background())
@@ -444,7 +444,7 @@ func TestLatencyReader_PublishesValidJSON(t *testing.T) {
 	entryBytes := le.Encode()
 	loader.latencyMap.Insert(keyBytes[:], entryBytes[:])
 
-	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
+	publisher := NewWotanPublisher(testWotan(t, "localhost:9090"), 100, 50*time.Millisecond)
 	config := DefaultLatencyReaderConfig()
 	reader := NewLatencyReader(loader, publisher, config)
 

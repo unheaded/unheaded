@@ -13,7 +13,9 @@
 #                    a restore with scripts/well/set-role-passwords.sh;
 #                    holds password hashes, hence 0600)
 #   <db>.dump        pg_dump -Fc of every database that accepts connections
-#                    (enumerated from pg_database, never a fixed list)
+#                    (enumerated from pg_database, never a fixed list),
+#                    except WELL_BACKUP_EXCLUDE (Zhen's database has its own
+#                    set, ADR-149)
 #   cluster.env      superuser=<name> and server_version=<num>: a restore
 #                    needs a server bootstrapped with the same superuser
 #                    (globals.sql grants GRANTED BY it)
@@ -33,6 +35,15 @@
 #                    db/migrations/023; read-only, never the superuser)
 #   WELL_BACKUP_OTHER_DISK=1  refuse when the root shares a physical disk
 #                    with the container's data directory
+#   WELL_BACKUP_DATABASES  space-separated: dump only these (each must exist,
+#                    else exit 1); unset: every database but the excluded
+#   WELL_BACKUP_EXCLUDE    space-separated: leave these out (default
+#                    unheaded_zhen, the Zhen module's own set; empty keeps all)
+#   WELL_BACKUP_SET  the set's name, [a-z]{1,16} (exit 2 otherwise): empty is
+#                    the platform's set (well_backup.prom,
+#                    unheaded_well_backup_*); a name writes <name>_backup.prom
+#                    and unheaded_<name>_backup_* (Zhen's: WELL_BACKUP_SET=zhen,
+#                    deploy/systemd/unheaded-zhen-backup.service)
 #
 # After each set, <root>/LATEST (0644) names it: recency is visible to a
 # probe that cannot read the 0700 sets themselves.
@@ -45,6 +56,12 @@ KEEP="${WELL_BACKUP_KEEP:-14}"
 if [[ "${1:-}" == --keep ]]; then KEEP="${2:?--keep needs a number}"; shift 2; fi
 (($# == 0)) || { echo "usage: $0 [--keep N]" >&2; exit 2; }
 [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || { echo "[well] keep must be a positive integer, got '$KEEP'" >&2; exit 2; }
+SET="${WELL_BACKUP_SET:-}"
+if [[ -n "$SET" && ! "$SET" =~ ^[a-z]{1,16}$ ]]; then
+	echo "[well] WELL_BACKUP_SET must be [a-z]{1,16}, got '$SET'" >&2; exit 2
+fi
+EXCLUDE="${WELL_BACKUP_EXCLUDE-unheaded_zhen}"
+ONLY="${WELL_BACKUP_DATABASES:-}"
 
 ROOT="${WELL_BACKUP_DIR:-$HOME/backups/unheaded}"
 C="${WELL_CONTAINER:-unheaded-postgres}"
@@ -118,6 +135,27 @@ printf 'superuser=%s\nserver_version=%s\n' "$SU" \
 mapfile -t DBS < <(exec_su psql -X -At -v ON_ERROR_STOP=1 -U "$ROLE" -d postgres \
 	-c "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY 1")
 ((${#DBS[@]} > 0)) || { echo "[well] no databases found" >&2; exit 1; }
+# Which databases this set holds (ADR-149): WELL_BACKUP_DATABASES names them,
+# each of which must exist; otherwise all but WELL_BACKUP_EXCLUDE.
+if [[ -n "$ONLY" ]]; then
+	KEPT=()
+	for want in $ONLY; do
+		found=0
+		for db in "${DBS[@]}"; do [[ "$db" == "$want" ]] && found=1; done
+		((found)) || { echo "[well] WELL_BACKUP_DATABASES names $want, which does not exist" >&2; exit 1; }
+		KEPT+=("$want")
+	done
+	DBS=("${KEPT[@]}")
+elif [[ -n "$EXCLUDE" ]]; then
+	KEPT=()
+	for db in "${DBS[@]}"; do
+		skip=0
+		for x in $EXCLUDE; do [[ "$db" == "$x" ]] && skip=1; done
+		((skip)) || KEPT+=("$db")
+	done
+	DBS=("${KEPT[@]}")
+fi
+((${#DBS[@]} > 0)) || { echo "[well] no databases left to back up" >&2; exit 1; }
 
 printf 'db\ttable\trows\n' >"$PART/rowcounts.tsv"
 # One row per ordinary or partitioned table outside the system schemas, with
@@ -171,15 +209,19 @@ for old in "${SETS[@]:KEEP}"; do
 done
 # ERDA 1.4: on success only, so a failed backup shows as a stale timestamp.
 if [[ -n "${WELL_METRICS_DIR:-}" ]]; then
-	m="$WELL_METRICS_DIR/.well_backup.prom.tmp"
+	file=well_backup.prom metric=unheaded_well_backup what="The Well"
+	if [[ -n "$SET" ]]; then
+		file="${SET}_backup.prom" metric="unheaded_${SET}_backup" what="the $SET set of The Well"
+	fi
+	m="$WELL_METRICS_DIR/.$file.tmp"
 	{
-		echo "# HELP unheaded_well_backup_last_success_timestamp_seconds Last complete backup set of The Well."
-		echo "# TYPE unheaded_well_backup_last_success_timestamp_seconds gauge"
-		echo "unheaded_well_backup_last_success_timestamp_seconds $(date +%s)"
-		echo "unheaded_well_backup_duration_seconds $SECONDS"
-		echo "unheaded_well_backup_size_bytes $(du -sb "$FINAL" | cut -f1)"
-		echo "unheaded_well_backup_databases ${#DBS[@]}"
-		echo "unheaded_well_backup_rows $(awk -F'\t' 'NR > 1 {n += $3} END {print n + 0}' "$FINAL/rowcounts.tsv")"
-	} >"$m" && chmod 0644 "$m" && mv -f "$m" "$WELL_METRICS_DIR/well_backup.prom"
+		echo "# HELP ${metric}_last_success_timestamp_seconds Last complete backup set of $what."
+		echo "# TYPE ${metric}_last_success_timestamp_seconds gauge"
+		echo "${metric}_last_success_timestamp_seconds $(date +%s)"
+		echo "${metric}_duration_seconds $SECONDS"
+		echo "${metric}_size_bytes $(du -sb "$FINAL" | cut -f1)"
+		echo "${metric}_databases ${#DBS[@]}"
+		echo "${metric}_rows $(awk -F'\t' 'NR > 1 {n += $3} END {print n + 0}' "$FINAL/rowcounts.tsv")"
+	} >"$m" && chmod 0644 "$m" && mv -f "$m" "$WELL_METRICS_DIR/$file"
 fi
 echo "[well] backup complete: $FINAL ($(du -sh "$FINAL" | cut -f1)); sets retained: $((${#SETS[@]} < KEEP ? ${#SETS[@]} : KEEP))"

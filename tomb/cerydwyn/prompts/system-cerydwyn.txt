@@ -24,11 +24,6 @@ Message Bus:
 
 Core Services:
 - timeguru (port 19000): Timeline tracking, HTTP
-- architect (port 19001): Design service, HTTP
-- captain (port 19002): Strategy service, HTTP
-- micromanager (port 19003): Execution service, HTTP
-- monad (port 19004): Unified state management, gRPC
-- sophia (port 19005): Knowledge graph service, gRPC
 
 Gateway:
 - gateway (ports 21000/21443): TLS termination, HTTP/HTTPS

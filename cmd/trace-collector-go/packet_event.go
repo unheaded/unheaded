@@ -51,7 +51,7 @@ func DecodeKernelPacketEvent(b []byte) (*TraceEntry, error) {
 }
 
 // marshalDashboardFlow renders a flow event in the schema the dashboard's
-// ingestor parses from ebpf.flow.events (its ebpf.FlowEvent). trace_id is
+// ingestor parses from traces.flow (its ebpf.FlowEvent). trace_id is
 // {high, low} as in packets; it went out as {High, Low} (untagged fields).
 func marshalDashboardFlow(ev *FlowEventEntry) ([]byte, error) {
 	type traceID struct {
@@ -99,7 +99,7 @@ func marshalDashboardFlow(ev *FlowEventEntry) ([]byte, error) {
 }
 
 // marshalDashboardPacket renders a packet in the schema the dashboard's
-// ingestor parses from ebpf.packet.events (its ebpf.PacketEvent).
+// ingestor parses from traces.packet (its ebpf.PacketEvent).
 func marshalDashboardPacket(te *TraceEntry) ([]byte, error) {
 	type traceID struct {
 		High uint64 `json:"high"`

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"unheaded/pkg/transport"
+	wotanClient "unheaded/pkg/wotan-client"
 )
 
 // fakeWotan models the HTTP membership model: publish is rejected unless the
@@ -86,14 +87,30 @@ func (f *fakeWotan) published(topic string) int {
 	return f.pubs[topic]
 }
 
+func newClient(t *testing.T, addr string) *wotanClient.Client {
+	t.Helper()
+	c, err := wotanClient.NewClient(addr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	return c
+}
+
+// Connect takes the process's one Wotan client (ADR-147 Phase 7); without
+// one, logs stay local.
+func TestConnect_NilClientIsAnError(t *testing.T) {
+	if _, err := Connect(context.Background(), nil, "http://127.0.0.1:1", "svc"); err == nil {
+		t.Fatal("Connect with no client returned no error")
+	}
+}
+
 func TestConnect_JoinsEveryLevelThenPublishes(t *testing.T) {
 	fw := newFakeWotan("svc")
 	srv := httptest.NewServer(fw)
 	defer srv.Close()
 
-	cfg := transport.DefaultConfig()
-	cfg.WotanHTTPAddr = srv.URL
-	conn, err := Connect(context.Background(), cfg, "svc")
+	conn, err := Connect(context.Background(), newClient(t, srv.URL), srv.URL, "svc")
 	if err != nil {
 		t.Fatalf("Connect: %v", err)
 	}
@@ -127,9 +144,7 @@ func TestConnect_WotanDownAtStartJoinsLater(t *testing.T) {
 	fw.down = true
 	srv := httptest.NewServer(fw)
 	defer srv.Close()
-	cfg := transport.DefaultConfig()
-	cfg.WotanHTTPAddr = srv.URL
-	conn, err := Connect(context.Background(), cfg, "svc")
+	conn, err := Connect(context.Background(), newClient(t, srv.URL), srv.URL, "svc")
 	if err != nil {
 		t.Fatalf("Connect with Wotan down: %v", err)
 	}
@@ -155,9 +170,7 @@ func TestConnect_UnapprovedNameFails(t *testing.T) {
 	srv := httptest.NewServer(newFakeWotan("someone-else"))
 	defer srv.Close()
 
-	cfg := transport.DefaultConfig()
-	cfg.WotanHTTPAddr = srv.URL
-	conn, err := Connect(context.Background(), cfg, "svc")
+	conn, err := Connect(context.Background(), newClient(t, srv.URL), srv.URL, "svc")
 	if err == nil {
 		t.Fatal("expected error for unapproved display name")
 	}

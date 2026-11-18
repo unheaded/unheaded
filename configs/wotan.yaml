@@ -27,21 +27,17 @@ topics:
   # Use "*" to auto-approve all callers (not recommended for production).
   auto_approve:
     - "akira"                # system.health.* consensus (cmd/akira)
+    - "alert-mailer"         # alerts.critical, signed (ALERTS_SIGNING_KEY_FILE; ADR-147 Phase 8)
     - "anomaly"              # anomaly.* consumer and anomaly.scores bridge (cmd/anomaly, ADR-108)
-    - "architect"
-    - "captain"
     - "chaos-controller"     # chaos.* events and the chaos.abort path (ADR-107)
     - "dashboard-backend"
-    - "ebpf-collector"       # ebpf.packet.events / ebpf.latency.events (cmd/ebpf-collector, Rust; no unit or compose service yet)
+    - "ebpf-collector"       # traces.packet / traces.latency (cmd/ebpf-collector, Rust; no unit or compose service yet)
     - "gateway"              # gateway.requests and the alerts.critical subscription every service keeps (services/gateway)
     - "heimdall"             # drift.detected.<node> (signed; drift. keys decide what is taken)
     - "kanban-app"
     - "kev-poller"           # threats.cisa-kev.{updates,delta} (ADR-055)
     - "loadbalancer"         # services/loadbalancer xdpsync: lb.* topics (library; no binary yet)
-    - "micromanager"
-    - "monad"
     - "perf-benchmark"       # cmd/perf-benchmark -scenario e2e-trace: bench.perf.packet only (S-WELL-SPRING Phase 10)
-    - "sophia"
     - "sword"                # deploy.{started,progress,succeeded,failed,rolled_back} (S-REAL-STEEL)
     - "timeguru"
     - "trace-collector"
@@ -58,17 +54,12 @@ topics:
   # matches them. Delete once auth is on everywhere (west and east).
   legacy_display_names:
     - "service"              # the default display_name of an unnamed caller
-    - "architect-service"
-    - "micromanager-service"
-    - "monad-service"
-    - "sophia-service"
     - "dashboard"
     - "kanban"
     - "kanban-app-timeline"
     - "daemon"
     - "cuirass"
     - "anomaly-service"
-    - "anomaly-bridge"
     - "wiki"
     - "zhenai"
     - "zhen-eval"
@@ -110,7 +101,7 @@ topics:
       keys: []
     - prefix: "audit."                     # no first-party producer yet
       keys: []
-    - prefix: "alerts.critical."           # every service subscribes; no first-party producer yet
+    - prefix: "alerts.critical."           # alert-mailer publishes (ALERTS_SIGNING_KEY_FILE); every service on the bus subscribes
       keys: []
     - prefix: "system.health.consensus."   # Akira's band changes (HEALTH_SIGNING_KEY_FILE)
       keys: []
@@ -146,29 +137,31 @@ topics:
     mode: enforce
     services:
       akira:
+        subscribe: ["alerts.critical", "system.discovery"]  # system.discovery: the reader (discovery.Watch, ADR-147 Phase 9)
         publish: ["system.health.reports", "system.health.consensus", "system.health.remediate"]
+      alert-mailer:
+        publish: ["alerts.critical"]
       anomaly:
         subscribe: ["anomaly.baseline", "alerts.critical"]
         publish: ["anomaly.alerts", "anomaly.scores"]
-      architect:
-        subscribe: ["alerts.critical"]
-        publish: ["architecture.updates", "system.discovery", "system.health.reports", "logs.architect.*"]
-      captain:
-        subscribe: ["alerts.critical"]
-        publish: ["decisions.created", "system.discovery", "system.health.reports"]
       chaos-controller:
-        subscribe: ["chaos.abort"]
+        subscribe: ["chaos.abort", "alerts.critical"]
         publish: ["chaos.experiment.started", "chaos.experiment.completed", "chaos.refused", "chaos.revert_failed", "chaos.schedules", "system.discovery", "system.health.reports"]
       dashboard-backend:
-        # The human-facing aggregator: it streams metrics.*, health.*,
-        # alerts.*, timeline.*, tasks.*, decisions.*, state.*,
-        # architecture.*, traces.*, ebpf.*.events, compute.*, anamnesis.*,
-        # bench.perf.packet and system.health.*, and "*" when its list is
-        # empty. The one reader of everything.
-        subscribe: ["#"]
-        publish: ["metrics.*", "health.*", "alerts.*", "system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
+        # The human-facing aggregator, on its one Wotan client (ADR-147
+        # Phase 7): the event streamer reads timeline.*, tasks.*,
+        # system.health.consensus and traces.correlated; the eBPF ingestor
+        # traces.{packet,flow,latency} (one subscription each, both views,
+        # Phase 10), ebpf.syscall.events, compute.*, anamnesis.* and
+        # bench.perf.packet; the health persister system.health.reports.
+        # "ebpf.*.events" stays for ebpf.syscall.events alone: the packet,
+        # flow and latency mirrors are gone (Phase 10). metrics.*, health.*,
+        # alerts.*, decisions.*, state.* and architecture.* went (no
+        # running publisher), and with them "#".
+        subscribe: ["alerts.critical", "timeline.*", "tasks.*", "system.health.consensus", "system.health.reports", "traces.*", "ebpf.*.events", "compute.*", "anamnesis.*", "bench.perf.packet"]
+        publish: ["system.discovery", "system.health.reports", "logs.dashboard-backend.*"]
       ebpf-collector:
-        publish: ["ebpf.packet.events", "ebpf.latency.events"]
+        publish: ["traces.packet", "traces.latency"]
       gateway:
         # On auto_approve since 2026-11-12 (Stevie); before that its
         # subscriptions stayed pending.
@@ -177,38 +170,30 @@ topics:
       heimdall:
         publish: ["drift.detected.*"]
       kanban-app:
-        subscribe: ["tasks.*", "timeline.updates", "runbooks.progress"]
+        subscribe: ["tasks.*", "timeline.updates", "runbooks.progress", "alerts.critical"]
         publish: ["tasks.created", "tasks.updated", "tasks.deleted", "system.discovery", "system.health.reports", "logs.kanban-app.*"]
       kev-poller:
+        subscribe: ["alerts.critical"]
         publish: ["threats.cisa-kev.updates", "threats.cisa-kev.delta"]
-      micromanager:
-        subscribe: ["alerts.critical"]
-        publish: ["tasks.created", "tasks.updated", "tasks.completed", "system.discovery", "system.health.reports", "logs.micromanager.*"]
-      monad:
-        subscribe: ["alerts.critical"]
-        publish: ["monad.operations", "system.discovery", "system.health.reports", "logs.monad.*"]
       perf-benchmark:
         publish: ["bench.perf.packet"]
-      sophia:
-        # knowledge.shared: sophia joins it at start (no handler reads it
-        # yet). Left off the first list, so from the 2026-11-12 enforce
-        # every restart of sophia was refused it every 30 s.
-        subscribe: ["alerts.critical", "knowledge.shared"]
-        publish: ["sophia.wisdom", "system.discovery", "system.health.reports", "logs.sophia.*"]
       sword:
+        subscribe: ["alerts.critical"]
         publish: ["deploy.started", "deploy.progress", "deploy.succeeded", "deploy.failed", "deploy.rolled_back", "system.discovery", "system.health.reports"]
       timeguru:
         subscribe: ["alerts.critical"]
         publish: ["timeline.updates", "system.discovery", "system.health.reports", "logs.timeguru.*"]
       trace-collector:
-        publish: ["traces.*", "ebpf.*.events", "anamnesis.*", "system.discovery", "system.health.reports", "logs.trace-collector.*"]
+        subscribe: ["alerts.critical"]
+        publish: ["traces.*", "anamnesis.*", "system.discovery", "system.health.reports", "logs.trace-collector.*"]
       unheaded-baseline:
         publish: ["compliance.deviation.*"]
       unheaded-cli:
         # The operator's key: the demo trace injector, scripts/run-runbook.py
         # by hand, and the chaos abort nothing in the repo publishes yet.
-        publish: ["ebpf.*.events", "runbooks.progress", "chaos.abort"]
+        publish: ["traces.packet", "traces.flow", "traces.latency", "runbooks.progress", "chaos.abort"]
       unheaded-daemon:
+        subscribe: ["alerts.critical"]
         publish: ["cuirass.drift", "cuirass.metrics", "cuirass.chaos", "system.discovery", "system.health.reports", "logs.unheaded-daemon.*"]
       upc-cartridgectl:
         # weights subcommand only: publish writes a model's topic and fetch
@@ -217,6 +202,7 @@ topics:
         publish: ["upc.cart.weights.*"]
       zhen-agentd:
         publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending", "zhen.agent.report", "zhen.agent.runs", "zhen.scheduler.heartbeat", "runbooks.progress"]
+        subscribe: ["alerts.critical"]   # ADR-147 D2 = B: unattended runs hold while a critical alert fires
       zhen-claude:
         publish: ["zhen.llm.requests", "zhen.audit.toolcalls", "zhen.confirm.pending"]
 

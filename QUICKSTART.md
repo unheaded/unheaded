@@ -75,10 +75,10 @@ go test ./... -count=1
 go test ./... -race -count=1
 
 # Single service only
-go test ./services/captain/... -v
+go test ./services/timeguru/... -v
 
 # With coverage
-go test -cover ./services/architect/...
+go test -cover ./services/wotan/...
 ```
 
 ---
@@ -110,11 +110,6 @@ docker compose logs -f
 |---------|-----------|------|-------------|------|
 | Wotan | unheaded-wotan | 18000 (HTTP), 18001 (gRPC) | `localhost:18000/health` | Message bus |
 | Timeguru | unheaded-timeguru | 19000 | `localhost:19000/health` | Timeline tracking |
-| Captain | unheaded-captain | 19002 | `localhost:19002/health` | Strategy & vision |
-| Architect | unheaded-architect | 19001 | `localhost:19001/health` | Infrastructure design |
-| Micromanager | unheaded-micromanager | 19003 | `localhost:19003/health` | Task execution |
-| Monad | unheaded-monad | 19004 | `localhost:19004/health` | State management |
-| Sophia | unheaded-sophia | 19005 | `localhost:19005/health` | Knowledge graph |
 | Cuirass | unheaded-cuirass | 19006 | `localhost:19006/health` | Control plane |
 | Dashboard | unheaded-dashboard | 20000 | `localhost:20000/health` | Metrics + WebSocket |
 | Kanban | unheaded-kanban | 20001 | `localhost:20001/health` | Self-hosting proof |
@@ -146,7 +141,7 @@ Every port except Traefik's 80 and 443 binds `127.0.0.1`. To serve another host,
 
 ```bash
 # Quick health check across all services (Doom Range ports)
-for port in 18000 19000 19001 19002 19003 19004 19005 19006 20000 20001; do
+for port in 18000 19000 19006 20000 20001; do
   printf "localhost:%-5s → " "$port"
   curl -sf "http://localhost:$port/health" && echo "" || echo "UNREACHABLE"
 done
@@ -349,10 +344,7 @@ go run ./services/wotan/cmd/wotan/...
 WOTAN_ADDR=localhost:18000 go run ./services/timeguru/cmd/timeguru/...
 # Default: :19000
 
-# Terminal 3: Captain
-WOTAN_ADDR=localhost:18000 HTTP_ADDR=:19002 go run ./services/captain/cmd/captain/...
-
-# Terminal 4: Kanban App (needs Timeguru + Wotan)
+# Terminal 3: Kanban App (needs Timeguru + Wotan)
 TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18000 \
   go run ./cmd/kanban-app/...
 ```
@@ -369,11 +361,6 @@ Default ports — "The Doom Range" (16666-26666):
 | Wotan HTTP | 18000 | `--http-port` flag |
 | Wotan gRPC | 18001 | `--grpc-port` flag |
 | Timeguru | 19000 | `PORT` env |
-| Architect | 19001 | `-addr` flag |
-| Captain | 19002 | `HTTP_ADDR` env |
-| Micromanager | 19003 | `-port` flag |
-| Monad | 19004 | `MONAD_PORT` env |
-| Sophia | 19005 | `SOPHIA_LISTEN_ADDR` env |
 | Cuirass | 17000 | `HTTP_ADDR` env |
 | Dashboard | 20000 | `-listen` flag |
 | Kanban App | 20001 | `PORT` env |
@@ -416,11 +403,6 @@ uses its own IPs and ports, listed in `SERVICES` at the top of the script):
 | Cuirass (control plane) | 10.10.10.5 | 19006 |
 | Wotan (message bus) | 10.10.10.10 | 18000, 18001 |
 | Timeguru | 10.10.10.20 | 19000 |
-| Captain | 10.10.10.21 | 19002 |
-| Micromanager | 10.10.10.22 | 19003 |
-| Architect | 10.10.10.23 | 19001 |
-| Sophia | 10.10.10.26 | 19005 |
-| Monad | 10.10.10.27 | 19004 |
 | Gateway (public) | 10.10.10.100 | 80, 443 |
 | Kanban | 10.10.10.200 | 20001 |
 | Dashboard | 10.10.10.201 | 20000 |

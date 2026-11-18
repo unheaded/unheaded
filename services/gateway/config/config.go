@@ -27,12 +27,7 @@ type Config struct {
 
 // AlphaServicesConfig holds configuration for Alpha platform services.
 type AlphaServicesConfig struct {
-	TimeGuruHost     string `json:"timeguru_host"`
-	CaptainHost      string `json:"captain_host"`
-	ArchitectHost    string `json:"architect_host"`
-	MicromanagerHost string `json:"micromanager_host"`
-	MonadHost        string `json:"monad_host"`
-	SophiaHost       string `json:"sophia_host"`
+	TimeGuruHost string `json:"timeguru_host"`
 }
 
 // ServerConfig holds server-specific settings.
@@ -106,6 +101,7 @@ type CircuitConfig struct {
 type WotanConfig struct {
 	Enabled     bool   `json:"enabled"`
 	URL         string `json:"url"`
+	GRPCAddr    string `json:"grpc_addr"` // host:port; streams need it (ADR-147 Phase 6)
 	Topic       string `json:"topic"`
 	ServiceName string `json:"service_name"`
 }
@@ -176,6 +172,7 @@ func DefaultConfig() *Config {
 		Wotan: WotanConfig{
 			Enabled:     true,
 			URL:         "http://localhost:18000",
+			GRPCAddr:    "localhost:18001",
 			Topic:       "gateway.requests",
 			ServiceName: "api-gateway",
 		},
@@ -184,12 +181,7 @@ func DefaultConfig() *Config {
 			Path:    "/metrics",
 		},
 		AlphaServices: AlphaServicesConfig{
-			TimeGuruHost:     "timeguru:19000",
-			CaptainHost:      "captain:19002",
-			ArchitectHost:    "architect:19001",
-			MicromanagerHost: "micromanager:19003",
-			MonadHost:        "monad:19004",
-			SophiaHost:       "sophia:19005",
+			TimeGuruHost: "timeguru:19000",
 		},
 	}
 }
@@ -227,6 +219,9 @@ func LoadFromEnv() *Config {
 
 	if wotanURL := os.Getenv("WOTAN_URL"); wotanURL != "" {
 		cfg.Wotan.URL = wotanURL
+	}
+	if grpcAddr := os.Getenv("WOTAN_GRPC_ADDR"); grpcAddr != "" {
+		cfg.Wotan.GRPCAddr = grpcAddr
 	}
 
 	if tlsCert := os.Getenv("GATEWAY_TLS_CERT"); tlsCert != "" {
@@ -271,21 +266,6 @@ func LoadFromEnv() *Config {
 	// Alpha Services host configuration
 	if host := os.Getenv("TIMEGURU_HOST"); host != "" {
 		cfg.AlphaServices.TimeGuruHost = host
-	}
-	if host := os.Getenv("CAPTAIN_HOST"); host != "" {
-		cfg.AlphaServices.CaptainHost = host
-	}
-	if host := os.Getenv("ARCHITECT_HOST"); host != "" {
-		cfg.AlphaServices.ArchitectHost = host
-	}
-	if host := os.Getenv("MICROMANAGER_HOST"); host != "" {
-		cfg.AlphaServices.MicromanagerHost = host
-	}
-	if host := os.Getenv("MONAD_HOST"); host != "" {
-		cfg.AlphaServices.MonadHost = host
-	}
-	if host := os.Getenv("SOPHIA_HOST"); host != "" {
-		cfg.AlphaServices.SophiaHost = host
 	}
 
 	return cfg

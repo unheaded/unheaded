@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West's /etc/fstab lines for the database volume (S-WEST-GROUND, ADR-147 decision 11).
+#
+# What it is: the lines this repository requires in west's /etc/fstab. It is not
+# a whole fstab: `scripts/check-host-settings.sh --host west` (manifest
+# deploy/host-settings/west.tsv, mode `contains`) requires every non-comment line
+# below, word for word, as a whole line of the host's /etc/fstab.
+#
+# Order of installation (Phase 5, attended):
+#   - the LV line and the /srv/backups line are appended before the stack stops;
+#   - the five data binds are appended only while the stack is stopped, after the
+#     copy to /srv/unheaded-data is verified.
+# `nofail` keeps west bootable with sshd up if the volume is lost;
+# deploy/host-settings/west-docker-data.conf is what keeps Docker from
+# starting the stores on the stale copies underneath.
+#
+# The /srv/backups bind (ADR-147 S-WEST-GROUND WG2, ruling A) keeps the Well's
+# backup sets on sdb once the data is on the NVMe: scripts/db-backup.sh refuses to
+# run when the sets and the data share a disk (WELL_BACKUP_OTHER_DISK=1).
+/dev/ubuntu-vg/unheaded-data /srv/unheaded-data ext4 defaults,nofail,x-systemd.device-timeout=30s 0 2
+/srv/unheaded-data/postgres /var/lib/docker/volumes/unheaded-dev_postgres-data/_data none bind,nofail,x-systemd.requires-mounts-for=/srv/unheaded-data 0 0
+/srv/unheaded-data/clickhouse /var/lib/docker/volumes/unheaded-dev_clickhouse-data/_data none bind,nofail,x-systemd.requires-mounts-for=/srv/unheaded-data 0 0
+/srv/unheaded-data/victoria /var/lib/docker/volumes/unheaded-dev_victoria-data/_data none bind,nofail,x-systemd.requires-mounts-for=/srv/unheaded-data 0 0
+/srv/unheaded-data/prometheus /var/lib/docker/volumes/monitoring_prometheus_data/_data none bind,nofail,x-systemd.requires-mounts-for=/srv/unheaded-data 0 0
+/srv/unheaded-data/vector /var/lib/docker/volumes/unheaded-dev_vector-data/_data none bind,nofail,x-systemd.requires-mounts-for=/srv/unheaded-data 0 0
+/var/backups/srv-backups /srv/backups none bind,nofail,x-systemd.requires-mounts-for=/var 0 0

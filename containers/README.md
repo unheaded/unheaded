@@ -50,11 +50,6 @@ Bridge: lxdbr0 / br-unheaded (10.10.10.0/24)
 +-- Cuirass --------- 10.10.10.5   (control plane, port 8005)
 |
 +-- Timeguru -------- 10.10.10.20  (timeline, port 8000)
-+-- Captain --------- 10.10.10.21  (strategy, port 8001)
-+-- Micromanager ---- 10.10.10.22  (execution, port 8002)
-+-- Architect ------- 10.10.10.23  (design, port 8003)
-+-- Monad ----------- 10.10.10.27  (state mgmt, port 8004)
-+-- Sophia ---------- 10.10.10.26  (knowledge graph, port 8005)
 +-- Doom Bridge ----- 10.10.10.28  (Fenrir's Eye, port 6660)
 +-- Wiki Server ----- 10.10.10.29  (documentation, port 8007)
 |
@@ -94,7 +89,7 @@ docker compose logs -f timeguru
 
 ```bash
 # Pull images
-for svc in wotan timeguru captain architect micromanager monad sophia; do
+for svc in wotan timeguru; do
   ctr images pull ghcr.io/unheaded/$svc:latest
 done
 

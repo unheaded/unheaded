@@ -1,25 +1,26 @@
-# Akira targets for the compose stack: the ten services on the `data`
+# Akira targets for the compose stack: the four services on the `data`
 # network, by compose DNS name and in-container port. (Akira's built-in
 # defaults are for a bare-metal host: localhost and the Doom Range ports.)
 targets:
   - {name: wotan,        host: wotan,             port: 18000}
   - {name: timeguru,     host: timeguru,          port: 19000}
-  - {name: architect,    host: architect,         port: 19001}
-  - {name: captain,      host: captain,           port: 19002}
-  - {name: micromanager, host: micromanager,      port: 19003}
-  - {name: monad,        host: monad,             port: 19004}
-  - {name: sophia,       host: sophia,            port: 19005}
-  - {name: cuirass,      host: cuirass,           port: 19006}
   - {name: dashboard,    host: dashboard-backend, port: 20000}
   - {name: kanban,       host: kanban-app,        port: 20001}
-# S-IRON-GATE Phase 10 (ADR-034 Phase 7): cert expiry as an exec check, run on
-# every sweep here so a short-lived dev cert flips it within a minute (hosts
-# run it hourly). The image carries the runner and runbook
+# S-IRON-GATE Phase 10 (ADR-034 Phase 7): cert expiry as an exec check,
+# hourly, as the hosts run it; a certificate issued short is noticed within
+# the hour (ADR-147, Developer D8: every 30 s cost 2,880 interpreter starts a
+# day in a 0.10-core container). The image carries the runner and runbook
 # (Dockerfile, akira stage); docker-compose.yml mounts each service's
 # certificate (never a key) and the CA under /etc/unheaded/tls-watch/.
   - name: cert-expiry
     type: exec
     argv: ["/usr/bin/python3", "-B", "/usr/share/unheaded/scripts/run-runbook.py", "/usr/share/unheaded/runbooks/pki/akira-cert-expiry-check.yaml"]
-    interval: 30s
+    interval: 1h
     timeout: 30s
     env: {UNHEADED_TLS_DIR: /etc/unheaded/tls-watch}
+
+# ADR-147 Phase 9 (D3 = A): Akira reads system.discovery and checks each
+# admitted announcement it has no line for (sender = verified identity,
+# address inside these subnets, at most 256).
+discover:
+  subnets: ["172.28.1.0/24"]  # the compose data network (pinned in docker-compose.yml): a service that announces from it is checked without a line here
