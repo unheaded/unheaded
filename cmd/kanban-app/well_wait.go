@@ -173,7 +173,10 @@ func (g *wellGate) Close() error {
 // not migrated stops the process, as before (no fallback would split the
 // board).
 func openWell(ctx context.Context, g *wellGate) {
-	st, err := connectTaskStore(ctx)
+	// Read the two package variables once, here: the retry goroutine below
+	// outlives this call, and a test that restores them must not race it.
+	connect, wait := connectTaskStore, wellWait
+	st, err := connect(ctx)
 	if err == nil {
 		g.attach(st)
 		log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")
@@ -185,7 +188,7 @@ func openWell(ctx context.Context, g *wellGate) {
 	}
 	log.Warn().Err(err).Msg("the Well is not answering: the board waits, read-only, and retries")
 	go func() {
-		st, err := waitForWell(ctx, connectTaskStore, wellWait[0], wellWait[1])
+		st, err := waitForWell(ctx, connect, wait[0], wait[1])
 		if err != nil {
 			if errors.As(err, &nm) {
 				log.Fatal().Err(err).Msg("The Well answers but is not migrated for kanban-app: refusing to start")
