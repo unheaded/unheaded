@@ -123,6 +123,28 @@ Nine defects an independent review found on the finished branch (head `ccfdf674`
 - **Independent review 2026-11-15 (REV-1 to REV-9):** the nine findings verified and fixed in the table "Independent review 2026-11-15". REV-7's meta-gate: `TMPDIR=<scratch> scripts/check-gates-can-fail.sh --only check-unit-ceilings` → `PASS: 3 gate(s) proven to fail` (the new `provoke_unit_ceilings_compose_yaml` included). REV-2: `nix-instantiate --parse` only; the host configurations were not evaluated (needs nixpkgs from the network). Final run after REV-9 (one pass, `nice`/`ionice`, GOMAXPROCS=4): `go test -race -count=1 ./pkg/... ./cmd/... ./services/...` **209 ok, 0 FAIL**; golangci-lint 0 issues on every touched package; shellcheck `-S warning` clean; ruff PASS (0); well-lint PASS; gosec ratchet PASS; crypto-inventory PASS (CBOM regenerated in the REV-9 commit); spdx OK. promtool and `scripts/ci-local.sh` not run (containers; evidence week).
 - Lanes: the plan's lanes (`-docs`, `-wotan`, `-mon`, `-dash`, `-ebpf`) exist for parallel agents. This lane is one executor and the brief forbids spawning agents, so their phases run in order in `WT` on `sprint/s-waste-out` itself; there is nothing to merge back.
 
+### 2026-11-18: block A after the power cycle (Phase 17, the hourly befores)
+
+West was powered off and on (down from about 01:20Z, up 06:04Z). The old stack was started again at 16:05Z to 16:08Z with `docker start` (stores, then Wotan, Vector and the writer, then the applications and Alertmanager; `unheaded-alert-mailer` left stopped; every container healthy). The images are the old builds; the config files they mount are the merged tree's (`config/akira/akira.yaml`, `configs/wotan.yaml`, `monitoring/prometheus/prometheus.yml`, `config/victoria/scrape.yml`, `config/coredns/Corefile` changed since `7be626d4`; `vector.yaml` and Postgres's configuration did not). Nothing else ran on the host between the two readings. Raw output: `~/.local/state/unheaded/adr147-blockA/befores-6-hourly-first.txt` and `befores-7-hourly-second.txt` on west.
+
+| Row | Step | Reading | 18:00:19Z | 18:59:29Z | Per hour (3,550 s) | Reference |
+|---|---|---|---|---|---|---|
+| W-30 | 313 | Postgres `memory.events` `max` | 0 | 99 | 99 | about 640 an hour |
+| W-30 | 313 | Postgres `io.pressure` some, microseconds | 93,978,199 | 132,295,381 | 38.3 s | none |
+| W-30 | 313 | `unheaded_ops` `blks_read` | 34,478,671 | 34,488,664 | 9,993 | none |
+| W-30 | 313 | `unheaded_ops` `blks_hit` | 32,158,279 | 32,369,631 | 211,352 | none |
+| W-30 | 313 | `huginn_pg_cache_hit_ratio{db="well-ops"}` | 0.4826 | 0.4841 | | 0.683 (0.479 at 00:39Z) |
+| W-30 | 313 | Slowest `log_events` reads, mean ms (calls) | 12,595 (220), 8,506 (11), 6,860 (12) | the same | | 3 to 6 s |
+| W-28 | 311 | ClickHouse bytes written to `sdb` | 7,173,783,552 | 10,892,775,424 | 3.72 GB (89 GB a day) | 71 GB a day |
+| W-28 | 311 | ClickHouse `io.pressure` some, microseconds | 74,564,912 | 101,950,529 | 27.4 s | none |
+| W-20 | 309 | `service_health_current` upserts | 514,195 | 515,493 | 0.37 a second | 0.68 |
+| W-20 | 309 | `pg_stat_wal.wal_sync` | 738,723 | 740,937 | 0.62 a second | 0.93 |
+
+- **W-20's before stays the exact reading of 00:40Z to 00:50Z (0.73 and 0.98 a second),** taken with the old `akira.yaml`. Today's lower rate is the old Akira reading the merged tree's file, which lists five fewer services: it is not the system before the deploy.
+- The memory-limit rate is 99 an hour two hours after a cold start, against about 640 an hour on a warm cluster (210,402 in the uptime read at 00:39Z): Postgres's cache had 173 minutes to fill when the first reading was taken. W-30's before is recorded as both.
+- `pg_stat_statements` is read in database `postgres` (Step 309's note); the statement counts since the restart are what the view holds.
+- Steps 310, 312, 314 and the one-day windows of Step 311 (inserts, merges, `sdb` a day) were read at 00:39Z and stand (the integration record, 2026-11-18): a one-day window read today would span 15 hours with the stack stopped.
+
 ## Handoffs
 
 - **Plan 7 (S-TENANT-DOOR), Cuirass:** start it with `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml --profile lxd up -d cuirass`. `CUIRASS_ENFORCE` and `CUIRASS_PRUNE` stay unset until a tenant exists. The volume `cuirass-state` holds a stale desired state (three `steel-echo-v2-*` containers) to clear before the first enforce. Sword's window needs `--profile deploy --profile lxd`.

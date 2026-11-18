@@ -130,7 +130,7 @@ Copyright (c) 2026 Stevie Bellis.
   ```bash
   f=/home/govan/tmp/unheaded/docs/battle-plans/progress/S-SEE-AND-SURVIVE-progress.md; test -s "$f" && grep -n -i -E 'clickhouse.*backup|backup.*clickhouse|victoria.*backup|backup.*victoria|restore|swap|pressure|stopped container|oom' "$f" | cut -c1-200
   ```
-  Expect: rows for a ClickHouse backup and a VictoriaMetrics backup, each with status done and an after that names a restore drill and its date; rows for the swap, memory pressure, stopped-container and memory-kill alerts with status done. A missing file or a row not done: **Phases 4 and 5 are `[BLOCKED]`** (no store moves without a backup, no swap leaves without its alert). Phases 2, 3, 6, 8 and 9 may go on.
+  Expect: rows for a ClickHouse backup and a VictoriaMetrics backup, each with status done and an after that names a restore drill and its date; rows for the swap, memory pressure, stopped-container and memory-kill alerts with status done. A missing file or a row not done: **Phases 4 and 5 are `[BLOCKED]`** (no store moves without a backup, no swap leaves without its alert). Phases 2, 3, 6, 8 and 9 may go on. (amended 2026-11-18 from the run order: these rows read done only after block D, S-SEE-AND-SURVIVE Phases 13 to 15; until then Phases 4 and 5 are `[BLOCKED]`, as this step says)
 - [ ] **Step 8** [B][V] ~1m: The alerts are loaded, not only written.
   ```bash
   curl -s -m5 127.0.0.1:9090/api/v1/rules | python3 -c 'import json,sys; n=[r["name"] for g in json.load(sys.stdin)["data"]["groups"] for r in g["rules"] if r["type"]=="alerting"]; print(len(n), sorted(x for x in n if any(k in x.lower() for k in ("swap","pressure","oom","container"))))'
@@ -394,7 +394,7 @@ Copyright (c) 2026 Stevie Bellis.
   cd /home/govan/tmp/wt/S-WEST-GROUND && { git merge --no-ff -S -q develop -m 'Merge develop into sprint/s-west-ground' || { git merge --abort; git merge --no-ff --no-gpg-sign -q develop -m 'Merge develop into sprint/s-west-ground' || { git merge --abort; echo MERGE_CONFLICT; false; }; }; } && scripts/check-host-settings.sh && bash scripts/test-check-host-settings.sh >/dev/null && scripts/check-prometheus-rules.sh >/dev/null 2>&1 && scripts/check-spdx.sh >/dev/null 2>&1 && GOMAXPROCS=4 go test -count=1 ./deploy/nftables/ >/dev/null && echo SPRINT_GATE_OK
   ```
 - [ ] **Step 101** [V] ~1m: `SPRINT_GATE_OK`. `MERGE_CONFLICT` → `[STUCK]`, no merge (rule 15's exceptions aside).
-- [ ] **Step 102** [C] ~3m: **MERGE A** to develop, guarded.
+- [ ] **Step 102** [C] ~3m: (replaced 2026-11-18: block C, done `eacbd344`) **MERGE A** to develop, guarded.
   ```bash
   cd /home/govan/tmp/unheaded && test -z "$(git status --short --untracked-files=no)" && { git merge --no-ff -S -q sprint/s-west-ground -m '[PLAN S-WEST-GROUND] Phase 2: the repository side (mounts, sysctl source, slices, host-settings gate)' || { git merge --abort; git merge --no-ff --no-gpg-sign -q sprint/s-west-ground -m '[PLAN S-WEST-GROUND] Phase 2: the repository side (mounts, sysctl source, slices, host-settings gate)'; }; }; git log -1 --format='%h %G? %s' | cut -c1-80
   ```
@@ -446,7 +446,7 @@ Copyright (c) 2026 Stevie Bellis.
 - [ ] **Step 117** [D] ~10m: An existing kanban or dashboard test that now gets 401 was calling from a non-loopback `RemoteAddr` with the variable set in its environment: the default must stay "unset means everyone", so fix the code path, never the old test. Two tries, `[STUCK]`: W-06 stays open, Step 85's line is removed from the lane.
 - [ ] **Step 118** [W] ~8m: `wiki/Security.md`: one paragraph under the listeners or authentication heading: what `AUTH_ANONYMOUS_FROM` does, its compose default, that `r.RemoteAddr` is the only input, and that east's host units leave it unset. `CLAUDE.md`, "Authentication Framework", after the sentence "`/health`, `/ready`, `/metrics` stay open.": add "With `AUTH_ANONYMOUS_FROM` (CIDRs) set, a service's `SourceGated` routes, `/metrics` among them, are open only to those networks (ADR-147 decision 16)."
 - [ ] **Step 119** [C] ~1m: **COMMIT** the two `auth_bff.go` files, the two test files, `wiki/Security.md`, `CLAUDE.md`: "Steps 112-119: kanban's /api and both services' /metrics ask for a credential from outside the listed networks".
-- [ ] **Step 120** [B] ~10m: Steps 100 to 102 again for this phase's commits (merge develop in, the Step 115 gates, then the guarded merge to develop with subject `[PLAN S-WEST-GROUND] Phase 3: source-gated open routes`). The code is inert until Step 85's line reaches develop in Phase 7.
+- [ ] **Step 120** [B] ~10m: (replaced 2026-11-18: block C, done `eacbd344`) Steps 100 to 102 again for this phase's commits (merge develop in, the Step 115 gates, then the guarded merge to develop with subject `[PLAN S-WEST-GROUND] Phase 3: source-gated open routes`). The code is inert until Step 85's line reaches develop in Phase 7.
 - [ ] **Step 121** [V] ~1m: `git -C /home/govan/tmp/unheaded log -1 --format='%h %G? %s' | cut -c1-80` shows the merge.
 - [ ] **Step 122** [V] ~1m: **PHASE 3 EXIT GATE**: on develop, `go test -count=1 ./pkg/auth -run TestSourceGatedOpenRoutes` is `ok`; the compose file on develop does not yet name `AUTH_ANONYMOUS_FROM`.
 
@@ -461,7 +461,7 @@ Copyright (c) 2026 Stevie Bellis.
 
 **Rollback for this phase.** Swap: `sudo swapon /var/swapfile4` and restore the fstab backup of Step 125; the file stays on disk until Phase 11 proves a boot without it. Huge pages: `sudo sysctl -w vm.nr_hugepages=1024` and copy back `/var/backups/west-ground/99-unheaded.conf.before`. The two unused swap files cannot be restored, only recreated; they are deleted on Stevie's word only (Step 133).
 
-- [ ] **Step 123** [STEVIE] ~2m: "Sitting A: swap off the database disk, huge pages released, then the stack stopped for 10 to 15 minutes for the move. You are at the desk with the console? Yes?" A no → stop; nothing in Phases 4 and 5 runs unattended.
+- [ ] **Step 123** [STEVIE] ~2m: "Sitting A: swap off the database disk, huge pages released, then the stack stopped for 10 to 15 minutes for the move. You are at the desk with the console? Yes?" A no → stop; nothing in Phases 4 and 5 runs unattended. (answered ahead: DECISION-PACK-2026-11-18 row 1; runs without Stevie: Phases 4 and 5 run unattended, each behind its gates and its rollback; the first failed gate stops the sitting and is written to `~/tmp/next.md`)
 - [ ] **Step 124** [S][B] ~2m: The console path, proven before any fstab change.
   ```bash
   sudo passwd -S root | awk '{print "root:", $2}'; grep -E '^GRUB_TIMEOUT(_STYLE)?=' /etc/default/grub; test -d /sys/firmware/efi && echo UEFI
@@ -491,7 +491,7 @@ Copyright (c) 2026 Stevie Bellis.
   Expect `0`; Step 125's summary; `swap.img.swap active` only.
   **Rollback:** `sudo cp -p "$(tail -1 /home/govan/.local/state/unheaded/west-ground/fstab.backups)" /etc/fstab && sudo systemctl daemon-reload && sudo swapon /var/swapfile4`
 - [ ] **Step 132** [V] ~1m: The other two are unused: `grep -c 'swapfile[23]' /proc/swaps /etc/fstab; ls -l --time-style=+%F /var/swapfile2 /var/swapfile3`. Expect `0` and `0`; both files dated 2026-03-15, 8 GiB and 5 GiB. Anything else → `[STUCK]`, do not delete.
-- [ ] **Step 133** [STEVIE] ~1m: "Delete `/var/swapfile2` and `/var/swapfile3` (13 GiB, in no fstab and no swap list since 2026-03-15; decision 12)? They can be recreated, not restored." A no → W-03 records them as kept.
+- [ ] **Step 133** [STEVIE] ~1m: "Delete `/var/swapfile2` and `/var/swapfile3` (13 GiB, in no fstab and no swap list since 2026-03-15; decision 12)? They can be recreated, not restored." A no → W-03 records them as kept. (answered ahead: DECISION-PACK-2026-11-18 row 1; runs without Stevie: sitting A's steps that wait for a go; the two files are deleted)
 - [ ] **Step 134** [S][B] ~1m: `sudo rm /var/swapfile2 /var/swapfile3; ls /var/swapfile2 /var/swapfile3 2>&1 | grep -c 'No such'` → `2`. `/var/swapfile4` stays on disk, inactive, until Step 305.
 - [ ] **Step 135** [C] ~1m: **COMMIT** `$PROG` (Log: the times of Steps 129 to 134): "Steps 123-135: swap off the database disk".
 - [ ] **Step 136** [S][B] ~1m: What Postgres asks for, and who holds pages.
@@ -548,7 +548,7 @@ Copyright (c) 2026 Stevie Bellis.
   ```bash
   sudo vgs --noheadings --units g -o vg_free ubuntu-vg; sudo lvs --noheadings -o lv_name ubuntu-vg; systemctl list-timers unheaded-well-backup.timer unheaded-well-drill.timer --no-legend --plain | awk '{print $1, $2, $3, $NF}'; ls /etc/systemd/system/docker.service.d 2>&1; for v in unheaded-dev_postgres-data unheaded-dev_clickhouse-data unheaded-dev_victoria-data unheaded-dev_vector-data monitoring_prometheus_data; do echo "$v: $(docker ps -a --filter volume=$v --format '{{.Names}}:{{.State}}' | tr '\n' ' ')"; done
   ```
-- [ ] **Step 147** [V] ~1m: free 32g or more; only `ubuntu-lv`; neither timer due in the next 2 h; `docker.service.d` absent (or holding only files named in `$PROG`); each volume names its store (`unheaded-postgres`, `-clickhouse`, `-victoria`, `-vector`, `-prometheus`) and at most the exited one-shots `volume-init` and `clickhouse-schema`. Any other running container on a volume joins the stop in Step 158 by name. A timer due → wait for it to finish first.
+- [ ] **Step 147** [V] ~1m: free 32g or more; only `ubuntu-lv`; neither timer due in the next 2 h; `docker.service.d` absent (or holding only files named in `$PROG`); each volume names its store (`unheaded-postgres`, `-clickhouse`, `-victoria`, `-vector`, `-prometheus`) and at most the exited one-shots `volume-init` and `clickhouse-schema`. Any other running container on a volume joins the stop in Step 158 by name. A timer due → wait for it to finish first. (amended 2026-11-18 from the run order: the timer check also covers plan 1's `unheaded-clickhouse-backup.timer`, `unheaded-victoria-backup.timer` and `unheaded-store-drill.timer`, read with `systemctl list-timers` as Step 146 does: none due inside the window)
 - [ ] **Step 148** [S][B] ~2m: The volume.
   ```bash
   sudo lvcreate -L 32G -n unheaded-data ubuntu-vg && sudo mkfs.ext4 -q -L unheaded-data -m 1 /dev/ubuntu-vg/unheaded-data && sudo install -d -m 0755 /srv/unheaded-data && sudo blkid -s LABEL -s TYPE /dev/ubuntu-vg/unheaded-data
@@ -576,10 +576,10 @@ Copyright (c) 2026 Stevie Bellis.
   **Rollback:** copy any set newer than the bind back first (`sudo rsync -aHAX --numeric-ids /var/backups/srv-backups/ /srv/backups.hold/`), then `sudo umount /srv/backups`, restore this step's fstab backup, `sudo systemctl daemon-reload`, and `sudo rsync -aHAX /srv/backups.hold/ /srv/backups/`. The sets underneath on the NVMe are the ones of Step 151.
 - [ ] **Step 154** [V] ~1m: As expected. The old sets remain on the NVMe under the mount; they are Stevie's to delete after plan 5's week (Step 315).
 - [ ] **Step 155** [C] ~1m: **COMMIT** `$PROG`: "Steps 145-155: the volume and the backup sets' new home".
-- [ ] **Step 156** [STEVIE] ~1m: "Stop the stack now for the move (10 to 15 minutes; Alertmanager and the mailer stay up)? Yes?"
-- [ ] **Step 157** [B] ~2m: Silence, the firing alerts, and what runs.
+- [ ] **Step 156** [STEVIE] ~1m: "Stop the stack now for the move (10 to 15 minutes; Alertmanager and the mailer stay up)? Yes?" (answered ahead: DECISION-PACK-2026-11-18 row 1; runs without Stevie)
+- [ ] **Step 157** [B] ~2m: Silence, the firing alerts, and what runs. (amended 2026-11-18 from the run order: `maintenance.sh --planned 60m`, where it said `maintenance.sh 60m`: a silence alone lets `ContainerStopped` and the SLO budgets count the stop)
   ```bash
-  S=/home/govan/.local/state/unheaded/west-ground; cd /home/govan/tmp/unheaded && scripts/monitoring/maintenance.sh 60m "S-WEST-GROUND: database volumes to the NVMe" 2>&1 | tail -1 | cut -c1-60; curl -s -m5 127.0.0.1:9090/api/v1/alerts | python3 -c 'import json,sys; print("\n".join(sorted({a["labels"]["alertname"] for a in json.load(sys.stdin)["data"]["alerts"] if a["state"]=="firing"})))' > $S/alerts.before-move; sudo docker compose ps --services --status running | sort > $S/running.main; (cd monitoring && sudo docker compose ps --services --status running | sort > $S/running.monitoring); wc -l $S/running.main $S/running.monitoring $S/alerts.before-move; date -u +%FT%TZ | tee $S/stop.time
+  S=/home/govan/.local/state/unheaded/west-ground; cd /home/govan/tmp/unheaded && scripts/monitoring/maintenance.sh --planned 60m "S-WEST-GROUND: database volumes to the NVMe" 2>&1 | tail -1 | cut -c1-60; curl -s -m5 127.0.0.1:9090/api/v1/alerts | python3 -c 'import json,sys; print("\n".join(sorted({a["labels"]["alertname"] for a in json.load(sys.stdin)["data"]["alerts"] if a["state"]=="firing"})))' > $S/alerts.before-move; sudo docker compose ps --services --status running | sort > $S/running.main; (cd monitoring && sudo docker compose ps --services --status running | sort > $S/running.monitoring); wc -l $S/running.main $S/running.monitoring $S/alerts.before-move; date -u +%FT%TZ | tee $S/stop.time
   ```
   Expect the silence line and three counts (main about 19 to 23, monitoring 3).
 - [ ] **Step 158** [S][B] ~3m: Stop the main project and Prometheus (never `down`, never the kingdom scripts: G20).
@@ -628,7 +628,7 @@ Copyright (c) 2026 Stevie Bellis.
   for c in unheaded-postgres unheaded-clickhouse unheaded-victoria unheaded-vector unheaded-prometheus; do echo "$c $(sudo grep -c 'ubuntu--vg-unheaded--data' /proc/$(docker inspect -f '{{.State.Pid}}' $c)/mountinfo)"; done
   ```
   Expect a count of 1 or more on every line (ClickHouse 0 under WG1 B).
-- [ ] **Step 171** [S][B] ~3m: WG2's proof: a real backup on the new layout.
+- [ ] **Step 171** [S][B] ~3m: WG2's proof: a real backup on the new layout. (amended 2026-11-18 from the run order: first check, as Step 147 now does, that none of `unheaded-clickhouse-backup`, `unheaded-victoria-backup` and `unheaded-store-drill` is due inside the window)
   ```bash
   sudo systemctl start unheaded-well-backup.service; sudo journalctl -u unheaded-well-backup.service --since '-6 min' --no-pager | grep -E '\[well\] (data on|refusing)' | tail -1; sudo cat /srv/backups/unheaded-well/LATEST
   ```
@@ -658,13 +658,13 @@ Copyright (c) 2026 Stevie Bellis.
 **Time**: 1.5 h.
 **Model**: Opus. **Agent**: Coordinator with Stevie.
 
-- [ ] **Step 187** [STEVIE] ~1m: "Sitting B: west's input filter (decision 16). Laptop and phone on the LAN, console in reach? Yes?"
+- [ ] **Step 187** [STEVIE] ~1m: "Sitting B: west's input filter (decision 16). Laptop and phone on the LAN, console in reach? Yes?" (answered ahead: DECISION-PACK-2026-11-18 row 3; runs without Stevie: fully unattended. The self-reverting rehearsal of Step 194 first; inside it, beside Step 195, outbound HTTPS and the running Claude session's Remote Control link are proved alive. One of them dead → no apply, `[STUCK]`. Only then Step 199 and the confirm of Step 204)
 - [ ] **Step 188** [B] ~2m: Listeners and the scrape count before.
   ```bash
   S=/home/govan/.local/state/unheaded/west-ground; ss -tlnH | awk '{print $4}' | grep -vE '^(127\.|\[::1\]|\[::ffff:127\.)' | sort -u | tr '\n' ' ' | tee $S/before.R7b; echo; curl -s -G -m5 127.0.0.1:9090/api/v1/query --data-urlencode 'query=sum(up)' | python3 -c 'import json,sys; print("up", json.load(sys.stdin)["data"]["result"][0]["value"][1])' | tee $S/up.before-filter
   ```
   Expect the same listeners as `before.R7`. A new one → name it (`sudo ss -tlnp | grep <port>`) before going on: the ruleset ignores it, so a needed one would silently stop.
-- [ ] **Step 189** [STEVIE][V] ~5m: From outside, before. On the laptop:
+- [ ] **Step 189** [STEVIE][V] ~5m: From outside, before. On the laptop (answered ahead: DECISION-PACK-2026-11-18 row 3; runs without Stevie: new connections are tested from east and from loopback in place of the laptop; the LAN's list and the phone on cellular have no stand-in and stay open for him):
   ```bash
   for p in 7375 80 443 3001 8443 9100 9110 9323 19120 20000 20001 20002; do nc -z -w3 192.168.69.184 $p && echo "$p open" || echo "$p closed"; done; curl -sk -o /dev/null -w 'dash-metrics %{http_code}\n' https://192.168.69.184:20000/metrics; curl -sk -o /dev/null -w 'kanban-tasks %{http_code}\n' https://192.168.69.184:20001/api/v1/tasks
   ```
@@ -675,7 +675,7 @@ Copyright (c) 2026 Stevie Bellis.
   A=$(ip -4 -br addr show lxdbr0 | awk '{print $3}' | cut -d/ -f1); for t in $A:9090 $A:9093 $A:9100 $A:9110 $A:9323 $A:19120 192.168.13.2:8428; do /snap/bin/lxc exec pihole --project default -- timeout 3 bash -c "echo > /dev/tcp/${t%:*}/${t##*:}" 2>/dev/null && echo "$t open" || echo "$t closed"; done | tee /home/govan/.local/state/unheaded/west-ground/tenant.before
   ```
   Expect 9090 and 9093 closed (loopback binds), the others open. `bash: not found` → use the instance's `nc -z -w3` in place of the `bash -c`, once; else `[STUCK]` for W-07's proof only.
-- [ ] **Step 192** [S][B] ~2m: Stable paths, a silence, the tables before (S-E1-LIVE Step 139).
+- [ ] **Step 192** [S][B] ~2m: Stable paths, a silence, the tables before (S-E1-LIVE Step 139). (amended 2026-11-18 from the run order: the filter's values, which Steps 189 to 200 read, are a `define` block at the top of `deploy/nftables/west.nft` since 2026-11-17; the loaded ruleset is identical; `wiki/Host-Settings.md` lists them. Answered ahead, DECISION-PACK-2026-11-18 row 13: before this install, 16666 leaves `LAN_TCP` and `LAN_FWD_PORTS` in that block and 20103 stays; Step 98's check, a commit)
   ```bash
   cd /home/govan/tmp/unheaded && scripts/monitoring/maintenance.sh 60m "S-WEST-GROUND: west input filter" 2>&1 | tail -1 | cut -c1-60; sudo install -D -m 0755 scripts/host/nft-apply-confirm.sh /usr/local/lib/unheaded/nft-apply-confirm.sh && sudo install -D -m 0644 deploy/nftables/west.nft /usr/local/lib/unheaded/nft/west.nft && sudo nft -c -f /usr/local/lib/unheaded/nft/west.nft && echo NFT_OK; sudo nft list tables | sort | tee /home/govan/.local/state/unheaded/west-ground/nft-tables.before
   ```
@@ -695,7 +695,7 @@ Copyright (c) 2026 Stevie Bellis.
   sudo /usr/local/lib/unheaded/nft-apply-confirm.sh apply /usr/local/lib/unheaded/nft/west.nft 600; date -u +%T
   ```
   **Rollback:** automatic at 600 s, or `sudo /usr/local/lib/unheaded/nft-apply-confirm.sh rollback`.
-- [ ] **Step 200** [STEVIE][V] ~4m: On the laptop, a **new** terminal: `ssh -p 7375 govan@192.168.69.184` logs in; `https://192.168.69.184/` loads; Step 189's loop. Expect open: 7375, 80, 443, 3001, 20000, 20001, 20002 (8443 only from the laptop at .132); closed: 9100, 9110, 9323, 19120. Phone on Wi-Fi: a page loads (DNS works). Phone on cellular: 9100 on the global address is refused or times out. Anything else: do nothing, it rolls back; write what failed.
+- [ ] **Step 200** [STEVIE][V] ~4m: On the laptop, a **new** terminal: `ssh -p 7375 govan@192.168.69.184` logs in; `https://192.168.69.184/` loads; Step 189's loop. Expect open: 7375, 80, 443, 3001, 20000, 20001, 20002 (8443 only from the laptop at .132); closed: 9100, 9110, 9323, 19120. Phone on Wi-Fi: a page loads (DNS works). Phone on cellular: 9100 on the global address is refused or times out. Anything else: do nothing, it rolls back; write what failed. (answered ahead: DECISION-PACK-2026-11-18 row 3; runs without Stevie: a new ssh from east and connections from loopback stand in for the laptop. The LAN's list and the cellular check stay open for him, and with them Step 210's `resolved` entry)
 - [ ] **Step 201** [B][V] ~2m: From west, inside the window: east, the way out, LXD, Docker, the scrapes.
   ```bash
   ssh -o BatchMode=yes -o ControlPath=none east 'echo EAST_OK; getent hosts archive.ubuntu.com | head -1 | cut -c1-40'; dig +short +time=2 @10.10.20.252 archive.ubuntu.com A | head -1; /snap/bin/lxc exec pihole --project default -- ping -c1 -W2 1.1.1.1 | grep -c ' 0% packet loss'; docker exec unheaded-prometheus wget -qO- -T3 'http://[fd00:dead:beef::2]:9100/metrics' | grep -c '^node_uname_info'; docker logs --since 3m unheaded-prometheus 2>&1 | grep -ci 'remote_write.*\(error\|failed\)'; sudo nft list chain inet unheaded forward | grep -c 'ct status dnat'; curl -s -G -m5 127.0.0.1:9090/api/v1/query --data-urlencode 'query=sum(up)' | python3 -c 'import json,sys; print("up", json.load(sys.stdin)["data"]["result"][0]["value"][1])'
@@ -732,17 +732,17 @@ Copyright (c) 2026 Stevie Bellis.
 **Time**: 1.5 h; every container is recreated once (Step 227, about 5 minutes).
 **Model**: Opus. **Agent**: Coordinator with Stevie.
 
-- [ ] **Step 215** [B] ~5m: Develop into the lane, then the lane's gates.
+- [ ] **Step 215** [B] ~5m: Develop into the lane, then the lane's gates. (amended 2026-11-18 from the run order: expect a conflict on the five removed services; 18 services remain and the limits then sum to 12,800, 11.1% of the thread limit. Since lane commit `6b50634b` the limits, the slice and the gate's thresholds are variables with these values as defaults; two comments in the lane still say 15,360 and 13.3%)
   ```bash
   cd /home/govan/tmp/wt/S-WEST-GROUND-compose && { git merge --no-ff -S -q develop -m 'Merge develop into sprint/s-west-ground-compose' || { git merge --abort; git merge --no-ff --no-gpg-sign -q develop -m 'Merge develop into sprint/s-west-ground-compose' || { git merge --abort; echo MERGE_CONFLICT; }; }; }; bash scripts/test-check-compose-pids.sh >/dev/null && scripts/check-compose-pids.sh && echo PIDS_OK; for g in scripts/check-compose-hardening.sh scripts/check-compose-log-caps.sh scripts/check-compose-publish-bind.sh scripts/check-compose-bind-nesting.sh scripts/check-image-digests.sh; do $g >/dev/null 2>&1 && echo "ok $g" || echo "FAIL $g"; done
   ```
 - [ ] **Step 216** [V] ~1m: `PIDS_OK` and five `ok`. `MERGE_CONFLICT` (plans 2 or 3 removed a service the lane edited) → Step 217.
-- [ ] **Step 217** [D] ~40m: A fresh lane: `cd /home/govan/tmp/unheaded && git worktree add /home/govan/tmp/wt/S-WEST-GROUND-compose-2 -b sprint/s-west-ground-compose-2 develop && cd /home/govan/tmp/wt/S-WEST-GROUND-compose-2 && git checkout sprint/s-west-ground-compose -- scripts/check-compose-pids.sh scripts/test-check-compose-pids.sh`, then Steps 83 to 90 in it (the service list from develop as it now is), and use this lane in Step 223. Two tries, then `[STUCK]`: W-09 and W-10 open.
-- [ ] **Step 218** [B] ~2m: Who reads a container's cgroup by its old path, in the tree and on the host.
+- [ ] **Step 217** [D] ~40m: A fresh lane: `cd /home/govan/tmp/unheaded && git worktree add /home/govan/tmp/wt/S-WEST-GROUND-compose-2 -b sprint/s-west-ground-compose-2 develop && cd /home/govan/tmp/wt/S-WEST-GROUND-compose-2 && git checkout sprint/s-west-ground-compose -- scripts/check-compose-pids.sh scripts/test-check-compose-pids.sh`, then Steps 83 to 90 in it (the service list from develop as it now is), and use this lane in Step 223. Two tries, then `[STUCK]`: W-09 and W-10 open. (amended 2026-11-18 from the run order: the conflict is expected, see Step 215; develop's service list has 18 services)
+- [ ] **Step 218** [B] ~2m: Who reads a container's cgroup by its old path, in the tree and on the host. (amended 2026-11-18 from the run order: the grep also matches huginn's test fixtures)
   ```bash
   cd /home/govan/tmp/unheaded && git grep -n -F 'system.slice/docker-' develop -- ':!docs' ':!wiki' | cut -c1-160; sudo grep -rln -F 'system.slice/docker-' /usr/local/bin /usr/local/lib/unheaded /etc/systemd/system 2>/dev/null | head
   ```
-- [ ] **Step 219** [V] ~1m: No hit, or each hit fixed by Step 93's change on develop. A hit not fixed → remove the `cgroup_parent` line from the lane's anchor (pids only), commit, W-10 `[STUCK]` with the reader's name.
+- [ ] **Step 219** [V] ~1m: No hit, or each hit fixed by Step 93's change on develop. A hit not fixed → remove the `cgroup_parent` line from the lane's anchor (pids only), commit, W-10 `[STUCK]` with the reader's name. (amended 2026-11-18 from the run order: a hit in a huginn test fixture is not a defect; `cmd/huginn/cgroups.go` walks any slice to depth 4)
 - [ ] **Step 220** [S][B] ~2m: The four slices on the host.
   ```bash
   cd /home/govan/tmp/unheaded/deploy/systemd && sudo install -m 0644 unheaded.slice unheaded-host.slice unheaded-env.slice tenant.slice /etc/systemd/system/ && sudo systemctl daemon-reload && sudo systemctl start unheaded.slice unheaded-host.slice unheaded-env.slice tenant.slice && for s in unheaded unheaded-host unheaded-env tenant; do echo "$s $(systemctl is-active $s.slice) $(systemctl show $s.slice -p ControlGroup --value) $(systemctl show $s.slice -p MemoryLow --value) $(systemctl show $s.slice -p MemoryMax --value)"; done
@@ -761,8 +761,8 @@ Copyright (c) 2026 Stevie Bellis.
   cd /home/govan/tmp/unheaded && sudo docker compose config -q && echo CONFIG_OK; c=$(sudo docker compose config 2>/dev/null); echo "no-policy $(grep -c 'restart: "no"' <<<"$c") pids $(grep -c 'pids_limit:' <<<"$c") parent $(grep -c 'cgroup_parent: unheaded-env.slice' <<<"$c") anon $(grep -c 'AUTH_ANONYMOUS_FROM' <<<"$c")"; unset c
   ```
   Expect `CONFIG_OK`; `no-policy` equal to Step 15's `plain:` count; `pids` and `parent` equal to the number of services; `anon` 2 under WG3 A, 0 otherwise.
-- [ ] **Step 225** [STEVIE] ~1m: (Amended 2026-11-17, before the question: since lane commit `6b50634b` the compose default for `AUTH_ANONYMOUS_FROM` holds only loopback and the Docker ranges; the link to east and the overlay are west's own and belong in west's compose secrets file. Stevie adds the line from `db/.env.example`, `AUTH_ANONYMOUS_FROM=127.0.0.0/8,::1/128,172.16.0.0/12,fd00:d0c0::/32,192.168.13.0/30,fd00:dead:beef::/48`, to `/etc/unheaded/compose.env`; an agent does not read or edit that file. Without it east's scrape of the two `/metrics` paths answers 401 after Step 227. Check without reading the file: `cd /home/govan/tmp/unheaded && sudo docker compose config 2>/dev/null | grep -c '192.168.13.0/30'` → 2.) "Recreate every container now with its pid limit and slice (about 5 minutes)? Yes?"
-- [ ] **Step 226** [B] ~2m: Step 157's command again (silence "S-WEST-GROUND: pid limits and slices"; the firing set to `alerts.before-recreate` in place of `alerts.before-move`; the two running lists); and `curl` Step 188's `sum(up)` to `up.before-recreate`.
+- [ ] **Step 225** [STEVIE] ~1m: (Amended 2026-11-17, before the question: since lane commit `6b50634b` the compose default for `AUTH_ANONYMOUS_FROM` holds only loopback and the Docker ranges; the link to east and the overlay are west's own and belong in west's compose secrets file. Stevie adds the line from `db/.env.example`, `AUTH_ANONYMOUS_FROM=127.0.0.0/8,::1/128,172.16.0.0/12,fd00:d0c0::/32,192.168.13.0/30,fd00:dead:beef::/48`, to `/etc/unheaded/compose.env`; an agent does not read or edit that file. Without it east's scrape of the two `/metrics` paths answers 401 after Step 227. Check without reading the file: `cd /home/govan/tmp/unheaded && sudo docker compose config 2>/dev/null | grep -c '192.168.13.0/30'` → 2.) "Recreate every container now with its pid limit and slice (about 5 minutes)? Yes?" (answered ahead: DECISION-PACK-2026-11-18 rows 1 and 2, read as covering this one line, which holds networks and no secret; the pack has no row that names the edit, see "Not settled" in `ADR147-LIVE-RUN-ORDER.md`; runs without Stevie: Claude appends the `AUTH_ANONYMOUS_FROM` line above to `/etc/unheaded/compose.env` without printing the file, runs the `grep -c` check above → 2, then recreates)
+- [ ] **Step 226** [B] ~2m: Step 157's command again (silence "S-WEST-GROUND: pid limits and slices"; the firing set to `alerts.before-recreate` in place of `alerts.before-move`; the two running lists); and `curl` Step 188's `sum(up)` to `up.before-recreate`. (amended 2026-11-18 from the run order: with `--planned 60m`, as Step 157 now reads)
 - [ ] **Step 227** [S][B] ~6m: Recreate what ran, with the override (no `-f`).
   ```bash
   S=/home/govan/.local/state/unheaded/west-ground; cd /home/govan/tmp/unheaded && sudo docker compose up -d --no-build --no-deps $(cat $S/running.main) 2>&1 | tail -4; cd monitoring && sudo docker compose up -d --no-build --no-deps $(cat $S/running.monitoring) 2>&1 | tail -2
@@ -820,7 +820,7 @@ Copyright (c) 2026 Stevie Bellis.
   sudo install -D -m 0755 -o root -g root /home/govan/tmp/unheaded/scripts/check-host-settings.sh /usr/local/lib/unheaded/check-host-settings.sh && sudo /usr/local/lib/unheaded/check-host-settings.sh --host west --repo /home/govan/tmp/unheaded > /home/govan/.local/state/unheaded/west-ground/hostsettings.before 2>&1; echo rc=$?; cut -f1 /home/govan/.local/state/unheaded/west-ground/hostsettings.before | sort | uniq -c; grep -v '^OK' /home/govan/.local/state/unheaded/west-ground/hostsettings.before
   ```
   The gate prints mode and path, never a line of a file (Step 61, case 6).
-- [ ] **Step 246** [V] ~1m: `rc=1`. Expected `DRIFT` rows: `redact /etc/wireguard/wg0.conf` (G17); possibly `exact /etc/frr/frr.conf` and `/etc/frr/daemons`; `absent /var/swapfile4` (until Step 305). Any `DRIFT` on a file this plan installed (sysctl, fstab, the drop-in, the four slices, `west.nft`) or on a runtime row (`sysctl`, `mount`, `swap`) → Step 247. A `SKIP` → the run was not as root: rerun with `sudo`.
+- [ ] **Step 246** [V] ~1m: `rc=4` (amended 2026-11-18 from the run order: the gate exits 4 on drift since REV-2; it said `rc=1`). Expected `DRIFT` rows: `redact /etc/wireguard/wg0.conf` (G17); possibly `exact /etc/frr/frr.conf` and `/etc/frr/daemons`; `absent /var/swapfile4` (until Step 305). Any `DRIFT` on a file this plan installed (sysctl, fstab, the drop-in, the four slices, `west.nft`) or on a runtime row (`sysctl`, `mount`, `swap`) → Step 247. A `SKIP` → the run was not as root: rerun with `sudo`.
 - [ ] **Step 247** [D] ~10m: Someone changed one side since it was installed. These files hold no secret: `sudo diff <host path> /home/govan/tmp/unheaded/<repo path>`. Reinstall from develop with the step that installed it (sysctl 139, fstab lines 149/153/164, drop-in 165, slices 220, ruleset 192 to 205), or, if the host side was a deliberate change, ask Stevie under WG6. Two tries.
 - [ ] **Step 248** [S][B] ~1m: Secret-bearing lines in the third-party files, counted, never printed.
   ```bash
@@ -832,7 +832,7 @@ Copyright (c) 2026 Stevie Bellis.
   R='s/^([[:space:]]*(PrivateKey|PresharedKey|PublicKey))[[:space:]]*=.*/\1 = <redacted>/; s/(password)[[:space:]]+[^[:space:]]+/\1 <redacted>/'; cd /home/govan/tmp/unheaded && for p in /etc/wireguard/wg0.conf:config/wireguard/west.conf /etc/frr/frr.conf:routing/frr/west.conf /etc/frr/daemons:routing/frr/daemons; do echo "== ${p%%:*}"; diff <(sudo sed -E "$R" "${p%%:*}" | grep -v -E '^[[:space:]]*(#|!|$)') <(sed -E "$R" "${p#*:}" | grep -v -E '^[[:space:]]*(#|!|$)'); done
   ```
   Expect only `<redacted>` where a key or a password stands. A long base64-looking string in the output → stop, clear the terminal scrollback, and fix the sed before anything is written.
-- [ ] **Step 250** [STEVIE][DECIDE] ~5m: **WG6**, per file, with Step 249's output on screen. Recommended: the host wins for WireGuard and FRR (the tunnel and the session work; changing them is plan 6's design). Repo wins for a file → that row is removed from `west.tsv` with the comment "east and west's routing files: plan 6 (S-EAST-PAIR)", and nothing on the host changes.
+- [ ] **Step 250** [STEVIE][DECIDE] ~5m: **WG6**, per file, with Step 249's output on screen. Recommended: the host wins for WireGuard and FRR (the tunnel and the session work; changing them is plan 6's design). Repo wins for a file → that row is removed from `west.tsv` with the comment "east and west's routing files: plan 6 (S-EAST-PAIR)", and nothing on the host changes. (answered ahead: DECISION-PACK-2026-11-18 row 9; runs without Stevie: the host wins for WireGuard and FRR; any other drifted file is brought to the repository's version when that is reversible, and listed for him when it is not)
 - [ ] **Step 251** [W] ~10m: Host wins: the repository file from the host, secrets replaced by the repository's own placeholders, the repository's header kept.
   ```bash
   cd /home/govan/tmp/wt/S-WEST-GROUND && git merge -q --no-edit develop && { sed -n '1,11p' config/wireguard/west.conf; sudo sed -E 's/^([[:space:]]*PrivateKey)[[:space:]]*=.*/\1 = <WEST_PRIVATE_KEY>/; s/^([[:space:]]*PresharedKey)[[:space:]]*=.*/\1 = <PRESHARED_KEY>/; s/^([[:space:]]*PublicKey)[[:space:]]*=.*/\1 = <EAST_PUBLIC_KEY>/' /etc/wireguard/wg0.conf | grep -v '^#'; } > config/wireguard/west.conf.new && mv config/wireguard/west.conf.new config/wireguard/west.conf; grep -c -E '[A-Za-z0-9+/]{42}[A-Za-z0-9+/=]=' config/wireguard/west.conf
@@ -872,11 +872,11 @@ Copyright (c) 2026 Stevie Bellis.
 ## PHASE 9: THE LINK AND WIREGUARD MEASURED (Steps 264-279)
 
 **Goal**: `iperf3` from the distribution on both hosts, and four numbers on record: TCP each way over the direct link and over WireGuard, with retransmits, CPU and east's temperature (W-08, decision 22).
-**Prerequisite**: Phase 6 gate (west's filter accepts east on both paths). East is attended: every step that changes east is `[STEVIE]`. Sitting C.
+**Prerequisite**: Phase 6 gate (west's filter accepts east on both paths). East is attended: every step that changes east is `[STEVIE]`. Sitting C. (Answered ahead: DECISION-PACK-2026-11-18 row 5 lifts this for everything but the OS upgrade; a `sudo` password prompt on east, or anything that needs its console, still waits for Stevie.)
 **Time**: 40 min.
 **Model**: Opus. **Agent**: Coordinator with Stevie.
 
-- [ ] **Step 264** [STEVIE] ~1m: "Install `iperf3` from the distribution on west and east, and run four 30-second tests between them? East is loaded for 30 s at a time and the series stops at 67 °C." A no → Phase 9 `[BLOCKED]`; W-08 stays "not known".
+- [ ] **Step 264** [STEVIE] ~1m: "Install `iperf3` from the distribution on west and east, and run four 30-second tests between them? East is loaded for 30 s at a time and the series stops at 67 °C." A no → Phase 9 `[BLOCKED]`; W-08 stays "not known". (answered ahead: DECISION-PACK-2026-11-18 row 5; runs without Stevie)
 - [ ] **Step 265** [B] ~1m: `apt-cache policy iperf3 | sed -n '2,3p'; ssh east 'apt-cache policy iperf3 | sed -n "2,3p"'`. Expect `Installed: (none)` and `Candidate: 3.18-2ubuntu0.1` on both (G19). Another candidate from the distribution is fine: record it.
 - [ ] **Step 266** [S][B] ~2m: West.
   ```bash
@@ -884,7 +884,7 @@ Copyright (c) 2026 Stevie Bellis.
   ```
   Expect a version line and `disabled` or `not-found` (no daemon at boot). `enabled` → `sudo systemctl disable --now iperf3`.
   **Rollback:** `sudo apt-get purge -y iperf3 libiperf0`
-- [ ] **Step 267** [STEVIE][S][B] ~2m: East (sudo there may ask Stevie's password).
+- [ ] **Step 267** [STEVIE][S][B] ~2m: East (sudo there may ask Stevie's password). (answered ahead: DECISION-PACK-2026-11-18 row 5; runs without Stevie; a password prompt stops the step, which then waits for him)
   ```bash
   ssh -t east 'sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends iperf3 2>&1 | tail -1; iperf3 --version | head -1; systemctl is-enabled iperf3 2>&1'
   ```
@@ -896,14 +896,14 @@ Copyright (c) 2026 Stevie Bellis.
   ```
   64 or less → go on (61 at idle on 2026-11-15). Above → wait ten minutes and read again; still above → `[BLOCKED]`, W-08 records the reading.
 - [ ] **Step 270** [B] ~1m: The link's counters before, both ends: `ip -s link show enp16s0 | sed -n '3,6p'; cat /sys/class/net/enp16s0/speed /sys/class/net/enp16s0/duplex; ssh east 'ip -s link show enp2s0 | sed -n "3,6p"'`. Expect `1000`, `full`; record the error and drop counts.
-- [ ] **Step 271** [STEVIE][B] ~2m: **L1**, west to east over the link: a one-shot server on east's link address (it exits after one test), then the client. Then Step 269.
+- [ ] **Step 271** [STEVIE][B] ~2m: **L1**, west to east over the link: a one-shot server on east's link address (it exits after one test), then the client. Then Step 269. (answered ahead: DECISION-PACK-2026-11-18 row 5; runs without Stevie)
   ```bash
   ssh -f east 'iperf3 -s -1 -B 192.168.13.1 >/dev/null 2>&1'; iperf3 -c 192.168.13.1 -t 30 -J > /home/govan/.local/state/unheaded/west-ground/L1.json; IPERF_SUM /home/govan/.local/state/unheaded/west-ground/L1.json
   ```
   (`IPERF_SUM` is the one-liner in Appendix C.) `Connection refused` → the server was not up yet: run the line once more.
-- [ ] **Step 272** [STEVIE][B] ~2m: **L2**, east to west over the link: Step 271 with `-R` on the client, output `L2.json`. Then Step 269.
-- [ ] **Step 273** [STEVIE][B] ~2m: **L3**, west to east over WireGuard: `ssh -f east 'iperf3 -s -1 -B fd00:dead:beef::2 >/dev/null 2>&1'; iperf3 -6 -c fd00:dead:beef::2 -t 30 -J > .../L3.json`, `IPERF_SUM`. Then Step 269.
-- [ ] **Step 274** [STEVIE][B] ~2m: **L4**, Step 273 with `-R`, output `L4.json`. Then Step 269.
+- [ ] **Step 272** [STEVIE][B] ~2m: **L2**, east to west over the link: Step 271 with `-R` on the client, output `L2.json`. Then Step 269. (answered ahead: DECISION-PACK-2026-11-18 row 5; runs without Stevie)
+- [ ] **Step 273** [STEVIE][B] ~2m: **L3**, west to east over WireGuard: `ssh -f east 'iperf3 -s -1 -B fd00:dead:beef::2 >/dev/null 2>&1'; iperf3 -6 -c fd00:dead:beef::2 -t 30 -J > .../L3.json`, `IPERF_SUM`. Then Step 269. (answered ahead: DECISION-PACK-2026-11-18 row 5; runs without Stevie)
+- [ ] **Step 274** [STEVIE][B] ~2m: **L4**, Step 273 with `-R`, output `L4.json`. Then Step 269. (answered ahead: DECISION-PACK-2026-11-18 row 5; runs without Stevie)
 - [ ] **Step 275** [V] ~1m: Every temperature read after a run is under 67 °C; at 67 or above the series stops there and the reading is east's ceiling for now (decision 17). Expected: L1 and L2 900 to 941 Mbit/s with few retransmits (gigabit, full duplex); L3 and L4 lower and not known (east's A8-5500 does ChaCha20 in software): recorded as measured. L1 or L2 under 900 → Step 276.
 - [ ] **Step 276** [D] ~10m: Step 270 again: errors or drops that rose; `ethtool -S enp16s0 2>/dev/null | grep -i -E 'err|drop|crc' | grep -v ': 0$'`; east's offloads (`ssh east 'ethtool -k enp2s0 2>/dev/null | grep -E "^(tx-checksumming|scatter-gather|tcp-segmentation-offload):"'`; Architect 4b row 9). Record; nothing is tuned here (plan 9).
 - [ ] **Step 277** [B] ~1m: Step 270 again: the error and drop counts did not rise.
@@ -929,7 +929,7 @@ Copyright (c) 2026 Stevie Bellis.
   **Rollback:** `echo 8192 | sudo tee /sys/block/sdb/queue/read_ahead_kb` (a boot also restores 8,192 until Step 288 persists 256).
 - [ ] **Step 284** [B] ~2m: Six hours later: R8 with `END` = Step 283's time plus 21,600, to `after.R8`.
 - [ ] **Step 285** [V] ~2m: Mean `read_B_s` after at most 0.8 of before, and mean `r_await_ms` after at most 1.2 of before → keep. Otherwise revert with Step 283's rollback and W-12 reads "reverted: no 20% gain". Six blocks that swing more than the difference (one block a build) → the comparison is void: say so, revert, repeat on another day.
-- [ ] **Step 286** [STEVIE][DECIDE] ~2m: **WG7** with the numbers: keep 256 or revert. The scheduler stays `mq-deadline` (recommended: `IOWeight` needs `bfq`, and plan 8 decides weights).
+- [ ] **Step 286** [STEVIE][DECIDE] ~2m: **WG7** with the numbers: keep 256 or revert. The scheduler stays `mq-deadline` (recommended: `IOWeight` needs `bfq`, and plan 8 decides weights). (answered ahead: DECISION-PACK-2026-11-18 row 10; runs without Stevie: keep 256 only on a 20% gain, Step 285's rule, else back to 8,192; the scheduler stays `mq-deadline`)
 - [ ] **Step 287** [W] ~10m: (Keep only.) `udevadm info --query=property --name=/dev/sdb | grep '^ID_MODEL='` → starts with `ST2000DM001` (the model, never the serial, goes in the repository). Then `$WT/deploy/udev/60-unheaded-readahead.rules` (new directory): SPDX, a comment (ADR-147, Architect A16, the before and after of Step 285), and
   ```
   ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_MODEL}=="ST2000DM001*", ATTR{queue/read_ahead_kb}="256"
@@ -951,10 +951,11 @@ Copyright (c) 2026 Stevie Bellis.
 
 **Goal**: After one reboot west comes up with the LV and the six binds mounted before Docker starts, the filter loaded, `/swap.img` the only swap, no huge pages, the slices and the read-ahead in place, and the main stack still down until a person starts it (decision 1). Then the last swap file goes.
 **Prerequisite**: Phases 4 to 10 gates. Sitting D, Stevie at the console.
+**Answered ahead (DECISION-PACK-2026-11-18 row 4): the reboot proof is skipped for now.** No reboot. Steps 293 to 305 wait until west is next restarted for any reason; the plan closes its other rows and the boot proof stays open.
 **Time**: 45 min.
 **Model**: Opus. **Agent**: Coordinator with Stevie.
 
-- [ ] **Step 292** [STEVIE][DECIDE] ~2m: **WG8.** Recommended A: reboot now. B → Steps 293 to 303 wait for the next planned reboot (a row under "For Stevie"), and Step 305 waits with them.
+- [ ] **Step 292** [STEVIE][DECIDE] ~2m: **WG8.** Recommended A: reboot now. B → Steps 293 to 303 wait for the next planned reboot (a row under "For Stevie"), and Step 305 waits with them. (answered ahead: DECISION-PACK-2026-11-18 row 4, which replaces the ruling A of 2026-11-17; nothing is asked: the reboot proof is skipped for now, Steps 293 to 305 wait until west is next restarted for any reason, and the boot proof stays open)
 - [ ] **Step 293** [B] ~2m: The state before, and what runs.
   ```bash
   S=/home/govan/.local/state/unheaded/west-ground; { findmnt -rno TARGET,SOURCE | grep -E 'unheaded--data|srv/backups|srv-backups'; awk 'NR>1{print $1}' /proc/swaps; grep '^HugePages_Total' /proc/meminfo; systemctl is-enabled unheaded-nft unheaded-host-settings.timer; for s in unheaded unheaded-host unheaded-env tenant; do echo "$s $(systemctl is-active $s.slice)"; done; cat /sys/block/sdb/queue/read_ahead_kb; } > $S/reboot.before 2>&1; cd /home/govan/tmp/unheaded && sudo docker compose ps --services --status running | sort > $S/running.main; (cd monitoring && sudo docker compose ps --services --status running | sort > $S/running.monitoring); wc -l $S/reboot.before $S/running.main
@@ -964,9 +965,9 @@ Copyright (c) 2026 Stevie Bellis.
   sudo findmnt --verify 2>&1 | tail -1; sudo cp -p /etc/fstab /etc/fstab.west-ground.prereboot && ls /etc/fstab.west-ground.* | tee -a /home/govan/.local/state/unheaded/west-ground/console.txt
   ```
   Expect Step 125's summary. The list of backups is now on paper beside the console (Stevie writes the name of the one from Step 125: it is the fstab before any change).
-- [ ] **Step 295** [STEVIE] ~1m: At the console. Silence: `cd /home/govan/tmp/unheaded && scripts/monitoring/maintenance.sh 30m "S-WEST-GROUND: reboot" 2>&1 | tail -1 | cut -c1-60`. East loses its way out while west is down.
-- [ ] **Step 296** [S][B] ~1m: `date -u +%FT%TZ | tee /home/govan/.local/state/unheaded/west-ground/reboot.time; sudo systemctl reboot`
-- [ ] **Step 297** [STEVIE][V] ~5m: From the laptop: `ssh -p 7375 govan@192.168.69.184 uptime` answers within 5 minutes. Not in 10 → Appendix A, E1 (stuck in boot) or E2 (up but no ssh), at the console.
+- [ ] **Step 295** [STEVIE] ~1m: At the console. Silence: `cd /home/govan/tmp/unheaded && scripts/monitoring/maintenance.sh --planned 30m "S-WEST-GROUND: reboot" 2>&1 | tail -1 | cut -c1-60`. East loses its way out while west is down. (amended 2026-11-18 from the run order: `--planned` added, so `ContainerStopped` and the SLO budgets do not count the stop) (answered ahead: DECISION-PACK-2026-11-18 row 4; the reboot proof is skipped for now: this step waits until west is next restarted)
+- [ ] **Step 296** [S][B] ~1m: `date -u +%FT%TZ | tee /home/govan/.local/state/unheaded/west-ground/reboot.time; sudo systemctl reboot` (amended 2026-11-18 from the run order: `~/tmp/west-hold.conf` holds a block lock while Claude or tmux runs, so `sudo reboot` is refused. Lifting it is Stevie's: `hold=false`, or `sudo systemctl reboot -i`. Claude never does either) (answered ahead: DECISION-PACK-2026-11-18 row 4; the reboot proof is skipped for now)
+- [ ] **Step 297** [STEVIE][V] ~5m: From the laptop: `ssh -p 7375 govan@192.168.69.184 uptime` answers within 5 minutes. Not in 10 → Appendix A, E1 (stuck in boot) or E2 (up but no ssh), at the console. (answered ahead: DECISION-PACK-2026-11-18 row 4; the reboot proof is skipped for now)
 - [ ] **Step 298** [B][V] ~3m: The order held: the LV and each bind were mounted before Docker started.
   ```bash
   d=$(systemctl show -p ExecMainStartTimestampMonotonic --value docker.service); for t in /srv/unheaded-data $(awk '$1 ~ /^\/srv\/unheaded-data\// {print $2}' /home/govan/tmp/unheaded/deploy/host-settings/west-fstab.fragment); do u=$(systemd-escape --path --suffix=mount "$t"); m=$(systemctl show -p ActiveEnterTimestampMonotonic --value "$u"); [ "$m" -gt 0 ] && [ "$m" -lt "$d" ] && echo "BEFORE $t $(findmnt -no SOURCE "$t")" || echo "NOT_BEFORE $t"; done; systemctl is-active docker

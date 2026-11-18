@@ -47,6 +47,157 @@ Copyright (c) 2026 Stevie Bellis.
 | 4 | WG1-WG5 | Move ClickHouse before the batch fix; backup sets to `sdb`; the two LAN paths; Alertmanager and Prometheus on loopback; west's filter before east's | A each | **Ruled 2026-11-17: A each, and the reboot (WG8) at the end of sitting D, "but document and ensure this isn't hard coded, and is configurable"** | sittings A and B |
 | 5 | LW1-LW5 | Bar; indexes; start empty; timer; plan 8's baseline | A, C, A, A, A | **Ruled 2026-11-17: as recommended** (A, C, A, A, A) | its Phases 3 to 7 |
 
+## 2026-11-18: the order after the power cycle, and the answers given ahead
+
+Written 2026-11-18, about 16:30Z. Sources: `docs/battle-plans/DECISION-PACK-2026-11-18.md` (Stevie's answers), `docs/battle-plans/progress/ADR147-INTEGRATION.md` ("2026-11-18"), block B's two run directories on west, `~/tmp/next.md`. Where this section and the tables below it disagree about order or about who must be present, this section wins. Where this section and the decision pack disagree, the pack wins.
+
+### What happened
+
+| When (UTC, 2026-11-18) | What | Record |
+|---|---|---|
+| 00:39 to 00:50 | Block A, first readings, on the old stack | on west, `~/.local/state/unheaded/adr147-blockA/` |
+| 00:47 | **Block C done**, before block B, on Stevie's word: merge `eacbd344` | develop |
+| 00:50 to 00:53 | West stopped for a shutdown; powered on about 06:04 | stack down as left, 0 of 35 containers running |
+| 10:56 to 12:07 | Block B, first run, on develop: 25 of 32 green, 7 red | `~/tmp/adr147-table/runs/after-week-20261118T105634Z/` |
+| 13:59 to 14:35 | **Block B, second run, on `67af4654`: 32 of 32 green** | `~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt` |
+| after 14:35 | The meta-gate, run alone: 103 gates bite, 6 inconclusive (already failing on that head) | the same directory |
+| 16:05 to 16:08 | **Block A restarted** on the OLD stack | `~/tmp/next.md` |
+
+The seven failures of the first run, fixed forward on develop (the merge was already in):
+
+| Gate | What was wrong | Fixed by |
+|---|---|---|
+| `well-batch-apply` | `batch-apply.sh` refused a batch that creates a database: 051 makes `unheaded_zhen`, so the pre-batch set can never hold its dump; `batch-rollback.sh` refused the same directory | `6b1a588d` |
+| `ci-local` | A data race in kanban-app: `openWell`'s retry read two package variables after `openWell` had returned (about 1 run in 15 under `-race`) | `8679ef2c` |
+| `store-backups` | The test "damaged" a set by writing 0x00 over a first byte that was already 0x00 | `07fc96d8` |
+| `prometheus-rules` | Three rule tests that could not pass (one sample an hour against a 5 min lookback; an expected `job` label the rule drops; a bystander series named like the renamed caller). No rule changed | `8a3210eb` |
+| `well-zhen-database` | A type error in `zhen-schema-fingerprint.sql`. Behind it: 053's `ALTER DATABASE ... RESET` is refused for `well_app_owner`, which would have stopped the live 8B after the copy; two function bodies and three grants differed | `18f07c21` |
+| `alert-path` | Prometheus v3.15.1 refuses a wildcard anywhere but the last path component: the module globs made `prometheus.yml` unloadable, so Prometheus would not have started at the deploy. Also the test's fixture alert had become a page | `5d7b23dc` |
+| `ebpf-loads` | The runner's fault, not the tree's: `sudo -n` lost cargo, and the script takes root itself | the runner (`~/tmp/adr147-table/runs/after-week.sh`); no commit |
+
+`git log --oneline 43ba3310..HEAD` (the first run's head to `4a4f312a`), oldest first:
+
+| Commit | What |
+|---|---|
+| `6b1a588d` | fix(well): a migration batch may create a database (`well-batch-apply`) |
+| `8679ef2c` | fix(kanban-app): `openWell` reads its two variables before the goroutine starts (`ci-local`) |
+| `07fc96d8` | test(backup): damage a set by flipping its first byte (`store-backups`) |
+| `8a3210eb` | test(prometheus): three rule tests corrected, no rule changed (`prometheus-rules`) |
+| `18f07c21` | fix(well): the Zhen database rehearsal runs to its end; the copy's record for 053 is a table comment (`well-zhen-database`) |
+| `5d7b23dc` | fix(monitoring): `prometheus.yml` loads again; a module's Prometheus files are copied to flat directories (`alert-path`) |
+| `3bea949b` | docs(adr): ADR-093, 103, 106, 120, 124, 125, 127, 135 accepted (pack row 19); no gate |
+| `67af4654` | docs(plans): decision pack, rounds 1 to 7; the head of block B's green run |
+| `3bb69f4c` | chore(sbom): ScanCode leaves Zhen's venv; `check-python-audit` green (pack rows 17, 29) |
+| `267ab4c2` | refactor(crypto): the two uncalled constructions deleted, CBOM regenerated; `check-crypto-inventory` green (pack row 31) |
+| `4a4f312a` | docs(plans): decision pack, rounds 8 to 10 |
+
+The meta-gate's six inconclusive gates:
+
+| Gate | State |
+|---|---|
+| `check-python-audit` | fixed since (`3bb69f4c`) |
+| `check-crypto-inventory` | fixed since (`267ab4c2`) |
+| `check-ruff` | open |
+| `check-tool-freshness` | open |
+| `gen-man` | open |
+| `well/test-pq-groups` | open |
+
+Block A as it runs now:
+
+| Item | State |
+|---|---|
+| The stack | The OLD containers, started 16:05Z to 16:08Z with `sudo docker start <name>` (no compose): the stores, then Wotan, Vector and the writer, then the applications and Alertmanager. All healthy |
+| The mailer | `unheaded-alert-mailer` left stopped: it is the old build, and the committed policy stays `mode: dry-run` until plan 1 Step 319 |
+| What the old images read | The merged tree's config files: `akira.yaml`, `wotan.yaml`, `prometheus.yml`, `scrape.yml` and the Corefile changed since `7be626d4`; `vector.yaml` and Postgres's did not |
+| Hourly readings | Plan 2 Step 313 and Step 311's `cgio` pair: after a quiet hour (it ends 17:10Z), and again an hour later |
+| Series readings | Those of 00:39Z stand; W-20's exact before stands (0.73 upserts/s, 0.98 WAL syncs/s). Every cgroup and statistics reading of 00:39Z is void after the power cycle |
+| Rule | During the quiet hour and the hour between the readings: no container tests, no builds |
+
+### The order now
+
+| # | Block | State |
+|---|---|---|
+| 1 | C, the merge | done 00:47Z, `eacbd344` |
+| 2 | B, the gates | done, 32 of 32 green on `67af4654` |
+| 3 | A, the befores | running since 16:05Z |
+| 4 to 10 | D, E, F, G, H, I, J | as in "The order" below, with this section's amendments. A failure is fixed forward on develop |
+
+B ran before A because the gates need only dockerd, and the befores need the old stack up and an hour of quiet.
+
+### The Step 348 trap (C-6)
+
+| | |
+|---|---|
+| Fact | West's `docker-compose.override.yml` (gitignored, on the host) still names architect, captain, micromanager, monad and sophia. `docker-compose.yml` on develop no longer has them |
+| Consequence | A compose command in the main project fails ("service X has neither an image nor a build context", plan 2 Appendix A procedure 1). The first one is plan 1 Step 276 in block D, `docker compose up -d --no-deps clickhouse`. The deletions were in plan 2 Step 348, block E |
+| **Amendment** | The five deletions of plan 2 Step 348 are done at the START of block D, before plan 1 Step 276. Stevie's yes to Step 306 is on record (2026-11-18, "Before anything runs"). Then plan 2 Step 350's check: `sudo docker compose config --services` gives no error and none of the five |
+| Stays in block E | The Wotan mount half of Step 348 (`/etc/unheaded/wotan/wotan.yaml`, Step 317 = B) |
+| Side effect | The role containers still running count as orphans of the project until plan 2 Step 349 removes them. No step of the five plans passes `--remove-orphans` |
+
+### Steps that no longer wait for Stevie
+
+"Pack row" is the row of `DECISION-PACK-2026-11-18.md`. Each step still runs behind its own gates and rollback; the first failed gate stops its block and is written to `~/tmp/next.md` (row 1).
+
+| Plan | Step | What the step asked | Pack row | What the executor does instead of asking |
+|---|---|---|---|---|
+| 1 | 273 | A missing ClickHouse `BACKUP` grant goes under "For Stevie"; Steps 276-292 blocked | 16 | Adds the grant only if Step 272 finds it missing, records the grant line in `$PROG`, goes on |
+| 1 | 293 | SS5: the offsite copy to east now, or later | 16 | SS5 = A: "offsite with plan 6" in SSV-21/22's status |
+| 1 | 324 | His inbox: did the mail arrive | 1 (block D), with the SS1 ruling of 2026-11-17 | Nothing is asked. The next 09:00 digest (America/Chicago) proves the relay: SSV-03's after is filled when the outbox shows it `sent`. A line under "For Stevie" asks him to look |
+| 1 | 354 | SS4: do the four new latency and error SLOs alert | 14 | SS4 = A, as tickets. "Away: B" does not apply |
+| 2 | 305 | The E-GATE: is the week closed | 1 (block A) | Reads the record: he closed it 2026-11-18 about 00:30Z (S-E1-LIVE progress, "Step 284: Stevie's verdict") |
+| 2 | 306 | May the five override entries be deleted | 1 | His yes is on record (2026-11-18). The deletions move to the start of block D (the trap above) |
+| 2 | 317 | Where the two public keys live; he makes both ML-DSA-65 keys | 2 | B stands. Claude makes both keys on west with `unheaded-keygen -algo mldsa65`: private halves 0400, never read back, never printed; only the public halves go into `/etc/unheaded/wotan/wotan.yaml` |
+| 2 | 338 | "Deploy now?" | 1 | Deploys |
+| 2 | 340 | He puts `APP_TIMEGURU_PASSWORD` in `.env` and runs the one role's password command | 2 | The key is already in `/etc/unheaded/compose.env` (its name was checked, nothing else). Claude runs the step's command; the value is sourced inside it and never printed |
+| 2 | 341 | Migration 050, with him and the migration password | 2 | Claude runs the dry run, then the apply. The password is sourced from `/etc/unheaded/compose.env` inside the command, never printed |
+| 2 | 383 | "Restart Postgres now with the D8 budget?" | 1 | Restarts it; not in the same hour as plan 3 Phase 9 |
+| 2 | 394 | The orphans, yes or no per item | 6 | All three deleted: volume `unheaded-well-data`; ClickHouse `system.query_log_0`, `system.error_log_0`, `system.query_metric_log_0`; volume `unheaded-dev_kanban-data` |
+| 3 | 265 | "Move Zhen's tables into their own database now?" | 1 | Moves them; never in the same sitting as plan 4's move |
+| 3 | 266 | He types the migration password without echo | 2 | Sourced from `/etc/unheaded/compose.env` inside the command, as plan 2 Step 341 does; never typed, echoed or printed |
+| 3 | 276 (8B) | The copy stops on a `zhen_actions.trace_id` that is not a uuid, or on a `zhen_*` table it does not know; what then was his | 15 | A non-uuid `trace_id` is stored NULL, the row id and the original text go to the plan's progress file, the copy goes on. An unknown `zhen_*` table still stops it: roll back to the old tables, restart Zhen, report. **Not runnable yet:** `scripts/well/zhen-copy-rows.sh` refuses both today; the first half needs a tested option in that script before 8B |
+| 3 | 308 | D7: approve `runbooks/security/ioc-audit.yaml` and seal the manifest | 7 | `ioc-audit.yaml` is approved by the answer (`approved_by` and the date recorded from it). Claude makes a seal key on west and seals `runbooks/MANIFEST.sha256`, then the step's install and timer. The other 39 draft runbooks stay `draft` |
+| 3 | 310 | D8: the switch's state at the end (the answer of 2026-11-17 expired with the power-down) | 8 | On |
+| 4 | 123 | "At the desk with the console?" before swap, huge pages and the move | 1 | Phases 4 and 5 run unattended |
+| 4 | 133 | "Delete `/var/swapfile2` and `/var/swapfile3`?" | 1 (sitting A) | Deletes them |
+| 4 | 156 | "Stop the stack now for the move?" | 1 | Stops it |
+| 4 | 187 | "Laptop and phone on the LAN, console in reach?" before the input filter | 3 | Fully unattended. The self-reverting rehearsal (Step 194) first. Inside it, beside Step 195: outbound HTTPS works and the running Claude session's Remote Control link is alive. One of them dead: no apply, `[STUCK]`. Only then Step 199 and the confirm of Step 204 |
+| 4 | 189, 200 | The before and the after from his laptop and his phone | 3 | New connections are tested from east and from loopback. The laptop's LAN list and the phone on cellular have no stand-in (see "Not settled") |
+| 4 | 192 | Not a question: ports 16666 and 20103 in `west.nft`'s LAN set | 13 | Before the install: `LAN_TCP` and `LAN_FWD_PORTS` in the `define` block of `deploy/nftables/west.nft` lose 16666 and keep 20103; Step 98's check; a commit |
+| 4 | 225 | He adds `AUTH_ANONYMOUS_FROM` to `/etc/unheaded/compose.env`, then says yes to the recreate | 1 and 2 (see "Not settled") | Claude appends the step's line to `/etc/unheaded/compose.env` without printing the file, runs the step's `grep -c` check (→ 2), recreates |
+| 4 | 250 | WG6: which side wins per drifted file | 9 | The host wins for WireGuard and FRR. Any other drifted file is brought to the repository's version when that is reversible, and listed for him when it is not |
+| 4 | 264, 267, 271-274 (Phase 9) | Every step that changes east was his | 5 | East may be changed: `iperf3` from the distribution, the four runs. A `sudo` password prompt on east, or anything that needs its console, waits for him |
+| 4 | 286 | WG7: keep `read_ahead_kb` 256 on `sdb`, or revert | 10 | Keep 256 only on a 20% gain (Step 285's rule), else back to 8,192. The scheduler stays `mq-deadline` |
+| 4 | 292, 295-297, Phase 11 | WG8 and the reboot that proves the layout survives a boot | 4 | **Skipped for now.** No reboot. Steps 293 to 305 wait until west is next restarted for any reason. Plan 4 closes its other rows; the boot proof stays open |
+| 5 | 49 | "Delete the Postgres copy of week 1 (`TRUNCATE`)?" | 12 | Truncates |
+| 5 | 87 | He says which store stays | 12 | Postgres fails the bar on any of the five tests: ClickHouse stays and the plan closes (Steps 88 to 96). Postgres passes all five: stop and ask |
+
+East, for every plan: series rule 18 ("east is attended") is lifted by pack row 5 for everything but the OS upgrade. East's firewall and sshd steps each go behind a self-reverting rehearsal.
+
+### Not settled by the pack (listed, not guessed)
+
+| Item | The plan says | The pack says | Left as |
+|---|---|---|---|
+| Plan 2 Steps 340, 341; plan 3 Step 266: reading the secrets file | The commands source `./.env` as the invoking user | Row 2: values are sourced inside the command | `./.env` is a symlink to `/etc/unheaded/compose.env`, root 0600 since 2026-11-12: as written the commands cannot read it without root. They are not changed here |
+| Plan 4 Step 225: editing the secrets file | "An agent does not read or edit that file" | No row names the edit; rows 1 and 2 are the nearest | This section has Claude append the one line (a list of networks, no secret). His confirmation is wanted |
+| Plan 4 Steps 189, 200, 210, 239: the LAN's view and the cellular check | Laptop on the LAN, phone on cellular; Step 210 resolves `host-probe:west:firewall-inbound-deny` only if the cellular test passed | Row 3: east and loopback | W-05's LAN list, the cellular check, Step 210's `resolved` entry and Step 239's LAN proof of the two source-gated paths stay open for him |
+| Plan 4 Step 280: the 13 h freeze for the read-ahead measurement | His yes | Row 1 names sittings A to C; row 10 presupposes Phase 10 | Not marked as answered |
+| Plan 4 Step 304: delete `/var/swapfile4` | Asked after the boot | Row 4: no reboot for now | Waits with the boot proof; W-03 stays open |
+| Plan 5 Step 40, and block J "after the reboot of Phase 11" | Plan 4's new layout "with its reboot past", else plan 5 is `[BLOCKED]` | Row 4: no reboot for now | Not settled: as written, plan 5's Phase 2 stops on that line |
+| Plan 1 Step 371 against plan 2 Step 408: the rollback tags | Plan 1 removes `:pre-ssv` at its close; plan 2 keeps `:pre-s-waste-out` for 3 days of green | Row 33 (d): what a rollback uses is kept | Plan 1's loop removes nothing (no `:pre-ssv` tag exists); the tags go by plan 2 Step 408 |
+| Plan 4 Step 295: the silence's length | `maintenance.sh 30m` | Nothing (this page's amendment table says 60m) | `--planned` added, 30m kept |
+| Plan 3 Step 272: an open `zhen-claude` or `zhen-cli` session | "Stevie closes it" | No row | 8B stops there until the session is gone |
+
+### What still needs him
+
+| What | Why it is his |
+|---|---|
+| The GPG re-sign and the push | `scripts/resign-unpushed.py --only-needed --merges`, then push. Develop is ahead of origin with unsigned commits; Claude never pushes |
+| The OS release upgrade, west and east | His hands, both hosts together, a monitor and keyboard on east; lowest priority. The two KEV kernel rows wait on it |
+| Hardware for east | Plan 6: its own uplink, the second path through a switch (ADR-150) |
+| The upload of the six `-01` drafts | His account (pack row 37) |
+| The export notification email | He sends it from his own address (pack row 31). The text: `~/tmp/pending-2026-11-18/export-email-final.txt` on west |
+| The rows of "Not settled" above | His word, or his laptop and phone |
+
 ## The order
 
 Blocks run in this order. A block's steps are the plan's own, with the amendments of the next section.
@@ -105,6 +256,7 @@ A step not listed runs as written.
 | 249-253, 267 | Merge seven lanes, then the sprint branch | Block C. Six of the seven lanes never existed |
 | 254-262, 264 | Gates on the sprint tree | Block B ran them on the merged tree; read `SUMMARY.txt` of that run |
 | 263 | After the merge steps | In block A, before the merge |
+| 276 | `docker compose up -d --no-deps clickhouse` as block D's first compose call | Added 2026-11-18: first plan 2 Step 348's five override deletions, or the call fails ("The Step 348 trap") |
 | 308 | Expects `15min` and `10` | `2h` and `180` (`deploy/systemd/dropins/10-start-limit.conf`, REV-3) |
 | 321, 324, 326, 329, 333 | A page and the pipeline mail show as `sent`; Stevie's inbox is asked at Step 324 | Amended in the plan (2026-11-17, one digest a day): each shows as `digest` in the outbox and no mail leaves. The relay is proved by the next 09:00 digest (America/Chicago), which carries the drills; SSV-03's after is filled then |
 | 335-341 | Tag, build, recreate seven services and three host units | Done by plan 2 Steps 327-355. Take the planned stop of Step 335 before plan 2 Step 339 and end it (Step 341) after plan 2 Step 356. `unheaded-wiki-server` is rebuilt by plan 3 Step 256 |
@@ -123,6 +275,7 @@ A step not listed runs as written.
 | before 339 | No mark | `sudo scripts/monitoring/maintenance.sh --planned 60m "S-WASTE-OUT deploy"`; end it after Step 356 (plan 1's rules are live by then) |
 | 340 | `env -u` of eight variables | Amended in the plan: every `*_PASSWORD` but `APP_TIMEGURU_PASSWORD` is unset in a subshell (the script also knows `POSTGRES`, `WELL_BACKUP`, `RETENTION_RUNNER` and `LOG_WRITER`) |
 | 341 | `--from 050`, expects `pending (1)` | Amended in the plan: `--from 050 --through 050`; expects `pending (1) through 050` and three files left for a later batch |
+| 348 | The five override deletions and the Wotan mount, in block E | Added 2026-11-18: the five deletions at the START of block D, before plan 1 Step 276; the Wotan mount half stays here ("The Step 348 trap") |
 | 371 | Add job `victoria`; rule in `rules/host.yml` | The job exists (plan 1); the rule goes in `rules/watchers.yml` beside `VictoriaMetricsDown` |
 | 372 | "Step 198's promtool" in a lane worktree | `scripts/check-prometheus-rules.sh` in `WT`; no lane worktree was made |
 | 359 (W-25) | Bar "tmpfs: none" | timeguru keeps its `/data` tmpfs on purpose (progress file, Phase 16); record the row as it is |

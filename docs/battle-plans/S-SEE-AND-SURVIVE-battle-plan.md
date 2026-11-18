@@ -695,8 +695,8 @@ Expected: promtool `SUCCESS` for every file, `[PASS]` lines from alert-policy, p
 - [ ] **Step 164** [B] ~1m: Step 162 again, then `shellcheck scripts/monitoring/planned-stop.sh scripts/monitoring/test-planned-stop.sh 2>&1 | tail -2`.
 - [ ] **Step 165** [V] ~1m: 9 of 9 `PASS`; shellcheck clean.
 - [ ] **Step 166** [W] ~15m: `scripts/monitoring/maintenance.sh`: a flag `--planned[=SCOPE]` before the duration (`maintenance.sh --planned 30m "reboot west"`, scope default `all`). After the silences are made it runs `"$(dirname "$0")/planned-stop.sh" "$scope" "$dur"`; `--end` also runs `planned-stop.sh --end`. The header's usage lines say so, and that a mark stops the SLO budgets from burning (decision 4) while a silence only stops mail.
-  `scripts/kingdom-shutdown.sh` after line 118: `run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/planned-stop.sh" all 30d >/dev/null 2>&1 || log_warn "planned-stop mark not written: the SLO budgets will burn while the stack is down"`.
-  `scripts/kingdom-startup.sh` after line 150: the same call with `all 15m` (it replaces the 30d mark: the warm-up is the planned tail).
+  `scripts/kingdom-shutdown.sh` after line 118: `run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/planned-stop.sh" all "${PLANNED_FOR}" >/dev/null 2>&1 || log_warn "planned-stop mark not written: the SLO budgets will burn while the stack is down"` (amended 2026-11-18 from the run order: it said `all 30d`; the mark lasts `PLANNED_FOR`, default `2h`, since REV-2, because a stale month-long mark mutes ContainerStopped and reads every SLO good).
+  `scripts/kingdom-startup.sh` after line 150: the same call with `all 15m` (it replaces the shutdown mark: the warm-up is the planned tail).
 - [ ] **Step 167** [B] ~2m: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE-alerting && bash -n scripts/monitoring/maintenance.sh scripts/kingdom-shutdown.sh scripts/kingdom-startup.sh && shellcheck scripts/monitoring/maintenance.sh 2>&1 | tail -2 && scripts/monitoring/maintenance.sh --help 2>&1 | grep -c planned`
 - [ ] **Step 168** [V] ~1m: Parses; shellcheck clean; at least 1.
 - [ ] **Step 169** [C] ~1m: **COMMIT** `scripts/monitoring/planned-stop.sh scripts/monitoring/test-planned-stop.sh scripts/monitoring/maintenance.sh scripts/kingdom-shutdown.sh scripts/kingdom-startup.sh`: "Steps 161-169: a planned stop is marked, not only silenced".
@@ -925,28 +925,28 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 
 - [ ] **Step 247** [V] ~2m: **The E-GATE.** `date -u +%FT%TZ; grep -n -i 'log store week' /home/govan/tmp/unheaded/docs/battle-plans/progress/S-E1-LIVE-progress.md | tail -3`. Open only if that file records the week's end (S-E1-LIVE Step 284 closed) or Stevie says so in this session. A date alone does not open it. Closed → stop here; Phases 12 to 18 wait; write "E-GATE closed <time>" in `$PROG`.
 - [ ] **Step 248** [W] ~1m: "E-GATE open <time>, evidence: <line or Stevie's words>" in `$PROG`.
-- [ ] **Step 249** [B] ~5m: Merge the lanes, one at a time, in this order: alerting, buckets, huginn, state, backup, smoke, vor.
+- [ ] **Step 249** [B] ~5m: (replaced 2026-11-18: block C, done `eacbd344`) Merge the lanes, one at a time, in this order: alerting, buckets, huginn, state, backup, smoke, vor.
   ```bash
   cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && for l in alerting buckets huginn state backup smoke vor; do git merge --no-ff -S sprint/s-see-and-survive-$l -m "Merge lane $l into sprint/s-see-and-survive" || { echo "CONFLICT in $l"; break; }; done; git log --oneline -9
   ```
-- [ ] **Step 250** [V] ~2m: No conflict. The only file two lanes touch is `config/logging/sources.yaml` (state, backup) and `wiki/Systemd-Units.md`: keep both sides' entries. Anything else → `[STUCK]`.
-- [ ] **Step 251** [B] ~2m: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && git merge --no-ff -S develop -m "Merge develop into sprint/s-see-and-survive"`
-- [ ] **Step 252** [V] ~5m: Conflicts allowed by the Busboy notes only: `policy.yaml` (keep both sides' entries), `scripts/qa-smoke.sh` (plan 2's five removals and this plan's https), `cmd/alert-mailer` (plan 2's publisher and this plan's pipeline: both), ADR index rows (both, in number order). Generated files are regenerated, never hand-merged (Step 253). Anything else → `[STUCK]`.
-- [ ] **Step 253** [B] ~2m: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && go run ./cmd/alert-policy && scripts/runbook-manifest.sh --write && git status --short`
-- [ ] **Step 254** [B] ~10m: GO-GATE on the sprint tree: `./cmd/alert-mailer/... ./cmd/alert-policy/... ./cmd/huginn/... ./pkg/metrics/... ./pkg/httputil/... ./services/wotan/... ./cmd/dashboard-backend/...` (run from `/home/govan/tmp/wt/S-SEE-AND-SURVIVE`).
-- [ ] **Step 255** [B] ~8m: RULES-GATE on the sprint tree.
-- [ ] **Step 256** [B] ~3m: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && bash scripts/monitoring/test-host-state-textfile.sh 2>&1 | tail -1 && bash scripts/monitoring/test-planned-stop.sh 2>&1 | tail -1 && scripts/check-unit-start-limits.sh 2>&1 | tail -1`
-- [ ] **Step 257** [B] ~10m: The alert path on throwaway containers (now allowed): `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && scripts/monitoring/test-alert-path.sh 2>&1 | tail -14`
-- [ ] **Step 258** [V] ~1m: Every case `PASS`, cases 6 (run day) and 7 (pipeline route) included.
-- [ ] **Step 259** [D] ~10m: A failing case prints its expected and got. Fix it in the lane's files on the sprint branch, commit, rerun Step 257. Two tries, then `[STUCK]` (Phase 15 is then `[BLOCKED]`).
-- [ ] **Step 260** [B] ~10m: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && scripts/backup/test-store-backups.sh 2>&1 | tail -15`
-- [ ] **Step 261** [V] ~1m: 9 of 9.
-- [ ] **Step 262** [D] ~15m: Likely: the answer words differ by version (`BACKUP_CREATED`, `RESTORED`: read what the pinned ClickHouse prints and match it exactly); a snapshot path (`$DATA/snapshots/<name>` holds `data` and `indexdb`: `ls` it in the test); the drill container not ready in 90 s (raise to 180 s, log it). Two tries, then `[STUCK]` (Phase 13 is then `[BLOCKED]`).
-- [ ] **Step 263** [B] ~3m: SSV-23 **before**, develop's own copy in the main checkout (unchanged until Step 267): `cd /home/govan/tmp/unheaded && scripts/qa-smoke.sh 2>&1 | tail -6`. Log "passed N, failed M" and the failing names.
-- [ ] **Step 264** [B] ~3m: The new gate fails when provoked, on the merged tree: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && git status --short | wc -l && scripts/check-gates-can-fail.sh --only check-unit-start-limits 2>&1 | tail -2`
+- [ ] **Step 250** [V] ~2m: (replaced 2026-11-18: block C, done `eacbd344`) No conflict. The only file two lanes touch is `config/logging/sources.yaml` (state, backup) and `wiki/Systemd-Units.md`: keep both sides' entries. Anything else → `[STUCK]`.
+- [ ] **Step 251** [B] ~2m: (replaced 2026-11-18: block C, done `eacbd344`) `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && git merge --no-ff -S develop -m "Merge develop into sprint/s-see-and-survive"`
+- [ ] **Step 252** [V] ~5m: (replaced 2026-11-18: block C, done `eacbd344`) Conflicts allowed by the Busboy notes only: `policy.yaml` (keep both sides' entries), `scripts/qa-smoke.sh` (plan 2's five removals and this plan's https), `cmd/alert-mailer` (plan 2's publisher and this plan's pipeline: both), ADR index rows (both, in number order). Generated files are regenerated, never hand-merged (Step 253). Anything else → `[STUCK]`.
+- [ ] **Step 253** [B] ~2m: (replaced 2026-11-18: block C, done `eacbd344`) `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && go run ./cmd/alert-policy && scripts/runbook-manifest.sh --write && git status --short`
+- [ ] **Step 254** [B] ~10m: (replaced: block B, green 2026-11-18) GO-GATE on the sprint tree: `./cmd/alert-mailer/... ./cmd/alert-policy/... ./cmd/huginn/... ./pkg/metrics/... ./pkg/httputil/... ./services/wotan/... ./cmd/dashboard-backend/...` (run from `/home/govan/tmp/wt/S-SEE-AND-SURVIVE`).
+- [ ] **Step 255** [B] ~8m: (replaced: block B, green 2026-11-18) RULES-GATE on the sprint tree.
+- [ ] **Step 256** [B] ~3m: (replaced: block B, green 2026-11-18) `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && bash scripts/monitoring/test-host-state-textfile.sh 2>&1 | tail -1 && bash scripts/monitoring/test-planned-stop.sh 2>&1 | tail -1 && scripts/check-unit-start-limits.sh 2>&1 | tail -1`
+- [ ] **Step 257** [B] ~10m: (replaced: block B, green 2026-11-18) The alert path on throwaway containers (now allowed): `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && scripts/monitoring/test-alert-path.sh 2>&1 | tail -14`
+- [ ] **Step 258** [V] ~1m: (replaced: block B, green 2026-11-18) Every case `PASS`, cases 6 (run day) and 7 (pipeline route) included.
+- [ ] **Step 259** [D] ~10m: (replaced: block B, green 2026-11-18) A failing case prints its expected and got. Fix it in the lane's files on the sprint branch, commit, rerun Step 257. Two tries, then `[STUCK]` (Phase 15 is then `[BLOCKED]`).
+- [ ] **Step 260** [B] ~10m: (replaced: block B, green 2026-11-18) `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && scripts/backup/test-store-backups.sh 2>&1 | tail -15`
+- [ ] **Step 261** [V] ~1m: (replaced: block B, green 2026-11-18) 9 of 9.
+- [ ] **Step 262** [D] ~15m: (replaced: block B, green 2026-11-18) Likely: the answer words differ by version (`BACKUP_CREATED`, `RESTORED`: read what the pinned ClickHouse prints and match it exactly); a snapshot path (`$DATA/snapshots/<name>` holds `data` and `indexdb`: `ls` it in the test); the drill container not ready in 90 s (raise to 180 s, log it). Two tries, then `[STUCK]` (Phase 13 is then `[BLOCKED]`).
+- [ ] **Step 263** [B] ~3m: SSV-23 **before**, develop's own copy in the main checkout (unchanged until Step 267): `cd /home/govan/tmp/unheaded && scripts/qa-smoke.sh 2>&1 | tail -6`. Log "passed N, failed M" and the failing names. (amended 2026-11-18 from the run order: this reading belongs to block A, before the merge, not after the merge steps; it was taken 2026-11-18 00:39Z: passed 7, failed 43, run without docker rights)
+- [ ] **Step 264** [B] ~3m: (replaced: block B, green 2026-11-18) The new gate fails when provoked, on the merged tree: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && git status --short | wc -l && scripts/check-gates-can-fail.sh --only check-unit-start-limits 2>&1 | tail -2`
 - [ ] **Step 265** [V] ~1m: `0` and `[PASS]` (SS3 B: the gate does not exist; skip).
 - [ ] **Step 266** [C] ~1m: **COMMIT** `$PROG` (and any generated file Step 253 changed, by name): "Steps 247-266: E-GATE open; container tests green; lanes merged".
-- [ ] **Step 267** [B] ~2m: Merge to develop.
+- [ ] **Step 267** [B] ~2m: (replaced 2026-11-18: block C, done `eacbd344`) Merge to develop.
   ```bash
   cd /home/govan/tmp/unheaded && git switch develop && git merge --no-ff -S sprint/s-see-and-survive -m "Merge sprint/s-see-and-survive: S-SEE-AND-SURVIVE code (Phases 1-11)" || { git merge --abort; git merge --no-ff --no-gpg-sign sprint/s-see-and-survive -m "Merge sprint/s-see-and-survive: S-SEE-AND-SURVIVE code (Phases 1-11)"; }; git log --oneline -1
   ```
@@ -969,13 +969,13 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
   ```
 - [ ] **Step 272** [V] ~1m: A user name, the `unheaded_logs` size (expected 0.4 to 0.8 GiB), and a grant with `ALL` or `BACKUP` on `*.*`. Log size and user (not the grant text).
   - No such grant → Step 273.
-- [ ] **Step 273** [D] ~5m: Granting is a ClickHouse configuration change: write it under "For Stevie" with the grant line needed, mark Steps 276-292 `[BLOCKED]`, go to Phase 14.
+- [ ] **Step 273** [D] ~5m: Granting is a ClickHouse configuration change: write it under "For Stevie" with the grant line needed, mark Steps 276-292 `[BLOCKED]`, go to Phase 14. (answered ahead: DECISION-PACK-2026-11-18 row 16; runs without Stevie: the `BACKUP` grant is added only if Step 272 finds it missing, the grant line is recorded in `$PROG`, and Steps 276-292 go on)
 - [ ] **Step 274** [S][B] ~2m: Install (the lines in `deploy/systemd/unheaded-clickhouse-backup.service`'s header):
   ```bash
   cd /home/govan/tmp/unheaded && sudo install -d -m 0755 /usr/local/lib/unheaded/backup && sudo install -m 0755 scripts/backup/{lib-disks,clickhouse-backup,clickhouse-drill,victoria-backup,victoria-drill,store-drill}.sh /usr/local/lib/unheaded/backup/ && sudo install -m 0644 config/clickhouse/backups.xml /usr/local/lib/unheaded/backup/clickhouse-backups.xml && sudo install -d -m 0700 -o 16707 -g 16707 /srv/backups/unheaded-clickhouse && sudo install -d -m 0700 /srv/backups/unheaded-victoria && sudo cp deploy/systemd/unheaded-{clickhouse-backup,victoria-backup,store-drill}.{service,timer} /etc/systemd/system/ && sudo systemctl daemon-reload
   ```
 - [ ] **Step 275** [V] ~1m: `sudo stat -c '%U:%G %a %n' /srv/backups/unheaded-clickhouse /srv/backups/unheaded-victoria` → `16707:16707 700` (or the uid's name) and `root:root 700`.
-- [ ] **Step 276** [S][B] ~3m: Recreate ClickHouse with its new mounts (Vector's buffer holds the journal rows meanwhile; restart policy stays as the override sets it):
+- [ ] **Step 276** [S][B] ~3m: Recreate ClickHouse with its new mounts (Vector's buffer holds the journal rows meanwhile; restart policy stays as the override sets it) (amended 2026-11-18 from the run order: first S-WASTE-OUT Step 348's five deletions in west's `docker-compose.override.yml`, architect, captain, micromanager, monad and sophia; while the override names them this compose call fails. The role containers still running are then orphans until S-WASTE-OUT Step 349):
   ```bash
   cd /home/govan/tmp/unheaded && sudo docker compose up -d --no-deps clickhouse && date -u +%FT%TZ
   ```
@@ -998,7 +998,7 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 - [ ] **Step 290** [V] ~1m: `3`.
 - [ ] **Step 291** [W] ~5m: SSV-21 and SSV-22 after in `$PROG`: "clickhouse backup <bytes> in <s>; restore drill passed, <rows> rows, <s>" and "victoria backup <bytes> in <s>; restore drill passed, <series> series, <s>". `wiki/Well-Backups.md`: the measured sizes and times in its new section.
 - [ ] **Step 292** [C] ~1m: **COMMIT** on develop `$PROG wiki/Well-Backups.md docs/battle-plans/progress/S-E1-LIVE-progress.md`: "Steps 271-292: ClickHouse and VictoriaMetrics backed up and restored once".
-- [ ] **Step 293** [STEVIE] ~2m: SS5 **B** only: with Stevie, the offsite copy to east (east's `well-backup-copy` chroot gets `clickhouse/` and `victoria/`; the pattern is `scripts/well/offsite-copy.sh`). Under A: "offsite with plan 6" in SSV-21/22's status. Under C: "local only" in the wiki section.
+- [ ] **Step 293** [STEVIE] ~2m: SS5 **B** only: with Stevie, the offsite copy to east (east's `well-backup-copy` chroot gets `clickhouse/` and `victoria/`; the pattern is `scripts/well/offsite-copy.sh`). Under A: "offsite with plan 6" in SSV-21/22's status. Under C: "local only" in the wiki section. (answered ahead: DECISION-PACK-2026-11-18 row 16; runs without Stevie: SS5 = A, "offsite with plan 6")
 - [ ] **Step 294** [B] ~1m: Rollback copy of nothing is needed: the sets and units add, they replace nothing. Record the undo in `$PROG`: `sudo systemctl disable --now` the three timers; the ClickHouse mount stays harmless.
 - [ ] **Step 295** [B] ~1m: `git -C /home/govan/tmp/unheaded status --short | head`
 - [ ] **Step 296** [V] ~1m: **PHASE 13 EXIT GATE**: one set per store, a passed drill, three timers, series in Prometheus, nothing uncommitted.
@@ -1064,7 +1064,7 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
   ```bash
   end=$(date -u -d '+10 min' +%FT%TZ); curl -s -XPOST 127.0.0.1:9093/api/v2/alerts -H 'Content-Type: application/json' -d "[{\"labels\":{\"alertname\":\"MailPathTest\",\"urgency\":\"page\",\"severity\":\"none\"},\"annotations\":{\"summary\":\"S-SEE-AND-SURVIVE: mail is on (ADR-147 decision 2). No action.\"},\"endsAt\":\"$end\"}]"; sleep 200; source /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/lib.sh; outbox
   ```
-- [ ] **Step 324** [V][STEVIE] ~2m: The outbox shows `digest` for `MailPathTest` (amended 2026-11-17: under `delivery: digest` a page is kept for the 09:00 digest, America/Chicago, and no mail leaves now). The relay is proved by the next digest: the test alert ends after 10 minutes, so that digest carries it under "Resolved since the last digest" beside the drills below. Write under "For Stevie": "the first digest is due <date> 09:00 Chicago; did it reach your inbox?" and fill SSV-03's after when the outbox shows that digest `sent`.
+- [ ] **Step 324** [V][STEVIE] ~2m: The outbox shows `digest` for `MailPathTest` (amended 2026-11-17: under `delivery: digest` a page is kept for the 09:00 digest, America/Chicago, and no mail leaves now). The relay is proved by the next digest: the test alert ends after 10 minutes, so that digest carries it under "Resolved since the last digest" beside the drills below. Write under "For Stevie": "the first digest is due <date> 09:00 Chicago; did it reach your inbox?" and fill SSV-03's after when the outbox shows that digest `sent`. (answered ahead: DECISION-PACK-2026-11-18 row 1; runs without Stevie: block D does not wait for his inbox; the next digest's `sent` line is the proof)
 - [ ] **Step 325** [S][B] ~8m: **Drill 1, ContainerStopped.** The container: the first that exists of `unheaded-captain`, `unheaded-architect`, `unheaded-micromanager`, `unheaded-monad`, `unheaded-sophia` (no callers; plan 2 removes them), else `unheaded-timeguru`.
   ```bash
   c=$(for n in unheaded-captain unheaded-architect unheaded-micromanager unheaded-monad unheaded-sophia unheaded-timeguru; do docker ps --format '{{.Names}}' | grep -qx $n && { echo $n; break; }; done); echo "$c"; t0=$(date +%s); sudo docker stop "$c" >/dev/null; source /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/lib.sh; for i in $(seq 1 16); do sleep 30; firing | grep -q "ContainerStopped $c" && { echo "firing after $(( $(date +%s) - t0 )) s"; break; }; done; sleep 150; outbox | grep -i containerstopped; sudo docker start "$c" >/dev/null; echo "started $(date -u +%T)"
@@ -1124,7 +1124,7 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 - [ ] **Step 343** [V] ~2m: No service's p99 is exactly 0.00495; Wotan's p50 is under 0.0005 and within 2.5 times its mean (sum over count). Bucket series count logged (expected about 1,056 x 17/12, less any service plan 2 removed). SSV-15 after.
 - [ ] **Step 344** [B] ~1m: `source /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/lib.sh; firing | grep -c ContainerStopped` → 0.
 - [ ] **Step 345** [W] ~3m: `$PROG`: rollout time (Phase 17 waits until 24 h after it), the services, the readings.
-- [ ] **Step 346** [S][B] ~1m: The pre-rollout tags are kept until Phase 19 (Step 371 removes them).
+- [ ] **Step 346** [S][B] ~1m: The pre-rollout tags are kept until Phase 19 (Step 371 removes them). (amended 2026-11-18 from the run order: the rollback tags are S-WASTE-OUT's `:pre-s-waste-out`, made at its Step 327; no `:pre-ssv` tag exists)
 - [ ] **Step 347** [C] ~1m: **COMMIT** `$PROG` on develop: "Steps 335-347: latency buckets live".
 - [ ] **Step 348** [V] ~1m: **PHASE 16 EXIT GATE**: all healthy, buckets live, no stray alert.
 
@@ -1138,11 +1138,11 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 **Model**: Opus. **Agent**: Coordinator; Stevie for SS4.
 
 - [ ] **Step 349** [V] ~1m: 24 h have passed since the rollout time in `$PROG`.
-- [ ] **Step 350** [B] ~2m: How Prometheus labels the two (target labels rename the middleware's `service` to `exported_service`): `source /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/lib.sh; pq 'count by (job, instance, service, exported_service) (unheaded_http_request_duration_seconds_count{job=~"wotan|dashboard-backend"})'`
+- [ ] **Step 350** [B] ~2m: How Prometheus labels the two (target labels rename the middleware's `service` to `exported_service`): `source /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/lib.sh; q 'count by (job, instance, service, exported_service) (unheaded_http_request_duration_seconds_count{job=~"wotan|dashboard-backend"})'` (amended 2026-11-18 from the run order: `q`, VictoriaMetrics, where it said `pq`; Prometheus drops the `unheaded_http_*` series after S-WASTE-OUT Step 355's keep-list)
 - [ ] **Step 351** [V] ~1m: Write the two selectors that name west's series alone, expected `{job="wotan"}` and `{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}`. Use those in Steps 352 and 355.
-- [ ] **Step 352** [B] ~2m: Idle readings over 24 h, with `<sel>` each selector: `pq 'histogram_quantile(0.99, sum by (le) (rate(unheaded_http_request_duration_seconds_bucket<sel>[24h])))'`; `pq 'sum(rate(unheaded_http_requests_total<sel,status=~"5..">[24h])) / sum(rate(unheaded_http_requests_total<sel>[24h]))'`.
+- [ ] **Step 352** [B] ~2m: Idle readings over 24 h, with `<sel>` each selector: `q 'histogram_quantile(0.99, sum by (le) (rate(unheaded_http_request_duration_seconds_bucket<sel>[24h])))'`; `q 'sum(rate(unheaded_http_requests_total<sel,status=~"5..">[24h])) / sum(rate(unheaded_http_requests_total<sel>[24h]))'`. (amended 2026-11-18 from the run order: `q`, VictoriaMetrics, where it said `pq`, as Step 350)
 - [ ] **Step 353** [W] ~3m: In `$PROG` a table: service, idle p99, 3 x p99, T (the smallest bound of `LatencyBuckets` at or above it), 5xx share.
-- [ ] **Step 354** [STEVIE][DECIDE] ~3m: SS4 with that table. Away: B.
+- [ ] **Step 354** [STEVIE][DECIDE] ~3m: SS4 with that table. Away: B. (answered ahead: DECISION-PACK-2026-11-18 row 14; runs without Stevie: SS4 = A, the four SLOs alert as tickets; "Away: B" does not apply)
 - [ ] **Step 355** [W] ~15m: In the sprint worktree (`git -C /home/govan/tmp/wt/S-SEE-AND-SURVIVE merge --ff-only develop` first), four SLOs in `policy.yaml` after `wotan` and `dashboard` (A: as written; B: each also `notify: false`), `T` from Step 353 written as the bound's text (for example `"0.0005"`):
   ```yaml
     - name: wotan-latency
@@ -1168,10 +1168,10 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
       checks: >-
         sum by (path, status) (rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])); docker logs unheaded-wotan --since 15m.
   ```
-  and `dashboard-latency`, `dashboard-errors` the same with the dashboard selector. A promtool case per SLO in `tests/slo_test.yml`: no traffic → good 1; all fast → 1; half slow → 0.5.
+  and `dashboard-latency`, `dashboard-errors` the same with the dashboard selector. A promtool case per SLO in `tests/slo_test.yml`: no traffic → good 1; all fast → 1; half slow → 0.5. (amended 2026-11-18 from the run order: in the same commit also `python3 scripts/gen-prom-keep-list.py`, so Prometheus keeps the series these rules read, and the SLO source rows in `compliance/catalog/controls.yaml`)
 - [ ] **Step 356** [B] ~10m: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && go run ./cmd/alert-policy && go test -race -count=1 ./cmd/alert-policy 2>&1 | tail -2` and RULES-GATE (run in this tree: `cd /home/govan/tmp/wt/S-SEE-AND-SURVIVE && scripts/check-prometheus-rules.sh 2>&1 | tail -4 && go run ./cmd/alert-policy --check 2>&1 | tail -2`).
 - [ ] **Step 357** [V] ~1m: Green.
-- [ ] **Step 358** [C] ~1m: **COMMIT** `observability/alerting/policy.yaml monitoring/prometheus/rules/slo.yml monitoring/prometheus/rules/tests/slo_test.yml monitoring/alertmanager/alertmanager.yml`: "Steps 349-358: latency and error SLIs (SS4 <A|B>)". Merge to develop as Step 267 does.
+- [ ] **Step 358** [C] ~1m: **COMMIT** `observability/alerting/policy.yaml monitoring/prometheus/rules/slo.yml monitoring/prometheus/rules/tests/slo_test.yml monitoring/alertmanager/alertmanager.yml`: "Steps 349-358: latency and error SLIs (SS4 <A|B>)". Merge to develop as Step 267 does. (amended 2026-11-18 from the run order: the commit also names the files `scripts/gen-prom-keep-list.py` rewrote and `compliance/catalog/controls.yaml`)
 - [ ] **Step 359** [S][B] ~1m: `sudo docker kill -s HUP unheaded-prometheus && sudo docker kill -s HUP unheaded-alertmanager`
 - [ ] **Step 360** [B] ~5m: Five minutes later: `source /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/lib.sh; pq 'slo:good{slo=~"wotan-latency|wotan-errors|dashboard-latency|dashboard-errors"}'`
 - [ ] **Step 361** [V] ~1m: Four series, each near 1 at idle. A value under 0.9 at idle means T is too tight for some path: log the path from `checks:`, and under SS4 A ask Stevie before loosening.
@@ -1211,7 +1211,7 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 **Time**: 1.5 h.
 **Model**: Opus. **Agent**: Coordinator.
 
-- [ ] **Step 371** [S][B] ~2m: Housekeeping: `for s in $(cat /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/bucket-svcs.txt); do sudo docker rmi unheaded-dev-$s:pre-ssv >/dev/null 2>&1; done`; remove today's date from `run_days.dates` on develop (signed commit, named file) and restart the mailer (`sudo docker restart unheaded-alert-mailer`). Keep `/var/backups/s-see-and-survive/` for 3 days: write its removal under "For Stevie / housekeeping".
+- [ ] **Step 371** [S][B] ~2m: Housekeeping: `for s in $(cat /home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/bucket-svcs.txt); do sudo docker rmi unheaded-dev-$s:pre-ssv >/dev/null 2>&1; done`; remove today's date from `run_days.dates` on develop (signed commit, named file) and restart the mailer (`sudo docker restart unheaded-alert-mailer`). Keep `/var/backups/s-see-and-survive/` for 3 days: write its removal under "For Stevie / housekeeping". (amended 2026-11-18 from the run order: no `:pre-ssv` tag was made and `bucket-svcs.txt` does not exist, since Step 336 was done by S-WASTE-OUT; the rollback tags are S-WASTE-OUT's `:pre-s-waste-out`, which its Step 408 keeps for 3 days of green, so the `rmi` loop here removes nothing)
 - [ ] **Step 372** [B] ~20m: The full local CI, the CI venv last on PATH: `cd /home/govan/tmp/unheaded && PATH=$PATH:/var/tmp/unheaded-sprint/civenv/bin scripts/ci-local.sh 2>&1 | tail -25`
 - [ ] **Step 373** [V] ~2m: Each gate on its own line passes, or its FAIL is shown on develop before this sprint (rerun that gate in a clean clone of `1393e5ee`).
 - [ ] **Step 374** [D] ~10m: A FAIL this sprint caused → fix it in its files, commit, rerun Step 372. Two tries.
@@ -1241,7 +1241,7 @@ Measured 2026-11-15 with `--cacert configs/certs/dev/ca.pem`: `https://localhost
 6. **The backups refuse after plan 4 moved the volumes** ("share disk"). Expected: the sets must leave the NVMe. Stevie names the root; change `CH_BACKUP_DIR`, `VM_BACKUP_DIR` (units) and `CLICKHOUSE_BACKUP_DIR` (compose `.env`), recreate ClickHouse, run both backups and the drill again.
 7. **huginn crash-loops after Step 297.** Step 299's rollback. With SS3 A, after 10 starts in 15 min it stays `failed` and `UnitFailed` pages (if huginn is the failed unit, host-state still reports it, but nothing forwards it: `HuginnDown` from Prometheus's own scrape covers that).
 8. **host_state.prom stops changing.** `HostStateStale` fires. `systemctl status unheaded-host-state.timer unheaded-host-state.service`; `journalctl -u unheaded-host-state -n 20`. While it is stale, ContainerStopped cannot fire: treat as urgent.
-9. **The planned-stop mark is stale** (a stop marked 30d and the startup never ran). ContainerStopped and every SLO read good for a stopped stack. `scripts/monitoring/planned-stop.sh --list`; `sudo scripts/monitoring/planned-stop.sh --end`.
+9. **The planned-stop mark is stale** (a stop marked and the startup never ran; amended 2026-11-18 from the run order: it said "marked 30d"; `kingdom-shutdown.sh` marks `PLANNED_FOR`, default 2 h, and a mark past its time is dropped on the next write: read `scripts/monitoring/planned-stop.sh`). ContainerStopped and every SLO read good for a stopped stack. `scripts/monitoring/planned-stop.sh --list`; `sudo scripts/monitoring/planned-stop.sh --end`.
 10. **Prometheus or Alertmanager will not reload.** Both keep the old config on a failed reload. Read `docker logs --since 5m`, revert the file's commit, HUP again. Never `docker restart` Prometheus to clear a config error: it would then not start.
 
 ## Appendix B: Agent assignment and dependencies

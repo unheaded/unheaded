@@ -101,3 +101,30 @@ Copyright (c) 2026 Stevie Bellis.
 | 38 | S-E1-LIVE host steps never applied: west's sshd to keys only, rotation of service keys, certificates and the two API keys, the same hardening on east. | **Yes, with a lockout guard:** before any sshd change a key login is proved on a second port with the new config, and the old config comes back by itself after 10 minutes unless a fresh key login succeeds; keys rotate one service at a time with health checks between. | M-66 to M-72 as far as no account or physical action of his is needed |
 | 39 | Version bumps. | **Security bumps now, stores after the week:** CoreDNS 1.14.x, the end-of-life Alpine images, `anthropic-sdk-go` 1.84.0 and anything with a published fix ride on the deploy, each behind its gates. Postgres, ClickHouse, Vector and VictoriaMetrics wait for plan 5's close. `grpc` 1.85.0 waits (it adds two modules). | M-208, M-209 |
 | 40 | IOC audit settings. | **Apply all three:** `spl` known on west as a host setting; operator networks narrowed to the LAN, the link to east and the overlay; the 21-day baseline as a recording rule. All stay config keys; the manifest is resealed after. | M-191 |
+
+## Round 11
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 41 | About 60 smaller technical calls left by finished sprints (S-STAGE-2C's other 14, hop enforcement and its tooling, S-ZHEN-POLISH's 7, ADR-117 and Grafana's 6, the small acknowledgements, wiki, pihole and evidence rulings): may Claude settle them on the seats' written recommendation and list each for his later review? | **Yes, except weakening or irreversible.** Each call is logged below under "Decided by Claude, reviewable". Held and asked: anything that weakens security, deletes data, adds third-party software, changes the frozen wire format, or cannot be undone. | M-167, M-177, M-178, M-186, M-192 to M-194, M-197, M-198, M-201 to M-203, M-206, M-207, M-210, M-215, M-216, M-218 to M-220, M-222, M-223 as far as the hold list allows |
+| 42 | The third-party sitting (235 `/verdicts` rows, DP-217, DP-403, ADR-096 and the rest), which holds the promotion to staging. | **His, in hand:** "I have been working on this on another machine with Claude co-work -> will copy it over or pull into repo later today". Claude drafts nothing here until that arrives. | M-183, M-245 |
+| 43 | The 60 accepted findings that lapse on 2026-12-29 and 12-30. | **A review packet a week before:** by 2026-12-22 each row is re-checked and sorted: fixed since (close), still true and unchanged (renew 90 days), worse or newly fixable (brought to him). | M-184 |
+| 44 | Logins asked again every 15 minutes; ADR-114 N5 (sessions in the Well) is parked. | **Build server-side sessions:** stored in the Well, extended while in use, capped at a maximum age, revocable from the CLI; both limits config keys; tests first; on a later deploy. ADR-114 N5 leaves the park. | M-190 (the lifetime half) |
+
+## Round 12: what the run order's amendment found uncovered
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 45 | Plan 4 Step 225: may Claude append the `AUTH_ANONYMOUS_FROM` line (four network ranges, no secret) to `/etc/unheaded/compose.env`? | **Yes, append it,** without printing the file; present exactly once; then the recreate. | M-233 |
+| 46 | Plan 4 Step 280: the 13-hour freeze of west for the read-ahead measurement. | **Yes, Claude picks the window,** a stretch when the run order only waits. | plan 4 Phase 10 |
+| 47 | Plan 5 Step 40 and block J want plan 4's reboot past; the reboot proof is skipped. | **Start the week without it.** The gate reads "new layout since <time>"; a reboot inside the week moves its end as the plan says. | plan 5 Phase 2 |
+| 48 | Plan 4 Step 304: `/var/swapfile4` (30 GiB) was to be deleted after a boot proved west fine without it. | **Delete after 24 quiet hours** with that swap off and no memory-pressure alert. | plan 4 W-03 |
+
+**Left for him by the run order's "Not settled" table:** the view from his laptop on the LAN and his phone on cellular after the filter is kept (plan 4 Steps 189, 200, 210, 239); the first digest in his inbox (plan 1 Step 324).
+
+## Decided by Claude, reviewable (row 41)
+
+| Date | Call | Decision | Why | Undo |
+|---|---|---|---|---|
+| 2026-11-18 | Plan 1 Step 371 against plan 2 Step 408: who removes the rollback tags. | No `:pre-ssv` tag exists; the `:pre-s-waste-out` tags are removed once, at plan 2 Step 408, after its three green days. | One deploy made one set of tags. | Nothing to undo. |
+| 2026-11-18 | Plans 2 and 3 source `./.env`, a symlink to root-only `/etc/unheaded/compose.env`. | The commands run the same lines under `sudo sh -c`, values never printed (row 2). | The file has been root 0600 since 2026-11-12. | None needed. |
