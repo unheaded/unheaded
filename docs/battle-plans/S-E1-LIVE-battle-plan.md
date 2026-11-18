@@ -938,7 +938,7 @@ Live secrets outside that table but in the pack's sentence: Grafana admin x2, LX
   ```
   Expect: `enabled`. Else: [STUCK].
   **Rollback:** `sudo systemctl disable --now unheaded-well-retention.timer`
-- [ ] **Step 114** [STEVIE][W] ~5m: **Accept ADR-103 and ADR-106** (DP-603). Your word; Claude edits. ADR-106's first night comes later; DP-603 set both at E1. Line 8 of each:
+- [ ] **Step 114** [STEVIE][W] ~5m: **Accept ADR-103 and ADR-106** (DP-603) (done 2026-11-18, DECISION-PACK-2026-11-18 round 5). Your word; Claude edits. ADR-106's first night comes later; DP-603 set both at E1. Line 8 of each:
   ```bash
   cd /home/govan/tmp/wt/S-E1-LIVE && D=$(date -u +%F) && sed -i "8s/^\*\*Status:\*\* Implemented in code,/**Status:** Accepted $D at E1 (DP-603). Implemented in code,/" docs/adr/ADR-103-service-auth-token-distribution.md && sed -i "8s/^\*\*Status:\*\* Proposed (Stevie to accept)\./**Status:** Accepted $D at E1 (DP-603); first unattended night follows (DP-303)./" docs/adr/ADR-106-two-brains-one-gate.md && sed -n 8p docs/adr/ADR-103-service-auth-token-distribution.md | cut -c1-60; sed -n 8p docs/adr/ADR-106-two-brains-one-gate.md | cut -c1-60; grep -nE '^\| \[(103|106)\]' docs/adr/ADR-INDEX.md | cut -c1-60
   ```

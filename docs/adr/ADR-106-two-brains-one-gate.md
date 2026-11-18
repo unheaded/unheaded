@@ -7,7 +7,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 > **2026-11-04 (round 5):** `zhen-flywheel` moved to `unheaded-forge`. Captures stay off. Champion's audit trail (`llm_requests`, `zhen_actions`, Anamnesis) stays here.
 
-**Status:** Proposed (Stevie to accept).
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5; DP-603 had set acceptance at E1, S-E1-LIVE Step 114). Previously: Proposed (Stevie to accept).
 **Date:** 2026-10-23
 **Sprint:** S-TWO-BRAINS (`docs/battle-plans/S-TWO-BRAINS-battle-plan.md`; ledger `docs/battle-plans/S-TWO-BRAINS-progress.md`).
 **Related:** ADR-017 (hybrid inference), ADR-019 (Champion; Level 2 amendment), ADR-024 (runbooks), ADR-030 (forge), ADR-053 (Claude/Zhenai workflow templates), ADR-101 (Well migration ledger), ADR-104 (Claude API bridge).
@@ -250,3 +250,9 @@ From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 ## Clarification 2026-11-04 (Stevie, DP-705)
 
 Routing and training are separate. Local-first with failover of harder asks to Claude is the design and continues. Using Claude's answers as training data waits for Anthropic's written verification; until it is on file the capture flag stays off and no forge or LoRA run uses captures or repo text.
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as built (Stevie Bellis: "Accept all eight"). This is the acceptance DP-603 set for E1 and S-E1-LIVE Step 114 asked for. It changes no answer recorded in the dated sections above: the Claude-text flag stays off (Q4, DP-705), and the LoRA window opens on its trigger (Q5, DP-608).

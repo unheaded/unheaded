@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-124: Native syslog relay, `cmd/syslog-relay`
 
-**Status:** Proposed (D2 answered native, Stevie 2026-11-03). Carried by S-LOG-HARVEST Phase 5. Amended 2026-11-09 (Stevie's answer #18): socket activation instead of `CAP_NET_BIND_SERVICE`; Vector files relayed lines by their row.
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5). Previously: Proposed (D2 answered native, Stevie 2026-11-03). Carried by S-LOG-HARVEST Phase 5. Amended 2026-11-09 (Stevie's answer #18): socket activation instead of `CAP_NET_BIND_SERVICE`; Vector files relayed lines by their row.
 **Date:** 2026-11-04
 **Related:** ADR-092 (log shipping), ADR-087 (NOC, network-device syslog planned), ADR-123 (uniform logs, parked), ADR-117 (ClickHouse is the only log store), ADR-111 (command-line shape), `config/logging/sources.yaml`.
 
@@ -89,3 +89,10 @@ Relayed entries reach `config/vector/vector.yaml` like any other. Three things i
    *Built:* a relayed line's `host` is the row's `host` (`UNHEADED_SOURCE_HOST`: `pihole`, `device:<ip>`), so its auth failures count under `host="device:..."`, `unit="<row id>"`, and `AuthFailureBurst` (`sum by (host, kind)`) never adds them to west's. The receiving host is kept as `fields.relay_host`. Tests: `config/vector/tests/relay.yaml`.
 
 **ADR-123.** No conflict. The relay writes journal fields, not the JSON log contract, and sets no `level` or `service` key; its own stdout follows the contract. Under ADR-123's `format` key these rows are `syslog`, and `level` keeps coming from `PRIORITY`, which here is the sender's claim. If ADR-123 lands, the relay's rows need no change.
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as built (Stevie Bellis: "Accept all eight"). The relay has been installed on west since 2026-11-12 (S-LOG-HARVEST Steps 141-148, `docs/battle-plans/progress/S-LOG-HARVEST-progress.md` note 13).
+- With the acceptance, the three `lxd-file` rows `pihole/pihole-log`, `pihole/ftl-log` and `pihole/webserver-log` in `config/logging/sources.yaml` are retired (`status: excluded:`, dated 2026-11-18, rows kept). The relay rows `pihole/dns`, `pihole/ftl` and `pihole/web` are how those three files ship. Those relay rows stay `gap` until the container's rsyslog forward is live (S-LOG-HARVEST Steps 150-163); the import of the old history and the deletion of the retired rows remain Steps 164a-164f.

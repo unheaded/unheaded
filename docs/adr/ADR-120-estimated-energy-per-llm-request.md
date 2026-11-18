@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-120: Estimated energy per LLM request, recorded in the Well
 
-**Status:** Proposed (Stevie, 2026-11-04: "let's record to the well", "estimated power consumption"). Carried by S-ZHEN-POLISH.
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5). Previously: Proposed (Stevie, 2026-11-04: "let's record to the well", "estimated power consumption"). Carried by S-ZHEN-POLISH.
 **Date:** 2026-11-04
 **Related:** ADR-104 (Claude bridge), ADR-106 (two brains), migration 030 (`unheaded_ops.llm_requests`), `pkg/claudebridge/audit_sinks.go`.
 
@@ -50,3 +50,9 @@ Build as above in S-ZHEN-POLISH; the migration applies live at E1 with the rest 
 ## Built, S-ZHEN-POLISH 2026-11-04
 
 Migration 044, `pkg/energy`, three local request sites; writers fall back to 030's columns on a Well without 044. Q1: the idle baseline is one read at request start: no added latency, but a request straight after another inherits its tail and undercounts. Q2: embeddings are not recorded; the Python embedder writes no row. A model served on CPU reads near zero under `gpu_sampled`. `llm_requests_energy_shape` ties a figure to a method, so unknown cannot be stored as 0. The reporting view is not built: it needs the routing evals beside it.
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as built (Stevie Bellis: "Accept all eight"): what the "Built" section above lists. The reporting view is still not built, and open question 3 (energy as a routing input) stays open until a defensible Claude figure exists.

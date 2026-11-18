@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-093 — What shape is this thing we build?
 
-**Status:** Proposed
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5), with the DP-506 wording recorded under "Decisions 2026-11-03" below. Previously: Proposed
 **Date:** 2026-09-23
 **Supersedes:** nothing. **Related:** ADR-080 (UPC as a general MBC substrate),
 ADR-088 (deployment substrate ladder), ADR-089 (promotion workflow),
@@ -202,3 +202,10 @@ sentence and the consequences of taking it seriously.
 From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 
 - Q1 compute (the UPC) is the research track that feeds the platform, not a first-class faucet; CLAUDE.md says so. Three uses noted for later: a swarm of honeypots, a monitoring aid, and UPC/UHL as the engine for state enforcement, IaC and compliance (DP-506).
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as it stands (Stevie Bellis: "Accept all eight"). DP-603 of 2026-11-03 tied this ADR's acceptance to the DP-506 wording; that wording is the Q1 line above, so nothing else in this record changes.
+- Read on 2026-11-18: `CLAUDE.md`'s Project Vision does not carry the research-track sentence the Q1 line refers to. That edit is separate from this acceptance.

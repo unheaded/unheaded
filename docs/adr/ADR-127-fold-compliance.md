@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-127: Fold the wire compliance plane into compliance-evidence
 
-**Status:** Proposed (parked; DP-203's condition: an ADR before any code). The code lands behind `--serve` while this stays Proposed, because Stevie asked for the compliance fold first. Stevie accepts it.
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5). Previously: Proposed (parked; DP-203's condition: an ADR before any code). The code lands behind `--serve` while this stays Proposed, because Stevie asked for the compliance fold first. Stevie accepts it.
 **Date:** 2026-11-04
 **Related:** DP-203, ADR-097 (evidence must be able to fail), ADR-098, ADR-103, TRUE-WIRE C1 and E1, `docs/protocol/RFC-EDITOR-REQUESTS-WH.md` item 1.
 
@@ -49,3 +49,9 @@ Neither is a daemon today. `wire --serve` runs in the foreground; a unit is a la
 1. compliance-ebpf reads classification from the low bits of scratch[0]. RFC item 1 may move it. Does classification belong on the wire at all?
 2. Should wire results ever enter the evidence file, and under which controls?
 3. Who loads `compliance_xdp`, on which interface? Same question as ADR-128's node writer.
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as built (Stevie Bellis: "Accept all eight"): `compliance-evidence wire`, off unless `--serve`, with the honest score. Acceptance turns nothing on: no unit, timer or compose service passes `--serve`. Everything under "Not done here" and the three open questions above stay as they are.

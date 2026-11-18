@@ -562,8 +562,8 @@ sources:
     max_silence: 1h
     canary: dns-query
     owner: sentinel
-    status: gap
-    note: "D3: rsyslog imfile -> relay at 10.10.20.1 (Phase 6). PERSONAL DATA: every LAN client and every name it looks up"
+    status: "excluded:retired 2026-11-18 (ADR-124 accepted); the file ships as pihole/dns through the relay"
+    note: "Was gap until 2026-11-18. D3: rsyslog imfile -> relay at 10.10.20.1 (Phase 6). PERSONAL DATA: every LAN client and every name it looks up. Row kept until S-LOG-HARVEST Step 164f (old history imported first)"
   - id: pihole/ftl-log
     host: pihole
     kind: lxd-file
@@ -572,8 +572,8 @@ sources:
     max_silence: 24h
     canary: "none: FTL events"
     owner: sentinel
-    status: gap
-    note: "D3 (Phase 6)"
+    status: "excluded:retired 2026-11-18 (ADR-124 accepted); the file ships as pihole/ftl through the relay"
+    note: "Was gap until 2026-11-18. D3 (Phase 6). Row kept until S-LOG-HARVEST Step 164f (old history imported first)"
   - id: pihole/webserver-log
     host: pihole
     kind: lxd-file
@@ -582,8 +582,12 @@ sources:
     max_silence: 7d
     canary: http-get
     owner: sentinel
-    status: gap
-    note: "D3 (Phase 6); file absent on 2026-11-03 (no web request since the v6.8 update); admin UI access = audit"
+    status: "excluded:retired 2026-11-18 (ADR-124 accepted); the file ships as pihole/web through the relay"
+    note: "Was gap until 2026-11-18. D3 (Phase 6); file absent on 2026-11-03 (no web request since the v6.8 update); admin UI access = audit. Row kept until S-LOG-HARVEST Step 164f (old history imported first)"
+  # The three lxd-file rows above were retired on 2026-11-18 with ADR-124's
+  # acceptance (docs/battle-plans/DECISION-PACK-2026-11-18.md round 5): the
+  # four syslog-device rows below are the tracked sources and stay gap until
+  # the container's forward is live (S-LOG-HARVEST Steps 150-163).
   # How the Pi-hole rows above arrive (Phase 6, D3): the container's rsyslog
   # forwards to the relay, which takes a sender only from a syslog-device row
   # and stamps that row's id, host and retention on each line (ADR-124). So

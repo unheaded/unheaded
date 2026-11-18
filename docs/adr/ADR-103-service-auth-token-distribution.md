@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-103: Service auth: who holds which key, and how tokens reach callers
 
-**Status:** Implemented in code, S-IRON-GATE 2026-10-27 (pkg/auth EdDSA service tokens + trust.d, unheaded-keygen, the built-in issuer unheaded-auth, BFF login for dashboard and board, hashed `uhk_` API keys, Wotan identity-bound auto-approve, TLS on every link); live rollout pending host windows; Q1-Q4 decided on the plan's recommendations; Stevie to accept. (Proposed 2026-10-22: "Yes, draft the ADR".)
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5; DP-603 had set acceptance at E1, S-E1-LIVE Step 114). Previously: Implemented in code, S-IRON-GATE 2026-10-27 (pkg/auth EdDSA service tokens + trust.d, unheaded-keygen, the built-in issuer unheaded-auth, BFF login for dashboard and board, hashed `uhk_` API keys, Wotan identity-bound auto-approve, TLS on every link); live rollout pending host windows; Q1-Q4 decided on the plan's recommendations; Stevie to accept. (Proposed 2026-10-22: "Yes, draft the ADR".)
 **Date:** 2026-10-23
 **Related:** finding `gate-script:scripts/compliance/check-service-auth.sh` (register step 7, high), ADR-083 (zero user data access / NIST 800-207 wording), ADR-097 (compliance crosswalk), `pkg/auth`, `pkg/uids` (one uid per service), `httputil.SameOriginOrAllowed` (WebSocket origin check, 2026-10-22).
 
@@ -268,3 +268,9 @@ From `docs/battle-plans/DECISION-PACK-2026-11-03.md` (DP ids in parentheses).
 ## Decisions 2026-11-04 (decision pack, round 3)
 
 - DP-410: the mTLS authenticator is deleted; service tokens over TLS are the one service-to-service path.
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as built (Stevie Bellis: "Accept all eight"). This is the acceptance DP-603 set for E1 and S-E1-LIVE Step 114 asked for. The ML-DSA-65 switch rule under "Measurements" and the per-topic ACL step of §6 stay as written.

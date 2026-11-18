@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-135: The owned kernel's reply channel to BPF
 
-**Status**: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none). D7's a0 rule amended 2026-11-05 for the pipe rung; no review ran on that either (plan Phase 20 asks for none).
+**Status**: Accepted for what is built and on (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5): D1-D16, D17 part 1 (the load-time scan), D18, D19 (rung 3) and D20 (rung 4). Still open, not accepted, waiting on Stevie: D21's flip (rungs 5+6, `UPC_RUNG56` wired and off; the two ways on are in D21) and D17 part 2 (atomics through `translate_address`, not landed). Rung 7 is not started and has no ADR. See "Decisions 2026-11-18". Previously: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none). D7's a0 rule amended 2026-11-05 for the pipe rung; no review ran on that either (plan Phase 20 asks for none).
 **Context sprint**: S-STAGE-2B (`docs/battle-plans/S-STAGE-2B-battle-plan.md`), Phases 10-13 and 17-20
 **Relates to**: ADR-109 (kernel rows per BPF slot), ADR-110 (kernel time from BPF ticks), ADR-078 §5 (syscall number
 registry), ADR-074 (per-pid page directories), ADR-075 (process model)
@@ -875,6 +875,24 @@ An independent reviewer read the sprint's diff (`git diff develop...HEAD -- crat
 | SP-5b | The JMPR and CALLR diagnostics store user-chosen words at physical 0xE0000 and 0xE1000 from U-mode. | Low | **Recorded, for Stevie.** That memory is unused today; a privilege test on the two stores costs verifier instructions. |
 
 No problem found, each with what the reviewer checked: the kernel's `copyin`, `copyout` and `copyinstr` are page-checked through `upc_user_pa`, `upc_consoleread` judges its pointer first and handles a negative count, `argfd`, `readi`/`writei`, `pipewrite` and `vmfault` in a slot row are sound; the const guards fold, the MRET/SRET, block-syscall and D16 tests precede their actions, `fd_kind` bounds the fd and the TLB is flushed on every switch; with D6 on open, exec, argv, read, fstat and wait are bounded or translated and 200/201 are refused by privilege; the scan covers `--userland` and every resident program beside it (ramdisk programs are never executed: exec is a PROGRAM_TABLE lookup and ROM is frozen), checks every word with the opcode byte the interpreter decodes, and its hatch admits only MRET and SRET, which do nothing at priv 3; the reply word is wiped at trap entry and zeroed after it is read, the keyboard ring moves only on the kernel's flag, and a child cannot reach the table with D6 on; D21's dispositions F1, F3 and F4 are in the wired code.
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`. Stevie Bellis: "Accept all eight". For this ADR the acceptance covers the decisions that are built and on in the tree; a decision that this record marks as waiting on him stays open.
+
+| Decision | State on 2026-11-18 | Acceptance |
+|---|---|---|
+| D1-D15 (reply channel, heap window, break, user pointers, retry, kill, cwd, kernel fds, routing, fork note, exit, quiet returns, off-root opens) | on (`UPC_REPLY` and the S-STAGE-2B rung consts are true) | **Accepted** |
+| D16 (bounded user paths, slot 0's window) | on | **Accepted** |
+| D17 part 1 (load-time opcode scan, with RV-2's four opcodes) | landed | **Accepted** |
+| D17 part 2 (atomics through `translate_address`) | not landed: verifier budget; "the choice waits on Stevie, or on rung 3 freeing instructions" | **Open** |
+| D18 (fork's first entry from BPF's own mark; no timer switch under ascend) | on (`UPC_FORK_MARK` true) | **Accepted** |
+| D19 (rung 3, console write in the kernel) | on (`UPC_RUNG3` true) | **Accepted** |
+| D20 (rung 4, console read in the kernel) | on (`UPC_RUNG4` true) | **Accepted** |
+| D21 (rungs 5+6, the kernel's fd table the only one) | wired, off (`UPC_RUNG56` false; `#define UPC_RUNG56 0`). The design and its review dispositions are recorded; the flip moves the goldens' PC trace, and the choice between "no recapture" and "one named recapture" is Stevie's | **Open**: the flip is not accepted by this entry |
+| Rung 7 | not started; no ADR written (S-STAGE-2C Phases 13-14 not run) | not part of this ADR |
+
+Also still open, as the review tables above mark them "for Stevie": RV-3 (the host engine has neither the priv-3 refusal nor D6; refusals leave no counter), SP-1's residue (a resident program exec'd by slot 0 lands at raw physical addresses), SP-3's format marker, SP-4d (no harness boot makes `UPC_FORK_MARK` the deciding control) and SP-5b (the JMPR and CALLR diagnostic stores). ADR-145 and ADR-146 stay parked.
 
 ## Alternatives considered
 

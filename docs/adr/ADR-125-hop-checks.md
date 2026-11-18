@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-125: Hop checks: validators, HMAC-key presence and retry state move from Shield ingress to hop-ebpf
 
-**Status:** Proposed. DP-716 (a) decided the move; this ADR records the semantics that answer did not spell out. Stevie accepts it.
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5). Previously: Proposed. DP-716 (a) decided the move; this ADR records the semantics that answer did not spell out. Stevie accepts it.
 **Date:** 2026-11-04
 **Amended:** 2026-11-09: the object refuses enforce unless built with `hop-enforce`.
 **Related:** FND-025, DP-716, DP-715, ADR-012 (verifier budget), ADR-119 (the PQC fast path; its fact 2 on flow labels), `docs/protocol/RFC-EDITOR-REQUESTS-WH.md`, S-TRUE-WIRE progress "E8".
@@ -45,3 +45,9 @@ Default behaviour is unchanged: mode 0 and empty maps. Nothing loads hop-ebpf in
 
 1. Should the validator also key on `dst_service_id` alone, so one rule can guard a service?
 2. Does `pkg/protocol/integrity` stay once RFC item 7 is ruled?
+
+## Decisions 2026-11-18 (decision pack, round 5)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`.
+
+- Accepted as built (Stevie Bellis: "Accept all eight"): the maps and checks in hop-ebpf, mode 0 by default, and a default object that refuses enforce. Acceptance turns nothing on. Enforce stays behind the `hop-enforce` feature and the findings the Decision names (FND-031, FND-033, FND-035); the Scope ruling (FND-033) and the two open questions above stay open.

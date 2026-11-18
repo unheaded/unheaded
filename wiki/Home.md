@@ -66,10 +66,10 @@ Canonical mirror: [[ADR Index|ADR-Index]] (105 entries, synced 2026-10-23).
 Recent:
 - ADR-108 — MBC cartridges: signed MBC network functions run per flow by `cartridge-ebpf` (Proposed, RFC Editor items open, 2026-10-23)
 - ADR-107 — Chaos safety envelope: one engine, blast-radius allowlist, dry run by default (Proposed, 2026-10-23)
-- ADR-106 — Two brains, one gate: Zhen + Claude share one confirmation gate, audit and privacy tier; routing from a pre-registered eval (Proposed, 2026-10-23)
+- ADR-106 — Two brains, one gate: Zhen + Claude share one confirmation gate, audit and privacy tier; routing from a pre-registered eval (Accepted 2026-11-18; written 2026-10-23)
 - ADR-105 — Hybrid ML-KEM key exchange, crypto inventory (CBOM), signed evidence and drift (Proposed, 2026-10-23)
 - ADR-104 — ZhenAI → Claude API bridge (Proposed, built, 2026-10-23)
-- ADR-103 — Service auth: per-service Ed25519 JWTs (Proposed, design only, 2026-10-23)
+- ADR-103 — Service auth: per-service Ed25519 JWTs (Accepted 2026-11-18; built in S-IRON-GATE, 2026-10-27; written 2026-10-23)
 - ADR-102 — Container images use exact version tags (Accepted, 2026-10-15)
 - ADR-101 — The Well's migration ledger, `cmd/well-migrate` (Proposed; in use live since 2026-10-15)
 - ADR-097 / 098 / 099 — Compliance crosswalk, findings register, remediation as code (Proposed)

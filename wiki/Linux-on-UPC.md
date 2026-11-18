@@ -165,7 +165,7 @@ Since 2026-07-20 the UPC crates have only taken dependency, clippy and loader-ha
 
 ### EVOLUTION-1 Stage 2: hardening, then rungs 3 and 4 (S-STAGE-2C, 2026-11-15)
 
-Branch `sprint/s-stage-2c`. Design record: ADR-135 D16 to D21 (Proposed). Ledger: [`references/s-stage-2c-log.md`](../references/s-stage-2c-log.md).
+Branch `sprint/s-stage-2c`. Design record: ADR-135 D16 to D21 (Accepted 2026-11-18 for what is built and on; D21's flip of `UPC_RUNG56` and D17's atomics translation stay open, Stevie's choice). Ledger: [`references/s-stage-2c-log.md`](../references/s-stage-2c-log.md).
 
 | Const | State | What it does |
 |---|---|---|
