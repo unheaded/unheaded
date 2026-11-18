@@ -1,7 +1,8 @@
 # Third-party component counts (scripts/check-sbom-trend.sh). Shrink-only:
 # every sprint removes at least one; --update lowers these, nothing raises them.
 # Measured 2026-10-29 on develop dcf331fd; python_components lowered 2026-11-07 (FND-032);
-# rust_components lowered 2026-11-07 when the count stopped including this repo's own crates.
+# rust_components lowered 2026-11-07 when the count stopped including this repo's own crates,
+# and 2026-11-18 (352 to 334) when zhend's uncalled hybrid KEM and sealed envelope were deleted.
 go_components=148
-rust_components=352
+rust_components=334
 python_components=72

@@ -6,7 +6,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 # Export control notice (EAR, ECCN 5D002)
 
 **Status:** notification drafted 2026-10-27, corrected 2026-11-10 after the
-skill review below, **not sent** (escalation E11 of
+skill review below, brought in line with the tree 2026-11-18 after two unused
+constructions were deleted (update below), **not sent** (escalation E11 of
 `docs/battle-plans/S-CLEAN-SLATE-battle-plan.md`). Stevie sends it from his own
 address; the sent date is recorded below.
 
@@ -15,6 +16,7 @@ address; the sent date is recorded below.
 | Notification sent | not yet |
 | Sent by | (Stevie Bellis, from his own address) |
 | Reviewed by (Barrister) | 2026-11-10, skill pass, not a lawyer; note in this file |
+| Email text | final 2026-11-18, after the deletion; no person has checked it |
 
 ## What this repository publishes
 
@@ -27,20 +29,30 @@ Export Administration Regulations (EAR):
   aws-lc-rs provider in `crates/zhend/`. `cmd/ebpf-collector` reaches rustls
   (ring provider) through its HTTP client.
 - ML-DSA-65 (FIPS 204) signatures: Wotan topic signing, Gungnir sealed
-  payloads, evidence seals, via `github.com/cloudflare/circl`.
+  payloads, evidence seals, via `github.com/cloudflare/circl`; zhend peer
+  identity via the `pqcrypto-mldsa` crate (`crates/zhend/src/crypto/sign.rs`).
 - SLH-DSA (FIPS 205) signatures via `github.com/cloudflare/circl`.
-- Secret envelope encryption with XChaCha20-Poly1305, and an age-style
-  recipient format (X25519, HKDF, ChaCha20-Poly1305) written in the tree on
-  `golang.org/x/crypto` primitives (`pkg/secrets/encryption/`).
+- Secret envelope encryption with XChaCha20-Poly1305, keys derived with HKDF
+  over SHA3-256, written in the tree on `golang.org/x/crypto` primitives
+  (`pkg/secrets/encryption/`). No binary reaches it.
+- An ML-KEM key schedule (`pkg/crypto/pqc/kem_tunnel.go`): ML-KEM (FIPS 203)
+  encapsulation via `cloudflare/circl`, then HKDF-SHA-256 (RFC 5869) under the
+  project's labels. It derives keys; no code encrypts with them.
+- SHA-256 (FIPS 180-4) implemented in the tree
+  (`crates/upc-api/src/surface_hash.rs`): the standard algorithm, checked
+  against the standard test vectors, used for identifiers and integrity.
 - WireGuard pre-shared key rotation tooling (`scripts/wireguard/`); it drives
   the system's WireGuard and implements no cryptography.
 
 The full, machine-checked list is the crypto inventory
 `compliance/crypto/cbom.cdx.json` (`cmd/crypto-inventory`). The algorithms
 come from published libraries (Go `crypto/*` and `golang.org/x/crypto`,
-`cloudflare/circl`, rustls with aws-lc-rs or ring); no cipher of the project's
-own design is known in the tree. The Monad `ENCRYPT` flag marks a payload
-carried over TLS and is not a cipher.
+`cloudflare/circl`, rustls with aws-lc-rs or ring, the `pqcrypto` crates),
+except the SHA-256 above, a published algorithm implemented in the tree; no
+cipher of the project's own design is known in the tree. The Monad `ENCRYPT`
+flag marks a payload carried over TLS and is not a cipher. The classification
+of every construction, row by row, is
+`docs/legal/EXPORT-CRYPTO-AUDIT-2026-11-12.md`.
 
 ## Basis
 
@@ -115,7 +127,39 @@ this file.
 
 Recommendation: send it once. It costs one email and closes item 3.
 
-## The email (template; Stevie sends)
+## Update, 2026-11-18 (after the deletion; not legal advice)
+
+Written by an AI agent; no person and no lawyer has checked it.
+
+Stevie ruled on 2026-11-18 (decision pack of that date, row 31): "I'll send
+it; delete the unused code." The audit of 2026-11-12
+(`docs/legal/EXPORT-CRYPTO-AUDIT-2026-11-12.md`) had found two constructions
+that encrypt or establish keys and that nothing called. Both were deleted in
+the commit that carries this update; the audit's "Update 2026-11-18" section
+is the record.
+
+1. **Gone from the tree.** The age-style recipient format
+   (`pkg/secrets/encryption/age.go`) and zhend's hybrid ML-KEM-768 + X25519
+   key encapsulation with its AES-256-GCM sealed fragment envelope
+   (`crates/zhend/src/crypto/kem.rs`, `envelope.rs`). They remain in the
+   public git history at the same URL.
+2. **The list above** no longer names an age-style format. It now also names
+   three things the audit found in the tree and missing from this file:
+   zhend's ML-DSA-65 peer signatures, the ML-KEM key schedule and the SHA-256
+   implemented in the tree.
+3. **Review note, item 1** says everything listed is a published algorithm
+   from a published library. That was written before the SHA-256 line was
+   added: it is a published algorithm, implemented here and not taken from a
+   library.
+4. **Review note, item 3** names "the envelope and age-style formats". The
+   age-style format is gone; the envelope format, the key schedule and the
+   Internet-Drafts remain, so the open point and the reason to send are
+   unchanged.
+5. **The email text** changed in three places: the cryptography lines add
+   the key schedule and the SHA-256 sentence, the library list adds ring and
+   the pqcrypto crates, and the contact line no longer holds a placeholder.
+
+## The email (final text, 2026-11-18; Stevie sends)
 
 - **To:** `crypt@bis.doc.gov`, `enc@nsa.gov`
 - **From:** Stevie's own address
@@ -132,18 +176,23 @@ Project:     Unheaded (configuration management automation platform)
 Source URL:  https://github.com/unheaded/unheaded
 Cryptography: TLS 1.3 with X25519 + ML-KEM-768 hybrid key exchange
              (FIPS 203); ML-DSA-65 (FIPS 204) and SLH-DSA (FIPS 205)
-             signatures; XChaCha20-Poly1305 envelope encryption.
+             signatures; XChaCha20-Poly1305 envelope encryption; an
+             ML-KEM (FIPS 203) and HKDF-SHA-256 (RFC 5869) key schedule.
              Published algorithms from published libraries: Go crypto/tls
              and golang.org/x/crypto, cloudflare/circl, rustls with
-             aws-lc-rs.
+             aws-lc-rs or ring, and the pqcrypto crates. SHA-256
+             (FIPS 180-4) is also implemented in the source tree.
 
 The source code is publicly available at the URL above at no charge.
 The project believes the cryptography is standard and published; this
 notification is sent as a precaution. It covers subsequent updates
 published at the same URL.
 
-Contact: Stevie Bellis, <address the email is sent from>
+Contact: Stevie Bellis, at the address this email is sent from.
 ```
+
+The same text, ready to paste, was left outside the repository on 2026-11-18
+for Stevie. Sending it is his alone.
 
 ## After sending
 

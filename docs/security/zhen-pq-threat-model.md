@@ -289,3 +289,13 @@ Quarterly; owner Stevie. Cadence set 2026-10-27 (S-WELL-SPRING Phase 11,
 M-205); the first review under it is due by 2027-01-27. Last reviewed
 2026-10-27, S-WELL-SPRING Phase 11: cadence added only, contents not
 re-assessed in that pass. Changed since this model was written: S-QUANTUM-ARMOR moved first-party TLS to hybrid ML-KEM (ADR-105); zhend QUIC runs rustls on aws-lc-rs.
+
+**Update 2026-11-18.** The hybrid ML-KEM-768 + X25519 key encapsulation
+(`crates/zhend/src/crypto/kem.rs`) and the AES-256-GCM sealed fragment
+envelope (`crates/zhend/src/crypto/envelope.rs`) had no callers and were
+deleted (`docs/legal/EXPORT-CRYPTO-AUDIT-2026-11-12.md`, "Update 2026-11-18").
+Everything above about fragment encryption, the hybrid KEM, sealing and its
+unit tests describes code that is no longer in the tree: zhend does not
+encrypt fragment payloads. The ML-DSA-65 peer signatures
+(`crypto/sign.rs`) and the QUIC transport are unchanged. The text above is
+left as written.

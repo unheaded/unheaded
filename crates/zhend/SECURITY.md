@@ -15,19 +15,21 @@ documented in this file with a justification and confined to a minimal scope.
 
 ### Post-Quantum Cryptography
 
-All asymmetric cryptography uses hybrid post-quantum constructions. Classical-only
-asymmetric crypto is **forbidden** for any operation protecting data with lifetime > 1 year.
+Peer identity uses post-quantum signatures. Classical-only asymmetric crypto is
+**forbidden** for any operation protecting data with lifetime > 1 year.
 
 | Operation | Algorithm | Standard | Module |
 |---|---|---|---|
-| Key encapsulation | ML-KEM-768 + X25519 hybrid | FIPS 203 | `crypto::kem` |
 | Digital signatures | ML-DSA-65 (Dilithium) | FIPS 204 | `crypto::sign` |
-| Symmetric encryption | AES-256-GCM | FIPS 197 | `crypto::envelope` |
-| Key derivation | HKDF-SHA256 | RFC 5869 | `crypto::kem` |
+| Transport key exchange | TLS 1.3, X25519MLKEM768 first (rustls, aws-lc-rs) | FIPS 203, RFC 8446 | `api::quic` |
 | Content addressing | BLAKE3 (256-bit) | — | `pu::fragment` |
 
-**No classical-only asymmetric paths exist when the `pq` feature is enabled** (default).
-The `crypto` module conditionally compiles all submodules behind `#[cfg(feature = "pq")]`.
+Fragment payloads are not encrypted by zhend. The hybrid ML-KEM-768 + X25519 key
+encapsulation (`crypto::kem`) and the AES-256-GCM sealed fragment envelope
+(`crypto::envelope`) had no callers and were deleted on 2026-11-18
+(`docs/legal/EXPORT-CRYPTO-AUDIT-2026-11-12.md`, "Update 2026-11-18").
+
+The `crypto` module conditionally compiles its submodule behind `#[cfg(feature = "pq")]`.
 Without the `pq` feature, the gossip engine runs without peer authentication (acceptable
 for testing only, not production).
 
@@ -50,9 +52,8 @@ All network-facing inputs are treated as hostile:
   check. Tampered payloads rejected.
 - **HbH option parsing** (`monad::hbh`): Buffer length validated before all field reads.
   Option type and data length cross-checked.
-- **PQ crypto** (`crypto::kem`, `crypto::sign`, `crypto::envelope`): Key and ciphertext
-  lengths validated before cryptographic operations. Nonce length validated (12 bytes).
-  Envelope version checked.
+- **PQ crypto** (`crypto::sign`): Key and signature lengths validated before
+  cryptographic operations.
 
 ### Gossip Admission Control
 
@@ -84,10 +85,10 @@ zhend is designed to operate in adversarial network environments:
 
 1. **Network adversary**: All gossip peers are untrusted. Messages are authenticated
    via PQ signatures. Fragment integrity is verified via BLAKE3.
-2. **Quantum adversary**: All asymmetric crypto is PQ-hardened. Hybrid constructions
-   ensure security even if one algorithm is broken.
+2. **Quantum adversary**: Peer signatures are ML-DSA-65, and the QUIC transport
+   offers the hybrid X25519MLKEM768 group first.
 3. **Storage adversary**: Fragment IDs are content-addressed (BLAKE3). Tampered storage
-   is detected on read. Sealed fragments use PQ-hybrid envelope encryption.
+   is detected on read. Stored fragments are not encrypted.
 4. **Sybil adversary**: Peer identity is bound to ML-DSA-65 keypairs with self-attestation.
    Unauthenticated peers are excluded from fragment exchange.
 

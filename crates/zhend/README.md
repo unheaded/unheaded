@@ -27,9 +27,8 @@ content-addressed fragments that:
 │ frag │ goss │ rel  │ topo │ deep │ grpc │
 │ store│ prop │ emb  │ obs  │ arch │ quic │
 ├──────┴──────┴──────┴──────┴──────┴──────┤
-│         crypto (PQ-hardened)            │
-│   ML-KEM-768 + X25519 | ML-DSA-65      │
-│   AES-256-GCM | HKDF-SHA256 | zeroize  │
+│         crypto (PQ signatures)          │
+│          ML-DSA-65 | zeroize            │
 ├─────────────────────────────────────────┤
 │              monad bridge               │
 ├─────────────────────────────────────────┤
@@ -60,10 +59,8 @@ zhend/src/
 ├── jing/        # Jing (經) — Deep archive (the Classics)
 │   ├── archive.rs   — Append-only L3 cold storage
 │   └── pilgrimage.rs — Deep retrieval with progress streaming
-├── crypto/      # Post-Quantum cryptography
-│   ├── kem.rs       — Hybrid ML-KEM-768 + X25519 key encapsulation
-│   ├── sign.rs      — ML-DSA-65 signatures, PeerIdentity
-│   └── envelope.rs  — Sealed fragment encryption (AES-256-GCM)
+├── crypto/      # Post-Quantum signatures
+│   └── sign.rs      — ML-DSA-65 signatures, PeerIdentity
 ├── api/         # External interfaces
 │   ├── grpc.rs      — tonic gRPC service (Ingest, Surface, Status, Pilgrimage)
 │   └── quic.rs      — quinn QUIC server with custom wire protocol
@@ -115,18 +112,20 @@ Zhen fragments are immortal. Classical asymmetric cryptography has a finite
 lifetime against quantum adversaries (est. 5-15 years). This mismatch is
 existential for a system designed to never forget.
 
-All asymmetric crypto in zhend uses hybrid post-quantum constructions:
+What zhend uses:
 
 | Operation | Algorithm | Standard |
 |---|---|---|
-| Key encapsulation | ML-KEM-768 + X25519 hybrid | FIPS 203 |
-| Digital signatures | ML-DSA-65 (Dilithium) | FIPS 204 |
-| Symmetric encryption | AES-256-GCM | FIPS 197 |
-| Key derivation | HKDF-SHA256 | RFC 5869 |
+| Digital signatures (peer identity) | ML-DSA-65 (Dilithium) | FIPS 204 |
+| Transport key exchange (QUIC, rustls) | TLS 1.3, X25519MLKEM768 first | FIPS 203, RFC 8446 |
 | Content addressing | BLAKE3 (256-bit, quantum-safe) | -- |
 
 Classical-only asymmetric crypto is **forbidden** for any operation protecting
 data with lifetime > 1 year. The `pq` feature is enabled by default.
+
+Fragment payloads are not encrypted. The hybrid ML-KEM-768 + X25519 key
+encapsulation (`crypto/kem.rs`) and the AES-256-GCM sealed fragment envelope
+(`crypto/envelope.rs`) had no callers and were deleted on 2026-11-18.
 
 ### Security
 
@@ -297,7 +296,7 @@ for a TOML configuration template.
 - Phase 5: Deep archive (Jing) -- L3 cold storage, pilgrimage retrieval
 - Phase 6: Structure observation (Li) -- strata snapshots, geological trends
 - Phase 8: API layer -- gRPC (tonic) + QUIC (quinn) servers
-- Phase 9: Post-quantum crypto -- hybrid ML-KEM + X25519, ML-DSA-65, sealed envelopes
+- Phase 9: Post-quantum crypto -- ML-DSA-65 peer signatures (the hybrid KEM and sealed envelopes were deleted 2026-11-18: no callers)
 - Phase 10: PQ gossip integration -- authenticated peer admission control
 - Phase 11: Security review -- `deny(unsafe_code)`, input validation audit, SECURITY.md
 - Phase 12: NixOS module verification -- hardening flags, config field coverage

@@ -1,6 +1,6 @@
 # Third-Party Dependencies — zhend
 
-**Last updated**: 2026-11-05  
+**Last updated**: 2026-11-18  
 **License**: GPL-3.0-or-later  
 **Compliance reviewed by**: MoatGhost  
 
@@ -31,20 +31,19 @@ The tables below list what zhend uses directly. Every crate in `Cargo.lock` is i
 | thiserror | 2.x | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror | Error derive macro |
 | anyhow | 1.x | MIT OR Apache-2.0 | https://github.com/dtolnay/anyhow | Error handling |
 | chrono | 0.4 | MIT OR Apache-2.0 | https://github.com/chronotope/chrono | Date/time |
-| rand | 0.8 | MIT OR Apache-2.0 | https://github.com/rust-random/rand | RNG for gossip/nonces |
+| rand | 0.8 | MIT OR Apache-2.0 | https://github.com/rust-random/rand | RNG for gossip peer selection |
 | zeroize | 1.x | MIT OR Apache-2.0 | https://github.com/RustCrypto/utils | Secret memory cleanup |
 
 ## Post-Quantum Cryptography Dependencies (feature: `pq`)
 
 | Crate | Version | License | Source | Purpose |
 |---|---|---|---|---|
-| pqcrypto-kyber | 0.8 | MIT OR Apache-2.0 | https://github.com/rustpq/pqcrypto | ML-KEM key encapsulation (FIPS 203) |
-| pqcrypto-dilithium | 0.5 | MIT OR Apache-2.0 | https://github.com/rustpq/pqcrypto | ML-DSA digital signatures (FIPS 204) |
+| pqcrypto-mldsa | 0.1 | MIT OR Apache-2.0 | https://github.com/rustpq/pqcrypto | ML-DSA digital signatures (FIPS 204) |
 | pqcrypto-traits | 0.3 | MIT OR Apache-2.0 | https://github.com/rustpq/pqcrypto | Common PQ type traits |
-| x25519-dalek | 2.x | BSD-3-Clause | https://github.com/dalek-cryptography/curve25519-dalek | Classical ECDH (hybrid partner) |
-| aes-gcm | 0.10 | MIT OR Apache-2.0 | https://github.com/RustCrypto/AEADs | AES-256-GCM symmetric encryption |
-| hkdf | 0.12 | MIT OR Apache-2.0 | https://github.com/RustCrypto/KDFs | Key derivation (RFC 5869) |
-| sha2 | 0.10 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes | SHA-256 for HKDF |
+
+Removed 2026-11-18 with the hybrid KEM and sealed fragment envelope, which had no
+callers: `pqcrypto-mlkem`, `x25519-dalek`, `aes-gcm`, `hkdf`, `sha2` (27 packages
+left `Cargo.lock`, none added).
 
 ### PQClean Upstream
 

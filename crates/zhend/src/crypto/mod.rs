@@ -1,37 +1,21 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis.
-//! # Crypto — Post-Quantum Hardened Cryptography for Zhen
+//! # Crypto — Post-Quantum Signatures for Zhen
 //!
 //! **Sacred Law: "That which remembers forever must be armored against forever."**
 //!
-//! All asymmetric cryptography in Zhen uses hybrid constructions:
-//! - Key encapsulation: ML-KEM-768/1024 (Kyber) + X25519
-//! - Digital signatures: ML-DSA-65 (Dilithium)
-//! - Symmetric encryption: AES-256-GCM (quantum-safe at 128-bit post-Grover)
-//! - Key derivation: HKDF-SHA256 over concatenated shared secrets
+//! This module holds peer identity signatures: ML-DSA-65 (FIPS 204), in
+//! [`sign`]. Transport encryption is TLS 1.3 in rustls (`api::quic`), not
+//! code in this module.
 //!
-//! Classical-only asymmetric crypto is FORBIDDEN for any operation protecting
-//! data with lifetime > 1 year. This is a hard architectural constraint.
-//!
-//! ## Why Hybrid?
-//!
-//! If ML-KEM is broken by cryptanalysis, X25519 still holds.
-//! If X25519 is broken by quantum computer, ML-KEM still holds.
-//! Both must be broken simultaneously to compromise the system.
-//! The cost is ~1.5KB extra per handshake. The alternative is a Library
-//! whose encryption has an expiration date. Unacceptable.
+//! The hybrid ML-KEM-768 + X25519 key encapsulation (`kem`) and the
+//! AES-256-GCM sealed fragment envelope (`envelope`) that used to live here
+//! had no callers and were deleted on 2026-11-18. Nothing in zhend encrypts a
+//! fragment payload.
 
-#[cfg(feature = "pq")]
-pub mod envelope;
-#[cfg(feature = "pq")]
-pub mod kem;
 #[cfg(feature = "pq")]
 pub mod sign;
 
 // Re-export key types when PQ is enabled.
-#[cfg(feature = "pq")]
-pub use envelope::SealedFragment;
-#[cfg(feature = "pq")]
-pub use kem::HybridKemKeypair;
 #[cfg(feature = "pq")]
 pub use sign::PqSigningKeypair;

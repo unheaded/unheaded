@@ -108,7 +108,9 @@ pub struct Fragment {
     /// envelope. Content identity transcends encryption.
     ///
     /// Sacred Law: "That which remembers forever must be armored against forever."
-    /// Classical-only encryption is FORBIDDEN. See crypto::envelope.
+    /// Classical-only encryption is FORBIDDEN. Nothing in zhend fills this
+    /// field: the envelope code that would have had no callers and was
+    /// deleted on 2026-11-18.
     pub sealed_payload: Option<Vec<u8>>,
 }
 

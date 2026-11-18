@@ -24,7 +24,7 @@ import (
 var ErrPathMismatch = errors.New("secret file holds another path's secret")
 
 // FileStore stores secrets as encrypted files on disk.
-// Each secret is stored as a JSON file encrypted with age.
+// Each secret is stored as a JSON file encrypted by the configured Encryptor.
 type FileStore struct {
 	basePath     string
 	encryptor    encryption.Encryptor

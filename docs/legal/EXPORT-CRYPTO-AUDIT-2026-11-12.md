@@ -430,3 +430,66 @@ since history is published too.
 - The regulation's text. Nothing in this file was checked against the eCFR.
 - Nothing was built or run. "No callers" comes from text search for
   constructor and function names, not from a call-graph tool.
+
+## Update 2026-11-18
+
+Added after the audit; nothing above this heading was changed. Stevie ruled on
+2026-11-18 (decision pack of that date, row 31): "I'll send it; delete the
+unused code." The two constructions of sections 1 and 2 were deleted in
+(this commit). Like the audit, this section is the work of an AI agent, is not
+legal advice, and draws no conclusion about what the regulation requires.
+
+**Deleted.**
+
+| Row | What | Files | How "no callers" was checked this time |
+|---|---|---|---|
+| 33 | "Age-style" recipient encryption | `pkg/secrets/encryption/age.go` (the file), and its 14 tests in `pkg/secrets/encryption/encryption_test.go` | A word search of every Go file for each of `AgeEncryptor`, `AgeIdentity`, `AgeRecipient`, `AgeConfig`, `NewAgeEncryptor`, `GenerateAgeIdentity`, `ParseAgeIdentity`, `ParseAgeRecipient` found them only in `age.go` and that test file. (`store.AgeRecipient` in `pkg/secrets/store/file.go` is a different type, a JSON metadata struct with no cryptography; it stays.) `go list` over `./...`, with and without tests and with other build tags: the package is imported by `pkg/secrets/store` and by tests, and no `main` package reaches it. |
+| 29 | zhend hybrid KEM | `crates/zhend/src/crypto/kem.rs` with its 5 unit tests | No `use`, path or re-export of `kem`, `HybridKemKeypair`, `encapsulate` or `decapsulate` in `crates/zhend/src`, `tests/`, `benches/` or `build.rs` outside `kem.rs`, `envelope.rs` and the re-export in `crypto/mod.rs`. No other crate depends on zhend. `cargo check --locked` and `cargo test --locked` pass without the files. |
+| 30 | zhend sealed fragment envelope | `crates/zhend/src/crypto/envelope.rs` with its 8 unit tests | The same search for `envelope`, `SealedFragment`, `seal`, `unseal`: one doc comment in `pu/fragment.rs`, now reworded. The `sealed_payload` field of `Fragment` is a byte field that nothing fills; it stays because it is part of the stored fragment layout. |
+
+**Not deleted, because code that compiles uses it.**
+
+- `crates/zhend/src/crypto/sign.rs` and `crypto/mod.rs` (row 31, ML-DSA-65
+  peer identity): used by `qi/gossip.rs`, `qi/peer.rs`, `qi/message.rs` and
+  `tests/phase4_pq_auth.rs`. The directory `crates/zhend/src/crypto/` now
+  holds only these two files.
+- The `Encryptor` interface that was declared in `age.go`: it is the type of
+  `FileStore`'s encryptor in `pkg/secrets/store/file.go`.
+- `SimpleEncryptor` (row 34): the tests of `pkg/secrets` and
+  `pkg/secrets/store` build it as their fixture. It, the interface and the
+  SHA3-256 adapter moved unchanged to `pkg/secrets/encryption/encryptor.go`.
+  Row 34's location is now `encryptor.go:48-98`; it still has no caller
+  outside tests.
+- Row 35 (`envelope.go`) was not part of the ruling and is untouched.
+
+**Dependencies.** Go: none left; `go mod tidy -diff` is empty, because
+`golang.org/x/crypto` still provides `chacha20poly1305`, `hkdf`, `argon2` and
+`sha3`. Its `curve25519` package is no longer imported by any Go file. Rust:
+`pqcrypto-mlkem`, `x25519-dalek`, `aes-gcm`, `hkdf` and `sha2` left
+`crates/zhend/Cargo.toml`, and 27 packages left `crates/zhend/Cargo.lock`
+with none added or changed. Across all lock files 18 crate names are gone
+from the build (`docs/policy/dependency-baseline.txt`, 536 to 518 packages)
+and the Rust component count fell from 352 to 334
+(`docs/policy/sbom-count-baseline.txt`). The list under "Third-party
+cryptographic libraries linked" above therefore no longer holds for zhend:
+of the crates it names, zhend's lock file keeps rustls, aws-lc-rs, ring,
+quinn, pqcrypto-mldsa and blake3.
+
+**Crypto inventory.** `compliance/crypto/cbom.cdx.json` was regenerated: 116
+components before, 110 after. Gone: the four import entries of `age.go`
+(hash, AEAD, key exchange, KDF), zhend's `kem-import` entry and its four
+`rust-crypto-dep` entries. Added: three import entries for `encryptor.go`
+(hash, AEAD, KDF). One entry for `cmd/alert-mailer/smtp.go` moved two lines;
+that drift predates this change.
+
+**What the table above looks like now.** Rows 29, 30 and 33 describe code
+that is no longer in the tree at the commit named here; it remains in the
+public history (History, searches 4 and 6). Row 24 (`services/sophia/`) had
+already left the tree with the Sophia service. Of the rows the last section
+listed as unreferenced, 20, 21, 23, 34 and 35 are still in the tree.
+
+**The notice.** `docs/compliance/export-control-notice.md` was updated the
+same day: its list no longer names an age-style format, and it now names the
+ML-KEM key schedule of row 23 and the SHA-256 of row 5, which the paragraph
+"Against the notice as drafted" said were missing. The notification is still
+not sent; sending it is Stevie's.

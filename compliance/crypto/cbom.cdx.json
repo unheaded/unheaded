@@ -13,7 +13,7 @@
   "components": [
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/alert-mailer/smtp.go:99:tls-config",
+      "bom-ref": "cmd/alert-mailer/smtp.go:101:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -49,7 +49,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/alert-mailer/smtp.go:99"
+          "value": "cmd/alert-mailer/smtp.go:101"
         }
       ]
     },
@@ -1368,48 +1368,6 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.lock:0:kem-import",
-      "name": "ML-KEM (pqcrypto-mlkem 0.1.1)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "kem",
-          "parameterSetIdentifier": "ML-KEM"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "KEM implementation in the lockfile; how it is combined is not visible here"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.lock"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
       "bom-ref": "crates/zhend/Cargo.lock:0:rust-lock",
       "name": "rustls 0.23.46",
       "cryptoProperties": {
@@ -1526,175 +1484,6 @@
         {
           "name": "unheaded:source",
           "value": "crates/zhend/Cargo.toml:39"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.toml:76:rust-crypto-dep",
-      "name": "X25519 (x25519-dalek)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "key-agree",
-          "parameterSetIdentifier": "X25519",
-          "nistQuantumSecurityLevel": 0
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "classical key agreement (RFC 7748); optional dependency, compiled only with the feature that names it"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "classical"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.toml:76"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.toml:77:rust-crypto-dep",
-      "name": "AES-GCM (aes-gcm)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "ae",
-          "parameterSetIdentifier": "AES-GCM"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 197 with SP 800-38D; optional dependency, compiled only with the feature that names it"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.toml:77"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.toml:78:rust-crypto-dep",
-      "name": "HKDF (hkdf)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "kdf",
-          "parameterSetIdentifier": "HKDF"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "RFC 5869; the hash is another crate; optional dependency, compiled only with the feature that names it"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.toml:78"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.toml:79:rust-crypto-dep",
-      "name": "SHA-2 (sha2)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "hash",
-          "parameterSetIdentifier": "SHA-2"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 180-4; optional dependency, compiled only with the feature that names it"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.toml:79"
         }
       ]
     },
@@ -3311,49 +3100,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/secrets/encryption/age.go:10:hash-import",
-      "name": "SHA-3 (crypto/sha3)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "hash",
-          "parameterSetIdentifier": "SHA-3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 202 (SHA3 and SHAKE)"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/secrets/encryption/age.go:10"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/secrets/encryption/age.go:18:aead-import",
+      "bom-ref": "pkg/secrets/encryption/encryptor.go:15:aead-import",
       "name": "ChaCha20-Poly1305 / XChaCha20-Poly1305 (golang.org/x/crypto/chacha20poly1305)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -3389,56 +3136,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/secrets/encryption/age.go:18"
+          "value": "pkg/secrets/encryption/encryptor.go:15"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/secrets/encryption/age.go:19:kex-import",
-      "name": "X25519 (golang.org/x/crypto/curve25519)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "key-agree",
-          "parameterSetIdentifier": "X25519",
-          "nistQuantumSecurityLevel": 0
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "classical key agreement"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "classical"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/secrets/encryption/age.go:19"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/secrets/encryption/age.go:20:kdf-import",
+      "bom-ref": "pkg/secrets/encryption/encryptor.go:16:kdf-import",
       "name": "HKDF (golang.org/x/crypto/hkdf)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -3474,7 +3178,49 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/secrets/encryption/age.go:20"
+          "value": "pkg/secrets/encryption/encryptor.go:16"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/secrets/encryption/encryptor.go:9:hash-import",
+      "name": "SHA-3 (crypto/sha3)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "hash",
+          "parameterSetIdentifier": "SHA-3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 202 (SHA3 and SHAKE)"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "n/a"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/secrets/encryption/encryptor.go:9"
         }
       ]
     },

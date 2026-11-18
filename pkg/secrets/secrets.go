@@ -8,7 +8,6 @@
 //
 // Features:
 //   - Pluggable secret storage backends (memory, file, Vault)
-//   - Age encryption for file-based secrets
 //   - Envelope encryption (secrets encrypted with KEK)
 //   - Automatic secret rotation
 //   - Audit logging of all access

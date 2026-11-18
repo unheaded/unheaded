@@ -28,9 +28,8 @@
 //! │ frag │ goss │ rel  │ topo │ deep │ grpc │
 //! │ store│ prop │ emb  │ obs  │ arch │ quic │
 //! ├──────┴──────┴──────┴──────┴──────┴──────┤
-//! │         crypto (PQ-hardened)             │
-//! │   ML-KEM-768 + X25519 | ML-DSA-65       │
-//! │   AES-256-GCM | HKDF-SHA256 | zeroize   │
+//! │         crypto (PQ signatures)           │
+//! │          ML-DSA-65 | zeroize            │
 //! ├─────────────────────────────────────────┤
 //! │              monad bridge               │
 //! ├─────────────────────────────────────────┤

@@ -64,19 +64,13 @@ chrono = { version = "0.4", features = ["serde"] }
 # Random (gossip peer selection)
 rand = "0.8"
 
-# Post-Quantum Cryptography (MANDATORY for fragment encryption + peer auth)
+# Post-Quantum Cryptography (peer auth)
 # "That which remembers forever must be armored against forever."
-# 2026-05-08 (Wave B / FIPS 205+203): pqcrypto-kyber → pqcrypto-mlkem (ML-KEM-768),
-# pqcrypto-dilithium → pqcrypto-mldsa (ML-DSA-65). Closes RUSTSEC-2024-0380/0381.
-pqcrypto-mlkem = { version = "0.1", optional = true }      # ML-KEM (FIPS 203) key encapsulation
-pqcrypto-mldsa = { version = "0.1", optional = true }      # ML-DSA (FIPS 205) signatures
+# 2026-05-08 (Wave B): pqcrypto-dilithium → pqcrypto-mldsa (ML-DSA-65). Closes RUSTSEC-2024-0380/0381.
+# 2026-11-18: the hybrid KEM and sealed fragment envelope had no callers and were
+# deleted, and pqcrypto-mlkem, x25519-dalek, aes-gcm, hkdf and sha2 went with them.
+pqcrypto-mldsa = { version = "0.1", optional = true }      # ML-DSA (FIPS 204) signatures
 pqcrypto-traits = { version = "0.3", optional = true }      # Common PQ traits
-
-# Classical crypto (hybrid KEM partner — belt and suspenders)
-x25519-dalek = { version = "2", features = ["static_secrets"], optional = true }
-aes-gcm = { version = "0.10", optional = true }             # AES-256-GCM symmetric
-hkdf = { version = "0.12", optional = true }                # Key derivation
-sha2 = { version = "0.10", optional = true }                # HKDF-SHA256
 
 # Zeroize secrets in memory
 zeroize = { version = "1", features = ["derive"] }
@@ -84,13 +78,8 @@ zeroize = { version = "1", features = ["derive"] }
 [features]
 default = ["pq"]
 pq = [
-    "pqcrypto-mlkem",
     "pqcrypto-mldsa",
     "pqcrypto-traits",
-    "x25519-dalek",
-    "aes-gcm",
-    "hkdf",
-    "sha2",
 ]
 
 [build-dependencies]

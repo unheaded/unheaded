@@ -52,12 +52,8 @@ interval_ms = 1000
 dims = 384
 
 [crypto]
-# Post-quantum crypto is MANDATORY for fragment encryption.
+# Post-quantum signatures authenticate gossip peers.
 # "That which remembers forever must be armored against forever."
-
-# Path to this node's hybrid KEM keypair (ML-KEM-768 + X25519).
-# Generated on first boot if not present.
-# kem_keypair = "/var/lib/zhend/keys/kem.secret"
 
 # Path to this node's ML-DSA-65 signing keypair.
 # Generated on first boot if not present.
