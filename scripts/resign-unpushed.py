@@ -8,7 +8,11 @@ in messages to commits already rewritten in this run are replaced with
 their new abbreviated hashes. The branch is moved only if it still points
 at the old head (compare-and-swap); a backup ref keeps the old head.
 
-usage: resign-unpushed.py REPO BASE [--no-sign] [--merges] [--committer-name NAME] [--author-name NAME]
+usage: resign-unpushed.py REPO BASE [--no-sign] [--merges] [--only-needed] [--committer-name NAME] [--author-name NAME]
+
+--only-needed keeps a commit as it is when its signature is good and no
+parent of it was rewritten in this run, so hashes cited elsewhere change
+only where they must: an unsigned commit and everything after it.
 
 Use when commits were made unsigned (gpg-agent timed out) and the key is
 now cached, or to put the right name on them (--author-name and
@@ -23,6 +27,7 @@ import sys
 
 repo, base = sys.argv[1], sys.argv[2]
 sign = "--no-sign" not in sys.argv
+only_needed = "--only-needed" in sys.argv
 committer_override = None
 if "--committer-name" in sys.argv:
     committer_override = sys.argv[sys.argv.index("--committer-name") + 1]
@@ -51,6 +56,9 @@ hex8 = re.compile(r"\b[0-9a-f]{8}\b")
 for old in olds:
     fields = git("show", "-s", "--format=%T%n%P%n%an%n%ae%n%ad%n%cn%n%ce%n%cd", "--date=raw", old).split("\n")
     tree, parents, an, ae, ad, cn, ce, cd = fields[:8]
+    if only_needed and not any(p in mapping for p in parents.split()) \
+            and git("show", "-s", "--format=%G?", old).strip() == "G":
+        continue  # good signature, parents untouched: the commit stays
     msg = git("show", "-s", "--format=%B", old)
     msg = msg[:-1] if msg.endswith("\n\n") else msg  # %B adds one trailing newline
 
@@ -73,9 +81,9 @@ for old in olds:
     mapping[old] = new
     print(f"{old[:8]} -> {new[:8]}  {msg.splitlines()[0][:70]}", flush=True)
 
-new_head = mapping[olds[-1]]
+new_head = mapping.get(olds[-1], olds[-1])
 git("update-ref", f"refs/backup/{branch}-before-resign", old_head)
 git("update-ref", f"refs/heads/{branch}", new_head, old_head)  # CAS
 with open(os.path.join(repo, ".git", "resign-map.txt"), "w") as f:
-    f.writelines(f"{o} {mapping[o]}\n" for o in olds)
-print(f"{branch}: {old_head[:8]} -> {new_head[:8]} ({len(olds)} commits); backup refs/backup/{branch}-before-resign")
+    f.writelines(f"{o} {mapping[o]}\n" for o in olds if o in mapping)
+print(f"{branch}: {old_head[:8]} -> {new_head[:8]} ({len(mapping)} of {len(olds)} commits rewritten); backup refs/backup/{branch}-before-resign")

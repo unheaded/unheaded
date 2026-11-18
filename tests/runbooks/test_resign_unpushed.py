@@ -85,6 +85,32 @@ def test_resign_signs_the_unpushed_and_leaves_the_pushed(signing_sandbox):
             harness.run_step(rb, s["name"], env=renv, field="verify", cwd=work)
 
 
+@harness.requires("gpg", "gpgconf")
+def test_only_needed_keeps_signed_commits(signing_sandbox):
+    """--only-needed: a commit with a good signature and untouched parents
+    keeps its hash; an unsigned one, and what follows it, is rewritten."""
+    repo, env = signing_sandbox
+    work = repo.work
+    script = str(harness.REPO / "scripts/resign-unpushed.py")
+    run = lambda *a: subprocess.run(["python3", script, str(work), "origin/develop", *a], capture_output=True, text=True,
+                                    env={**os.environ, **env}, timeout=120, check=True)
+    run()  # the fixture's three unsigned commits, signed
+    signed = harness.git(work, "rev-list", "--reverse", "origin/develop..develop", env=env).split()
+    for name in ("late0", "late1"):
+        (work / f"{name}.txt").write_text("x\n")
+        harness.git(work, "add", f"{name}.txt", env=env)
+        harness.git(work, "commit", "-q", "--no-gpg-sign", "-m", name, env=env)
+    late = harness.git(work, "rev-list", "--reverse", f"{signed[-1]}..develop", env=env).split()
+    tree = harness.git(work, "rev-parse", "develop^{tree}", env=env)
+    out = run("--only-needed").stdout
+    after = harness.git(work, "rev-list", "--reverse", "origin/develop..develop", env=env).split()
+    assert after[:3] == signed, "a well-signed commit with untouched parents was rewritten"
+    assert len(after) == 5 and not set(after[3:]) & set(late), "the unsigned commits were not rewritten"
+    assert harness.git(work, "log", "--format=%G?", "origin/develop..develop", env=env).split() == ["G"] * 5
+    assert harness.git(work, "rev-parse", "develop^{tree}", env=env) == tree
+    assert "2 of 5 commits rewritten" in out, out
+
+
 @harness.requires("gpg")
 def test_verify_refuses_unsigned_commits(sandbox_git_repo):
     rb = harness.load(RB)
