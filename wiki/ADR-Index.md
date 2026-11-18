@@ -1,15 +1,17 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-11-15 (144 entries)
+**Last synced from canonical:** 2026-11-18 (148 entries; the row set and each row's status word checked against the canonical that day)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 2026-11-18: ADR-093, 103, 106, 120, 124, 125, 127 and 135 Accepted (Stevie; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5; ADR-135 for what is built and on). The counts below are a recount of this page's 145 rows. The canonical has 148: ADR-148, ADR-150 and ADR-151 are not mirrored here yet.
 
+2026-11-18, later: rows for ADR-148, ADR-150 and ADR-151 added, so this page has the canonical's 148 rows. ADR-150 and ADR-151 Accepted (Stevie; the same pack, round 6, rows 21 to 23; neither is built). ADR-148 still parked (row 24). ADR-035 amended (a bus per host on the two-host pair), ADR-144 stays parked, ADR-149 annotated, ADR-135's D21 flip ruled (round 7). The counts below are a recount of the 148 rows.
+
 | Status | Count |
 |--------|-------|
-| Accepted | 74 |
-| Proposed | 35 |
+| Accepted | 76 |
+| Proposed | 36 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 2 |
@@ -23,7 +25,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **145** |
+| **Total** | **148** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -62,7 +64,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [032](../docs/adr/ADR-032-python-to-go-rust-migration.md) | [Python → Go/Rust Migration](ADR-032-Python-to-Go-Rust-Migration) | Planned | 2026-04-03 |
 | [033](../docs/adr/ADR-033-netbox-ipam.md) | [NetBox IPAM](ADR-033-Netbox-IPAM) | Planned | 2026-04-03 |
 | [034](../docs/adr/ADR-034-grpc-mtls-default-transport.md) | [gRPC mTLS Default Transport](ADR-034-gRPC-mTLS-Default-Transport) | Accepted | 2026-04-02 |
-| [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [Wotan Active-Passive Redundancy](ADR-035-Wotan-Active-Passive-Redundancy) | **Accepted** (reinstated by DP-214, 2026-11-03; PostgreSQL persistence withdrawn 2026-11-09) | 2026-04-05 |
+| [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [Wotan Active-Passive Redundancy](ADR-035-Wotan-Active-Passive-Redundancy) | **Accepted** (reinstated by DP-214, 2026-11-03; PostgreSQL persistence withdrawn 2026-11-09; amended 2026-11-18: on the two-host pair a bus per host, nothing replicated, ADR-150 choice 6) | 2026-04-05 |
 | [036](../docs/adr/ADR-036-claude-distillation-training.md) | [Claude Distillation Training Data](ADR-036-Claude-Distillation-Training) | **Withdrawn** | 2026-04-05 |
 | [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | Planned | 2026-04-05 |
 | [038](../docs/adr/ADR-038-kanban-git-audit-trail.md) | [Kanban GUID → Git Commit Audit](ADR-038-Kanban-Git-Audit-Trail) | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
@@ -158,7 +160,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [132](../docs/adr/ADR-132-fold-loadbalancer.md) | Fold the load balancer into Cuirass; the map write goes to the node writer | **Proposed** (parked) | 2026-11-04 |
 | [133](../docs/adr/ADR-133-fold-version.md) | Fold version translation into monad, thin: one wire version exists | **Proposed** (parked) | 2026-11-04 |
 | [134](../docs/adr/ADR-134-fold-keymgmt.md) | Fold keymgmt into unheaded-auth as a public-key registry; GenerateKey generates no key | **Proposed** (parked) | 2026-11-04 |
-| [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF (amended 2026-11-15: D16 to D21, S-STAGE-2C) | **Accepted** for what is built and on (Stevie, 2026-11-18; D21's flip of rungs 5+6 and D17 part 2 stay open) | 2026-11-05 |
+| [135](../docs/adr/ADR-135-upc-kernel-reply-channel.md) | The owned kernel's reply channel to BPF (amended 2026-11-15: D16 to D21, S-STAGE-2C) | **Accepted** for what is built and on (Stevie, 2026-11-18; D21's flip of rungs 5+6 ruled the same day: on, the goldens comparing the user-mode trace only; ruled, not yet switched on. D17 part 2 stays open) | 2026-11-05 |
 | [136](../docs/adr/ADR-136-bind-zones-and-locked-down-ca.md) | BIND zones and a locked-down CA for lab names (YubiKey root, rotated working certificates) | **Proposed** (parked) | 2026-11-06 |
 | [137](../docs/adr/ADR-137-doom-range-check-and-dashboard-links-to-uhl.md) | The Doom Range port check and the dashboard's links move to `uhl` | **Proposed** (parked) | 2026-11-06 |
 | [138](../docs/adr/ADR-138-zhen-ui-hybrid-only-tls-front.md) | Hybrid-only TLS for the Zhen web UI through a Go front | **Accepted** (Stevie's answer #32, 2026-11-09; built 2026-11-10, installed nowhere) | 2026-11-09 |
@@ -167,11 +169,14 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [141](../docs/adr/ADR-141-chaos-controller-always-on.md) | The chaos controller runs all the time, slowly, after 1.0.0 | **Proposed** (parked) | 2026-11-12 |
 | [142](../docs/adr/ADR-142-wotan-as-a-redis-class-store.md) | Wotan made fast and lean enough to stand beside Redis | **Proposed** (parked) | 2026-11-12 |
 | [143](../docs/adr/ADR-143-terraform-multi-cloud-template.md) | A Terraform template that stands the kingdom up on AWS, Azure, GCP, LXD or Docker from a verified tag | **Proposed** (parked) | 2026-11-12 |
-| [144](../docs/adr/ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west, a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east) | 2026-11-12 |
+| [144](../docs/adr/ADR-144-footprint-shrink-the-hungriest.md) | Footprint: the stack measured on west, a target for a small host and a budget gate | **Proposed** (parked; item 1, the trace collector, fixed by S-WATCH-TRUE and live on west 2026-11-15, FND-044 open until east; 2026-11-18: stays parked, S-WATCH-TRUE's growth row accepted as bounded) | 2026-11-12 |
 | [145](../docs/adr/ADR-145-upc-user-image-ceiling-check.md) | UPC user images are checked against the heap window's floor | **Proposed** (parked) | 2026-11-15 |
 | [146](../docs/adr/ADR-146-upc-scrub-slice-at-reap.md) | A UPC slot's slice is scrubbed when its process is reaped | **Proposed** (parked) | 2026-11-15 |
 | [147](../docs/adr/ADR-147-every-service-earns-its-place.md) | Every service earns its place: use, cost, reliability and scale, measured; then both hosts under load, and tuned | **Proposed** (round table reported; plan waits on decisions) | 2026-11-15 |
-| [149](../docs/adr/ADR-149-zhen-is-a-module-behind-one-switch.md) | Zhen is a module behind one switch | **Proposed** | 2026-11-15 |
+| [148](../docs/adr/ADR-148-yggdrasil-as-packages.md) | Yggdrasil as packages: hardening and baseline shipped through the apt repo, not a separate image build | **Proposed** (parked; still parked, Stevie 2026-11-18) | 2026-11-15 |
+| [149](../docs/adr/ADR-149-zhen-is-a-module-behind-one-switch.md) | Zhen is a module behind one switch | **Proposed** (note 2026-11-18 under decision 2: Prometheus rule and scrape files are also copied to flat `_prometheus` directories) | 2026-11-15 |
+| [150](../docs/adr/ADR-150-east-and-west-as-a-pair.md) | East and west as a pair: what fails over, and how | **Accepted** (Stevie, 2026-11-18: choices 1 to 14 as recommended; 15, the stack stays down at boot and says so, starting at boot the intended later change. Not built; the plan is forged when the plans before it close) | 2026-11-17 |
+| [151](../docs/adr/ADR-151-the-log-store-is-a-setting.md) | The log store is a setting, not a dependency | **Accepted** (Stevie, 2026-11-18: L1 to L6 as recommended; its own plan after S-LOG-WEEK-2's verdict; nothing built) | 2026-11-18 |
 
 ---
 

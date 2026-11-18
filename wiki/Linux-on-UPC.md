@@ -165,7 +165,7 @@ Since 2026-07-20 the UPC crates have only taken dependency, clippy and loader-ha
 
 ### EVOLUTION-1 Stage 2: hardening, then rungs 3 and 4 (S-STAGE-2C, 2026-11-15)
 
-Branch `sprint/s-stage-2c`. Design record: ADR-135 D16 to D21 (Accepted 2026-11-18 for what is built and on; D21's flip of `UPC_RUNG56` and D17's atomics translation stay open, Stevie's choice). Ledger: [`references/s-stage-2c-log.md`](../references/s-stage-2c-log.md).
+Branch `sprint/s-stage-2c`. Design record: ADR-135 D16 to D21 (Accepted 2026-11-18 for what is built and on; D17's atomics translation stays open, Stevie's choice; D21's flip of `UPC_RUNG56` was ruled the same day: on, the goldens comparing the user-mode trace only; ruled, not yet switched on). Ledger: [`references/s-stage-2c-log.md`](../references/s-stage-2c-log.md).
 
 | Const | State | What it does |
 |---|---|---|
@@ -175,7 +175,7 @@ Branch `sprint/s-stage-2c`. Design record: ADR-135 D16 to D21 (Accepted 2026-11-
 | `UPC_RUNG4` | on | `read` from the console is answered by the owned kernel: a cooked line, no echo; BPF offers one keyboard byte per trap |
 | `UPC_RUNG56` | wired, off | open, fstat, dup, close and file read/write in the kernel; `fs_walk` and `FD_INODE_MAP` leave the object |
 
-- Verified instructions: ascend 883,522 (889,941 before the sprint), Doom 758,199. With `UPC_RUNG56` on the ascend object verifies at 529,305; it stays off because every golden carries the first 100 PCs after init starts, and that trace moves. The choice is Stevie's (progress file, For Stevie).
+- Verified instructions: ascend 883,522 (889,941 before the sprint), Doom 758,199. With `UPC_RUNG56` on the ascend object verifies at 529,305; it stays off because every golden carries the first 100 PCs after init starts, and that trace moves. The choice was Stevie's (progress file, For Stevie); ruled 2026-11-18: on, with the goldens comparing the user-mode trace only (ADR-135, "Ruling 2026-11-18: D21's flip"). Ruled, not yet switched on: the table above is the tree.
 - MRET and SRET at priv 3 are NOPs. open and exec refuse a path outside the caller's slice. Block syscalls 200 and 201 refuse a U-mode caller.
 - `upc-bootctl` refuses, before the eBPF object is opened: a user image holding an atomic, PUSH, POP, INT, IRET, MRET or SRET; a kernel or bootstub holding any of the first eight; a missing or malformed user `.data` sidecar; a sidecar record outside its image's window. `UPC_ALLOW_USER_PRIVRET=1` admits MRET and SRET in a user image, for the `hostile_reply` probe.
 - exec'd images start with `.bss` zeroed: the `.data` sidecar carries it (`rv32i-to-mbc --with-bss`).

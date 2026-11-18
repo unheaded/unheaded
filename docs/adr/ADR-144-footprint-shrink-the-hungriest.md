@@ -116,3 +116,5 @@ Stevie, 2026-11-12: fix item 1 (the freeze is lifted for that item only) and rec
 ## Update 2026-11-15 (continued in ADR-147)
 
 Stevie's pitch of 2026-11-15 asks which services earn their cost, and that the stack be reliable and scalable. The second measurement of west and east and the questions it raises are in ADR-147. Items 2 to 7 above stand, still parked.
+
+**2026-11-18:** stays parked, the ring buffer reader with it; S-WATCH-TRUE's growth row accepted as bounded 2026-11-18 (Stevie Bellis, `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 7, row 26: 0.026 core at 41.9 h against a bar of 0.05; 3.4 times its first hour against 1.5). The same binary goes to east. Status unchanged.

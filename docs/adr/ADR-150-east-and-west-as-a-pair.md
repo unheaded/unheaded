@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-150: East and west as a pair: what fails over, and how
 
-**Status:** Proposed (parked; draft for Stevie's reading, decides nothing). No plan, no branch, no code, no host changed. Every choice that is Stevie's is under "To settle" with its options and one recommendation.
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 6, rows 21 and 22): the 15 choices under "To settle" are answered, see "Stevie's answers, 2026-11-18". Not built: no plan, no branch, no code, no host changed; S-EAST-PAIR (series plan 6) is forged when the plans before it close, and the "Not established" list is that plan's work. Previously: Proposed (parked; draft for Stevie's reading, decides nothing). No plan, no branch, no code, no host changed. Every choice that is Stevie's is under "To settle" with its options and one recommendation.
 **Date:** 2026-11-17
 **Related:** ADR-147 (decisions 1, 2, 3, 13, 14, 15, 17, 18, 21, 25 and the 2026-11-16 update), `docs/battle-plans/SPRINT-SERIES-2026-11-15-ADR-147.md` row 6 (S-EAST-PAIR), ADR-016 and its 2026-10-15 amendment (the Well, RPO 24 h), ADR-029 (health consensus), ADR-035 and ADR-064 (Wotan redundancy), ADR-69420 (Sleipnir), ADR-100 and ADR-116 (heartbeat, monitor the monitors), ADR-101 (migration ledger), ADR-103 (issuer, service tokens), ADR-107 (chaos envelope), ADR-117 (one Grafana, VictoriaMetrics for metrics), ADR-131 (failover actuator), ADR-142 (Wotan speed, parked), ADR-143 (cloud template), ADR-149 (Zhen is a module), `docs/battle-plans/S-E1-LIVE-battle-plan.md` Evenings 10B, 11 and 15.
 
@@ -347,3 +347,38 @@ Stages 3 and 4 do not depend on each other; 5 needs both.
 ## Decision
 
 None. Parked: a draft for Stevie's reading. S-EAST-PAIR is forged after he has read it and answered "To settle".
+
+## Stevie's answers, 2026-11-18
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`, round 6. Row 21, choices 1 to 14 as this ADR recommends: "Accept all 14". Row 22, choice 15: "2 with plan to change later". The text above is the record of 2026-11-17 and is not edited; where it says "recommended", "To settle" or "Decision: None", this section is the answer.
+
+| # | Choice | Answer, in this ADR's own options |
+|---|---|---|
+| 1 | Who promotes the Well | **(d)**: automatic for the stateless set, a person for the Well |
+| 2 | A third vote or outside watcher | **None** for promotion while there are two hosts. For alerting, ADR-116's answer 1 stands and waits for the third-party sitting |
+| 3 | The shape of the second path and east's uplink | **H2**: a switch that both hosts and the router join, the existing cable kept as path A. Path B is treated as untrusted |
+| 4 | A way out through the other host | **Yes**, after stage 3 is proven: each host announces a default route to the other at low preference |
+| 5 | The routing daemon | **FRR on west and BIRD on east**, as today. One daemon for all nodes is decided when the ten-node stage is designed |
+| 6 | Wotan on the pair | **(A)** a bus per host. ADR-035 has its dated amendment (`ADR-035-wotan-active-passive-redundancy.md`, "Amendment 2026-11-18") |
+| 7 | The Well on east | **A live standby, asynchronous**; the nightly sets are kept. ADR-016's 24 h stays the written recovery point until stage 5 has measured what a promotion loses |
+| 8 | How services reach the Well after a promotion | **The service address** |
+| 9 | What runs PostgreSQL on east | **Docker on east with the same pinned image** as west |
+| 10 | The issuer on east | **East's issuer has its own key**; verifiers pick it up from the key set. No private key leaves its host |
+| 11 | East's mail route | **A second credential for today's sender, kept on east.** A different route waits for ADR-116's sitting. The credential never enters the repository |
+| 12 | What east runs while it is alone | **The survival set of decision 17** (Wotan, the watcher, the Well once promoted) **plus the issuer, board and dashboard.** A VictoriaMetrics on east only if stage 5's measurement under the temperature stop leaves room |
+| 13 | Rule evaluation on east | **E1**: the mailer-only watcher |
+| 14 | Evening 15 before or after the standby | **Before**: PostgreSQL 18 before the standby (the pack's words). The recommendation it accepts read "before, if it will run before stage 4; otherwise build on 16 and rebuild once" |
+| 15 | Does west's stack start at boot | **No, for now** ("2 with plan to change later"). The stack stays down after a boot until a person starts it, and says so: a boot unit records the boot as its own event, and the daily digest carries "west booted, stack down". Starting at boot is the intended later change |
+
+What follows from choice 15, from this ADR's own text:
+
+- Rule 3 of "The two-node problem" keeps holding the way it holds today: nothing starts at boot on west, so a returning host does not resume as primary.
+- When the later change is made, the condition written under "To settle" 15 applies: the start path reads the role marker and asks the other host before the Well starts as primary.
+- "Out of scope" lists whether the stack starts at boot as not decided here. It is decided now, by this answer.
+
+What these answers do not do:
+
+- They answer nothing on the "Not established" list. Its 15 items stay open and are read or proven by the east-pair plan.
+- They set no recovery target and no resource share (ADR-016's 24 h and ADR-147 decision 13 stand).
+- They build nothing. Row 21: "plan 6 becomes forgeable when the plans before it close". No plan is written with this section.
+- The pack's standing limits hold: Claude never pushes, never sets `~/tmp/west-hold.conf` to false, does nothing about the OS release upgrade, and no credential enters the repository or a log.

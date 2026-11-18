@@ -62,7 +62,8 @@ Track-call dependent. Activates after Age 3 public-launch gate.
 
 - WAVE14 BackwardScratch + KV-cache (Track C)
 - Performance benchmarking suite
-- Customer onboarding flows
+- Adopter onboarding (first-run guide and installer)
+- Usage metering for operators (resource accounting, no billing)
 - Multi-tenant isolation hardening
 
 ---
@@ -70,6 +71,8 @@ Track-call dependent. Activates after Age 3 public-launch gate.
 ## Age 5 — Scaling Era (Planned)
 
 Long-horizon. Kingdom Mode rollout, multi-region, federation, Wotan DISTRIBUTED, UPC L6 (Linux boot).
+
+Items: not yet defined (Stevie, 2026-11-18).
 
 ---
 

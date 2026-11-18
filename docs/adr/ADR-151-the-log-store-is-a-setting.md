@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-151: The log store is a setting, not a dependency
 
-**Status:** Proposed (parked; decides nothing). No plan, no branch, no code, no host changed. Every choice that is Stevie's is under "To settle" with its options and one recommendation.
+**Status:** Accepted (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 6, row 23): accepted; its own plan after S-LOG-WEEK-2's verdict. L1 to L6 are answered as recommended, see "Stevie's answers, 2026-11-18". Not built: "No code now". Previously: Proposed (parked; decides nothing). No plan, no branch, no code, no host changed. Every choice that is Stevie's is under "To settle" with its options and one recommendation.
 **Date:** 2026-11-18
 **Related:** ADR-117 (one log store), S-E1-LIVE Evening 16 and Step 284 (the measured week), ADR-147 decision 5 and plan 5 (S-LOG-WEEK-2, the fair second week), ADR-115 (the smallest install), ADR-113 (the SBOM trends down), S-LOG-HARVEST (the log path: Vector, redaction, host identity), `wiki/Host-Settings.md` (values a deployment sets).
 
@@ -78,3 +78,18 @@ retention_days: 90
 ## What this does not decide
 
 Which store west runs (ClickHouse, by Step 284, until plan 5 says otherwise), the log path's redaction and host identity rules (S-LOG-HARVEST's hold for every driver), and the metrics store (VictoriaMetrics, ADR-117).
+
+## Stevie's answers, 2026-11-18
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`, round 6, row 23: L1 to L6 as recommended, "Accept all six. No code now." The text above is the record as proposed and is not edited.
+
+| # | Question | Answer, in this ADR's own options |
+|---|---|---|
+| L1 | Which stores get a driver first | **A**: ClickHouse and Postgres (the Well), plus `none` |
+| L2 | A third store, if any | **None yet**: none until L1 is built and plan 5 is read. A third store would be new third-party software and would need his yes |
+| L3 | Where the setting lives | **A**: its own file, `/etc/unheaded/logstore.yaml`, with a default in the repository |
+| L4 | Do dashboards follow the setting | **B first**: Grafana keeps its ClickHouse panels; other stores get the CLI and the dashboard backend only. A when a second driver is in use |
+| L5 | When | **A**: after plan 5's verdict, as its own plan in the series |
+| L6 | What happens to the measurement path (`logstore-writer`, migration 048) | **A**: it becomes the Postgres driver's writer |
+
+State after this answer: accepted; its own plan after S-LOG-WEEK-2's verdict. Nothing is built and no plan is written. "What this does not decide" still holds: ClickHouse stays west's log store until plan 5 (S-LOG-WEEK-2) says otherwise.

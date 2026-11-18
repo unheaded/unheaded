@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-135: The owned kernel's reply channel to BPF
 
-**Status**: Accepted for what is built and on (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5): D1-D16, D17 part 1 (the load-time scan), D18, D19 (rung 3) and D20 (rung 4). Still open, not accepted, waiting on Stevie: D21's flip (rungs 5+6, `UPC_RUNG56` wired and off; the two ways on are in D21) and D17 part 2 (atomics through `translate_address`, not landed). Rung 7 is not started and has no ADR. See "Decisions 2026-11-18". Previously: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none). D7's a0 rule amended 2026-11-05 for the pipe rung; no review ran on that either (plan Phase 20 asks for none).
+**Status**: Accepted for what is built and on (Stevie Bellis, 2026-11-18; `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5): D1-D16, D17 part 1 (the load-time scan), D18, D19 (rung 3) and D20 (rung 4). Still open, not accepted, waiting on Stevie: D21's flip (rungs 5+6, `UPC_RUNG56` wired and off; the two ways on are in D21) and D17 part 2 (atomics through `translate_address`, not landed). Rung 7 is not started and has no ADR. See "Decisions 2026-11-18". Later the same day (round 7, row 25) D21's flip was ruled: on, the goldens comparing the user-mode trace only; ruled, not yet switched on. See "Ruling 2026-11-18: D21's flip". D17 part 2 stays open. Previously: Proposed (2026-11-04; implements DP-213, DP-501, DP-502). Independent read-only review done the same day, no blocker against D1: see Review. Acceptance is Stevie's. D10-D14 added 2026-11-05 for the fd rung; their review is plan Step 221. D15 added 2026-11-05 for the chdir rung; no independent review ran on it (plan Phase 19 asks for none). D7's a0 rule amended 2026-11-05 for the pipe rung; no review ran on that either (plan Phase 20 asks for none).
 **Context sprint**: S-STAGE-2B (`docs/battle-plans/S-STAGE-2B-battle-plan.md`), Phases 10-13 and 17-20
 **Relates to**: ADR-109 (kernel rows per BPF slot), ADR-110 (kernel time from BPF ticks), ADR-078 §5 (syscall number
 registry), ADR-074 (per-pid page directories), ADR-075 (process model)
@@ -893,6 +893,10 @@ From `docs/battle-plans/DECISION-PACK-2026-11-18.md`. Stevie Bellis: "Accept all
 | Rung 7 | not started; no ADR written (S-STAGE-2C Phases 13-14 not run) | not part of this ADR |
 
 Also still open, as the review tables above mark them "for Stevie": RV-3 (the host engine has neither the priv-3 refusal nor D6; refusals leave no counter), SP-1's residue (a resident program exec'd by slot 0 lands at raw physical addresses), SP-3's format marker, SP-4d (no harness boot makes `UPC_FORK_MARK` the deciding control) and SP-5b (the JMPR and CALLR diagnostic stores). ADR-145 and ADR-146 stay parked.
+
+## Ruling 2026-11-18: D21's flip (decision pack, round 7, row 25)
+
+From `docs/battle-plans/DECISION-PACK-2026-11-18.md`, the question S-STAGE-2C open call 10, how `UPC_RUNG56` goes on. Stevie Bellis: "On; the goldens compare the user-mode trace only (the option that booted 12 of 12 SAME). Kernel-side trace changes stop being a regression signal." That is D21's "No recapture" way. **Ruled, not yet switched on:** the flip is code work that has not been done; in the tree `UPC_RUNG56` is still false and `#define UPC_RUNG56 0`. The "Open" in D21's row of the table above is the state before this ruling. D17 part 2 and the other items listed above stay open.
 
 ## Alternatives considered
 

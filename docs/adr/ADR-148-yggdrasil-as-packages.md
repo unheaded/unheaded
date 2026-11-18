@@ -47,6 +47,8 @@ Gains: no image runner to choose or keep; works on a stock Debian or Ubuntu host
 
 ## To settle
 
+**2026-11-18:** Still parked (Stevie Bellis, `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 6, row 24). Status unchanged; the questions below stay open.
+
 1. Keep the packer image at all, or reduce Yggdrasil to "a preseed/autoinstall file + `unheaded-baseline`"?
 2. If kept, which runner (GitHub Actions self-hosted on a lab host, or a systemd timer on west)?
 3. Does `unheaded-baseline` overwrite site settings (conffiles prompt) or only add drop-ins that sort last?
