@@ -65,7 +65,16 @@ Runbooks: `runbooks/deploy/emergency-rollback.yaml`, `runbooks/data/postgresql-m
 
 ## ClickHouse and VictoriaMetrics
 
-ADR-147 decision 6 (S-SEE-AND-SURVIVE Phases 9 and 13): the two stores that had no copy get the Well's pattern. Code and units are in the repository; **not installed on west until Phase 13** (after the log store week).
+ADR-147 decision 6 (S-SEE-AND-SURVIVE Phases 9 and 13): the two stores that had no copy get the Well's pattern. Code and units are in the repository; **installed on west 2026-11-18** (Phase 13), the three timers enabled.
+
+Measured on west at install (2026-11-18 20:13Z, data on `sdb`, sets on the NVMe):
+
+| Store | Size of the store | Set | Backup | Restore drill |
+|---|---|---|---|---|
+| ClickHouse | `unheaded_logs` 431 MiB, 6.19 million rows | 452,494,148 bytes, 6,176,230 rows in the counted window | 10 s | passed, 6,176,230 rows, 12 s |
+| VictoriaMetrics | 15,208 series at the cutoff | 275,060,550 bytes | 15 s | passed, 15,208 series, 5 s |
+
+On a host whose `install` is uutils coreutils (west: 0.2.2), `install -d -o 16707 -g 16707` refuses the numeric owner because uid 16707 has no passwd entry there: make the directory with `install -d -m 0700` and then `chown 16707:16707` it.
 
 | Store | What | Set root (NVMe) | Set | Kept |
 |---|---|---|---|---|
