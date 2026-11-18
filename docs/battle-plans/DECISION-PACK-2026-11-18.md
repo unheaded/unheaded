@@ -74,3 +74,30 @@ Copyright (c) 2026 Stevie Bellis.
 | 26 | S-WATCH-TRUE Step 105, the growth row (0.026 core at 41.9 h against a bar of 0.05; 3.4 times its first hour against 1.5). | **Accept as bounded.** ADR-144 stays parked; the same binary goes to east. | M-187 |
 | 27 | S-WATCH-TRUE Step 178, `scripts/bootstrap-llm-lab.sh` (pulls Loki, images on `:latest`). | **Delete the script.** | M-188 |
 | 28 | The wiki as a fourth login front (sums 11 and 32 against the issuer's 10 and 25). | **Shrink the fronts to fit:** each front's budget reduced so the four stay under 10 and 25, the numbers stay config keys, and a test fails when a front is added uncounted. | M-189 |
+
+## Round 8
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 29 | soupsieve again: it is in Zhen's venv only through the ScanCode licence scanner (ScanCode → beautifulsoup4 → soupsieve), which Zhen never imports. Removing it means removing ScanCode and the 52 packages only it needs, 53 of 197. | **Remove ScanCode from Zhen's venv.** A later licence scan runs from its own throwaway environment. | M-179 |
+| 30 | The 44 names of Zhen's runtime lock (`~/tmp/pending-2026-11-18/zhen-lock-44-names.md`): 18 torch CUDA support, 4 more torch's alone, 18 needed as written, 8 declared and never imported. | **Lock what runs today, all 44.** Nothing is downloaded; trimming is a later job. S-ZHEN-FRONT Steps 115-119 and Phases 10 to 12 are unblocked. | M-180, M-81 |
+| 31 | The export notification (S-E1-LIVE Steps 20-21) and the two crypto constructions nothing calls (`pkg/secrets/encryption/age.go`, `crates/zhend/src/crypto/`). | **"I'll send it; delete the unused code."** Claude deletes the two, updates the audit and the notice text, and leaves the final email text in `~/tmp/next.md`; sending is his, from his own address. | M-181, M-238 (the send stays his) |
+| 32 | The five judgment calls on the six `-01` drafts, chiefly ruling 37 (the replay check is per signature, not per packet). | **A written analysis first:** the RFC editor and security seats write one page on what per-signature replay checks leave open, what a per-packet field costs in the frozen format, and a recommendation on all five; he rules from that. | M-196 (open until he reads it), M-239 |
+
+## Round 9
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 33 | Root housekeeping on west listed as his: which may Claude do? | **All four groups.** (a) `docker builder prune` and delete `/etc/unheaded/rotation-20261112T063907Z`. (b) The stopped `jenkins` container, the `jenkins/jenkins:lts` image and `/var/lib/jenkins` (deleted without opening files). (c) The unread `GRAFANA_ADMIN_PASSWORD` line in `/etc/unheaded/monitoring.env`; `mg-clone-1110a` and `-1110b`, worktree `agent-aa2a6bfa1f6254235`, `thread-watch.sh`, `~/tmp/unheaded-login-temp-2026-11-11.txt`; `/var/backups/trace-collector-2026-11-15` once east runs the fixed collector. (d) Unused images, build cache and unused volumes outside the stack, after the deploy has built and tagged its rollback images; anything the stack or a rollback uses is kept. | M-241, M-242, M-243, M-250, M-253 |
+| 34 | The kanban audit's 53 proposals (`~/tmp/kanban-truth/`), once the stack is up. | **Apply all 53,** the two flagged ones included, each through the board's API with a note citing the audit file. | M-226 |
+| 35 | Timeline Age 4's "Customer onboarding flows" and "Billing/metering"; Age 5 empty. | **Reword to community terms:** "Adopter onboarding (first-run guide and installer)"; "Usage metering for operators (resource accounting, no billing)"; Age 5 "not yet defined". | M-225 |
+| 36 | zhend's four subsystems that nothing spawns (QUIC server, Monad bridge listener, topology observer, strata snapshot collector). | **Move them out of the repo** to a sibling archive repo with their history; zhend keeps its single-node gRPC path; a parked ADR records how to bring one back. | M-224 |
+
+## Round 10
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 37 | The five calls on the `-01` drafts, with the analysis written (`~/tmp/pending-2026-11-18/drafts-01-five-calls-analysis.md`): (1) option-type row confirmed; (2) registry count confirmed with no number; (3) ruling 37: the 20 bytes untouched, per-signature replay protection accepted and documented, the comparison fixed (`<=` to `<`: as drafted a second packet on one signature is dropped as a replay), a maximum signature age added, a per-packet MAC TLV named as -02 work; (4) flags note confirmed; (5) seven stale section references in the foundation draft fixed, the flags offset among them (0x0B to 0x07). | **Accept all five.** Claude edits the pqc and foundation sources and regenerates the upload files; that the code still implements the -00 replay model (and is called only from tests) is recorded as an open finding. The upload stays his. | M-196; M-239 stays his |
+| 38 | S-E1-LIVE host steps never applied: west's sshd to keys only, rotation of service keys, certificates and the two API keys, the same hardening on east. | **Yes, with a lockout guard:** before any sshd change a key login is proved on a second port with the new config, and the old config comes back by itself after 10 minutes unless a fresh key login succeeds; keys rotate one service at a time with health checks between. | M-66 to M-72 as far as no account or physical action of his is needed |
+| 39 | Version bumps. | **Security bumps now, stores after the week:** CoreDNS 1.14.x, the end-of-life Alpine images, `anthropic-sdk-go` 1.84.0 and anything with a published fix ride on the deploy, each behind its gates. Postgres, ClickHouse, Vector and VictoriaMetrics wait for plan 5's close. `grpc` 1.85.0 waits (it adds two modules). | M-208, M-209 |
+| 40 | IOC audit settings. | **Apply all three:** `spl` known on west as a host setting; operator networks narrowed to the LAN, the link to east and the overlay; the 21-day baseline as a recording rule. All stay config keys; the manifest is resealed after. | M-191 |
