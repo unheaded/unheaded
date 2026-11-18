@@ -15,6 +15,8 @@ There is no npm in the repo: the front ends are vanilla JS (ADR-006) and JS lint
 
 `scripts/generate-sbom.sh` reads licenses from what is on the host, and only `~/.venv/zhen` by default. Set `PYTHON_EXTRA_VENVS` to the CI tools' venv too, or the CI manifest's packages list as not read. On west that is `/var/tmp/s-clean-cut-civenv`, a scratch venv, rebuilt from `.github/ci-python/requirements.txt` when it goes.
 
+ScanCode is not in `~/.venv/zhen`: it was removed on 2026-11-18 with the 52 packages only it needed, which took `soupsieve` and its three advisories out of the freeze. A full licence scan, when one is wanted, runs from a throwaway venv of its own, made for the scan and deleted after. The last scan's output is `docs/legal/scancode-full.json` (2026-04-04).
+
 The March 2026 audit counted 553 dependencies; that number included npm packages since removed and is not regenerated.
 
 ## GPL Boundary
