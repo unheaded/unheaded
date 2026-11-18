@@ -4,7 +4,6 @@
 <ROLE>_CONNECTION_LIMIT (Stevie, 2026-11-17: a limit another deployment may
 want to change is not hard-coded). A fake docker stands in for the Well;
 nothing here touches one."""
-import os
 import pathlib
 import subprocess
 
@@ -42,7 +41,7 @@ def run(tmp_path, env, before="20\n", args=()):
         calls.unlink()
     full = {"PATH": f"{bindir}:/usr/bin:/bin", "STATE": str(tmp_path), "HOME": str(tmp_path)}
     full.update(env)
-    p = subprocess.run(["bash", str(SCRIPT), *args], env=full, capture_output=True, text=True, timeout=30)
+    p = subprocess.run(["bash", str(SCRIPT), *args], env=full, capture_output=True, text=True, timeout=30, check=False)
     return p, (calls.read_text() if calls.exists() else "")
 
 
@@ -87,7 +86,7 @@ def test_a_bad_value_stops_before_any_role_changes(tmp_path):
 
 
 def test_unknown_role_fails(tmp_path):
-    p, calls = run(tmp_path, {"APP_NOPE_CONNECTION_LIMIT": "5"}, before="")
+    p, _ = run(tmp_path, {"APP_NOPE_CONNECTION_LIMIT": "5"}, before="")
     assert p.returncode == 1
     assert "app_nope" in p.stderr and "no such role" in p.stderr
 

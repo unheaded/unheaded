@@ -15,9 +15,14 @@
 #      unheaded_zhen fingerprint differ by exactly the deliberate changes in
 #      scripts/well/zhen-schema-changes.txt (scripts/well/zhen_schema_diff.py);
 #   3. on the second server: 051 and 052 applied with well-migrate; rows in
-#      unheaded_app, NULLs and a '' trace_id among them; 053 refused ("copy
-#      the rows"); scripts/well/zhen-copy-rows.sh copies them (counts equal,
-#      NULLs now the defaults, the '' trace_id NULL, the next id above the
+#      unheaded_app, NULLs, a '' trace_id and a trace_id that is not a uuid
+#      among them; 053 refused ("copy the rows");
+#      scripts/well/zhen-copy-rows.sh stops on the trace_id that is not a
+#      uuid, and with --null-bad-trace-id FILE (DECISION-PACK-2026-11-18 row
+#      15) still stops on a zhen_* table it does not know; with the option
+#      and the eight tables it copies them (counts equal, NULLs now the
+#      defaults, the '' trace_id NULL, the one that is not a uuid NULL with
+#      its id and text in FILE, 0600, the next id above the
 #      copied ones); a row written after the copy makes 053 refuse ("the copy
 #      recorded"); without it 053 runs, and the tables and the copy's record
 #      (the comment on zhen_conversations) are gone afterwards;
@@ -139,22 +144,62 @@ elif grep -q 'copy the rows' "$TMP/m2"; then
 else
 	fail "053 failed for another reason"; tail -5 "$TMP/m2" | sed 's/^/    /'
 fi
-if WELL_CONTAINER="$B" WELL_SUPERUSER=unheaded "$R/scripts/well/zhen-copy-rows.sh" >"$TMP/copy" 2>&1; then
-	pass "zhen-copy-rows.sh copied the rows"
+# DECISION-PACK-2026-11-18 row 15: a trace_id that is not a uuid stops the
+# copy, unless --null-bad-trace-id FILE: then it is stored NULL and FILE gets
+# the row id and the text. The text here carries a tab, a newline, a
+# backslash, a quote and shell syntax: FILE must hold it escaped, unrun.
+su "$B" unheaded_app 'INSERT INTO zhen_actions (session_id, action_type, intent, triggered_by, trace_id) VALUES ($q$s$q$, $q$tool_call_attempt$q$, $q$bad-trace$q$, $q$zhen$q$, $q$not a uuid$q$ || chr(9) || $q$$(id) `x` \ "q"$q$ || chr(10) || $q$line2$q$)' >/dev/null
+BAD_ID="$(su "$B" unheaded_app "SELECT id FROM zhen_actions WHERE intent = 'bad-trace'")"
+BAD_TEXT='not a uuid\t$(id) `x` \\ \"q\"\nline2'
+BADF="$TMP/bad-trace-ids"
+copy() { WELL_CONTAINER="$B" WELL_SUPERUSER=unheaded "$R/scripts/well/zhen-copy-rows.sh" "$@"; }
+target_rows() { su "$B" unheaded_zhen "SELECT (SELECT count(*) FROM zhen_memories) + (SELECT count(*) FROM zhen_conversations) + (SELECT count(*) FROM zhen_actions)"; }
+rc=0; copy --null-bad-trace-id >"$TMP/copy-usage" 2>&1 || rc=$?
+rc2=0; copy --null-bad-trace-id "$TMP/no-such-dir/f" >>"$TMP/copy-usage" 2>&1 || rc2=$?
+if [[ "$rc $rc2" == "2 2" && "$(target_rows)" == 0 ]]; then
+	pass "--null-bad-trace-id without a usable FILE is a usage error (exit 2); nothing copied"
 else
-	fail "zhen-copy-rows.sh"; tail -5 "$TMP/copy" | sed 's/^/    /'
+	fail "--null-bad-trace-id usage: exits $rc $rc2 (want 2 2)"; tail -5 "$TMP/copy-usage" | sed 's/^/    /'
+fi
+if copy >"$TMP/copy-stop" 2>&1; then
+	fail "the copy ran over a trace_id that is not a uuid, without the option"
+elif grep -q 'trace_id that is not a uuid' "$TMP/copy-stop" && [[ "$(target_rows)" == 0 ]]; then
+	pass "without --null-bad-trace-id the copy stops on a trace_id that is not a uuid; nothing copied"
+else
+	fail "the copy stopped for another reason, or left rows"; tail -5 "$TMP/copy-stop" | sed 's/^/    /'
+fi
+su "$B" unheaded_app "CREATE TABLE zhen_unknown (id int)" >/dev/null
+if copy --null-bad-trace-id "$BADF" >"$TMP/copy-unknown" 2>&1; then
+	fail "the copy ran with a zhen_* table it does not know"
+elif grep -q 'not the eight' "$TMP/copy-unknown" && grep -q 'zhen_unknown' "$TMP/copy-unknown" && [[ "$(target_rows)" == 0 && ! -e "$BADF" ]]; then
+	pass "an unknown zhen_* table stops the copy, with --null-bad-trace-id too; nothing copied, nothing recorded"
+else
+	fail "unknown zhen_* table: the copy stopped for another reason, or left rows or a record"; tail -5 "$TMP/copy-unknown" | sed 's/^/    /'
+fi
+su "$B" unheaded_app "DROP TABLE zhen_unknown" >/dev/null
+if copy --null-bad-trace-id "$BADF" >"$TMP/copy" 2>&1; then
+	pass "zhen-copy-rows.sh --null-bad-trace-id copied the rows"
+else
+	fail "zhen-copy-rows.sh --null-bad-trace-id"; tail -5 "$TMP/copy" | sed 's/^/    /'
+fi
+printf 'zhen_actions %s %s\n' "$BAD_ID" "$BAD_TEXT" >"$TMP/bad-want"
+if cmp -s "$TMP/bad-want" "$BADF" && [[ "$(stat -c %a "$BADF")" == 600 ]] && grep -q "^\[OK\] 1 zhen_actions row(s) .*not a uuid.*stored NULL" "$TMP/copy"; then
+	pass "FILE holds exactly the row's id and its text, escaped, 0600; the count is printed"
+else
+	fail "FILE or the printed count: $(stat -c %a "$BADF" 2>&1), $(grep -c . "$BADF" 2>&1) line(s)"; { diff "$TMP/bad-want" "$BADF" 2>&1 || true; } | head -5 | sed 's/^/    /'
 fi
 got="$(su "$B" unheaded_zhen "SELECT (SELECT count(*) FROM zhen_memories) || ' ' || (SELECT count(*) FROM zhen_conversations) || ' ' || (SELECT count(*) FROM zhen_actions)
   || ' ' || (SELECT count(*) FROM zhen_memories WHERE source = 'user' AND created_at IS NOT NULL)
   || ' ' || (SELECT count(*) FROM zhen_conversations WHERE model = '' AND tokens_input = 0)
   || ' ' || (SELECT count(*) FROM zhen_actions WHERE result_summary = '' AND error = '' AND triggered_by = 'user' AND trace_id IS NULL)
-  || ' ' || (SELECT count(*) FROM zhen_actions WHERE trace_id = '0123456789abcdef0123456789abcdef'::uuid)")"
-if [[ "$got" == "1 1 2 1 1 1 1" ]]; then
-	pass "counts equal; NULLs took the defaults; '' trace_id NULL, a hex one kept"
+  || ' ' || (SELECT count(*) FROM zhen_actions WHERE trace_id = '0123456789abcdef0123456789abcdef'::uuid)
+  || ' ' || (SELECT count(*) FROM zhen_actions WHERE id = $BAD_ID AND intent = 'bad-trace' AND triggered_by = 'zhen' AND trace_id IS NULL)")"
+if [[ "$got" == "1 1 3 1 1 1 1 1" ]]; then
+	pass "counts equal; NULLs took the defaults; '' trace_id NULL, a hex one kept, the one that is not a uuid NULL"
 else
-	fail "copied rows: $got (want 1 1 2 1 1 1 1)"
+	fail "copied rows: $got (want 1 1 3 1 1 1 1 1)"
 fi
-if [[ "$(su "$B" unheaded_zhen "INSERT INTO zhen_actions (session_id, action_type, intent) VALUES ('s', 'tool_call_attempt', 'next') RETURNING id > (SELECT max(id) FROM zhen_actions WHERE intent = 'qa')")" == t ]]; then
+if [[ "$(su "$B" unheaded_zhen "INSERT INTO zhen_actions (session_id, action_type, intent) VALUES ('s', 'tool_call_attempt', 'next') RETURNING id > (SELECT max(id) FROM zhen_actions WHERE intent IN ('qa', 'bad-trace'))")" == t ]]; then
 	pass "the next zhen_actions id follows the copied ones"
 else
 	fail "zhen_actions identity behind the copied ids"

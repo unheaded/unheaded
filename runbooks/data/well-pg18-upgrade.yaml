@@ -30,7 +30,12 @@ notes: |
   carry one major each (pg_upgrade needs both in one container: a new,
   unadmitted image), the Well is small, and dump/restore is the path drilled
   every Sunday. The backup set is restored into a NEW volume by
-  restore-drill.sh --into-volume (row counts checked); the PG 16 volume is
+  restore-drill.sh --into-volume (row counts checked). That set must hold
+  EVERY database: the nightly platform set leaves unheaded_zhen to Zhen's
+  own set (ADR-149), and a Well restored from it alone has no unheaded_zhen
+  (well-migrate status then reports 052 pending, exit 3). Step final-backup
+  takes its own set with WELL_BACKUP_EXCLUDE empty, as
+  scripts/well/batch-apply.sh does before a batch. The PG 16 volume is
   never written, so rollback is pointing compose back at it. The PG 18 images
   keep data in /var/lib/postgresql/18/docker under a volume at
   /var/lib/postgresql (PG 16: /var/lib/postgresql/data), so the mount changes
@@ -127,13 +132,22 @@ steps:
       sudo systemctl start unheaded-well-backup.service
       systemctl show -p Result --value unheaded-well-backup.service unheaded-well-offsite.service
       cat ${SETS}/LATEST
-    verify: "both print success; LATEST names a set from the last few minutes"
-    description: "A full set (globals + every database + row counts), copied to east"
+      # The set the upgrade restores: every database, unheaded_zhen included
+      # (the platform set above leaves it out, ADR-149). Its own directory,
+      # no metrics file, so the nightly set's freshness stays the nightly's.
+      export UPSETS=${SETS}/pre-pg18-$(date -u +%Y%m%dT%H%M%SZ)
+      sudo env -u WELL_METRICS_DIR -u WELL_BACKUP_DATABASES WELL_BACKUP_EXCLUDE= WELL_BACKUP_DIR=$UPSETS \
+        ${REPO}/scripts/db-backup.sh --keep 1
+      sudo ls "$UPSETS/$(sudo cat $UPSETS/LATEST)"
+      sudo docker exec unheaded-postgres psql -X -At -U unheaded -d postgres \
+        -c "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY 1"
+    verify: "both print success; LATEST names a set from the last few minutes; the listing has one <db>.dump for every database the query prints"
+    description: "The platform set, copied to east, then the set the upgrade restores: globals + every database + row counts"
 
   - name: drill-on-18
     action: manual
     command: |
-      SET="${SETS}/$(cat ${SETS}/LATEST)"
+      SET="$UPSETS/$(sudo cat $UPSETS/LATEST)"
       sudo ${REPO}/scripts/well/restore-drill.sh --image ${PG18_IMAGE}@${PG18_DIGEST} "$SET"
     verify: "[drill] PASS: every row count matches"
     description: "The set restores on 18 in a throwaway (ADR-102 restore-drill rule). Never touches the Well."
@@ -141,7 +155,7 @@ steps:
   - name: restore-into-new-volume
     action: manual
     command: |
-      SET="${SETS}/$(cat ${SETS}/LATEST)"
+      SET="$UPSETS/$(sudo cat $UPSETS/LATEST)"
       sudo ${REPO}/scripts/well/restore-drill.sh --image ${PG18_IMAGE}@${PG18_DIGEST} --into-volume ${NEW_VOLUME} "$SET"
       docker volume inspect -f '{{.Name}} {{.CreatedAt}}' ${NEW_VOLUME} ${OLD_VOLUME}
     verify: "[drill] PASS and 'kept volume'; both volumes listed (the old one untouched)"

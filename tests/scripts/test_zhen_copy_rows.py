@@ -137,6 +137,51 @@ def test_copy_script_is_valid_bash():
     subprocess.run(["bash", "-n", str(COPY)], check=True)
 
 
+FAKE = '#!/bin/sh\necho "$0 $*" >>"$STATE/called"\nexit 1\n'
+
+
+def run_copy(tmp_path, *args):
+    """The script with a docker and a sudo that only record that they were
+    called, and a container name no host has: nothing here reaches a Well."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir(exist_ok=True)
+    for name in ("docker", "sudo"):
+        fake = bindir / name
+        fake.write_text(FAKE)
+        fake.chmod(0o755)
+    env = {"PATH": f"{bindir}:/usr/bin:/bin", "STATE": str(tmp_path), "HOME": str(tmp_path),
+           "WELL_CONTAINER": "qa-zhen-copy-none"}
+    return subprocess.run(["bash", str(COPY), *args], env=env, capture_output=True, text=True, timeout=30, check=False)
+
+
+def test_a_bad_command_line_is_refused_before_the_well_is_touched(tmp_path):
+    # DECISION-PACK-2026-11-18 row 15: --null-bad-trace-id FILE is the only option.
+    link = tmp_path / "link"
+    link.symlink_to(tmp_path / "elsewhere")
+    for args in (["--nope"], ["extra"], ["--null-bad-trace-id"], ["--null-bad-trace-id", ""],
+                 ["--null-bad-trace-id", str(tmp_path / "missing" / "f")],
+                 ["--null-bad-trace-id", str(tmp_path)], ["--null-bad-trace-id", str(link)],
+                 ["--null-bad-trace-id", str(tmp_path / "f"), "extra"]):
+        p = run_copy(tmp_path, *args)
+        assert p.returncode == 2, f"{args}: exit {p.returncode}: {p.stderr}"
+        assert "--null-bad-trace-id" in p.stderr, args
+        assert not (tmp_path / "called").exists(), f"{args} reached docker"
+    assert not (tmp_path / "f").exists(), "FILE was made by a run that was refused"
+
+
+def test_the_nulling_expression_stands_in_for_the_maps():
+    # With the option the map's trace_id expression is swapped for one that
+    # stores NULL for a text that is not a uuid: the swap must find the map's
+    # text, and one pattern must decide refusal, record and NULL alike.
+    script = COPY.read_text(encoding="utf-8")
+    exprs = {(t, c): e for t, cols, es in copy_map() for c, e in zip(cols, es)}
+    m = re.search(r'^NULLIF_TRACE="(.+)"$', script, re.MULTILINE)
+    assert m and m.group(1) == exprs[("zhen_actions", "trace_id")]
+    assert len(re.findall(r"^UUID_RE=", script, re.MULTILINE)) == 1
+    assert script.count("$UUID_RE") >= 2 and "[0-9a-f]{32}" not in script.replace(
+        re.search(r"^UUID_RE=.*$", script, re.MULTILINE).group(0), "")
+
+
 @pytest.fixture(scope="module")
 def diff():
     spec = importlib.util.spec_from_file_location("zhen_schema_diff", REPO / "scripts/well/zhen_schema_diff.py")

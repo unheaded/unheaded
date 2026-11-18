@@ -9,9 +9,9 @@
 #
 #   1. refuses unless unheaded_app's zhen_* tables are exactly the eight
 #      below, unheaded_zhen's eight exist and are empty, and every non-empty
-#      zhen_actions.trace_id is a uuid (052 makes the column uuid); then
-#      forgets the record of an earlier copy (step 5): the target is empty,
-#      so that record is no longer true;
+#      zhen_actions.trace_id is a uuid (052 makes the column uuid; see
+#      --null-bad-trace-id below); then forgets the record of an earlier
+#      copy (step 5): the target is empty, so that record is no longer true;
 #   2. counts each source table;
 #   3. streams every table through the column map below (COPY (SELECT ...)
 #      TO STDOUT) into ONE transaction in unheaded_zhen, triggers off
@@ -38,9 +38,38 @@
 # time); a '' trace_id becomes NULL. Nothing else changes.
 # tests/scripts/test_zhen_copy_rows.py holds the map to 052's columns.
 #
-#   sudo scripts/well/zhen-copy-rows.sh
+#   sudo scripts/well/zhen-copy-rows.sh [--null-bad-trace-id FILE]
 #   WELL_CONTAINER=unheaded-postgres WELL_SUPERUSER=unheaded (defaults)
+#
+# --null-bad-trace-id FILE (DECISION-PACK-2026-11-18 row 15: "Null it, record
+# it, continue"). Without it, a zhen_actions row whose trace_id is neither
+# NULL, '' nor a uuid stops the copy in step 1. With it, such a row is copied
+# with trace_id NULL, and FILE (made 0600 when new; never a symlink) gains
+# one line per row, appended once step 4 has passed and before step 5:
+#   zhen_actions <id> <the text, escaped as inside a JSON string>
+# so a tab, a newline, a quote or a backslash stays on the row's one line,
+# and the text is only ever data: psql writes it, no shell reads it. Before
+# COMMIT the transaction checks that the recorded rows, and with them only
+# the rows whose trace_id was NULL or '', hold NULL. The count is printed.
+# A zhen_* table this script does not know stops the copy either way.
 set -euo pipefail
+
+usage() { echo "usage: $0 [--null-bad-trace-id FILE]" >&2; exit 2; }
+NULL_BAD=0 BADFILE=""
+while (($#)); do
+	case "$1" in
+	--null-bad-trace-id)
+		(($# >= 2)) && [[ -n "$2" ]] || { echo "--null-bad-trace-id needs the file to record the rows in" >&2; usage; }
+		NULL_BAD=1 BADFILE="$2"; shift 2 ;;
+	*) usage ;;
+	esac
+done
+if ((NULL_BAD)); then
+	[[ -d "$(dirname -- "$BADFILE")" ]] || { echo "--null-bad-trace-id: no directory for $BADFILE" >&2; exit 2; }
+	if [[ -L "$BADFILE" ]] || { [[ -e "$BADFILE" ]] && [[ ! -f "$BADFILE" ]]; }; then
+		echo "--null-bad-trace-id: $BADFILE is not a regular file" >&2; exit 2
+	fi
+fi
 
 CONTAINER="${WELL_CONTAINER:-unheaded-postgres}"
 SUPERUSER="${WELL_SUPERUSER:-unheaded}"
@@ -61,6 +90,14 @@ MAP=(
 )
 # Tables whose id comes from a sequence (serial in unheaded_app, identity in unheaded_zhen).
 SEQ_TABLES=(zhen_conversations zhen_memories zhen_actions zhen_action_snapshots zhen_capture_labels)
+# What 052's uuid column takes from the old VARCHAR(64): 32 hex digits, or
+# the 8-4-4-4-12 form. One pattern decides the refusal, the record and the NULL.
+UUID_RE='^([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'
+BAD_TRACE="trace_id <> '' AND trace_id !~* '$UUID_RE'"
+# The map's trace_id expression, and what stands in for it under
+# --null-bad-trace-id (a text that is not a uuid, '' among them, gives NULL).
+NULLIF_TRACE="nullif(trace_id, '')::uuid"
+NULLING_TRACE="CASE WHEN trace_id ~* '$UUID_RE' THEN trace_id::uuid END"
 
 psql_in() { # db [psql args...]: statements on stdin
 	local db="$1"; shift
@@ -90,10 +127,31 @@ for t in "${TABLES[@]}"; do
 		exit 1
 	fi
 done
-bad="$(q unheaded_app "SELECT count(*) FROM public.zhen_actions WHERE trace_id <> '' AND trace_id !~* '^([0-9a-f]{32}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$'")"
-if [[ "$bad" != 0 ]]; then
-	echo "[REFUSE] $bad zhen_actions row(s) carry a trace_id that is not a uuid; 052's column is uuid (a person decides: NULL them or keep them elsewhere)" >&2
+bad="$(q unheaded_app "SELECT count(*) FROM public.zhen_actions WHERE $BAD_TRACE")"
+[[ "$bad" =~ ^[0-9]+$ ]] || { echo "[FAIL] count of trace_ids that are not uuids: $bad" >&2; exit 1; }
+if ((bad > 0 && ! NULL_BAD)); then
+	echo "[REFUSE] $bad zhen_actions row(s) carry a trace_id that is not a uuid; 052's column is uuid (ruled 2026-11-18: --null-bad-trace-id FILE stores them NULL and records each id and text in FILE)" >&2
 	exit 1
+fi
+BADTMP="" bad_ids="" nulls_want=""
+if ((NULL_BAD)); then
+	for m in "${MAP[@]}"; do
+		[[ "${m%%|*}" != zhen_actions || "$m" == *"$NULLIF_TRACE"* ]] || { echo "[FAIL] the map's trace_id expression is no longer $NULLIF_TRACE" >&2; exit 1; }
+	done
+	BADTMP="$(mktemp)"
+	trap 'rm -f -- "$BADTMP"' EXIT
+	# One line per row. to_json escapes the text (quote, backslash, every
+	# control character); its enclosing quotes are cut off.
+	q unheaded_app "SELECT 'zhen_actions ' || id || ' ' || substr(j, 2, length(j) - 2) FROM (SELECT id, to_json(trace_id::text)::text AS j FROM public.zhen_actions WHERE $BAD_TRACE) b ORDER BY id" >"$BADTMP"
+	if [[ "$(wc -l <"$BADTMP")" != "$bad" ]] || grep -qvE '^zhen_actions [0-9]+ .+$' "$BADTMP"; then
+		echo "[FAIL] listed $(wc -l <"$BADTMP") row(s) with a trace_id that is not a uuid, counted $bad: something writes (plan Step 278)" >&2
+		exit 1
+	fi
+	bad_ids="$(cut -d' ' -f2 "$BADTMP" | paste -sd, -)"
+	nulls_want="$(q unheaded_app "SELECT count(*) FROM public.zhen_actions WHERE trace_id IS NULL OR trace_id = '' OR ($BAD_TRACE)")"
+	[[ "$nulls_want" =~ ^[0-9]+$ ]] || { echo "[FAIL] count of trace_ids that become NULL: $nulls_want" >&2; exit 1; }
+	# The record can be written: found out before anything is copied.
+	(umask 077; : >>"$BADFILE") || { echo "[REFUSE] cannot write $BADFILE" >&2; exit 1; }
 fi
 # The target is empty, so a record left by an earlier copy is false from
 # here on: without this, a second copy that failed would leave 053 a record
@@ -110,6 +168,7 @@ for t in "${TABLES[@]}"; do before[$t]="$(q unheaded_app "SELECT count(*) FROM p
 	echo "SET LOCAL session_replication_role = replica;"
 	for m in "${MAP[@]}"; do
 		t="${m%%|*}"; rest="${m#*|}"; cols="${rest%%|*}"; exprs="${rest#*|}"
+		if ((NULL_BAD)) && [[ "$t" == zhen_actions ]]; then exprs="${exprs/"$NULLIF_TRACE"/$NULLING_TRACE}"; fi
 		echo "COPY public.$t ($cols) FROM STDIN;"
 		q unheaded_app "COPY (SELECT $exprs FROM public.$t ORDER BY 1) TO STDOUT"
 		printf '%s\n' '\.'
@@ -123,6 +182,13 @@ for t in "${TABLES[@]}"; do before[$t]="$(q unheaded_app "SELECT count(*) FROM p
 	for t in "${TABLES[@]}"; do
 		echo "  IF (SELECT count(*) FROM public.$t) <> ${before[$t]} THEN RAISE EXCEPTION '$t: copied % row(s), expected ${before[$t]}', (SELECT count(*) FROM public.$t); END IF;"
 	done
+	if ((NULL_BAD)); then
+		# Exactly the recorded rows, and those whose trace_id was NULL or '', hold NULL.
+		echo "  IF (SELECT count(*) FROM public.zhen_actions WHERE trace_id IS NULL) <> $nulls_want THEN RAISE EXCEPTION 'zhen_actions: % row(s) hold a NULL trace_id, expected $nulls_want', (SELECT count(*) FROM public.zhen_actions WHERE trace_id IS NULL); END IF;"
+		if [[ -n "$bad_ids" ]]; then
+			echo "  IF (SELECT count(*) FROM public.zhen_actions WHERE id IN ($bad_ids) AND trace_id IS NULL) <> $bad THEN RAISE EXCEPTION 'zhen_actions: a row recorded for --null-bad-trace-id does not hold a NULL trace_id'; END IF;"
+		fi
+	fi
 	echo "END \$\$;"
 	echo "COMMIT;"
 } | psql_in unheaded_zhen >/dev/null
@@ -139,6 +205,17 @@ for t in "${TABLES[@]}"; do
 	record+="${record:+,}$t=$n"
 	printf '%s\t%s\n' "$t" "$n"
 done
+
+# The rows stored with a NULL trace_id, on record before 053 may run: after
+# it, unheaded_app no longer holds their text.
+if ((NULL_BAD)); then
+	cat -- "$BADTMP" >>"$BADFILE"
+	if ((bad > 0)); then
+		echo "[OK] $bad zhen_actions row(s) carried a trace_id that is not a uuid: stored NULL, each id and text appended to $BADFILE"
+	else
+		echo "[OK] 0 zhen_actions rows carry a trace_id that is not a uuid: $BADFILE gains no line"
+	fi
+fi
 
 # 5. What 053 checks before it drops anything.
 q unheaded_app "COMMENT ON TABLE public.zhen_conversations IS 'copied $(date -u +%FT%TZ): $record'" >/dev/null

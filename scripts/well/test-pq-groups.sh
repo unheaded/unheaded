@@ -17,11 +17,15 @@
 #          X25519MLKEM768 with a client that offers it; a classical-only
 #          client still gets X25519 (deliberate fallback for old libpq).
 # Then the upgrade path itself, as runbooks/data/well-pg18-upgrade.yaml runs
-# it: a backup set taken from the PG 16 server by scripts/db-backup.sh
-# restores on PG 18 (restore-drill.sh, every row count equal), then into a
-# new named volume (--into-volume), on which PG 18 starts with the deployed
-# config, keeps its migration ledger and serves the rows over hybrid TLS;
-# --into-volume refuses a volume that already exists.
+# it: a backup set of EVERY database, taken from the PG 16 server by
+# scripts/db-backup.sh with WELL_BACKUP_EXCLUDE empty (its default leaves
+# unheaded_zhen to Zhen's own set, ADR-149: restored alone, that set gives a
+# Well without unheaded_zhen and a ledger with 052 pending), restores on
+# PG 18 (restore-drill.sh, every row count equal), then into a new named
+# volume (--into-volume), on which PG 18 starts with the deployed config,
+# holds every database the PG 16 server had, keeps its migration ledger and
+# serves the rows over hybrid TLS; --into-volume refuses a volume that
+# already exists.
 #
 # Who negotiated what is read twice: from openssl s_client's own report, and
 # from the server's ServerHello (key_share extension, plaintext in TLS 1.3)
@@ -264,7 +268,7 @@ else
 fi
 
 # --- (3) the ledger bootstraps on 18 -----------------------------------------
-for db in unheaded_app unheaded_ops unheaded_config; do
+for db in unheaded_app unheaded_ops unheaded_config unheaded_zhen; do
 	n="$(sq "$S18" "$db" "SELECT count(*) FROM well_schema_migrations" 2>&1 || true)"
 	[[ "$n" =~ ^[1-9][0-9]*$ && "$n" == "$(sq "$S16" "$db" "SELECT count(*) FROM well_schema_migrations")" ]] &&
 		pass "pg18 init.sh: $db ledger has the same $n rows as pg16" || fail "pg18 $db ledger: $n"
@@ -272,9 +276,17 @@ done
 
 # --- (4) the upgrade path: a PG 16 set restores on PG 18 ---------------------
 sq "$S16" unheaded_app "INSERT INTO kanban_tasks (id, title) SELECT 'pq' || g, 'task ' || g FROM generate_series(1, 25) g" >/dev/null
-if WELL_CONTAINER="$S16" WELL_BACKUP_DIR="$TMP/backups" "$R/scripts/db-backup.sh" --keep 1 >"$TMP/backup.log" 2>&1; then
+# The upgrade moves the whole Well, so its set holds every database: the
+# default set leaves unheaded_zhen out (ADR-149), and the volume restored
+# from it had no unheaded_zhen (status exit 3: 052 pending). Taken as the
+# runbook's step final-backup takes it.
+DBS_SQL="SELECT string_agg(datname, ' ' ORDER BY datname COLLATE \"C\") FROM pg_database WHERE datallowconn AND NOT datistemplate"
+DBS16="$(sq "$S16" postgres "$DBS_SQL")"
+if env -u WELL_METRICS_DIR -u WELL_BACKUP_DATABASES WELL_BACKUP_EXCLUDE='' WELL_CONTAINER="$S16" WELL_BACKUP_DIR="$TMP/backups" \
+	"$R/scripts/db-backup.sh" --keep 1 >"$TMP/backup.log" 2>&1; then
 	SET="$(find "$TMP/backups" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' | sort | tail -1)"
 	grep -q '^server_version=16' "$SET/cluster.env" && pass "backup set from pg16 ($(grep -c . "$SET/rowcounts.tsv") rowcount lines)" || fail "cluster.env: $(cat "$SET/cluster.env")"
+	expect "backup set holds every database of pg16" "$(find "$SET" -maxdepth 1 -type f -name '*.dump' -printf '%f\n' | sed 's/\.dump$//' | LC_ALL=C sort | paste -sd' ')" "$DBS16"
 	if out="$(WELL_DRILL_NAME="qa-pg18-drill-$ID" "$R/scripts/well/restore-drill.sh" --image "$PG18_IMAGE" "$SET" 2>&1)"; then
 		pass "pg16 set restores on pg18: $(tail -1 <<<"$out" | sed 's/^\[drill\] //')"
 	else
@@ -293,6 +305,7 @@ if WELL_CONTAINER="$S16" WELL_BACKUP_DIR="$TMP/backups" "$R/scripts/db-backup.sh
 				"$R/scripts/well/set-role-passwords.sh" >/dev/null
 			PX="$(port_of "$SX")"
 			expect "upgraded volume: server" "$(sq "$SX" postgres "SELECT current_setting('server_version') || ' checksums=' || current_setting('data_checksums')")" "18.6 checksums=on"
+			expect "upgraded volume: every database of pg16" "$(sq "$SX" postgres "$DBS_SQL")" "$DBS16"
 			if ((GO_OK)); then
 				expect "upgraded volume: well-migrate status (ledger intact)" "$(via_go "$PX")" "wire=X25519MLKEM768 rc=0"
 			fi
