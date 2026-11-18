@@ -182,9 +182,11 @@
         packet carries it.</dd>
 
         <dt>SeqNum:</dt>
-        <dd>A 32-bit per-flow sequence number providing replay
-        resistance.  Monotonically increasing within a flow lifetime.
-        A field of the Sophia PQC signature entry; no packet carries it.</dd>
+        <dd>A 32-bit number that orders the signatures issued for a
+        flow.  Each new signature for a flow has a SeqNum greater than
+        that of the signature it replaces.  A field of the Sophia PQC
+        signature entry; no packet carries it, and it does not number
+        packets (<xref target="replay-resistance"/>).</dd>
 
         <dt>HashPfx:</dt>
         <dd>A 16-bit integrity tag derived from SHA-256 of the
@@ -328,10 +330,13 @@
         probability: 1/65,536 per SigRef pair (see Security Considerations).</dd>
 
         <dt>SeqNum (32 bits, in the signature entry):</dt>
-        <dd>Per-flow sequence number.  MUST be monotonically increasing within
-        a flow lifetime.  Provides replay resistance (see <xref target="pseudo-header"/>).
-        The signed pseudo-header includes SeqNum; therefore a replayed
-        signature with a stale sequence number will fail verification.</dd>
+        <dd>Numbers the signatures issued for a flow.  The control plane
+        MUST give each new signature for a flow a SeqNum greater than
+        that of the signature it replaces.  The signed pseudo-header
+        includes SeqNum (<xref target="pseudo-header"/>), so a signature
+        cannot be moved to another SeqNum.  SeqNum does not number
+        packets and gives no per-packet replay protection
+        (<xref target="replay-resistance"/>).</dd>
       </dl>
 
       <t>Note: <xref target="MONAD"/> defines the S flag (bit 3 of the
@@ -557,7 +562,9 @@
 
         <dt>Sequence Number (4 octets):</dt>
         <dd>Copied from the SeqNum field of the Sophia PQC signature entry
-        (<xref target="monad-value-layout"/>).  This field provides replay resistance.</dd>
+        (<xref target="monad-value-layout"/>).  It fixes the place of the
+        signature in the order of the signatures issued for the flow; it
+        does not identify a packet (<xref target="replay-resistance"/>).</dd>
       </dl>
 
       <t>Implementations MUST construct the pseudo-header identically at
@@ -590,10 +597,12 @@
               <li>Compare entry.hash_pfx with
               SHA-256(entry.signature)[0:2].  If mismatch, DROP and emit
               Anamnesis ERROR event.</li>
-              <li>Check entry.seq_num &gt; last_seen_seq for this flow in
-              Wotan memory.  If not, DROP (replay detected) and emit
-              Anamnesis ERROR event.</li>
-              <li>Update last_seen_seq in Wotan memory.</li>
+              <li>Check entry.seq_num &gt;= last_seen_seq for this flow in
+              Wotan memory.  If not, DROP (the entry is a replaced
+              signature) and emit Anamnesis ERROR event.</li>
+              <li>If entry.seq_num &gt; last_seen_seq, update
+              last_seen_seq in Wotan memory
+              (<xref target="seqnum-management"/>).</li>
               <li>Forward packet (XDP_PASS).</li>
             </ol>
           </li>
@@ -835,8 +844,9 @@
           into sophia_pqc_sigs under new SigRef values.</li>
           <li>A grace period (RECOMMENDED: 60 seconds) allows in-flight
           packets signed with the old key to complete verification.</li>
-          <li>After the grace period, old key and signature entries MAY
-          be evicted from Sophia maps.</li>
+          <li>After the grace period, old key and signature entries MUST
+          be removed from Sophia maps
+          (<xref target="replay-resistance"/>).</li>
         </ol>
       </section>
 
@@ -893,8 +903,9 @@
 
       <section anchor="seqnum-management" numbered="true" toc="include">
         <name>Sequence Number Management</name>
-        <t>The SeqNum field provides replay resistance.  Wotan stores
-        the last verified sequence number per flow at address
+        <t>SeqNum orders the signatures issued for a flow
+        (<xref target="replay-resistance"/>).  Wotan stores the greatest
+        SeqNum verified for the flow, last_seen_seq, at address
         0x0000FF00.</t>
 
         <t>For each packet with the S and CUSTOM flags set, with
@@ -903,7 +914,9 @@
         <ol spacing="normal">
           <li>Read last_seen_seq via bpf_wotan_read(flow_label,
           0x0000FF00, &amp;last_seq, 4).</li>
-          <li>If entry.seq_num &lt;= last_seen_seq: DROP (replay).</li>
+          <li>If entry.seq_num &lt; last_seen_seq: DROP (the entry is a
+          replaced signature).  An equal value passes: every packet of
+          a flow names the same signature entry.</li>
           <li>If entry.seq_num &gt; last_seen_seq: update via
           bpf_wotan_cas(flow_label, 0x0000FF00, last_seen_seq,
           entry.seq_num).</li>
@@ -1351,20 +1364,59 @@
       </section>
 
       <section anchor="replay-resistance" numbered="true" toc="include">
-        <name>Replay Resistance</name>
-        <t>The SeqNum field of the Sophia signature entry provides replay
-        resistance.  Without SeqNum, an attacker who captures a
-        legitimate packet could replay it indefinitely, as the SigRef
-        would still reference a valid cached verification result.</t>
+        <name>Replay and the Scope of the Signature</name>
+        <t>The signature authenticates a flow, not a packet.  The
+        control plane computes it once over the pseudo-header of
+        <xref target="pseudo-header"/>, and every packet of the flow
+        names it by the same SigRef.  The signature does not cover the
+        payload, and no field of the version 0x01 Monad is unique to a
+        packet.</t>
 
-        <t>The SeqNum MUST be included in the signed pseudo-header.
-        The Wotan per-flow last_seen_seq counter MUST be checked at
-        each verification point.  Packets with SeqNum less than or
-        equal to last_seen_seq MUST be dropped.</t>
+        <t>SeqNum numbers the signatures issued for a flow.  It MUST be
+        included in the signed pseudo-header.  The control plane MUST
+        give each new signature for a flow a SeqNum greater than that
+        of the signature it replaces.  The Wotan per-flow last_seen_seq
+        value MUST be checked at each verification point
+        (<xref target="seqnum-management"/>): a verification point MUST
+        drop a packet whose signature entry has a SeqNum less than
+        last_seen_seq, and an equal value MUST pass this check, because
+        every packet of a flow names the same signature entry.  A
+        replaced signature therefore cannot be used again once a packet
+        under its successor has been verified, including during the key
+        rotation grace period (<xref target="key-rotation"/>).</t>
 
-        <t>Implementations SHOULD use a sliding window (RECOMMENDED:
-        64 packets) rather than strict monotonic ordering to tolerate
-        minor packet reordering.</t>
+        <t>This document provides no per-packet replay protection and no
+        per-packet integrity.  An attacker who observes one packet of a
+        verified flow learns its SigRef and Flow Label and can replay
+        that packet, or send other packets carrying the same SigRef and
+        Flow Label, for as long as the signature entry is valid.</t>
+
+        <t>The exposure is bounded by the life of the signature entry.
+        Implementations MUST enforce a maximum signature age, a policy
+        value (RECOMMENDED default: 300 seconds), after which the entry
+        is removed and a new signature with a greater SeqNum is
+        required.  Entries of a rotated or revoked key MUST be removed
+        when the grace period ends (<xref target="key-rotation"/>).</t>
+
+        <t>No unauthenticated field of a packet is used as replay input.
+        A counter carried in octets that neither the signature nor a
+        keyed tag covers, such as a 16-bit value in the Monad, can be
+        rewritten by whoever resends the packet; it would stop
+        accidental duplicates only, and this document defines
+        none.</t>
+
+        <t>Deployments that need per-packet replay protection or
+        integrity MUST obtain it from another layer: IPsec ESP with
+        anti-replay enabled <xref target="RFC4303"/>, or a transport
+        that authenticates its own records, such as TLS 1.3 or QUIC.
+        The verified state of a flow MUST NOT be taken as evidence that
+        a given packet is authentic or fresh.</t>
+
+        <t>A per-packet authenticator, a counter and a message
+        authentication code carried in a separate TLV outside the 20
+        octets of the Monad (<xref target="MONAD"/>), is work for
+        revision -02 of this document.  It is not defined here, and
+        this revision changes no octet of the version 0x01 Monad.</t>
       </section>
 
       <section anchor="hashpfx-collision" numbered="true" toc="include">
@@ -1721,6 +1773,15 @@
           </front>
           <seriesInfo name="RFC" value="6437"/>
         </reference>
+
+        <reference anchor="RFC4303" target="https://www.rfc-editor.org/info/rfc4303">
+          <front>
+            <title>IP Encapsulating Security Payload (ESP)</title>
+            <author initials="S." surname="Kent"/>
+            <date year="2005" month="December"/>
+          </front>
+          <seriesInfo name="RFC" value="4303"/>
+        </reference>
       </references>
     </references>
 
@@ -1823,6 +1884,7 @@
         <li>The document is marked as an Independent Submission (one workgroup string).</li>
         <li>An implementation status paragraph is added: Phases 1-3 are not implemented, and no wire-level PQC verification exists in the reference implementation.</li>
         <li>References to the companion documents name their -01 revisions.</li>
+        <li>Replay: the signature authenticates a flow, not a packet, and this revision says so. SeqNum numbers the signatures issued for a flow, not packets. A verification point drops a packet whose signature entry has a SeqNum less than last_seen_seq and passes an equal value; revision -00 dropped "less than or equal" against a SeqNum carried in each packet and recommended a 64-packet sliding window, which is removed. The section "Replay Resistance" is rewritten as "Replay and the Scope of the Signature": no per-packet replay protection and no per-packet integrity is provided; a maximum signature age is required (a policy value, RECOMMENDED default 300 seconds); after the key rotation grace period old key and signature entries MUST be removed (revision -00: MAY be evicted); no unauthenticated field is used as replay input; deployments that need per-packet protection use IPsec ESP with anti-replay, TLS 1.3 or QUIC; a per-packet authenticator in a separate TLV is work for revision -02. The SeqNum entries of the Terminology, the value layout, the pseudo-header, the fast path and the sequence number management follow. An informative reference to RFC 4303 is added. The 20-octet Monad is unchanged and no IANA action changes.</li>
       </ul>
     </section>
 

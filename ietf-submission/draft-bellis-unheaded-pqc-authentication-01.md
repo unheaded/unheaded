@@ -1,5 +1,13 @@
 # Post-Quantum Packet Authentication for the Unheaded Protocol
 
+> **This `.md` twin is stale. The `.xml` beside it is authoritative and is the
+> file that is uploaded** (`draft-bellis-unheaded-pqc-authentication-01.xml`;
+> see the note in `Makefile`). This text is still revision -00 under the -01
+> name: it carries neither the rulings applied on 2026-11-11 (one 32-bit
+> SigRef on the wire, FN-DSA withdrawn, tiers as Sophia policy) nor the
+> edits of 2026-11-18 (the signature authenticates a flow, not a packet; the
+> SeqNum check; the maximum signature age). Do not cite or build from it.
+
 ## draft-bellis-unheaded-pqc-authentication-01
 
 ### Status of This Memo

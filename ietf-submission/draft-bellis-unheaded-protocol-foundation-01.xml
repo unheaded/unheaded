@@ -397,7 +397,7 @@ closed, half-open). Semantics are defined by Sophia <xref target="SOPHIA"></xref
   </dd>
   <dt>flags:</dt>
   <dd>
-    <t>An 8-bit bitfield controlling protocol behavior. See Section 5.2.</t>
+    <t>An 8-bit bitfield controlling protocol behavior. See <xref target="flags-bitfield"></xref>.</t>
   </dd>
   <dt>latency_hint:</dt>
   <dd>
@@ -437,7 +437,7 @@ Shield MUST zero scratch bytes at ingress unless CUSTOM is set.</t>
   <dt>checksum:</dt>
   <dd>
     <t>A 16-bit CRC-16/CCITT checksum computed over all 20 bytes
-(0x00-0x13) of the Monad with the checksum field (0x12-0x13) zeroed during computation. See Section 5.4.</t>
+(0x00-0x13) of the Monad with the checksum field (0x12-0x13) zeroed during computation. See <xref target="checksum-field"></xref>.</t>
   </dd>
 </dl>
 
@@ -462,7 +462,7 @@ is unchanged; the extended option is purely additive.</t>
 </section>
 <section anchor="flags-bitfield"><name>Flags Bitfield</name>
 
-<t>The flags field (offset 0x0B) is an 8-bit field controlling per-packet
+<t>The flags field (offset 0x07) is an 8-bit field controlling per-packet
 behavior:</t>
 
 <figure><artwork><![CDATA[
@@ -1024,7 +1024,7 @@ differences.</t>
 </list></t>
 
 <t>Mitigation: All implementations of version 0x01 MUST parse exactly
-20 bytes at the offsets specified in Section 5.1. Any deviation from
+20 bytes at the offsets specified in <xref target="monad-register-file"></xref>. Any deviation from
 the frozen wire format constitutes a protocol violation. The version
 field (offset 0x00) MUST be checked first; unknown versions MUST
 cause immediate silent drop.</t>
@@ -1128,7 +1128,7 @@ domain.</t>
 </section>
 <section anchor="post-quantum-threat-model"><name>Post-Quantum Threat Model</name>
 
-<t>PQC identity binding (Section 9) protects against:</t>
+<t>PQC identity binding (<xref target="pqc-authentication-value-format"></xref>) protects against:</t>
 
 <t><list style="symbols">
   <t>Harvest-now-decrypt-later attacks on metadata correlation.</t>
@@ -1144,7 +1144,7 @@ CRQCs are not yet available.</t>
 </section>
 <section anchor="kingdom-mode-threat-model"><name>Kingdom Mode Threat Model</name>
 
-<t>Kingdom Mode Extended Registers (Section 8) are only valid within the
+<t>Kingdom Mode Extended Registers (<xref target="extended-register-option"></xref>) are only valid within the
 Limited Domain. An external attacker who can inject packets with forged
 ULA prefixes and K flags set could:</t>
 
@@ -1227,7 +1227,7 @@ in the "Unheaded Protocol Parameters" registry group.</t>
 <t>Registration Policy: Specification Required <xref target="RFC8126"></xref></t>
 
 <t>The flags field occupies offset 0x07 of the Monad register file
-(Section 5.5).</t>
+(<xref target="flags-bitfield"></xref>).</t>
 
 <figure><artwork><![CDATA[
 Bit   Name      Description                                     Reference
@@ -1606,10 +1606,13 @@ signature (which may be kilobytes in size). Value 0 is reserved.</t>
 </dl>
 
 <t>KeyRef (32 bits, the index into sophia_pqc_keys), HashPfx (16 bits,
-SHA-256(signature)[0:2]) and SeqNum (32 bits, the per-flow sequence
-number for replay protection) are fields of the Sophia PQC signature
+SHA-256(signature)[0:2]) and SeqNum (32 bits, the number that orders
+the signatures issued for a flow) are fields of the Sophia PQC signature
 entry (struct sophia_pqc_sig_entry in <xref target="SOPHIA"></xref> and
-<xref target="UNHEADED-PQC"></xref>). No packet carries them. The verification
+<xref target="UNHEADED-PQC"></xref>). No packet carries them, and SeqNum
+does not number packets: the signature authenticates a flow, and
+per-packet replay protection is not provided
+(<xref target="UNHEADED-PQC"></xref>). The verification
 procedure is specified in <xref target="UNHEADED-PQC"></xref>.</t>
 
 <section anchor="pqc-algorithm-identifiers"><name>PQC Algorithm Identifiers</name>
@@ -2337,6 +2340,9 @@ Email: stevie@bellis.tech</t>
   <li>The request for a registry "UPC MBC Opcode Numbers" is withdrawn, and the opcode table is removed. One registry governs the opcode space; it is created by <xref target="UNHEADED-MBC-ISA"></xref>.</li>
   <li>Informative references to the MBC ISA document and to ADR-108 are added.</li>
   <li>References to the companion documents name their -01 revisions.</li>
+  <li>The registration-procedure overview gives no count of registries. Revision -00 said "12 IANA registries", which did not match the IANA Considerations.</li>
+  <li>Seven references inside the document are corrected, and six of them are now cross-references that follow the section numbering: the flags field text points to the Flags Bitfield section (revision -00: "Section 5.2"); the checksum field text points to the Checksum Field section ("Section 5.4"); the parser divergence mitigation points to the Monad Register File section ("Section 5.1"); the Monad Flags registry text points to the Flags Bitfield section ("Section 5.5"); the Post-Quantum Threat Model points to the PQC Authentication Value Format section ("Section 9"); the Kingdom Mode Threat Model points to the Extended Register Option section ("Section 8"). The seventh is in the Flags Bitfield section, which gave the offset of the flags field as 0x0B; it is 0x07, as the register file table and the Monad Flags registry say. The wire format does not change.</li>
+  <li>SeqNum is described as the number that orders the signatures issued for a flow, not as a per-packet replay counter. The signature authenticates a flow, and per-packet replay protection is not provided; the PQC authentication document specifies the check.</li>
 </ul>
 
 </section>

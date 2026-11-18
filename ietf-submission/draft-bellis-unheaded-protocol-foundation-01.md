@@ -1,4 +1,11 @@
 ---
+# This .md twin is stale. The .xml beside it is authoritative and is the file
+# that is uploaded (draft-bellis-unheaded-protocol-foundation-01.xml; see the
+# note in Makefile). This text is still revision -00 under the -01 name: it
+# carries neither the rulings applied on 2026-11-11 nor the edits of
+# 2026-11-18 (seven corrected references, the flags field at offset 0x07 in
+# the Flags Bitfield section, the SeqNum description). Do not cite or build
+# from it.
 title: "Unheaded: Protocol Foundation — A Mapped Data Bus over IPv6 Hop-by-Hop Options"
 abbrev: "Unheaded Protocol"
 docname: draft-bellis-unheaded-protocol-foundation-01
