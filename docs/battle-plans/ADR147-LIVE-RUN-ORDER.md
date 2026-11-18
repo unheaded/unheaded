@@ -4,7 +4,7 @@ Copyright (c) 2026 Stevie Bellis.
 -->
 # ADR-147 series: the live run order after the evidence week
 
-**Written** 2026-11-17 (about 04:00Z), before the week ends at 18:34Z, from a read of the four plans' remaining phases against `integrate/adr147` `2dcb1d68`. Nothing in it has been run. It adds no scope: every step it names is a step of plan 1 to 5. Where it and a plan disagree about order or about a step listed under "Amendments", this page wins; everything else is the plan's.
+**Written** 2026-11-17 (about 04:00Z), before the week ends at 18:34Z, from a read of the four plans' remaining phases against `integrate/adr147` `18fae670`. Nothing in it has been run. It adds no scope: every step it names is a step of plan 1 to 5. Where it and a plan disagree about order or about a step listed under "Amendments", this page wins; everything else is the plan's.
 
 **Why it exists.** Each plan was written to merge its own branch and deploy alone. The four were merged into one branch instead (`docs/battle-plans/progress/ADR147-INTEGRATION.md`), so one tree now carries all four: any image built from it holds every plan's code, and any migration batch sees every plan's files. Read alone, the steps listed under "Amendments" are stale. Run in the order below with those amendments, they are not.
 
@@ -73,7 +73,7 @@ Blocks run in this order. A block's steps are the plan's own, with the amendment
 | Plan 2's befores (Step 311 on, cgroup and store readings) must be read before anything is rebuilt from the merged tree. | Block A comes first, before the gates and before plan 1's rollout. |
 | Plan 1 Phase 16 rebuilds wotan, dashboard-backend, kanban-app, logstore-writer, auth, timeguru. From the merged tree timeguru needs migration 050 and its role's password (plan 2 Steps 340-341), and the other five are in plan 2's build list anyway. | Phase 16's build and recreate (Steps 335-341) are done by plan 2 Steps 327-355. Its readings (Steps 342-348) run an hour after plan 2 Step 355. |
 | Plan 1 Step 325's drill stops one of the role services; plan 2 Step 349 removes them. | Plan 1 Phase 15 before plan 2 Phase 19. |
-| Migrations 050 (plan 2) and 051 to 053 (plan 3) are in one manifest; 053 refuses until the rows are copied. | Plan 2 Step 341 applies with `--through 050` (added 2026-11-17, `2dcb1d68`); plan 3 Step 267 then finds exactly its three. |
+| Migrations 050 (plan 2) and 051 to 053 (plan 3) are in one manifest; 053 refuses until the rows are copied. | Plan 2 Step 341 applies with `--through 050` (added 2026-11-17, `18fae670`); plan 3 Step 267 then finds exactly its three. |
 | Plan 4 Step 7 proves plan 1's store backups and swap alerts are live. | Plan 4 after block D. |
 | Plan 2 retakes a before if plan 4 moves the volumes before its after. | Plan 4's move (Phase 5) after plan 2's 24 h afters. |
 | Plan 3 Phase 9 turns Zhen off and on; plan 2 Phase 22 restarts Postgres. | Not in the same hour. |
@@ -133,7 +133,7 @@ A step not listed runs as written.
 | Step | As written | Instead |
 |---|---|---|
 | 239-241 | Merge the sprint branch | Block C |
-| 247 | `HEAD^1` is the unit before the merge | Compare against `9887b666` (develop before block C) |
+| 247 | `HEAD^1` is the unit before the merge | Compare against `7be626d4` (develop before block C) |
 | 252, 301 | Expects `30s auto-reload-config` | The tree passes `--config.auto-reload`; read what the command prints and record it |
 | 257 | `curl http://127.0.0.1:20002/auth/nav.js` | The wiki unit serves TLS: `https` with the CA file the unit names |
 | 266 | `052_app_drop_zhen.sql` | Amended in the plan: `053_app_drop_zhen.sql` |
@@ -142,7 +142,7 @@ A step not listed runs as written.
 | 274, 287, 322 | Connection limit `12` | Amended in the plan at Step 274: `20` (migration 051, REV-5). The same at 287 and 322 |
 | 283 | `/etc/unheaded/zhen-agentd.env` | The unit in the tree reads `/etc/zhen-agentd.env`; Step 247's diff shows which the host has. Edit the one the installed unit names |
 | after 283 | Nothing | Two things the progress file promises "at 8B": `scripts/write-zhen-app-env.sh` (REV-2), and `WELL_ZHEN_DSN` in the overnight user unit's env file (REV-1) |
-| 319, Appendix A procedure 7 | Baseline `1393e5ee` | `9887b666` |
+| 319, Appendix A procedure 7 | Baseline `1393e5ee` | `7be626d4` |
 | 322 | | Also the budget table in `docs/architecture/THE_WELL_OPERATIONS.md`: say that `app_zhen`'s role limit is 20 and its pools are 2 x 5 |
 | 323 | A wiki link check script | `tests/scripts/test_doc_links.py` under the CI venv |
 
@@ -154,8 +154,8 @@ A step not listed runs as written.
 | 7 | Plan 1's backup and swap-alert rows read done | True only after block D; until then Phases 4 and 5 are `[BLOCKED]`, as the step says |
 | 147, 171 | Checks the Well's backup timer | Also `unheaded-clickhouse-backup`, `unheaded-victoria-backup` and `unheaded-store-drill` timers (plan 1): none due inside the window |
 | 157, 226, 295 | `maintenance.sh 60m` | `maintenance.sh --planned 60m "<reason>"`: a silence alone lets `ContainerStopped` and the SLO budgets count the stop |
-| 215, 217 | Merge develop into the compose lane | Expect a conflict on the five removed services; 18 services remain; the limits then sum to 12,800 (11.1% of the thread limit). Since lane commit `38565750` the limits, the slice and the gate's thresholds are variables with these values as defaults; two comments in the lane still say 15,360 and 13.3% |
-| 225 | Stevie says yes to the recreate | Amended in the plan (2026-11-17): first he adds `AUTH_ANONYMOUS_FROM` with west's two networks to `/etc/unheaded/compose.env`; the compose default no longer carries them (lane commit `38565750`) |
+| 215, 217 | Merge develop into the compose lane | Expect a conflict on the five removed services; 18 services remain; the limits then sum to 12,800 (11.1% of the thread limit). Since lane commit `6b50634b` the limits, the slice and the gate's thresholds are variables with these values as defaults; two comments in the lane still say 15,360 and 13.3% |
+| 225 | Stevie says yes to the recreate | Amended in the plan (2026-11-17): first he adds `AUTH_ANONYMOUS_FROM` with west's two networks to `/etc/unheaded/compose.env`; the compose default no longer carries them (lane commit `6b50634b`) |
 | 218-219 | A grep for slice names | It also matches huginn's test fixtures; `cmd/huginn/cgroups.go` walks any slice to depth 4, so a hit in a fixture is not a defect |
 | 165 | Installs Docker's drop-in from `deploy/systemd/docker.service.d/` | Amended in the plan (2026-11-17): the file is west's own, `deploy/host-settings/west-docker-data.conf`, installed under the same host name |
 | 246 | Expects `rc=1` | The gate exits 4 on drift (REV-2) |
@@ -172,4 +172,4 @@ A step not listed runs as written.
 | After plan 2 Step 349 a role container reads as stopped | They are removed in the same step; the mark of the amended Step 339 covers the minutes between |
 | A sitting ends between blocks | Every block ends at a plan's exit gate. D, E and F each leave west in a state the next morning's alerts describe truthfully |
 
-*Not executed. Step numbers were read from the plans at `integrate/adr147` `2dcb1d68`; four read-only agents checked the remaining phases against the tree, and the findings cited as amendments to Steps 308, 340, 341, 266 and 274 were verified by hand.*
+*Not executed. Step numbers were read from the plans at `integrate/adr147` `18fae670`; four read-only agents checked the remaining phases against the tree, and the findings cited as amendments to Steps 308, 340, 341, 266 and 274 were verified by hand.*

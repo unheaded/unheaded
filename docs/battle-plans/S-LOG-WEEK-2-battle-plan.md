@@ -15,7 +15,7 @@ Copyright (c) 2026 Stevie Bellis.
 
 **Forged ahead of its turn.** The series index says plans 5 to 11 are forged when the plan before them closes. This one was written on 2026-11-17, before plans 2 and 4 ran live, on Stevie's word that day ("ensure we have some sprints set up for tomorrow"), because its Phase 1 is repository work that can run beside the attended sittings. Nothing in it rests on a number plans 2 and 4 have not yet measured: Phase 2 reads those numbers from their progress files and stops if one is missing.
 
-## Grounding (checked 2026-11-17 03:45 to 04:00Z against `integrate/adr147` `38c3e513`; read only, no query sent to a store)
+## Grounding (checked 2026-11-17 03:45 to 04:00Z against `integrate/adr147` `aa5a73f7`; read only, no query sent to a store)
 
 | # | Claim (source) | What is true now | The plan does |
 |---|---|---|---|
@@ -297,4 +297,4 @@ New: `{ch,pg}_<query>_runs`; `well_probe_first_{p50,p95}_ms`; `vector_record_sen
 
 ---
 
-*Forged 2026-11-17 by Claude (Fable 5.2) from ADR-147 decision 5, week 1's record and the tree at `integrate/adr147` `38c3e513`. Not executed. The rulings LW1 to LW5 are Stevie's.*
+*Forged 2026-11-17 by Claude (Fable 5.2) from ADR-147 decision 5, week 1's record and the tree at `integrate/adr147` `aa5a73f7`. Not executed. The rulings LW1 to LW5 are Stevie's.*

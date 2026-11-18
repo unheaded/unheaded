@@ -84,6 +84,8 @@ for old in olds:
 new_head = mapping.get(olds[-1], olds[-1])
 git("update-ref", f"refs/backup/{branch}-before-resign", old_head)
 git("update-ref", f"refs/heads/{branch}", new_head, old_head)  # CAS
-with open(os.path.join(repo, ".git", "resign-map.txt"), "w") as f:
+# In a linked worktree .git is a file, so ask git where its files go.
+map_path = os.path.join(repo, git("rev-parse", "--git-path", "resign-map.txt").strip())
+with open(map_path, "w") as f:
     f.writelines(f"{o} {mapping[o]}\n" for o in olds if o in mapping)
-print(f"{branch}: {old_head[:8]} -> {new_head[:8]} ({len(mapping)} of {len(olds)} commits rewritten); backup refs/backup/{branch}-before-resign")
+print(f"{branch}: {old_head[:8]} -> {new_head[:8]} ({len(mapping)} of {len(olds)} commits rewritten); backup refs/backup/{branch}-before-resign; map {map_path}")
