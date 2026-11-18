@@ -19,7 +19,8 @@
 #      the rows"); scripts/well/zhen-copy-rows.sh copies them (counts equal,
 #      NULLs now the defaults, the '' trace_id NULL, the next id above the
 #      copied ones); a row written after the copy makes 053 refuse ("the copy
-#      recorded"); without it 053 runs and the setting is gone afterwards;
+#      recorded"); without it 053 runs, and the tables and the copy's record
+#      (the comment on zhen_conversations) are gone afterwards;
 #   4. pkg/zhenagent's split store (build tag wellint, -run Split) against
 #      the first server: WELL_TEST_ZHEN_DSN (unheaded_zhen as app_zhen),
 #      WELL_TEST_APP_DSN (unheaded_app as app_zhen), WELL_TEST_KANBAN_DSN
@@ -172,8 +173,13 @@ if migrate apply -db unheaded_app -yes >"$TMP/m4" 2>&1; then
 else
 	fail "053 after the copy"; tail -5 "$TMP/m4" | sed 's/^/    /'
 fi
-if [[ "$(su "$B" postgres "SELECT count(*) FROM pg_db_role_setting s JOIN pg_database d ON d.oid = s.setdatabase WHERE d.datname = 'unheaded_app' AND array_to_string(s.setconfig, ',') LIKE '%zhen_rows_copied%'")" == 0 ]]; then
-	pass "unheaded.zhen_rows_copied reset"; else fail "unheaded.zhen_rows_copied left set"; fi
+# Changed 2026-11-18 with 053: the copy's record is the comment on
+# zhen_conversations, no longer a database setting. The check here read
+# pg_db_role_setting, which nothing writes now, so it could not fail; this
+# one fails when 053 leaves a table or the record.
+if [[ "$(su "$B" unheaded_app "SELECT (SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relname LIKE 'zhen\_%' AND c.relkind IN ('r','p'))
+  || ' ' || (SELECT count(*) FROM pg_description WHERE description LIKE 'copied %zhen\_%=%')")" == "0 0" ]]; then
+	pass "053 dropped the eight tables and the copy's record with them"; else fail "053 left a zhen table or the copy's record"; fi
 
 # 4. The split store against the first server.
 PORT_A="$("${DOCKER[@]}" port "$A" 5432/tcp | head -1 | sed 's/.*://')"

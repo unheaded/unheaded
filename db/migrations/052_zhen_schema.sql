@@ -21,6 +21,8 @@
 -- (042's) hold on them after 049. ops_reader's SELECT on zhen_conversations
 -- (007) does not follow: nothing that connects as ops_reader reads Zhen's
 -- conversations, and the platform's reader has no business in Zhen's data.
+-- app_timeguru's (003) does not either, for the same reason; neither role
+-- has CONNECT on unheaded_zhen (051).
 --
 -- Differences, on purpose (a fresh table in a fresh database costs nothing
 -- to get right; scripts/well/zhen-schema-changes.txt lists each one the
@@ -46,6 +48,16 @@
 --     DEFAULT '', never written by Go): the Kingdom's trace id is 128 bits
 --     (pkg/trace.TraceID), and uuid takes its 32-hex form as input. Its
 --     index is partial on IS NOT NULL.
+--   - zhen_conversations carries the grants in use, not all of 003's
+--     (added 2026-11-18: the first full run of test-zhen-database.sh showed
+--     these three as unlisted differences). app_zhen keeps SELECT and INSERT
+--     (010's set) and loses 003's UPDATE and DELETE: every app_zhen client
+--     inserts and reads (raft/zhen_app.py, cmd/zhen-agentd/conversations.go,
+--     pkg/database/zhen.go), none updates or deletes a conversation, and
+--     the 90-day purge is retention_runner's (cmd/well-retention, 042). The
+--     writer of a history table cannot rewrite it. app_kanban loses 003's
+--     SELECT: nothing that connects as app_kanban reads a conversation; its
+--     only grant here is 041's columns of zhen_agent_runs.
 --
 -- Copying rows on a live Well is the attended S-ZHEN-SWITCH Phase 8B, never
 -- a migration: scripts/well/zhen-copy-rows.sh maps each old column to the
@@ -294,6 +306,8 @@ BEGIN
        OR NEW.family IS DISTINCT FROM OLD.family THEN
         RAISE EXCEPTION 'zhen_agent_runs: identity columns are immutable';
     END IF;
+    -- Only an active run's lease moves; a finished run's outcome is fixed,
+    -- except the review fields on the way to accepted/rejected.
     IF OLD.status NOT IN ('claimed', 'running') AND (
          NEW.lease_until IS DISTINCT FROM OLD.lease_until OR NEW.head_commit IS DISTINCT FROM OLD.head_commit
          OR NEW.route_summary IS DISTINCT FROM OLD.route_summary OR NEW.claude_nano_usd IS DISTINCT FROM OLD.claude_nano_usd
@@ -377,6 +391,8 @@ CREATE TRIGGER trg_zhen_captures_insert BEFORE INSERT ON zhen_captures
 
 CREATE FUNCTION zhen_captures_update() RETURNS TRIGGER AS $$
 BEGIN
+    -- bytes is generated from the text columns (and not yet computed in
+    -- NEW inside a BEFORE trigger), so it is left out of the comparison.
     IF (to_jsonb(NEW) - 'promoted' - 'quarantined' - 'bytes') IS DISTINCT FROM
        (to_jsonb(OLD) - 'promoted' - 'quarantined' - 'bytes') THEN
         RAISE EXCEPTION 'zhen_captures: % is immutable except promoted and quarantined', OLD.id;

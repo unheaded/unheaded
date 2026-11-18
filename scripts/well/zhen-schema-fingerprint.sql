@@ -2,7 +2,8 @@
 -- The shape of Zhen's objects in the current database, one sorted row per
 -- fact: kind|name|definition (ADR-149; S-ZHEN-SWITCH Steps 191, 279).
 -- Run it in unheaded_app before 053 and in unheaded_zhen after 052: the two
--- outputs differ by one line, zhen_agent_runs' foreign key to kanban_tasks.
+-- outputs differ by the lines scripts/well/zhen-schema-changes.txt names
+-- (scripts/well/zhen_schema_diff.py compares them) and by no other.
 -- Owners are left out on purpose (well_app_owner there, well_zhen_owner here).
 --   psql -X -At -d <db> -f scripts/well/zhen-schema-fingerprint.sql
 WITH tabs AS (
@@ -25,7 +26,7 @@ facts AS (
              || CASE WHEN a.attnotnull THEN ' NOT NULL' ELSE '' END
              || coalesce(' DEFAULT ' || pg_get_expr(d.adbin, d.adrelid), '')
              || CASE a.attgenerated WHEN 's' THEN ' GENERATED STORED' ELSE '' END
-             || CASE WHEN a.attidentity <> '' THEN ' IDENTITY ' || a.attidentity ELSE '' END AS definition
+             || CASE WHEN a.attidentity <> '' THEN ' IDENTITY ' || a.attidentity::text ELSE '' END AS definition
       FROM tabs JOIN pg_attribute a ON a.attrelid = tabs.oid AND a.attnum > 0 AND NOT a.attisdropped
       LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
     UNION ALL
@@ -43,12 +44,15 @@ facts AS (
            regexp_replace(pg_get_functiondef(p.oid), '\s+', ' ', 'g')
       FROM trigfuncs JOIN pg_proc p ON p.oid = trigfuncs.oid
     UNION ALL
-    SELECT 'grant', g.table_name || ' ' || g.grantee, g.privilege_type
+    -- One row per privilege, the privilege in the name: zhen-schema-changes.txt
+    -- lists a difference by kind|name, so it names the one privilege that
+    -- differs and never a grantee's whole set on a table.
+    SELECT 'grant', g.table_name || ' ' || g.grantee || ' ' || g.privilege_type, 'granted'
       FROM information_schema.role_table_grants g
      WHERE g.table_schema = 'public' AND g.table_name LIKE 'zhen\_%'
        AND g.grantee IN ('app_zhen', 'app_kanban', 'retention_runner')
     UNION ALL
-    SELECT 'column-grant', c.table_name || '.' || c.column_name || ' ' || c.grantee, c.privilege_type
+    SELECT 'column-grant', c.table_name || '.' || c.column_name || ' ' || c.grantee || ' ' || c.privilege_type, 'granted'
       FROM information_schema.column_privileges c
      WHERE c.table_schema = 'public' AND c.table_name LIKE 'zhen\_%'
        AND c.grantee IN ('app_zhen', 'app_kanban', 'retention_runner')

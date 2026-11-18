@@ -9,7 +9,9 @@
 #
 #   1. refuses unless unheaded_app's zhen_* tables are exactly the eight
 #      below, unheaded_zhen's eight exist and are empty, and every non-empty
-#      zhen_actions.trace_id is a uuid (052 makes the column uuid);
+#      zhen_actions.trace_id is a uuid (052 makes the column uuid); then
+#      forgets the record of an earlier copy (step 5): the target is empty,
+#      so that record is no longer true;
 #   2. counts each source table;
 #   3. streams every table through the column map below (COPY (SELECT ...)
 #      TO STDOUT) into ONE transaction in unheaded_zhen, triggers off
@@ -19,10 +21,14 @@
 #      failed or cut stream ends the session without it and all eight roll
 #      back;
 #   4. counts the source again: a row written during the copy stops here;
-#   5. records the counts for 053's guard:
-#        ALTER DATABASE unheaded_app SET unheaded.zhen_rows_copied =
+#   5. records the counts for 053's guard, as the comment on a table 053
+#      drops (so the record goes with the tables; 053's header says why it
+#      is not a database setting):
+#        COMMENT ON TABLE public.zhen_conversations IS
 #          'copied <UTC time>: zhen_action_snapshots=<n>,...'
 #      053 drops nothing unless each table still holds its recorded count.
+#      To take the record back by hand (plan Appendix A procedure 4), in
+#      unheaded_app: COMMENT ON TABLE public.zhen_conversations IS NULL
 #
 # The map is where 052's tightened columns get their values: a NULL becomes
 # the column's default (sources '[]', tokens and elapsed_ms 0, model and
@@ -89,6 +95,10 @@ if [[ "$bad" != 0 ]]; then
 	echo "[REFUSE] $bad zhen_actions row(s) carry a trace_id that is not a uuid; 052's column is uuid (a person decides: NULL them or keep them elsewhere)" >&2
 	exit 1
 fi
+# The target is empty, so a record left by an earlier copy is false from
+# here on: without this, a second copy that failed would leave 053 a record
+# whose counts still hold.
+q unheaded_app "COMMENT ON TABLE public.zhen_conversations IS NULL" >/dev/null
 
 # 2. Source counts.
 declare -A before
@@ -131,5 +141,5 @@ for t in "${TABLES[@]}"; do
 done
 
 # 5. What 053 checks before it drops anything.
-q postgres "ALTER DATABASE unheaded_app SET unheaded.zhen_rows_copied = 'copied $(date -u +%FT%TZ): $record'" >/dev/null
-echo "[OK] unheaded.zhen_rows_copied recorded on unheaded_app; 053 may run while these counts hold"
+q unheaded_app "COMMENT ON TABLE public.zhen_conversations IS 'copied $(date -u +%FT%TZ): $record'" >/dev/null
+echo "[OK] counts recorded as the comment on unheaded_app's zhen_conversations; 053 may run while they hold"

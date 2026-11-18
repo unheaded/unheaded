@@ -38,3 +38,12 @@ column|zhen_conversations.model
 # VARCHAR(64) DEFAULT '' -> uuid, NULL when absent, indexed only where set.
 column|zhen_actions.trace_id
 index|idx_zhen_actions_trace
+# 003's grants nothing uses do not follow (2026-11-18). No app_zhen client
+# updates or deletes a conversation: raft/zhen_app.py,
+# cmd/zhen-agentd/conversations.go and pkg/database/zhen.go insert and read,
+# and the purge is retention_runner's. Nothing that connects as app_kanban
+# reads one. A grant line names one privilege: app_zhen's SELECT and INSERT
+# are in both fingerprints, and losing either would be drift.
+grant|zhen_conversations app_zhen UPDATE
+grant|zhen_conversations app_zhen DELETE
+grant|zhen_conversations app_kanban SELECT
