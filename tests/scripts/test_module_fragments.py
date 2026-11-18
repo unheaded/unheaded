@@ -59,8 +59,21 @@ def test_scrape_fragments_shape():
 
 
 def test_platform_reads_module_globs():
+    # Prometheus reads the flat directories scripts/modules/module-fragments.sh
+    # fills (<module>.<file>); VictoriaMetrics reads each module's own tree.
     prom = yaml.safe_load((REPO / "monitoring/prometheus/prometheus.yml").read_text(encoding="utf-8"))
-    assert "/etc/unheaded-modules/*/prometheus/rules/*.yml" in prom["rule_files"]
-    assert "/etc/unheaded-modules/*/prometheus/scrape/*.yml" in prom["scrape_config_files"]
+    assert "/etc/unheaded-modules/_prometheus/rules/*.yml" in prom["rule_files"]
+    assert "/etc/unheaded-modules/_prometheus/scrape/*.yml" in prom["scrape_config_files"]
     vm = yaml.safe_load((REPO / "config/victoria/scrape.yml").read_text(encoding="utf-8"))
     assert "/etc/unheaded-modules/*/victoria/scrape/*.yml" in vm["scrape_config_files"]
+
+
+def test_prometheus_globs_only_in_the_last_path_component():
+    # Prometheus refuses the whole config ("invalid rule file path") when a
+    # rule_files or scrape_config_files entry has a wildcard in a directory.
+    # The 2026-11-18 defect: '/etc/unheaded-modules/*/prometheus/rules/*.yml'.
+    # scripts/check-prometheus-rules.sh proves it with promtool; this is the
+    # same rule without a container.
+    prom = yaml.safe_load((REPO / "monitoring/prometheus/prometheus.yml").read_text(encoding="utf-8"))
+    paths = prom["rule_files"] + prom["scrape_config_files"]
+    assert not [p for p in paths if "*" in p.rsplit("/", 1)[0]], paths

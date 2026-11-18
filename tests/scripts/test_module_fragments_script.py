@@ -2,9 +2,13 @@
 # Copyright (c) 2026 Stevie Bellis.
 """scripts/modules/module-fragments.sh publishes a module's fragments under
 /run/unheaded/modules/<name> while its switch is on and withdraws them when
-it goes off (ADR-149). Run against directories in tmp_path."""
+it goes off (ADR-149). Prometheus takes a wildcard only in the last component
+of a rule_files or scrape_config_files path, so the module's Prometheus files
+are also copied to one flat directory per kind, RUN/_prometheus/rules and
+RUN/_prometheus/scrape, as <name>.<file>. Run against directories in tmp_path."""
 import os
 import pathlib
+import shutil
 import subprocess
 import time
 
@@ -54,9 +58,23 @@ def prom(fx):
 
 
 def no_temp(fx):
-    for d in (fx["run"], fx["tf"]):
+    dirs = [fx["run"], fx["tf"]] + [d for d in (fx["run"] / "_prometheus").glob("*") if d.is_dir()]
+    for d in dirs:
         names = [p.name for p in d.iterdir()]
         assert not [n for n in names if n.startswith((".zhen", ".module_"))], names
+
+
+def flat(fx):
+    """The flat directories' entries, as kind/name."""
+    root = fx["run"] / "_prometheus"
+    return sorted(str(p.relative_to(root)) for p in root.glob("*/*"))
+
+
+def add_module(fx, name, files):
+    for rel, text in files.items():
+        p = fx["src"] / name / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text)
 
 
 def test_publish(fx):
@@ -101,6 +119,80 @@ def test_symlink_is_not_copied(fx):
     (fx["src"] / "zhen/prometheus/rules/link.yml").symlink_to("/etc/passwd")
     assert call(fx, "publish", "zhen").returncode == 0
     assert not (fx["run"] / "zhen/prometheus/rules/link.yml").exists()
+
+
+def test_publish_copies_prometheus_files_to_the_flat_directories(fx):
+    add_module(fx, "zhen", {
+        "prometheus/scrape/zhen.yml": "scrape_configs: []\n",
+        "prometheus/rules/tests/zhen_test.yml": "tests: []\n",
+        "prometheus/rules/notes.txt": "not a rule file\n",
+    })
+    (fx["src"] / "zhen/prometheus/rules/link.yml").symlink_to("/etc/passwd")
+    assert call(fx, "publish", "zhen").returncode == 0
+    # Only the *.yml directly under rules/ and scrape/: what Prometheus loads.
+    assert flat(fx) == ["rules/zhen.zhen.yml", "scrape/zhen.zhen.yml"]
+    root = fx["run"] / "_prometheus"
+    for rel in flat(fx):
+        p = root / rel
+        assert p.is_file() and not p.is_symlink(), p
+        assert (p.stat().st_mode & 0o777) == 0o644, p
+    for d in (root, root / "rules", root / "scrape"):
+        assert (d.stat().st_mode & 0o777) == 0o755, d
+    assert (root / "rules/zhen.zhen.yml").read_text() == "groups: []\n"
+    assert (root / "scrape/zhen.zhen.yml").read_text() == "scrape_configs: []\n"
+    # The module's own directory is as before: it is how everything else
+    # (pkg/modules, VictoriaMetrics, the dashboard) reads the module.
+    assert (fx["run"] / "zhen/prometheus/rules/zhen.yml").is_file()
+    no_temp(fx)
+
+
+def test_publish_again_updates_the_flat_copies(fx):
+    add_module(fx, "zhen", {"prometheus/rules/extra.yml": "groups: [extra]\n"})
+    assert call(fx, "publish", "zhen").returncode == 0
+    assert flat(fx) == ["rules/zhen.extra.yml", "rules/zhen.zhen.yml"]
+    (fx["src"] / "zhen/prometheus/rules/extra.yml").unlink()
+    (fx["src"] / "zhen/prometheus/rules/zhen.yml").write_text("groups: [changed]\n")
+    assert call(fx, "publish", "zhen").returncode == 0
+    assert flat(fx) == ["rules/zhen.zhen.yml"]
+    assert (fx["run"] / "_prometheus/rules/zhen.zhen.yml").read_text() == "groups: [changed]\n"
+    no_temp(fx)
+
+
+def test_flat_copies_of_two_modules_do_not_touch_each_other(fx):
+    # "zhen-x" starts with "zhen": withdrawing or republishing zhen must leave it.
+    add_module(fx, "zhen-x", {"prometheus/rules/zhen.yml": "groups: [x]\n",
+                              "prometheus/scrape/x.yml": "scrape_configs: []\n"})
+    assert call(fx, "publish", "zhen").returncode == 0
+    assert call(fx, "publish", "zhen-x").returncode == 0
+    both = ["rules/zhen-x.zhen.yml", "rules/zhen.zhen.yml", "scrape/zhen-x.x.yml"]
+    assert flat(fx) == both
+    assert call(fx, "publish", "zhen").returncode == 0
+    assert flat(fx) == both
+    assert call(fx, "withdraw", "zhen").returncode == 0
+    assert flat(fx) == ["rules/zhen-x.zhen.yml", "scrape/zhen-x.x.yml"]
+    assert (fx["run"] / "_prometheus/rules/zhen-x.zhen.yml").read_text() == "groups: [x]\n"
+    assert call(fx, "withdraw", "zhen-x").returncode == 0
+    assert flat(fx) == []
+
+
+def test_withdraw_removes_the_flat_copies(fx):
+    add_module(fx, "zhen", {"prometheus/scrape/zhen.yml": "scrape_configs: []\n"})
+    assert call(fx, "publish", "zhen").returncode == 0
+    assert flat(fx) == ["rules/zhen.zhen.yml", "scrape/zhen.zhen.yml"]
+    assert call(fx, "withdraw", "zhen").returncode == 0
+    assert flat(fx) == []
+    # Nothing of the module is left: the flat directories stay, empty.
+    assert tree(fx["run"]) == ["_prometheus", "_prometheus/rules", "_prometheus/scrape"]
+    assert call(fx, "withdraw", "zhen").returncode == 0
+    no_temp(fx)
+
+
+def test_withdraw_removes_flat_copies_whose_module_directory_is_gone(fx):
+    # Someone removed RUN/zhen by hand: withdraw still clears Prometheus's copies.
+    assert call(fx, "publish", "zhen").returncode == 0
+    shutil.rmtree(fx["run"] / "zhen")
+    assert call(fx, "withdraw", "zhen").returncode == 0
+    assert flat(fx) == []
 
 
 @pytest.mark.parametrize("args,code", [

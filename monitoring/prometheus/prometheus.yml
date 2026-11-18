@@ -161,8 +161,12 @@ scrape_configs:
       - targets: ['alert-mailer:19130']
 
 # A module's scrape jobs, present only while its switch is on (/run/unheaded/modules, ADR-149).
+# One flat directory for all modules, each file <module>.<file>, filled by
+# scripts/modules/module-fragments.sh: Prometheus takes a wildcard only in
+# the last path component here and in rule_files, and refuses the whole
+# config otherwise (scripts/check-prometheus-rules.sh loads this file).
 scrape_config_files:
-  - '/etc/unheaded-modules/*/prometheus/scrape/*.yml'
+  - '/etc/unheaded-modules/_prometheus/scrape/*.yml'
 
 # Only what VictoriaMetrics cannot get for itself goes over: rule results
 # (recorded series all have a colon in the name; ALERTS and ALERTS_FOR_STATE
@@ -183,7 +187,8 @@ remote_write:
 rule_files:
   - 'rules/*.yml'
   # A module's rules, present only while its switch is on (/run/unheaded/modules, ADR-149).
-  - '/etc/unheaded-modules/*/prometheus/rules/*.yml'
+  # The flat directory again, each file <module>.<file>.
+  - '/etc/unheaded-modules/_prometheus/rules/*.yml'
 
 # Where firing rules go. Without this block Prometheus evaluated every rule
 # and sent nothing anywhere (2026-10-20): Alertmanager, and the email path

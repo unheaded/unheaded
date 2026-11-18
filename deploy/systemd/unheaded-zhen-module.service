@@ -2,7 +2,10 @@
 # Publishes the Zhen module's fragments (modules/zhen: Prometheus rules and
 # scrape jobs, VictoriaMetrics scrape jobs, dashboard health targets) under
 # /run/unheaded/modules/zhen while the switch (unheaded-zhen.target) is on,
-# and withdraws them when it goes off. Prometheus and VictoriaMetrics re-read
+# with Prometheus's files also as zhen.<file> in the flat directories
+# /run/unheaded/modules/_prometheus/rules and .../scrape (Prometheus cannot
+# glob a directory level), and withdraws them when it goes off. Prometheus
+# (the flat directories) and VictoriaMetrics (the module's tree) re-read
 # their globs every 30 s, dashboard-backend its targets every 30 s, the menu
 # and kanban per request (ADR-149). It also writes
 # unheaded_module_enabled{module="zhen"} to the textfile directory.

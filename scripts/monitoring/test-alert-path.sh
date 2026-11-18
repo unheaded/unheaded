@@ -60,6 +60,13 @@ pages="$(grep -c '^    - receiver: page$' "$T/am/alertmanager.yml")"
 { [[ "$pages" -ge 1 ]] && [[ "$(grep -c '^      group_wait: 1s$' "$T/am/alertmanager.yml")" -eq "$pages" ]] &&
 	[[ "$(grep -c '^      group_interval: 2s$' "$T/am/alertmanager.yml")" -eq "$pages" ]]; } ||
 	fail "page timing anchors missing in alertmanager.yml (want group_wait 2m and group_interval 5m on each of $pages page routes)"
+# The urgency none alert of check 1 must fall to the default route, so its
+# name is one the policy cannot promote: a promoted name has a route of its own
+# to page or ticket whatever its urgency label says. Until 2026-11-18 this was
+# HostDiskFull, which the policy promoted to a page on 2026-11-15.
+NONE_ALERT="UhPathTestCause"
+grep -q "alertname=\"$NONE_ALERT\"" "$T/am/alertmanager.yml" &&
+	fail "$NONE_ALERT has a route of its own in alertmanager.yml; check 1 needs a name that only the default route takes"
 # The policy refuses an hourly cap above the daily one (DP-710), so both go to
 # 2. The hourly cap is read first; which of the two holds a mail back is
 # cmd/alert-mailer's unit tests. Here: two mails leave, the rest are held.
@@ -90,7 +97,7 @@ wait_for "http://$NET-am:9093/-/ready"
 post() { api -X POST -H 'Content-Type: application/json' "http://$NET-am:9093/api/v2/alerts" -d "$1" >/dev/null; }
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 alert() { printf '{"labels":{"alertname":"%s","slo":"%s","urgency":"%s","tier":"fast"},"annotations":{"summary":"%s"},"startsAt":"%s"}' "$1" "$2" "$3" "$1 $2" "$now"; }
-post "[$(alert HostDiskFull "" none),$(alert ErrorBudgetBurn wotan page),$(alert ErrorBudgetBurn overlay ticket)]"
+post "[$(alert "$NONE_ALERT" "" none),$(alert ErrorBudgetBurn wotan page),$(alert ErrorBudgetBurn overlay ticket)]"
 
 msgs=""
 for _ in $(seq 1 60); do
@@ -103,7 +110,7 @@ grep -q '"Address":"ops@example.org"' <<<"$msgs" || fail "mail not addressed to 
 sleep 8
 msgs="$(mails)"
 [[ "$(grep -o '"Subject":"[^"]*"' <<<"$msgs" | wc -l)" -eq 1 ]] || fail "expected exactly one mail (the page): $(grep -o '"Subject":"[^"]*"' <<<"$msgs")"
-grep -q HostDiskFull <<<"$msgs" && fail "an urgency none alert was mailed"
+grep -q "$NONE_ALERT" <<<"$msgs" && fail "an urgency none alert was mailed"
 # Tickets go to the mailer after their own group_wait (1m).
 for _ in $(seq 1 90); do
 	status="$(api "http://$NET-mailer:19130/v1/status")"
@@ -171,7 +178,7 @@ echo "[ok] AlertPipelineHeartbeat reaches the mailer's pipeline receipt"
 # mailer, cap 2, with today listed at 3, takes three distinct pages straight
 # on its webhook and mails all three.
 today="$(TZ=America/Chicago date +%F)"
-sed -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' -e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' \
+sed -e 's/^  mode: dry-run$/  mode: send/' -e 's/^  max_per_day: [0-9]*$/  max_per_day: 2/' -e 's/^  max_per_hour: [0-9]*$/  max_per_hour: 2/' \
 	-e 's/^    max_per_day: [0-9]*$/    max_per_day: 3/' -e 's/^    max_per_hour: [0-9]*$/    max_per_hour: 3/' \
 	-e "s/^    dates: \[\]\$/    dates: [\"$today\"]/" -e 's/^  delivery: [a-z]*$/  delivery: immediate/' \
 	"$REPO_ROOT/observability/alerting/policy.yaml" >"$T/mailer/policy-runday.yaml"

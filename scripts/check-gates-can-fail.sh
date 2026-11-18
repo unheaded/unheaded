@@ -503,6 +503,18 @@ provoke_module_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_prom_config() {
+    # Contract: the real prometheus.yml loads in the Prometheus that is
+    # deployed. Put back the defect of 2026-11-18: a module glob with a
+    # wildcard in a directory, which Prometheus refuses for the whole config
+    # ("invalid rule file path"), so it would not start.
+    local f="monitoring/prometheus/prometheus.yml"
+    backup "${f}"
+    sed -i "s|^  - '/etc/unheaded-modules/_prometheus/rules/\*\.yml'\$|  - '/etc/unheaded-modules/*/prometheus/rules/*.yml'|" "${REPO_ROOT}/${f}"
+    grep -qxF "  - '/etc/unheaded-modules/*/prometheus/rules/*.yml'" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_module_binds() {
     # Contract (ADR-149): no module unit listens on a public address. Put
     # zhen-agentd's API on the wildcard.
@@ -1472,6 +1484,7 @@ test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 check-prometheus-rules|provoke_prom_keep_list|fast|a rule reads a series the keep-list lacks
 check-prometheus-rules|provoke_module_rules|slow|a module rule test expects the wrong label (needs docker)
+check-prometheus-rules|provoke_prom_config|slow|prometheus.yml globs module rules through a directory wildcard, which Prometheus refuses to load (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 backup/test-store-backups|provoke_store_backups|slow|clickhouse-drill.sh's SHA256SUMS check made to always pass, so a damaged set drills clean (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
