@@ -108,3 +108,40 @@ Befores taken 2026-11-15 21:40-21:52Z on west, read only (lane brief: no sudo, n
 | The promtool half of every RULES-GATE (`scripts/check-prometheus-rules.sh`) | It runs promtool in a throwaway container from the Prometheus image; the lane brief forbids container-based gates until the evidence week ends (a container writes under `/var/lib/docker`). No promtool binary is on west. `alert-policy --check`, `-runbooks` and `tests/runbooks/test_alert_runbooks.py` run at every gate; the promtool tests written in Phases 7-8 are first run at Step 255. One run was started after the Phase 2 tests (about 21:48Z by the commit clock) and stopped before it finished (no output). |
 | `scripts/monitoring/test-alert-path.sh` (cases 6 and 7 new), `scripts/backup/test-store-backups.sh`, `scripts/ci-local.sh` | Throwaway containers (Steps 257, 260); ci-local.sh runs throwaway Wells. E-GATE. |
 | Step 263 (qa-smoke before) | Opens a psql session on the Well. E-GATE. |
+
+## Block D, 2026-11-18 (Phases 12 bookkeeping, 13, 14, 15: live on west)
+
+Executor: one Claude session with sudo, Stevie away. Authority: `docs/battle-plans/DECISION-PACK-2026-11-18.md` rows 1, 2, 16, 33 and its standing limits; `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` ("2026-11-18: the order after the power cycle"). Every commit of this block is unsigned (the signing key is locked): re-sign with `scripts/resign-unpushed.py --only-needed --merges`. Times are UTC. The "Blocked" table above is the record of 2026-11-15; this section is what ran since.
+
+### The Step 348 trap, first (run order C-6)
+
+| Time | What | Result |
+|---|---|---|
+| 20:04 | Before: `cd /home/govan/tmp/unheaded && sudo docker compose config -q` | exit 1: `service "architect" has neither an image nor a build context specified: invalid compose project` |
+| 20:04 | Copy of west's `docker-compose.override.yml` (gitignored) to `/home/govan/tmp/adr147-table/runs/override-before-2026-11-18.yml` (sha256 `1ef9a33a...67f1c6`, same as the file) | done |
+| 20:04 | The five entries `architect:`, `captain:`, `micromanager:`, `monad:`, `sophia:` deleted, each with its `restart: "no"` line (Edit tool). Nothing else changed; the Wotan mount half of plan 2 Step 348 is block E's | 10 lines removed (`diff` against the copy) |
+| 20:04 | After, the same command; then plan 2 Step 350's check `sudo docker compose config --services` | exit 0; 16 services, none of the five. Merged restart policies: `no` for 14, `unless-stopped` for `auth` and `logstore-writer` (as `docker-compose.yml` has them; the override never named those two; not changed here) |
+
+Undo: `cp /home/govan/tmp/adr147-table/runs/override-before-2026-11-18.yml /home/govan/tmp/unheaded/docker-compose.override.yml` (compose in the main project then fails again). The five role containers keep running as orphans of the project until plan 2 Step 349.
+
+### Phase 12, bookkeeping (Steps 247-248, 265-266, 268-270)
+
+| Time | Step | Result |
+|---|---|---|
+| 20:04 | 247 | **E-GATE open.** Evidence: `docs/battle-plans/progress/S-E1-LIVE-progress.md` line 232, "Step 284: Stevie's verdict (2026-11-18, about 00:30Z)": "The week is closed. ClickHouse stays." |
+| 20:04 | 248 | This row |
+| | 249-262, 264, 267 | Replaced: block C (merge `eacbd344`, 00:47Z) and block B (32 of 32 green on `67af4654`, `~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt`: `alert-path` 7 checks, `store-backups` 9 cases 0 failures, `prometheus-rules` pass, `ci-local` passed) |
+| | 263 | Taken in block A, 2026-11-18 00:39Z: passed 7, failed 43, run without docker rights (the plan's amended text) |
+| 20:05 | 265 | `git status --short` in the main checkout: 1 line, `?? demos/doom/` (another worker's, untracked; no tracked file changed). The gate bites: `meta-gate-full-rerun.log` of the same run, "check-unit-start-limits OK, bites when provoked (exit 1)" |
+| 20:05 | 268 | The merge commit is `eacbd344` (signed: it carries a `gpgsig` header). West's bind-mounted files have been the merged tree's since 00:47Z; the old stack was started on them at 16:05Z (block A) and loaded them then: logged as the step asks |
+| 20:05 | 269 | Merge `eacbd344`, signed. SS7's text for Stevie stands under "For Stevie" above (orion's `log_format`) |
+| | 266, 270 | One commit for both (the same single file): see the commit list at the end of this section |
+
+Befores for Phases 13 to 15, read 20:05Z before any change:
+
+| What | Reading |
+|---|---|
+| Containers | 22 running, all healthy where a health check exists: 17 of the old stack as block A started it, and the five role services; `unheaded-alert-mailer` Exited (0) 19 h ago (left stopped on purpose) |
+| Failed units (Step 311's command) | **1, not 0:** `unheaded-well-backup.service`, failed 06:18:07Z today (its timer fired 14 minutes after the boot, the Well was down). Phase 14's gate compares with 1 |
+| Long-running units (Step 308's command) | huginn, chaos-controller, kev-poller, syslog-relay, vor, wiki-server, zhen-ui-front, zhen-agentd: all `StartLimitIntervalUSec=10s`, `StartLimitBurst=5`; `NRestarts` 0 for seven, **6,885 for zhen-agentd** (it looped every 5 s from the boot at 06:04Z until the Well came up at 16:06Z; running since 16:06:29Z); trace-collector 10 min / 60 |
+| `/srv/backups` | `unheaded-well`, `unheaded-grafana-10.4`; no store set. `/srv` is on the NVMe (`ubuntu--vg-ubuntu--lv`), Docker's data on `/dev/sdb` |
