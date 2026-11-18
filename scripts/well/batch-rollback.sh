@@ -20,14 +20,17 @@
 # bootstrap superuser, as scripts/well/restore-drill.sh restores: the ledger
 # belongs to the superuser, so no owner role could restore it. `postgres`
 # itself, when touched (cluster-level files), is dropped and restored from
-# template1. Then a role the batch created (a CREATE ROLE in a pending file,
+# template1. A database the batch created (named in created-databases; the
+# set, taken before the batch, has no dump of it) is dropped and not
+# restored. Then a role the batch created (a CREATE ROLE in a pending file,
 # absent from the set's globals.sql) loses its remaining grants (DROP OWNED
 # in every database) and is dropped. Writes made to a touched database after
 # the backup are lost; untouched databases are left alone.
 #
 # Refuses, changing nothing, when: pending.tsv is missing or empty; there is
 # not exactly one set; SHA256SUMS does not verify; a touched database has no
-# dump. After a restore it checks that no pending file is left in any
+# dump and is not in created-databases; created-databases names a database
+# the set does hold. After a restore it checks that no pending file is left in any
 # touched ledger and prints each ledger's tail.
 #
 # Environment: WELL_CONTAINER (default unheaded-postgres), WELL_MIGRATIONS_DIR
@@ -63,8 +66,19 @@ SU="$(sed -n 's/^superuser=//p' "$SET/cluster.env")"
 
 mapfile -t DBS < <(cut -f1 "$PRE/pending.tsv" | sort -u)
 mapfile -t FILES < <(cut -f2 "$PRE/pending.tsv")
+# Databases the batch created (batch-apply.sh's created-databases; a
+# directory from before that file existed has none): no dump can hold them.
+CREATED=()
+[[ ! -f "$PRE/created-databases" ]] || mapfile -t CREATED < <(grep -v '^[[:space:]]*$' "$PRE/created-databases" || true)
+for db in "${CREATED[@]}"; do
+	[[ "$db" =~ ^[a-z_][a-z0-9_]*$ && "$db" != postgres && "$db" != template0 && "$db" != template1 ]] ||
+		{ echo "[rollback] bad database name in created-databases: '$db'" >&2; exit 2; }
+	[[ " ${DBS[*]} " == *" $db "* ]] || { echo "[rollback] created-databases names $db, which pending.tsv does not" >&2; exit 2; }
+	[[ ! -e "$SET/$db.dump" ]] || { echo "[rollback] created-databases names $db, but the set holds a dump of it" >&2; exit 2; }
+done
 for db in "${DBS[@]}"; do
 	[[ "$db" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "[rollback] bad database name in pending.tsv: '$db'" >&2; exit 2; }
+	[[ " ${CREATED[*]} " == *" $db "* ]] && continue
 	[[ -f "$SET/$db.dump" ]] || { echo "[rollback] the set has no dump of $db" >&2; exit 2; }
 	grep -q "  $db.dump\$" "$SET/SHA256SUMS" || { echo "[rollback] $db.dump is not in SHA256SUMS" >&2; exit 2; }
 done
@@ -72,9 +86,9 @@ for f in "${FILES[@]}"; do
 	[[ "$f" =~ ^[0-9]{3}_[a-z0-9_]+\.sql$ ]] || { echo "[rollback] bad file name in pending.tsv: '$f'" >&2; exit 2; }
 done
 # `postgres` last: the other restores do not need it, and it is the one
-# whose drop ends the most sessions.
+# whose drop ends the most sessions. Created databases are not restored.
 ORDER=()
-for db in "${DBS[@]}"; do [[ "$db" == postgres ]] || ORDER+=("$db"); done
+for db in "${DBS[@]}"; do [[ "$db" == postgres || " ${CREATED[*]} " == *" $db "* ]] || ORDER+=("$db"); done
 for db in "${DBS[@]}"; do [[ "$db" == postgres ]] && ORDER+=("$db"); done
 
 # Roles the batch created: named by a CREATE ROLE in a pending file and
@@ -93,7 +107,8 @@ done
 
 echo "[rollback] set $SET (superuser $SU), container $C"
 echo "[rollback] batch files: ${FILES[*]}"
-echo "[rollback] databases to drop and restore: ${ORDER[*]}"
+echo "[rollback] databases to drop and restore: ${ORDER[*]:-(none)}"
+echo "[rollback] databases to drop, created by the batch: ${CREATED[*]:-(none)}"
 echo "[rollback] roles to drop: ${ROLES[*]:-(none)}"
 if ((!YES)); then
 	echo "[rollback] plan only: add --yes to do it (writes made since the backup to those databases are lost)"
@@ -102,6 +117,12 @@ fi
 
 # </dev/null: inside a `while read` loop, exec -i would eat the loop's input.
 sqlq() { x psql -X -q -At -v ON_ERROR_STOP=1 -U "$SU" -d "$1" -c "$2" </dev/null; }
+# Created databases first: the role that owns one cannot be dropped, and a
+# restored `postgres` must not find it either.
+for db in "${CREATED[@]}"; do
+	echo "[rollback] $db: drop (the batch created it)"
+	sqlq template1 "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)"
+done
 for db in "${ORDER[@]}"; do
 	echo "[rollback] $db: drop and restore"
 	sqlq template1 "DROP DATABASE IF EXISTS \"$db\" WITH (FORCE)"
@@ -130,5 +151,10 @@ for db in "${ORDER[@]}"; do
 	echo "[rollback] $db ledger tail:"
 	sqlq "$db" "SELECT filename || '  ' || mode || '  ' || to_char(applied_at AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') FROM well_schema_migrations ORDER BY filename DESC LIMIT 3" | sed 's/^/  /'
 done
+for db in "${CREATED[@]}"; do
+	if [[ "$(sqlq template1 "SELECT count(*) FROM pg_database WHERE datname = '$db'")" != 0 ]]; then
+		echo "[rollback] $db still exists" >&2; bad=1
+	fi
+done
 ((bad == 0)) || exit 1
-echo "[rollback] done: ${ORDER[*]} are as backed up in $SET. Role passwords are untouched (no role was restored); restart the services that use these databases."
+echo "[rollback] done: ${ORDER[*]:-no database} as backed up in $SET${CREATED[*]:+; dropped ${CREATED[*]}}. Role passwords and attributes are untouched (no role was restored); restart the services that use these databases."

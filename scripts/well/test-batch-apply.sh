@@ -14,11 +14,17 @@
 #      nothing, with --yes puts every touched database (postgres included)
 #      back at 029, drops the roles the batch created and keeps the rows
 #      written before the backup; a corrupt set or a stray directory is
-#      refused;
+#      refused; a database the batch created (051 makes unheaded_zhen, so
+#      no set taken before the batch can hold it) is recorded in
+#      created-databases and dropped, with its owner role;
 #   4. the real batch applies, status is clean, every file is in its ledger;
 #   5. rollback of that batch returns every ledger to 029; a batch with
 #      --through applies its part and leaves the rest pending; apply again
-#      finishes it; a third run finds nothing pending.
+#      finishes it; a third run finds nothing pending;
+#   6. a later batch that touches unheaded_zhen, which now exists, has its
+#      dump in the pre-batch set and is rolled back by a restore; a batch
+#      for a database that neither exists nor is created by a pending file
+#      is refused before anything is applied.
 #
 #   timeout 900 scripts/well/test-batch-apply.sh [image]   # default postgres:16.15-alpine
 set -euo pipefail
@@ -125,6 +131,9 @@ mapfile -t PRES < <(find "$TMP/backups" -mindepth 1 -maxdepth 1 -type d -name 'p
 ((${#PRES[@]} == 1)) && pass "one pre-batch directory" || fail "${#PRES[@]} pre-batch directories"
 PRE1="${PRES[0]}"
 grep -q $'^unheaded_app\t999_test_batch_fails.sql$' "$PRE1/pending.tsv" && pass "pending.tsv records the batch" || fail "pending.tsv: $(cat "$PRE1/pending.tsv")"
+[[ "$(cat "$PRE1/created-databases" 2>/dev/null)" == unheaded_zhen ]] && [[ -z "$(find "$PRE1" -name unheaded_zhen.dump)" ]] &&
+	pass "created-databases names unheaded_zhen, which the set cannot hold" || fail "created-databases: $(cat "$PRE1/created-databases" 2>&1)"
+[[ "$(sq postgres "SELECT count(*) FROM pg_database WHERE datname = 'unheaded_zhen'")" == 1 ]] && pass "A1: the batch created unheaded_zhen before it failed" || fail "A1: no unheaded_zhen after the failed batch"
 
 run 2 "rollback refuses a directory without pending.tsv" rollback --yes "$TMP"
 cp -a "$PRE1" "$TMP/corrupt"
@@ -134,13 +143,16 @@ run 2 "rollback refuses a set whose checksums fail" rollback --yes "$TMP/corrupt
 rm -rf -- "$TMP/corrupt"
 before="$(ledger_max)"
 WELL_MIGRATIONS_DIR="$TMP/broken/migrations" run 0 "rollback without --yes prints the plan" rollback "$PRE1"
-grep -q "roles to drop: app_auth retention_runner log_writer\$" "$TMP/out" && pass "the plan names the roles the batch created" || fail "plan: $(grep roles "$TMP/out")"
+grep -q "roles to drop: app_auth retention_runner log_writer well_zhen_owner\$" "$TMP/out" && pass "the plan names the roles the batch created" || fail "plan: $(grep roles "$TMP/out")"
+grep -q "databases to drop, created by the batch: unheaded_zhen\$" "$TMP/out" && ! grep -q "drop and restore:.*unheaded_zhen" "$TMP/out" &&
+	pass "the plan drops unheaded_zhen and does not try to restore it" || fail "plan: $(grep databases "$TMP/out")"
 [[ "$(ledger_max)" == "$before" ]] && pass "the plan changed nothing" || fail "plan-only run changed a ledger"
 WELL_MIGRATIONS_DIR="$TMP/broken/migrations" run 0 "A1: rollback --yes" rollback --yes "$PRE1"
 [[ "$(ledger_max)" == "$AT029" ]] && pass "A1: every ledger back at 029" || fail "A1: ledgers $(ledger_max), want $AT029"
 [[ "$(sq unheaded_ops "SELECT to_regclass('llm_requests') IS NULL")$(sq unheaded_app "SELECT to_regclass('api_keys') IS NULL")$(sq unheaded_ops "SELECT to_regclass('slo_definitions') IS NULL")$(sq unheaded_ops "SELECT to_regclass('retention_runs') IS NULL")" == tttt ]] &&
 	pass "A1: the batch's tables are gone" || fail "A1: batch tables survived"
-[[ "$(sq postgres "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_auth', 'retention_runner', 'log_writer')")" == 0 ]] && pass "A1: the batch's roles are gone" || fail "A1: app_auth, retention_runner or log_writer survived"
+[[ "$(sq postgres "SELECT count(*) FROM pg_roles WHERE rolname IN ('app_auth', 'retention_runner', 'log_writer', 'well_zhen_owner')")" == 0 ]] && pass "A1: the batch's roles are gone" || fail "A1: app_auth, retention_runner, log_writer or well_zhen_owner survived"
+[[ "$(sq postgres "SELECT count(*) FROM pg_database WHERE datname = 'unheaded_zhen'")" == 0 ]] && pass "A1: the database the batch created is gone" || fail "A1: unheaded_zhen survived the rollback"
 [[ "$(sq unheaded_app "SELECT count(*) FROM kanban_tasks WHERE id = 'pre-batch-card'")" == 1 ]] && pass "A1: rows written before the batch kept" || fail "A1: pre-batch row lost"
 [[ "$(sq unheaded_app "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'kanban_tasks'::regclass")" == well_app_owner ]] &&
 	pass "A1: owners restored (kanban_tasks is well_app_owner's)" || fail "A1: kanban_tasks owner"
@@ -170,6 +182,7 @@ PRE2="$(find "$TMP/backups" -mindepth 1 -maxdepth 1 -type d -name 'pre-batch-*' 
 [[ "$PRE2" != "$PRE1" ]] || fail "no new pre-batch directory"
 run 0 "rollback of the real batch" rollback --yes "$PRE2"
 [[ "$(ledger_max)" == "$AT029" ]] && pass "every ledger back at 029" || fail "ledgers $(ledger_max), want $AT029"
+[[ "$(sq postgres "SELECT count(*) FROM pg_database WHERE datname = 'unheaded_zhen'")" == 0 ]] && pass "unheaded_zhen dropped with the batch that created it" || fail "unheaded_zhen survived the rollback of the real batch"
 sleep 1
 run 0 "a batch --through $FIRST" batch --from 030 --through "$FIRST"
 grep -q "done through $FIRST; $(wc -l <<<"$LATER") later file(s) left pending" "$TMP/out" && pass "it says what it left pending" || fail "--through report: $(tail -1 "$TMP/out")"
@@ -184,6 +197,33 @@ rc=0; WELL_MIGRATE_PASSWORD="$PW" "$TMP/well-migrate" -dir "$R/db/migrations" st
 ((rc == 0)) && pass "status clean after the second apply" || fail "status rc $rc"
 run 0 "a third run" batch
 grep -q "nothing pending" "$TMP/out" && pass "a third run finds nothing pending" || fail "third run: $(tail -1 "$TMP/out")"
+
+# 6. unheaded_zhen exists now. A batch that touches it is backed up and
+# rolled back like any other database.
+mkdir -p "$TMP/later"
+cp -a "$R/db/migrations" "$TMP/later/migrations"
+printf 'CREATE TABLE test_batch_zhen_touch (id int);\n' >"$TMP/later/migrations/998_test_zhen_touch.sql"
+echo "unheaded_zhen 998_test_zhen_touch.sql" >>"$TMP/later/migrations/MANIFEST"
+sleep 1
+WELL_MIGRATIONS_DIR="$TMP/later/migrations" run 0 "a later batch in unheaded_zhen" batch
+PRE4="$(find "$TMP/backups" -mindepth 1 -maxdepth 1 -type d -name 'pre-batch-*' | sort | tail -1)"
+[[ -n "$(find "$PRE4" -name unheaded_zhen.dump)" && ! -s "$PRE4/created-databases" ]] &&
+	pass "its set holds a dump of unheaded_zhen and nothing is marked created" || fail "later batch: dump or created-databases wrong in $PRE4"
+[[ "$(sq unheaded_zhen "SELECT to_regclass('test_batch_zhen_touch') IS NOT NULL")" == t ]] && pass "the later batch applied in unheaded_zhen" || fail "998 did not apply"
+WELL_MIGRATIONS_DIR="$TMP/later/migrations" run 0 "rollback of the later batch" rollback --yes "$PRE4"
+[[ "$(sq unheaded_zhen "SELECT to_regclass('test_batch_zhen_touch') IS NULL")$(sq unheaded_zhen "SELECT count(*) FROM well_schema_migrations WHERE filename = '052_zhen_schema.sql'")" == t1 ]] &&
+	pass "unheaded_zhen restored: 998's table gone, 052 still in its ledger" || fail "unheaded_zhen after the rollback of the later batch"
+
+# A database that does not exist and that no pending file creates.
+mkdir -p "$TMP/nodb"
+cp -a "$R/db/migrations" "$TMP/nodb/migrations"
+printf 'CREATE TABLE test_batch_nodb (id int);\n' >"$TMP/nodb/migrations/997_test_no_database.sql"
+echo "unheaded_nowhere 997_test_no_database.sql" >>"$TMP/nodb/migrations/MANIFEST"
+before="$(ledger_max)"
+sleep 1
+WELL_MIGRATIONS_DIR="$TMP/nodb/migrations" run 1 "a batch for a database nothing creates is refused" batch
+grep -q "no dump of unheaded_nowhere" "$TMP/out" && grep -q "nothing applied" "$TMP/out" && [[ "$(ledger_max)" == "$before" ]] &&
+	pass "it names the database and applies nothing" || fail "missing database: $(tail -2 "$TMP/out")"
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi
 echo "all checks passed"

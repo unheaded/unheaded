@@ -25,7 +25,8 @@
 #   2. takes a full backup set into that directory with scripts/db-backup.sh
 #      (globals, every database, row counts, SHA256SUMS: the layout
 #      scripts/well/restore-drill.sh and batch-rollback.sh restore), as the
-#      read-only well_backup role inside the Well's container;
+#      read-only well_backup role inside the Well's container; a database
+#      the batch creates has no dump and is listed in created-databases;
 #   3. runs well-migrate apply -yes (lock_timeout 5s, statement_timeout 5m per
 #      migration; it stops at the first failure, which records nothing);
 #   4. prints the ledger rows the batch added and checks status is clean.
@@ -36,6 +37,8 @@
 #   WELL_MIGRATE_PASSWORD  required (the superuser's; .env, never the repo)
 #   WELL_HOST, WELL_PORT, WELL_SSLMODE, WELL_MIGRATE_USER  as well-migrate
 #   WELL_CONTAINER         container running The Well (default unheaded-postgres)
+#   WELL_BACKUP_ROLE       role that takes the set and is asked which
+#                          databases exist (default well_backup)
 #   WELL_BATCH_BACKUP_ROOT where pre-batch-* directories go
 #                          (default /srv/backups/unheaded-well)
 #   WELL_MIGRATIONS_DIR    migrations directory (default db/migrations)
@@ -123,14 +126,41 @@ cp "$TMP/before.txt" "$PRE/status-before.txt"
 echo "[batch] backing up into $PRE"
 # Its own set, kept apart from the nightly ones; no metrics file, so the
 # nightly backup's freshness metric stays the nightly's.
-env -u WELL_METRICS_DIR WELL_BACKUP_DIR="$PRE" bash "$R/scripts/db-backup.sh" --keep 1 >"$TMP/backup.log" 2>&1 ||
+# Every database, Zhen's included: the nightly platform set leaves
+# unheaded_zhen to its own set, but a batch may touch it.
+env -u WELL_METRICS_DIR -u WELL_BACKUP_DATABASES WELL_BACKUP_EXCLUDE='' WELL_BACKUP_DIR="$PRE" \
+	bash "$R/scripts/db-backup.sh" --keep 1 >"$TMP/backup.log" 2>&1 ||
 	{ cat "$TMP/backup.log" >&2; echo "[batch] backup failed: nothing applied" >&2; exit 1; }
 tail -1 "$TMP/backup.log"
 mapfile -t SETS < <(find "$PRE" -mindepth 2 -maxdepth 2 -type d -name 'well-[0-9]*Z')
 ((${#SETS[@]} == 1)) || { echo "[batch] expected one backup set under $PRE, found ${#SETS[@]}: nothing applied" >&2; exit 1; }
-cut -f1 "$PRE/pending.tsv" | sort -u | while read -r db; do
-	[[ -f "${SETS[0]}/$db.dump" ]] || { echo "[batch] the set has no dump of $db: nothing applied" >&2; exit 1; }
-done
+# A database the batch itself creates (051 makes unheaded_zhen) cannot be in
+# a set taken before the batch. It is accepted without a dump only when it
+# does not exist now and a pending file for `postgres` creates it; it goes
+# into created-databases, and batch-rollback.sh drops it instead of
+# restoring it. Any other database without a dump stops the batch here.
+C="${WELL_CONTAINER:-unheaded-postgres}"
+BROLE="${WELL_BACKUP_ROLE:-well_backup}"
+DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
+: >"$PRE/created-databases"
+while read -r db; do
+	[[ -f "${SETS[0]}/$db.dump" ]] && continue
+	[[ "$db" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "[batch] bad database name in the pending list: '$db': nothing applied" >&2; exit 1; }
+	n="$("${DOCKER[@]}" exec "$C" psql -X -At -v ON_ERROR_STOP=1 -U "$BROLE" -d postgres \
+		-c "SELECT count(*) FROM pg_database WHERE datname = '$db'" </dev/null)" ||
+		{ echo "[batch] cannot ask $C whether $db exists: nothing applied" >&2; exit 1; }
+	creates=0
+	while read -r f; do
+		grep -qiE "^[[:space:]]*CREATE[[:space:]]+DATABASE[[:space:]]+\"?$db\"?([[:space:];]|\$)" "$DIR/$f" && creates=1
+	done < <(awk -F'\t' '$1 == "postgres" {print $2}' "$PRE/pending.tsv")
+	if [[ "$n" == 0 ]] && ((creates)); then
+		echo "$db" >>"$PRE/created-databases"
+		echo "[batch] $db does not exist yet and this batch creates it: no dump; a rollback drops it"
+		continue
+	fi
+	echo "[batch] the set has no dump of $db: nothing applied" >&2
+	exit 1
+done < <(cut -f1 "$PRE/pending.tsv" | sort -u)
 
 # 3. Apply.
 echo "[batch] applying"
