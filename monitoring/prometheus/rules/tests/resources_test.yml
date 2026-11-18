@@ -91,7 +91,9 @@ tests:
               runbook_url: "runbooks/observe/host-pressure.yaml"
 
   # 6. 66 C against a 70 C mark fires; 60 C does not; a sensor with no
-  # critical mark never does.
+  # critical mark never does. The alert carries the labels the rule matches
+  # on (instance, chip, sensor) and no job: a one-to-one `on (...)` keeps
+  # only those.
   - interval: 1m
     input_series:
       - series: 'node_hwmon_temp_celsius{job="node_exporter",instance="[fd00:dead:beef::2]:9100",chip="pci0000:00_0000:00:18_3",sensor="temp1"}'
@@ -108,7 +110,7 @@ tests:
       - eval_time: 12m
         alertname: HostTemperatureNearCritical
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, job: node_exporter, instance: "[fd00:dead:beef::2]:9100", chip: "pci0000:00_0000:00:18_3", sensor: temp1}
+          - exp_labels: {severity: warning, urgency: none, instance: "[fd00:dead:beef::2]:9100", chip: "pci0000:00_0000:00:18_3", sensor: temp1}
             exp_annotations:
               summary: "pci0000:00_0000:00:18_3 temp1 on [fd00:dead:beef::2]:9100 is within 5 C of its critical mark"
               description: "The sensor has read within 5 C of node_hwmon_temp_crit_celsius for 10 minutes."

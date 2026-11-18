@@ -32,10 +32,13 @@ tests:
               runbook_url: "runbooks/infra/host-settings-drift.yaml"
 
   # A check that last completed at t=0 and never again: stale after 2 days (+1 h).
-  - interval: 1h
+  # One sample a minute, as huginn forwards the textfile on every push: a
+  # sample an hour leaves the series absent between samples (Prometheus looks
+  # back 5 minutes), and `for: 1h` then never completes.
+  - interval: 1m
     input_series:
       - series: 'unheaded_host_settings_checked_timestamp_seconds{host="west"}'
-        values: '0x80'
+        values: '0x4400'
     alert_rule_test:
       - eval_time: 49h
         alertname: HostSettingsCheckStale
@@ -49,12 +52,16 @@ tests:
               description: "Last completed 3d 0h 0m 0s ago; see journalctl -u unheaded-host-settings"
               runbook_url: "runbooks/infra/host-settings-drift.yaml"
 
-  # A fresh check every hour: quiet.
-  - interval: 1h
+  # A check that completes once a day (the timer's schedule): quiet, also
+  # just before the next run, when the last one is a day old.
+  - interval: 1m
     input_series:
       - series: 'unheaded_host_settings_checked_timestamp_seconds{host="west"}'
-        values: '0+3600x80'
+        values: '0x1439 86400x1439 172800x1439 259200x80'
     alert_rule_test:
+      - eval_time: 47h59m
+        alertname: HostSettingsCheckStale
+        exp_alerts: []
       - eval_time: 72h
         alertname: HostSettingsCheckStale
         exp_alerts: []

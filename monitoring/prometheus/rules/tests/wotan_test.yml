@@ -27,7 +27,7 @@ tests:
         values: '0x29 1x60'
       - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="publish",outcome="denied",caller="timeguru"}'
         values: '0x90'
-      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="timeguru"}'
+      - series: 'unheaded_wotan_topic_permission_refusals_total{job="wotan",instance="[fd00:dead:beef::1]:18000",action="subscribe",outcome="denied",caller="gateway"}'
         values: '0x90'
     alert_rule_test:
       - eval_time: 29m
