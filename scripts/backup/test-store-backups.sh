@@ -48,6 +48,14 @@ fails=0
 pass() { echo "[PASS] $*"; }
 fail() { echo "[FAIL] $*"; fails=$((fails + 1)); }
 freeport() { python3 -c 'import socket; s=socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1])'; }
+# Flip every bit of a file's first byte. Writing a fixed byte is not damage
+# when the file already starts with it (a VictoriaMetrics part may start 0x00).
+damage() {
+	local b
+	b="$(od -An -tu1 -N1 "$1" | tr -d ' ')"
+	[[ "$b" =~ ^[0-9]+$ ]] || { echo "damage: cannot read $1" >&2; return 1; }
+	printf "\\$(printf '%03o' $((b ^ 255)))" | dd of="$1" bs=1 seek=0 count=1 conv=notrunc status=none
+}
 
 export CH_CONTAINER="$CH" CH_BACKUP_DIR="$T/chsets" CH_UID="$U" CH_BACKUPS_XML="$R/config/clickhouse/backups.xml" \
 	CH_DRILL_SCRATCH="$T/chscratch" CH_BACKUP_OTHER_DISK=0 STORE_METRICS_DIR="$T/prom"
@@ -90,8 +98,8 @@ if [[ -n "$name" ]]; then
 	cp -a "$T/chsets/$name" "$T/chsets/$bad"
 	sed "s/$name/$bad/" "$T/chsets/$name.meta.env" >"$T/chsets/$bad.meta.env"
 	cp "$T/chsets/$name.SHA256SUMS" "$T/chsets/$bad.SHA256SUMS"
-	f="$(find "$T/chsets/$bad" -type f -size +0 | head -1)"
-	printf '\x00' | dd of="$f" bs=1 seek=0 count=1 conv=notrunc status=none
+	f="$(find "$T/chsets/$bad" -type f -size +0 | sort | head -1)"
+	damage "$f"
 	out="$("$B/clickhouse-drill.sh" "$bad" 2>&1)" && fail "4 a damaged set passed" ||
 		{ grep -q 'set damaged' <<<"$out" && pass "4 a flipped byte: set damaged" || fail "4 wrong refusal: $out"; }
 	off=ch-20000102T000000Z
@@ -125,8 +133,8 @@ if "$B/victoria-backup.sh" >"$T/vm1.log" 2>&1; then
 	vname="$(cat "$T/vmsets/LATEST")"
 	grep -qx 'SERIES=50' "$T/vmsets/$vname.meta.env" && pass "7 VictoriaMetrics set, SERIES=50" || fail "7 meta: $(cat "$T/vmsets/$vname.meta.env")"
 	if "$B/victoria-drill.sh" >"$T/vmd.log" 2>&1; then pass "7 VictoriaMetrics drill"; else fail "7 VictoriaMetrics drill: $(tail -3 "$T/vmd.log")"; fi
-	f="$(find "$T/vmsets/$vname" -type f -size +0 | head -1)"
-	printf '\x00' | dd of="$f" bs=1 seek=0 count=1 conv=notrunc status=none
+	f="$(find "$T/vmsets/$vname" -type f -size +0 | sort | head -1)"
+	damage "$f"
 	out="$("$B/victoria-drill.sh" 2>&1)" && fail "7 a damaged set passed" ||
 		{ grep -q 'set damaged' <<<"$out" && pass "7 a flipped byte: set damaged" || fail "7 wrong refusal: $out"; }
 else
