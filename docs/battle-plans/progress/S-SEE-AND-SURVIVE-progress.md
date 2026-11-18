@@ -195,3 +195,102 @@ REV-4 (the store-backups SLO reads bad until both stores have a drill on record)
 | 20:27:40 | 307-308 | `10-start-limit.conf` on all eight units, `daemon-reload`, no restart. `StartLimitIntervalUSec=2h`, `StartLimitBurst=180` on each; `NRestarts` as before (0, zhen-agentd 6,885); start times unchanged. Pass |
 | | 309 | SSV-09 after in the Fixes table. Undo: `sudo rm /etc/systemd/system/<unit>.service.d/10-start-limit.conf && sudo systemctl daemon-reload` |
 | 20:37 | 311-312 | `systemctl --failed`: 1, the same one as before Step 297 (`unheaded-well-backup.service`, since 06:18Z; see Step 318). **PHASE 14 EXIT GATE: PASS** (the count did not change; the series are live). It is 1 where the plan expected 0 |
+
+Commit `63a7c9e4` (unsigned).
+
+### Phase 15: rules loaded; the mailer NOT switched to send; no drill run (Steps 313-334)
+
+**Stopped at Step 318. `[STUCK]` 318; `[BLOCKED]` 319 to 333. PHASE 15 EXIT GATE: NOT PASSED.** Mail is as block D found it: `policy.yaml` `mode: dry-run`, `unheaded-alert-mailer` stopped, old build. Nothing was sent.
+
+| Time | Step | Result |
+|---|---|---|
+| 20:37:58 | 313 | Firing before the reload (`firing-before.txt`), 16 lines: AlertMailerDown, AlertPipelineHeartbeat, ComplianceEvidenceSilent, ComplianceReportBroken, ErrorBudgetBurn store-backups x2, ErrorBudgetBurn well-backups x4, LogSpam, WellBackupLate, WellOffsiteLate, WotanTopicPermissionRefused x3 |
+| 20:38:05 to 20:38:36 | 314 | HUP to Prometheus, 20 s, HUP to Alertmanager. Prometheus: "Completed loading of configuration file", no error. Alertmanager: "Completed loading of configuration file". No file under `monitoring/` or `observability/` was committed since the 16:05Z start, so the HUP loaded what Prometheus already ran |
+| 20:38:40 | 315 | Rules: `True` (ContainerStopped, MemoryKill, HostMemoryPressure, VictoriaMetricsDown, StoreBackupLate all loaded); 25 groups, 152 rules, every one `health: ok`. `up{job="victoria"}` 1. **The step's last check cannot pass as written:** `curl -s 127.0.0.1:9093/api/v2/status \| grep -c 'alerts/pipeline'` gives 0 because Alertmanager v0.34.1 prints every webhook URL as `<secret>` in `/api/v2/status` (3 `url: <secret>`, 0 plain). Read instead: the loaded config has the route `- receiver: pipeline` and the receiver `- name: pipeline` with `max_alerts: 1`, and `/api/v2/alerts` shows AlertPipelineHeartbeat routed to `pipeline`. Taken as pass; the check's text is a follow-up |
+| | 316 | Not needed |
+| 20:39:01 | 317 | `comm -13` before/after: nothing new fires after the reload, nothing went |
+| 20:39 to 20:45 | 318 | **`[STUCK]`. Promoted alerts are firing, so the mailer may not go to send** (the step's own rule). All are tickets, none a page. Each is understood (table below); none can be made to stop inside this block |
+| | 319-324 | `[BLOCKED]` by 318. `policy.yaml` not edited, not committed; the mailer not built, not recreated; no test page posted |
+| | 325-333 | `[BLOCKED]`: the four drills prove outbox lines of a mailer in send (Step 322: "Mail stays off; Phase 15's drills are `[BLOCKED]`"). No container was stopped, no throwaway container or unit was made, Alertmanager was not stopped |
+| 20:50 | 334 | Exit gate not passed: rules loaded, mail off, no drill. This file committed |
+
+**Step 318, what fires and why (20:39Z, Alertmanager's own list with its receivers):**
+
+| Alert | Count | Receiver | Why | Ends when |
+|---|---|---|---|---|
+| ErrorBudgetBurn `store-backups` | 2 tiers (3 at 20:31Z) | ticket | Block A's `docker start` at 16:05Z loaded the new rules four hours before the first sets existed, so the SLO read bad from 16:05Z to 20:14Z (REV-4, as feared). Fixed at its source by Steps 279-284; the budget moved from -99 to -87 | By itself as the look-back windows pass: the last tier about 6 h after 20:14Z |
+| ErrorBudgetBurn `well-backups` | 4 tiers | ticket | The Well's nightly backup did not run: west was off at 03:30Z, the timer caught up at 06:18Z, 14 minutes after the boot, with the Well down ("unheaded-postgres is not running"); the last set is of 2026-11-17 03:41Z. WellBackupLate and WellOffsiteLate (urgency none) say the same. **Not fixed here:** a run by hand would also start `unheaded-well-offsite.service` (`OnSuccess=`), which copies to east, and this block may not touch east | The timer's next run, 2026-11-19 03:41Z, then the windows |
+| WotanTopicPermissionRefused | 3 (`trace-collector` publish and subscribe, `other` subscribe) | ticket | Old binaries on the merged `configs/wotan.yaml`. (1) West's trace collector (`/usr/local/bin/trace-collector-go` of 2026-11-15) still publishes the mirror topics `ebpf.packet.events`, `ebpf.latency.events`, `ebpf.flow.events`, about 100 refusals a minute each way; develop's collector no longer has them (plan 2), and its permissions list `traces.*`. (2) The role containers (architect, micromanager, sophia seen) subscribe as identities no longer in `topics.permissions` | Block E: plan 2 Step 349 removes the role containers; the rebuilt collector stops publishing the mirror |
+| AlertMailerDown, ComplianceEvidenceSilent, ComplianceReportBroken, LogSpam, WellBackupLate, WellOffsiteLate, AlertPipelineHeartbeat | 1 each | none (the heartbeat: pipeline) | Not promoted; AlertMailerDown is true (the mailer is stopped on purpose) and shows the watcher rule works | |
+
+**Why this is a stop and not a judgment call.** The plan's amended text (Steps 321, 324) and this block's brief expect that under `delivery: digest` no mail leaves when the mailer goes to send. That holds only when nothing is waiting. `cmd/alert-mailer/mailer.go` `Tick` (every minute): once the local time is past `digest_at` and `last_digest` is not today, any open or resolved ticket makes it send the day's digest at once. Read from the stopped mailer's saved state (volume `alert_mailer_data`, counts only): `last_digest: 2026-11-17`, 9 open tickets (all ErrorBudgetBurn). At 14:40 America/Chicago a mailer started in `send` would mail "[digest] N open" within a minute, carrying the tickets above. The brief: "If you ever see evidence that a mail would be sent immediately, stop the mailer and stop the block." So the block stops here, with the mailer never started.
+
+**To finish Phase 15 (Steps 319-334), either way:**
+1. After block E's deploy has ended the Wotan refusals, and with `firing` showing no promoted alert, start at Step 319 **between 06:00Z and 15:00Z** (midnight to 09:00 America/Chicago): then nothing is due at the start, every drill's page waits as `digest`, and the 09:00 digest is the first mail, as the amended steps describe. Outside that window the mailer mails one digest within a minute of Step 320 whenever a ticket is saved or open.
+2. Or Stevie says a late digest at the mailer's start is fine (one mail, the day's only one): then Step 319 can run at any hour once Step 318 is clean, and that digest's `sent` line fills SSV-03's after the same day.
+
+Before either: `monitoring/docker-compose.yml` in the main checkout carries another worker's uncommitted bump of Alertmanager's image (v0.34.1 to v0.34.2, seen 20:38Z). Step 332's `docker compose up -d --no-deps alertmanager` would recreate Alertmanager on it; Step 320's build copies the whole checkout (`COPY . .`). Run both only on a tree where those edits are committed or absent.
+
+### Rows after block D (series rule 15)
+
+Fixes made in this block, each measured the same way before and after:
+
+| id | Seat, row | Evidence | Fix | Owner | Before | After | Status |
+|---|---|---|---|---|---|---|---|
+| BD-1 | run order C-6 (plan 2 Step 348, first half) | `cd /home/govan/tmp/unheaded && sudo docker compose config -q` | the five role entries deleted from west's `docker-compose.override.yml` (copy kept) | block D | exit 1, "service architect has neither an image nor a build context" (20:04Z) | exit 0; `config --services` lists 16, none of the five (20:04Z) | done |
+| BD-2 | plan 1 Step 297; huginn's wildcard refusal (`87bebd39`) | the new binary run with the installed unit's arguments; `systemctl is-active huginn`; `ss -ltn` | drop-in `huginn.service.d/20-listen.conf` naming west's three internal addresses | block D; the coordinator decides whether the repository's unit replaces the drifted one | new binary: "listen :9110: a wildcard address is refused"; old binary listening on `*:9110`, LAN included | `active`, `NRestarts=0`; listeners `127.0.0.1`, `192.168.13.2`, `[fd00:dead:beef::1]`; Prometheus `up` 1, dashboard's `/host-summary` 200; the LAN address refused | done; For Stevie 2 |
+| SSV-21, SSV-22 | (Fixes table above) | | | | | | done live |
+| SSV-16, SSV-09 | (Fixes table above) | | | | | | done live |
+
+The other rows Step 334 names, read 20:39Z. A row is not closed without its drill or its mail:
+
+| id | Live now | Still open |
+|---|---|---|
+| SSV-01 | host state every 30 s: 26 watched containers, 4 not running (alert-mailer, haproxy-edge, haproxy-internal, sword); the ContainerStopped rule loaded, `health: ok`, inactive (none of the four ran in the last 7 days of the new series). A stopped container is now seen by Prometheus | Drill 1 (Step 325); and it reaches nobody while the mailer is stopped |
+| SSV-02 | `huginn_cgroup_memory_events_total{event="oom_kill"}` for 72 cgroups (`system.slice` 0); MemoryKill and HostOOMKill loaded, inactive; `node_vmstat_oom_kill` 4 on west since the boot | Drill 2 (Step 328) |
+| SSV-03 | unchanged from the before: mode `dry-run`; the mailer is stopped (the before had it running in dry-run) | Steps 319-324 |
+| SSV-04 | Alertmanager's loaded config: 31 `alertname=` matchers (9 before the plan), receivers none, page, ticket, pipeline | the mail itself |
+| SSV-05 | not live: `run_days.dates` is empty | Step 319 |
+| SSV-06, SSV-07 | HostMemoryPressure, HostSwapping, HostSwapNearFull, HostIOPressure, HostCPUPressure, HostTemperatureNearCritical loaded, `health: ok`, none firing: pressure, swap and heat are now read by rules (0 rules before). At 20:42Z HostTemperatureNearCritical was `pending` for east's CPU sensor (`[fd00:dead:beef::2]:9100`, `temp1`): a ticket if it holds 10 minutes; east was not touched | closed at Phase 19 with the others |
+| SSV-08 | (Fixes table above) | Drill 3 (Step 330) |
+| SSV-10 | VictoriaMetricsDown, HuginnDown, AlertMailerDown, PrometheusRemoteWriteFailing, AlertmanagerNotReached loaded; `up{job="victoria"}` 1 (no such job before); AlertMailerDown fires, truly | |
+| SSV-11 | the route is loaded and AlertPipelineHeartbeat goes to receiver `pipeline` (it went to `none` before) | the mailer's receipt and Drill 4 (Step 332) |
+| SSV-12, SSV-13 | TraceCollectorHighLatency and VectorSinkDroppingEvents loaded, `health: ok`, inactive | |
+| SSV-17 | the planned-stop mark works end to end on west: two marks (`all`, 20:07:25 to 20:12:48Z and 20:26:14 to 20:26:51Z) were written, forwarded by huginn (24 samples in Prometheus) and ended | the first long stop (plan 2's deploy) |
+| SSV-18 | `ALERTS{alertname="ErrorBudgetBurn",slo="ci-develop"}`: 0 (four tiers fired before); the budget is still recorded (-98.9) | |
+| SSV-19 | the rule file says west; the Well's `slo_definitions` still need `alert-policy -sync-well` | coordinator |
+
+### Follow-ups found (not fixed: outside the files this block may commit)
+
+1. `install -d -o 16707 -g 16707` fails on west (uutils coreutils 0.2.2, no passwd entry for 16707). The line is in the plan's Step 274, in the header of `deploy/systemd/unheaded-clickhouse-backup.service` and in `scripts/backup/clickhouse-backup.sh`'s error text. `wiki/Well-Backups.md` now says how (`e82daf81`).
+2. West's installed `huginn.service` is the drifted one plus two drop-ins (`10-start-limit.conf`, `20-listen.conf`). The repository's unit already reads `${HUGINN_LISTEN}`; `20-listen.conf` is not in `deploy/systemd/dropins/`. Either install the repository's unit with `HUGINN_LISTEN` in `/etc/huginn.env`, or add the drop-in to the repository. Plan 6 will meet the same refusal on east when its huginn is rebuilt.
+3. Step 315's `grep -c 'alerts/pipeline'` on `/api/v2/status` can never count 1: Alertmanager hides webhook URLs there.
+4. Steps 320-324 as amended say no mail leaves under `delivery: digest`. After 09:00 America/Chicago, with a ticket saved or open, one digest leaves within a minute of the mailer's start (see above). The steps should name the window or accept the digest.
+5. `auth` and `logstore-writer` have `restart: unless-stopped` in the merged compose config; west's override never named them. Not changed (the rule is that restart policy stays as it is; plan 2's deploy recreates both).
+6. `unheaded-host-state.service` runs in about 0.85 s (6 s on its first run, of a 20 s timeout; no failed run so far), but under its own `CPUQuota=20%` more than a quarter of its periods are throttled: at 20:42Z ContainerCPUThrottled was `pending` for `system.slice/unheaded-host-state.service` and will fire after 30 minutes. Urgency none, so it mails nobody; it is the watcher tripping its own rule. Raise the quota or leave oneshots out of that rule.
+7. `unheaded-well-backup.service` has been `failed` since 06:18Z and nothing mails it: it is `Type=oneshot`, which host-state skips, and the mailer is off. The timer runs it again at 03:41Z.
+
+### For Stevie (block D)
+
+1. **Mail is still off.** Rules, host state, per-cgroup series, start limits and the store backups are live; the mailer was not switched to send and no drill ran, because switching it on this afternoon would have mailed a digest of the open tickets at once (above). Say if a digest sent at the mailer's start is fine (choice 2 above); otherwise Phase 15 resumes between midnight and 09:00 Chicago after the deploy.
+2. **huginn on west no longer answers on the LAN address** (`192.168.69.184:9110`); it answers on loopback, the P2P link and the overlay, as `huginn.env.example` says for west. If something of yours read it over the LAN, name the address and it goes into `HUGINN_LISTEN`.
+3. The Well's last backup set is of 2026-11-17 03:41Z; the next automatic one is 2026-11-19 03:41Z. If block E's migration 050 runs before then, plan 2's own backup step has to come first (plan 2's concern; said here because block D saw the age of the last set).
+
+### The state block D leaves west in (2026-11-18 20:50Z)
+
+| What | State |
+|---|---|
+| Containers running | 22, as found: akira, alertmanager, auth, clickhouse (recreated 20:07:52Z, same image, now with `/backups`), coredns, cuirass, dashboard, grafana, kanban, logstore-writer, postgres, prometheus, timeguru, traefik, vector, victoria, wotan, and the five role containers (architect, captain, micromanager, monad, sophia: orphans of the compose project until plan 2 Step 349) |
+| Stopped on purpose | `unheaded-alert-mailer` (old build, exited since about 01:00Z; never started by this block). Stopped long before: haproxy-edge, haproxy-internal, sword, the one-shots |
+| Mailer | `observability/alerting/policy.yaml`: `mode: dry-run`, `delivery: digest`, `immediate: []`, `run_days.dates: []`: untouched. Saved state: `last_digest` 2026-11-17, 9 open tickets |
+| Prometheus, Alertmanager | reloaded 20:38Z on the merged tree's rules and routes (152 rules, all ok) |
+| Host units changed | huginn: new binary `e82daf81`, drop-ins `20-listen.conf` and `10-start-limit.conf`; `10-start-limit.conf` on chaos-controller, kev-poller, syslog-relay, vor, wiki-server, zhen-ui-front, zhen-agentd (none restarted) |
+| Timers enabled by this block | `unheaded-clickhouse-backup.timer` (04:15Z), `unheaded-victoria-backup.timer` (04:45Z), `unheaded-store-drill.timer` (Sundays 05:40Z), `unheaded-host-state.timer` (every 30 s) |
+| New on disk | `/srv/backups/unheaded-clickhouse/ch-20261118T201252Z`, `/srv/backups/unheaded-victoria/vm-20261118T201326Z` with their side files; `/usr/local/lib/unheaded/backup/`, `/usr/local/lib/unheaded/monitoring/`; `/var/backups/s-see-and-survive/huginn.old`; in `/var/lib/unheaded/textfile`: `host_state.prom`, `planned_stop.prom` (no mark), `store_backup_*.prom`, `store_drill_*.prom` |
+| West's compose override | five role entries removed; copy at `/home/govan/tmp/adr147-table/runs/override-before-2026-11-18.yml` |
+| Planned-stop marks, silences | none open (`planned-stop.sh --list` and `maintenance.sh --list` empty) |
+| Failed units | 1, `unheaded-well-backup.service`, as found |
+| Scratch | `/home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/blockD-src-e82daf81` (70 MiB export of HEAD used for the huginn build; safe to delete), `huginn`, `huginn-20-listen.conf`, `firing-before.txt`, `firing-after.txt` |
+| Not done | never rebooted; `west-hold.conf` untouched; nothing pushed; east not touched; no secret printed |
+
+Commits of block D, all unsigned (`--no-gpg-sign`), none pushed: `08aec712` (Steps 247-270), `e82daf81` (Steps 271-292), `63a7c9e4` (Steps 297-310), and the one that carries this section (Steps 313-334).
