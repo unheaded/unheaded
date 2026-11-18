@@ -183,6 +183,17 @@ Not asked again: SS3 and plan 2's D1 to D7 were laid out for Stevie and not answ
 
 Not changed: `runbooks/observe/alert-pipeline-silent.yaml` still says the mailer mails "alert pipeline silent" (true under `delivery: immediate`); a runbook edit needs the manifest rewritten and Stevie's seal.
 
+## 2026-11-18: signed, merged, block A begun, then a planned shutdown
+
+- **00:30Z, Stevie:** the week is closed and ClickHouse stays (S-E1-LIVE Step 284, in that plan's progress file, with ADR-151 parked); plan 2 Step 306 yes; go for blocks A, B and C.
+- **Signed.** He cached the key. `scripts/resign-unpushed.py --only-needed --merges` rewrote 33 of the 210 unpushed commits (the unsigned ones and what follows them); 177 keep their hashes; same tree. `develop` and `fix/adr147-stale-refs` were moved to their rewritten commits (old heads under `refs/backup/`), the compose lane's commit was re-signed, and 28 hash citations in five files were remapped.
+- **Block C before block B, on his word** ("merge whatever you can chain into develop"): `integrate/adr147` is merged into `develop` (a signed `--no-ff` merge); the four lane worktrees and this branch are fast-forwarded to it. No running service reloads a file the merge changed (Vector runs without a config watch; Prometheus and Alertmanager reload on HUP only; Wotan, Akira and the mailer read their files at start). `sprint/s-west-ground-compose` is not merged: plan 4 Step 223 holds it, and west's compose secrets file needs `AUTH_ANONYMOUS_FROM` first.
+- **Block A, first readings (00:39Z to 00:41Z)**, read-only, kept on the host under `~/.local/state/unheaded/adr147-blockA/`: plan 2 Steps 8 to 13 again and Steps 309 to 314 (first readings), plan 3 Steps 15 and 19, plan 1 Step 263 (`qa-smoke.sh` on develop before the merge: passed 7, failed 43, nearly all "expected running, got absent": it was run without docker rights, as the plan's before is). A few against their references: Wotan 68.9 GET a second and 367 answers 429 in 7 days (as on 11-15); Akira throttled in 44% of periods, 0 zombies now; Postgres hit its memory limit 210,402 times (52,740 on 11-15) and its cache hit ratio on `unheaded_ops` is 0.479 (0.683); ClickHouse took 45,102 inserts of 4.3 rows and merged 26.7 GiB in a day; `sdb` took 94 GB a day; `FLOW_STATE` holds 58,115 of 65,536; `app_zhen` has no limit and 3 sessions; 8 of 13 tables in `unheaded_app` are Zhen's.
+- **Not taken:** the ten-minute second reading of Step 309 and the one-hour second readings of Steps 311 and 313. Stevie asked for a stopping point and a shutdown. **Every cgroup and statistics before of block A is void after a power cycle and is taken again before block E**; the series readings stand.
+- **Block B has not run.** The container gates run on develop at the next session, before anything is built from it.
+- **The mailer's policy is `mode: dry-run` again** until plan 1 Step 319 (amended). The container on west is the old build and mounts this file; with `send` it would mail pages at once.
+- **The next start of the stack is the deploy.** `docker-compose.override.yml` on west still names the five removed services, so `docker compose up` (and `kingdom-startup.sh`) fails on the merged tree until plan 2 Step 348 removes them (Stevie said yes), and timeguru from this tree needs migration 050 and its password first (plan 2 Steps 340 and 341). The stopped containers can still be started as they are with `docker start`.
+
 ## What still must run after the evidence week
 
 | Gate | Plan |
