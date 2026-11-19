@@ -120,6 +120,33 @@ Copyright (c) 2026 Stevie Bellis.
 | 47 | Plan 5 Step 40 and block J want plan 4's reboot past; the reboot proof is skipped. | **Start the week without it.** The gate reads "new layout since <time>"; a reboot inside the week moves its end as the plan says. | plan 5 Phase 2 |
 | 48 | Plan 4 Step 304: `/var/swapfile4` (30 GiB) was to be deleted after a boot proved west fine without it. | **Delete after 24 quiet hours** with that swap off and no memory-pressure alert. | plan 4 W-03 |
 
+## Round 13
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 49 | The three LAN forwards without a login (9090, 9093, 8428), down since 2026-11-12. | **Retire them.** The forwards and their script go; metrics are read through Grafana and the dashboard. | M-211 |
+| 50 | Old data on west: which may be deleted. | **All three groups:** the six `/var/backups/*.bak-e1`, `unheaded-victoria-data-pre-1.155.tgz`, `vor-1b17fad.bak` and the two dated `.bak` files; `/root/tmp` and `/root/bakunheaded` (contents listed to `~/tmp/next.md` first; anything that looks like a key or a unique copy is skipped); `/opt/rocm-6.4.2` (only if nothing links against it: llama-server's GPU path is checked first). | M-212 |
+| 51 | The three `steel-echo-v2` instances in LXD project `unheaded`. | First: "Probably ok to delete - what are these again?" Told (the targets of the October Real Steel deploy proof; a deploy test recreates them), then: **Delete them.** | M-214 |
+| 52 | Pi-hole blocklists. | **Add both, a week apart:** HaGeZi Multi Normal now, the AdGuard DNS filter seven days later if nothing he uses broke; the blocked rate recorded before and after each. | M-204 |
+
+## Round 14
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 53 | Block D stopped at plan 1 Step 318: promoted tickets from the half-old stack are firing, and a mailer switched to `send` after 09:00 America/Chicago would send that day's digest at once (9 stale tickets). How does mail go live? | **Deploy first, mail tomorrow morning:** block E runs with the mailer in dry-run; plan 1 Steps 319-334 run before 09:00 America/Chicago the next day, so the first digest carries clean state and the four drills and proves the relay. Step 325's drill needs a target other than a role service, which the deploy removes. | plan 1 Phase 15; run order blocks D and E |
+| 54 | Two bumped images are younger than `dependency-watch.md`'s 7 days: Traefik v3.7.19 (5 days) and nginx 1.30.7 (hours; the load-balancer sidecars, not running on west). | **Traefik now, nginx after 7 days.** The nginx pin is kept as a patch on west (`~/tmp/pending-2026-11-18/nginx-1.30.7-bump-after-2026-11-25.patch`) for 2026-11-25. | M-209 |
+| 55 | (51 again, after the explanation.) | **Delete them.** | M-214 |
+| 56 | The pqc draft's maximum signature age: the analysis proposed a RECOMMENDED default of 300 seconds. | **300 seconds.** | M-196 |
+
+**Row 27 is withdrawn until asked again.** The question described `scripts/bootstrap-llm-lab.sh` as an old lab script that nothing calls. That was wrong: `QUICKSTART.md` and `CONTRIBUTOR-GUIDE.md` tell a new user to run it to install the prerequisites, and `wiki/Host-Settings.md`, `deploy/docker/README.md` and `deploy/systemd/node-exporter.service` name it as the installer of host files. It is not deleted.
+
+## Round 15
+
+| # | Question | Answer | Covers |
+|---|---|---|---|
+| 57 | `scripts/bootstrap-llm-lab.sh`, asked again with the facts right (it is the prerequisites installer `QUICKSTART.md` names; it still pulls Loki and images on `:latest`). | **Replace it with a smaller installer:** a plainly named prerequisites script that installs only what today's stack needs; the old one is deleted and `QUICKSTART.md`, `CONTRIBUTOR-GUIDE.md` and the three other references are updated. | M-188 |
+| 58 | The items that are his alone (GitHub settings, the April Console key, the Wi-Fi passphrase, the router and the syslog relay, pages to look at in a browser, two documents to read, the relicense and naming lists): how to track them. | **Cards on the kanban board,** one per item, assigned to him, once the stack is up. | M-217, M-221, M-236, M-237, M-244, M-246 to M-248 |
+
 **Left for him by the run order's "Not settled" table:** the view from his laptop on the LAN and his phone on cellular after the filter is kept (plan 4 Steps 189, 200, 210, 239); the first digest in his inbox (plan 1 Step 324).
 
 ## Decided by Claude, reviewable (row 41)
