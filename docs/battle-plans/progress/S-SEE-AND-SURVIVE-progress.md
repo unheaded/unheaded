@@ -130,7 +130,7 @@ Undo: `cp /home/govan/tmp/adr147-table/runs/override-before-2026-11-18.yml /home
 |---|---|---|
 | 20:04 | 247 | **E-GATE open.** Evidence: `docs/battle-plans/progress/S-E1-LIVE-progress.md` line 232, "Step 284: Stevie's verdict (2026-11-18, about 00:30Z)": "The week is closed. ClickHouse stays." |
 | 20:04 | 248 | This row |
-| | 249-262, 264, 267 | Replaced: block C (merge `eacbd344`, 00:47Z) and block B (32 of 32 green on `67af4654`, `~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt`: `alert-path` 7 checks, `store-backups` 9 cases 0 failures, `prometheus-rules` pass, `ci-local` passed) |
+| | 249-262, 264, 267 | Replaced: block C (merge `eacbd344`, 00:47Z) and block B (32 of 32 green on `1351ee73`, `~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt`: `alert-path` 7 checks, `store-backups` 9 cases 0 failures, `prometheus-rules` pass, `ci-local` passed) |
 | | 263 | Taken in block A, 2026-11-18 00:39Z: passed 7, failed 43, run without docker rights (the plan's amended text) |
 | 20:05 | 265 | `git status --short` in the main checkout: 1 line, `?? demos/doom/` (another worker's, untracked; no tracked file changed). The gate bites: `meta-gate-full-rerun.log` of the same run, "check-unit-start-limits OK, bites when provoked (exit 1)" |
 | 20:05 | 268 | The merge commit is `eacbd344` (signed: it carries a `gpgsig` header). West's bind-mounted files have been the merged tree's since 00:47Z; the old stack was started on them at 16:05Z (block A) and loaded them then: logged as the step asks |
@@ -171,7 +171,7 @@ Prerequisite read: `S-WASTE-OUT-progress.md` records block A's last readings at 
 | 20:16 | 291 | SSV-21 and SSV-22 after, in the Fixes table; `wiki/Well-Backups.md` carries the measured sizes and times |
 | | 293 | SS5 = A (pack row 16): offsite with plan 6. Nothing was copied to east |
 | | 294 | Undo, recorded: `sudo systemctl disable --now unheaded-clickhouse-backup.timer unheaded-victoria-backup.timer unheaded-store-drill.timer`; the sets, the scripts under `/usr/local/lib/unheaded/backup/` and ClickHouse's `/backups` mount add and replace nothing, and may stay |
-| 20:15 | 295-296 | `git status --short`: nothing of this block uncommitted (other workers' files only: `go.mod`, `go.sum`, `THIRD_PARTY.md`, `sbom/*`, `scripts/lib/tool-pins.sh`, a man page, a test, `demos/doom/`). **PHASE 13 EXIT GATE: PASS** (one set per store, a passed drill, three timers, series in Prometheus). Commit `e82daf81` (unsigned) |
+| 20:15 | 295-296 | `git status --short`: nothing of this block uncommitted (other workers' files only: `go.mod`, `go.sum`, `THIRD_PARTY.md`, `sbom/*`, `scripts/lib/tool-pins.sh`, a man page, a test, `demos/doom/`). **PHASE 13 EXIT GATE: PASS** (one set per store, a passed drill, three timers, series in Prometheus). Commit `9af6d36d` (unsigned) |
 
 REV-4 (the store-backups SLO reads bad until both stores have a drill on record) is settled at its source by Step 284. It did burn first: see Step 318 below (Prometheus had loaded the new rules at 16:05Z, when block A started it on the merged tree).
 
@@ -180,7 +180,7 @@ REV-4 (the store-backups SLO reads bad until both stores have a drill on record)
 | Time | Step | Result |
 |---|---|---|
 | 20:16 to 20:26 | before 297 | A fresh before for Step 300, the same way as Step 20, on the old binary: 0.0049 core over 600 s (0.0058 on 2026-11-15). The old huginn exported 0 `huginn_cgroup_*` series and listened on `*:9110` |
-| 20:16 | 297, build | **Deviation 1.** The main checkout held other workers' uncommitted `go.mod` and `go.sum` (a module bump under review). The binary was built from a clean export of HEAD instead (`git archive HEAD` into `/home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/blockD-src-e82daf81`), with the step's flags: `huginn (unheaded) e82daf81`, sha256 `3ad93dfd...a2bc40`. `cmd/huginn` and everything it imports are the same in both trees |
+| 20:16 | 297, build | **Deviation 1.** The main checkout held other workers' uncommitted `go.mod` and `go.sum` (a module bump under review). The binary was built from a clean export of HEAD instead (`git archive HEAD` into `/home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/blockD-src-9af6d36d`), with the step's flags: `huginn (unheaded) 9af6d36d`, sha256 `3ad93dfd...a2bc40`. `cmd/huginn` and everything it imports are the same in both trees |
 | 20:21 | 297, found before the install | **The step as written could not pass.** West's installed `huginn.service` (drifted from the repository, Grounding) starts huginn with `-listen :9110`. huginn refuses a wildcard since 2026-11-07 (`87bebd39` and before it); west's binary was of 2026-10-26. Proved without touching the unit: the new binary run by hand with the installed arguments answers `listen :9110: a wildcard address is refused; name each internal address`. Installed as written it would have looped (Step 299's rollback, then `[STUCK]`, and Phase 15 behind it) |
 | 20:26:14 | 297, **deviation 2** | A drop-in, the plan's own way with a drifted unit (never a copy over it): `/etc/systemd/system/huginn.service.d/20-listen.conf` sets `HUGINN_LISTEN=127.0.0.1:9110,192.168.13.2:9110,[fd00:dead:beef::1]:9110` (the list `deploy/systemd/huginn.env.example` gives for WEST) and replaces `ExecStart` with the same line reading `${HUGINN_LISTEN}`. Its source is kept at `/home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/huginn-20-listen.conf` (not in the repository: no step of this block commits a unit file). `/etc/huginn.env` was not opened for writing. The callers seen on the old listener in 12 s were the dashboard on `192.168.13.2` and Prometheus and VictoriaMetrics on the overlay: all three addresses are in the list. **West's LAN address (`192.168.69.184:9110`) no longer answers**: huginn has no auth and nothing in the repository reads it there |
 | 20:26:14 to 20:26:51 | 297, mark | Planned stop as the brief orders: `maintenance.sh --planned 10m "S-SEE-AND-SURVIVE Step 297: huginn restarted ..."` (mark `all`, silences `b2bc802b`, `19519d63`), ended with `--end` at 20:26:51Z |
@@ -196,7 +196,7 @@ REV-4 (the store-backups SLO reads bad until both stores have a drill on record)
 | | 309 | SSV-09 after in the Fixes table. Undo: `sudo rm /etc/systemd/system/<unit>.service.d/10-start-limit.conf && sudo systemctl daemon-reload` |
 | 20:37 | 311-312 | `systemctl --failed`: 1, the same one as before Step 297 (`unheaded-well-backup.service`, since 06:18Z; see Step 318). **PHASE 14 EXIT GATE: PASS** (the count did not change; the series are live). It is 1 where the plan expected 0 |
 
-Commit `63a7c9e4` (unsigned).
+Commit `f7f61066` (unsigned).
 
 ### Phase 15: rules loaded; the mailer NOT switched to send; no drill run (Steps 313-334)
 
@@ -262,7 +262,7 @@ The other rows Step 334 names, read 20:39Z. A row is not closed without its dril
 
 ### Follow-ups found (not fixed: outside the files this block may commit)
 
-1. `install -d -o 16707 -g 16707` fails on west (uutils coreutils 0.2.2, no passwd entry for 16707). The line is in the plan's Step 274, in the header of `deploy/systemd/unheaded-clickhouse-backup.service` and in `scripts/backup/clickhouse-backup.sh`'s error text. `wiki/Well-Backups.md` now says how (`e82daf81`).
+1. `install -d -o 16707 -g 16707` fails on west (uutils coreutils 0.2.2, no passwd entry for 16707). The line is in the plan's Step 274, in the header of `deploy/systemd/unheaded-clickhouse-backup.service` and in `scripts/backup/clickhouse-backup.sh`'s error text. `wiki/Well-Backups.md` now says how (`9af6d36d`).
 2. West's installed `huginn.service` is the drifted one plus two drop-ins (`10-start-limit.conf`, `20-listen.conf`). The repository's unit already reads `${HUGINN_LISTEN}`; `20-listen.conf` is not in `deploy/systemd/dropins/`. Either install the repository's unit with `HUGINN_LISTEN` in `/etc/huginn.env`, or add the drop-in to the repository. Plan 6 will meet the same refusal on east when its huginn is rebuilt.
 3. Step 315's `grep -c 'alerts/pipeline'` on `/api/v2/status` can never count 1: Alertmanager hides webhook URLs there.
 4. Steps 320-324 as amended say no mail leaves under `delivery: digest`. After 09:00 America/Chicago, with a ticket saved or open, one digest leaves within a minute of the mailer's start (see above). The steps should name the window or accept the digest.
@@ -284,13 +284,13 @@ The other rows Step 334 names, read 20:39Z. A row is not closed without its dril
 | Stopped on purpose | `unheaded-alert-mailer` (old build, exited since about 01:00Z; never started by this block). Stopped long before: haproxy-edge, haproxy-internal, sword, the one-shots |
 | Mailer | `observability/alerting/policy.yaml`: `mode: dry-run`, `delivery: digest`, `immediate: []`, `run_days.dates: []`: untouched. Saved state: `last_digest` 2026-11-17, 9 open tickets |
 | Prometheus, Alertmanager | reloaded 20:38Z on the merged tree's rules and routes (152 rules, all ok) |
-| Host units changed | huginn: new binary `e82daf81`, drop-ins `20-listen.conf` and `10-start-limit.conf`; `10-start-limit.conf` on chaos-controller, kev-poller, syslog-relay, vor, wiki-server, zhen-ui-front, zhen-agentd (none restarted) |
+| Host units changed | huginn: new binary `9af6d36d`, drop-ins `20-listen.conf` and `10-start-limit.conf`; `10-start-limit.conf` on chaos-controller, kev-poller, syslog-relay, vor, wiki-server, zhen-ui-front, zhen-agentd (none restarted) |
 | Timers enabled by this block | `unheaded-clickhouse-backup.timer` (04:15Z), `unheaded-victoria-backup.timer` (04:45Z), `unheaded-store-drill.timer` (Sundays 05:40Z), `unheaded-host-state.timer` (every 30 s) |
 | New on disk | `/srv/backups/unheaded-clickhouse/ch-20261118T201252Z`, `/srv/backups/unheaded-victoria/vm-20261118T201326Z` with their side files; `/usr/local/lib/unheaded/backup/`, `/usr/local/lib/unheaded/monitoring/`; `/var/backups/s-see-and-survive/huginn.old`; in `/var/lib/unheaded/textfile`: `host_state.prom`, `planned_stop.prom` (no mark), `store_backup_*.prom`, `store_drill_*.prom` |
 | West's compose override | five role entries removed; copy at `/home/govan/tmp/adr147-table/runs/override-before-2026-11-18.yml` |
 | Planned-stop marks, silences | none open (`planned-stop.sh --list` and `maintenance.sh --list` empty) |
 | Failed units | 1, `unheaded-well-backup.service`, as found |
-| Scratch | `/home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/blockD-src-e82daf81` (70 MiB export of HEAD used for the huginn build; safe to delete), `huginn`, `huginn-20-listen.conf`, `firing-before.txt`, `firing-after.txt` |
+| Scratch | `/home/govan/tmp/wt/S-SEE-AND-SURVIVE-scratch/blockD-src-9af6d36d` (70 MiB export of HEAD used for the huginn build; safe to delete), `huginn`, `huginn-20-listen.conf`, `firing-before.txt`, `firing-after.txt` |
 | Not done | never rebooted; `west-hold.conf` untouched; nothing pushed; east not touched; no secret printed |
 
-Commits of block D, all unsigned (`--no-gpg-sign`), none pushed: `08aec712` (Steps 247-270), `e82daf81` (Steps 271-292), `63a7c9e4` (Steps 297-310), and the one that carries this section (Steps 313-334).
+Commits of block D, all unsigned (`--no-gpg-sign`), none pushed: `e9b430ae` (Steps 247-270), `9af6d36d` (Steps 271-292), `f7f61066` (Steps 297-310), and the one that carries this section (Steps 313-334).

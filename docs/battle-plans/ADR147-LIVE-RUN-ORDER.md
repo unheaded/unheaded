@@ -59,7 +59,7 @@ Written 2026-11-18, about 16:30Z. Sources: `docs/battle-plans/DECISION-PACK-2026
 | 00:47 | **Block C done**, before block B, on Stevie's word: merge `eacbd344` | develop |
 | 00:50 to 00:53 | West stopped for a shutdown; powered on about 06:04 | stack down as left, 0 of 35 containers running |
 | 10:56 to 12:07 | Block B, first run, on develop: 25 of 32 green, 7 red | `~/tmp/adr147-table/runs/after-week-20261118T105634Z/` |
-| 13:59 to 14:35 | **Block B, second run, on `67af4654`: 32 of 32 green** | `~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt` |
+| 13:59 to 14:35 | **Block B, second run, on `1351ee73`: 32 of 32 green** | `~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt` |
 | after 14:35 | The meta-gate, run alone: 103 gates bite, 6 inconclusive (already failing on that head) | the same directory |
 | 16:05 to 16:08 | **Block A restarted** on the OLD stack | `~/tmp/next.md` |
 
@@ -67,36 +67,36 @@ The seven failures of the first run, fixed forward on develop (the merge was alr
 
 | Gate | What was wrong | Fixed by |
 |---|---|---|
-| `well-batch-apply` | `batch-apply.sh` refused a batch that creates a database: 051 makes `unheaded_zhen`, so the pre-batch set can never hold its dump; `batch-rollback.sh` refused the same directory | `6b1a588d` |
-| `ci-local` | A data race in kanban-app: `openWell`'s retry read two package variables after `openWell` had returned (about 1 run in 15 under `-race`) | `8679ef2c` |
-| `store-backups` | The test "damaged" a set by writing 0x00 over a first byte that was already 0x00 | `07fc96d8` |
-| `prometheus-rules` | Three rule tests that could not pass (one sample an hour against a 5 min lookback; an expected `job` label the rule drops; a bystander series named like the renamed caller). No rule changed | `8a3210eb` |
-| `well-zhen-database` | A type error in `zhen-schema-fingerprint.sql`. Behind it: 053's `ALTER DATABASE ... RESET` is refused for `well_app_owner`, which would have stopped the live 8B after the copy; two function bodies and three grants differed | `18f07c21` |
-| `alert-path` | Prometheus v3.15.1 refuses a wildcard anywhere but the last path component: the module globs made `prometheus.yml` unloadable, so Prometheus would not have started at the deploy. Also the test's fixture alert had become a page | `5d7b23dc` |
+| `well-batch-apply` | `batch-apply.sh` refused a batch that creates a database: 051 makes `unheaded_zhen`, so the pre-batch set can never hold its dump; `batch-rollback.sh` refused the same directory | `a1b99f9f` |
+| `ci-local` | A data race in kanban-app: `openWell`'s retry read two package variables after `openWell` had returned (about 1 run in 15 under `-race`) | `77f815c1` |
+| `store-backups` | The test "damaged" a set by writing 0x00 over a first byte that was already 0x00 | `da7cbe2d` |
+| `prometheus-rules` | Three rule tests that could not pass (one sample an hour against a 5 min lookback; an expected `job` label the rule drops; a bystander series named like the renamed caller). No rule changed | `69d50ab0` |
+| `well-zhen-database` | A type error in `zhen-schema-fingerprint.sql`. Behind it: 053's `ALTER DATABASE ... RESET` is refused for `well_app_owner`, which would have stopped the live 8B after the copy; two function bodies and three grants differed | `29af4a2f` |
+| `alert-path` | Prometheus v3.15.1 refuses a wildcard anywhere but the last path component: the module globs made `prometheus.yml` unloadable, so Prometheus would not have started at the deploy. Also the test's fixture alert had become a page | `85662feb` |
 | `ebpf-loads` | The runner's fault, not the tree's: `sudo -n` lost cargo, and the script takes root itself | the runner (`~/tmp/adr147-table/runs/after-week.sh`); no commit |
 
-`git log --oneline 43ba3310..HEAD` (the first run's head to `4a4f312a`), oldest first:
+`git log --oneline 43ba3310..HEAD` (the first run's head to `cc90a9c2`), oldest first:
 
 | Commit | What |
 |---|---|
-| `6b1a588d` | fix(well): a migration batch may create a database (`well-batch-apply`) |
-| `8679ef2c` | fix(kanban-app): `openWell` reads its two variables before the goroutine starts (`ci-local`) |
-| `07fc96d8` | test(backup): damage a set by flipping its first byte (`store-backups`) |
-| `8a3210eb` | test(prometheus): three rule tests corrected, no rule changed (`prometheus-rules`) |
-| `18f07c21` | fix(well): the Zhen database rehearsal runs to its end; the copy's record for 053 is a table comment (`well-zhen-database`) |
-| `5d7b23dc` | fix(monitoring): `prometheus.yml` loads again; a module's Prometheus files are copied to flat directories (`alert-path`) |
-| `3bea949b` | docs(adr): ADR-093, 103, 106, 120, 124, 125, 127, 135 accepted (pack row 19); no gate |
-| `67af4654` | docs(plans): decision pack, rounds 1 to 7; the head of block B's green run |
-| `3bb69f4c` | chore(sbom): ScanCode leaves Zhen's venv; `check-python-audit` green (pack rows 17, 29) |
-| `267ab4c2` | refactor(crypto): the two uncalled constructions deleted, CBOM regenerated; `check-crypto-inventory` green (pack row 31) |
-| `4a4f312a` | docs(plans): decision pack, rounds 8 to 10 |
+| `a1b99f9f` | fix(well): a migration batch may create a database (`well-batch-apply`) |
+| `77f815c1` | fix(kanban-app): `openWell` reads its two variables before the goroutine starts (`ci-local`) |
+| `da7cbe2d` | test(backup): damage a set by flipping its first byte (`store-backups`) |
+| `69d50ab0` | test(prometheus): three rule tests corrected, no rule changed (`prometheus-rules`) |
+| `29af4a2f` | fix(well): the Zhen database rehearsal runs to its end; the copy's record for 053 is a table comment (`well-zhen-database`) |
+| `85662feb` | fix(monitoring): `prometheus.yml` loads again; a module's Prometheus files are copied to flat directories (`alert-path`) |
+| `90d996ef` | docs(adr): ADR-093, 103, 106, 120, 124, 125, 127, 135 accepted (pack row 19); no gate |
+| `1351ee73` | docs(plans): decision pack, rounds 1 to 7; the head of block B's green run |
+| `d733694b` | chore(sbom): ScanCode leaves Zhen's venv; `check-python-audit` green (pack rows 17, 29) |
+| `ec9287ba` | refactor(crypto): the two uncalled constructions deleted, CBOM regenerated; `check-crypto-inventory` green (pack row 31) |
+| `cc90a9c2` | docs(plans): decision pack, rounds 8 to 10 |
 
 The meta-gate's six inconclusive gates:
 
 | Gate | State |
 |---|---|
-| `check-python-audit` | fixed since (`3bb69f4c`) |
-| `check-crypto-inventory` | fixed since (`267ab4c2`) |
+| `check-python-audit` | fixed since (`d733694b`) |
+| `check-crypto-inventory` | fixed since (`ec9287ba`) |
 | `check-ruff` | open |
 | `check-tool-freshness` | open |
 | `gen-man` | open |
@@ -118,7 +118,7 @@ Block A as it runs now:
 | # | Block | State |
 |---|---|---|
 | 1 | C, the merge | done 00:47Z, `eacbd344` |
-| 2 | B, the gates | done, 32 of 32 green on `67af4654` |
+| 2 | B, the gates | done, 32 of 32 green on `1351ee73` |
 | 3 | A, the befores | running since 16:05Z |
 | 4 to 10 | D, E, F, G, H, I, J | as in "The order" below, with this section's amendments. A failure is fixed forward on develop |
 
