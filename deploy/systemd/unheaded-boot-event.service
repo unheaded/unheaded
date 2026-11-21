@@ -30,7 +30,8 @@
 #                              the new directory)
 #   BOOT_EVENT_STACK_PROJECTS  compose projects that are "the stack"
 #                              (default in the script: unheaded-dev)
-#   BOOT_EVENT_ONESHOT         compose services that exit 0 by design
+#   BOOT_EVENT_ONESHOT         compose services that never count: they exit
+#                              0 by design, or run only on demand
 #   BOOT_EVENT_KEEP            boots kept in the history (default 32)
 #   BOOT_EVENT_DOCKER_WAIT     seconds Docker gets to answer (default 20)
 # come from /etc/unheaded/host-settings.env when it is there

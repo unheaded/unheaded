@@ -79,6 +79,7 @@ check "1 no earlier boot: previous unknown" test "$(last .previous)" = unknown
 check "1 recorded_at is now" bash -c "v=$(last .recorded_at); n=\$(date +%s); (( v >= n - 5 && v <= n + 5 ))"
 check "1 stack down: the mailer alone and one-shots do not count" test "$(last '[.stack, .stack_running, .stack_total] | @tsv')" = "down	0	2"
 check "1 the projects that are the stack are in the record" test "$(last '.stack_projects | join(",")')" = unheaded-dev
+check "1 so are the services that never count (the mailer applies the same list)" test "$(last '.stack_oneshot | join(",")')" = "volume-init,clickhouse-schema"
 
 # 2. The same boot again (a restart of the unit): no second record.
 record >/dev/null
@@ -186,6 +187,8 @@ st=0; BOOT_EVENT_HOST='we st' record >/dev/null 2>&1 || st=$?
 check "10 a bad host name exits 2" test "$st" -eq 2
 st=0; BOOT_EVENT_KEEP=0 record >/dev/null 2>&1 || st=$?
 check "10 a bad keep count exits 2" test "$st" -eq 2
+st=0; BOOT_EVENT_ONESHOT='volume-init -x' record >/dev/null 2>&1 || st=$?
+check "10 a service name the mailer would refuse exits 2" test "$st" -eq 2
 st=0; BOOT_EVENT_DOCKER_WAIT=600 record >/dev/null 2>&1 || st=$?
 check "10 a Docker wait past the unit's start timeout exits 2" test "$st" -eq 2
 boot 'not-a-boot-id"; rm' 1763760000

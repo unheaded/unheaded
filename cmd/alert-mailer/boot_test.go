@@ -28,7 +28,7 @@ const (
 // writes it.
 func bootRecord(id string, at time.Time, previous, stack string) string {
 	return fmt.Sprintf(`{"boot_id":%q,"booted_at":%d,"recorded_at":%d,"host":"west","previous":%q,"shutdown_at":0,`+
-		`"stack":%q,"stack_running":0,"stack_total":2,"stack_projects":["unheaded-dev"]}`,
+		`"stack":%q,"stack_running":0,"stack_total":2,"stack_projects":["unheaded-dev"],"stack_oneshot":["volume-init","sword"]}`,
 		id, at.Unix(), at.Unix()+40, previous, stack)
 }
 
@@ -259,6 +259,12 @@ func TestBootLineStackState(t *testing.T) {
 		{"host state of the boot before", "partial", hostState(bootAt.Add(-time.Minute), 2, bootAt.Add(-time.Hour)), "stack partly up at boot (no current host state)"},
 		{"docker did not answer", "unknown", strings.Replace(hostState(fresh, 2, up), "docker_ok 1", "docker_ok 0", 1), "stack state unknown at boot (no current host state)"},
 		{"only the mailer runs", "down", hostState(fresh, 0, bootAt), "stack down"},
+		// A service the record lists as never counting (BOOT_EVENT_ONESHOT:
+		// a one-shot, or one that runs only on demand) is stopped: still up.
+		{"an on-demand service is stopped", "down", hostState(fresh, 2, up) +
+			"unheaded_container_running{name=\"unheaded-sword\",project=\"unheaded-dev\",service=\"sword\"} 0\n", "stack up since 2026-11-21 14:02Z"},
+		{"an unlisted service is stopped", "down", hostState(fresh, 2, up) +
+			"unheaded_container_running{name=\"unheaded-kanban\",project=\"unheaded-dev\",service=\"kanban\"} 0\n", "stack partly up (2 of 3 containers running)"},
 	}
 	for _, tc := range cases {
 		bt := newBootTest(t, "send")

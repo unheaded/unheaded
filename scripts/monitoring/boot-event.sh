@@ -31,7 +31,9 @@
 #   stack          up (every container of the stack's projects running),
 #                  down (none), partial, or unknown (Docker did not answer),
 #                  when the boot was recorded
-#   stack_running, stack_total, stack_projects
+#   stack_running, stack_total
+#   stack_projects, stack_oneshot   the two settings below, so the mailer
+#                  counts the same containers when it reads the state later
 #
 # shutdown writes <state dir>/clean-shutdown ("<boot id> <Unix time>") when
 # systemd says the system is stopping or does not answer, and nothing when
@@ -48,9 +50,11 @@
 #                              (default "unheaded-dev": the monitoring project
 #                              is left out, so the mailer started alone to get
 #                              the digest out does not read as "stack up")
-#   BOOT_EVENT_ONESHOT         compose services skipped: they exit 0 by design
-#                              (default "volume-init clickhouse-schema", as
-#                              HOST_STATE_ONESHOT of host-state-textfile.sh)
+#   BOOT_EVENT_ONESHOT         compose services that never count: they exit 0
+#                              by design, or run only on demand (a deploy
+#                              service). Default "volume-init
+#                              clickhouse-schema", as HOST_STATE_ONESHOT of
+#                              host-state-textfile.sh
 #   BOOT_EVENT_KEEP            boots kept in the history (default 32, 1..500)
 #   BOOT_EVENT_DOCKER_WAIT     seconds Docker gets to answer, per project
 #                              (default 20, 1..50; the unit's start timeout
@@ -149,6 +153,20 @@ record() {
     [[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$ ]] || bad "BOOT_EVENT_HOST '$host': want a host name"
     [[ "$projects" =~ ^[a-z0-9][a-z0-9\ _.-]*$ ]] || bad "BOOT_EVENT_STACK_PROJECTS '$projects' has characters outside [a-z0-9 _.-]"
     [[ "$oneshot" =~ ^[a-z0-9\ _.-]*$ ]] || bad "BOOT_EVENT_ONESHOT '$oneshot' has characters outside [a-z0-9 _.-]"
+    # The mailer checks each name the same way (cmd/alert-mailer/boot.go) and
+    # drops a record that fails: refuse here, where the operator sees it.
+    local w n=0
+    for w in $projects; do
+        n=$((n + 1))
+        [[ "$w" =~ ^[a-z0-9][a-z0-9_.-]{0,63}$ ]] || bad "BOOT_EVENT_STACK_PROJECTS: '$w' is not a compose project name"
+    done
+    ((n >= 1 && n <= 16)) || bad "BOOT_EVENT_STACK_PROJECTS: want 1..16 projects"
+    n=0
+    for w in $oneshot; do
+        n=$((n + 1))
+        [[ "$w" =~ ^[a-z0-9][a-z0-9_.-]{0,63}$ ]] || bad "BOOT_EVENT_ONESHOT: '$w' is not a compose service name"
+    done
+    ((n <= 64)) || bad "BOOT_EVENT_ONESHOT: at most 64 services"
     [[ "$keep" =~ ^[0-9]{1,3}$ ]] && ((10#$keep >= 1 && 10#$keep <= 500)) || bad "BOOT_EVENT_KEEP '$keep': want 1..500"
     keep=$((10#$keep))
     command -v jq >/dev/null || bad "jq is required"
@@ -202,11 +220,13 @@ record() {
     local rec tmp
     rec="$(jq -c -n --arg boot_id "$boot_id" --argjson booted_at "$booted" --argjson recorded_at "$now" \
         --arg host "$host" --arg previous "$previous" --argjson shutdown_at "$shutdown_at" \
-        --arg stack "$stack" --argjson stack_running "$running" --argjson stack_total "$total" --arg projects "$projects" \
+        --arg stack "$stack" --argjson stack_running "$running" --argjson stack_total "$total" \
+        --arg projects "$projects" --arg oneshot "$oneshot" \
         '{boot_id: $boot_id, booted_at: $booted_at, recorded_at: $recorded_at, host: $host,
           previous: $previous, shutdown_at: $shutdown_at, stack: $stack,
           stack_running: $stack_running, stack_total: $stack_total,
-          stack_projects: ($projects | split(" ") | map(select(. != "")))}')"
+          stack_projects: ($projects | split(" ") | map(select(. != ""))),
+          stack_oneshot: ($oneshot | split(" ") | map(select(. != "")))}')"
     tmp="$(mktemp "${state}/.boots.XXXXXX")"
     # shellcheck disable=SC2064 # the name is fixed now, on purpose
     trap "rm -f '$tmp'" EXIT

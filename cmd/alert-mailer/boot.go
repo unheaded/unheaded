@@ -67,12 +67,12 @@ const (
 )
 
 var (
-	bootIDRE      = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
-	bootHostRE    = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$`)
-	bootProjectRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`)
+	bootIDRE   = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
+	bootHostRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$`)
+	bootNameRE = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,63}$`)
 
 	// host_state.prom, as scripts/monitoring/host-state-textfile.sh writes it.
-	hsRunningRE = regexp.MustCompile(`^unheaded_container_running\{name="((?:[^"\\]|\\.)*)",project="((?:[^"\\]|\\.)*)",service="(?:[^"\\]|\\.)*"\} ([01])$`)
+	hsRunningRE = regexp.MustCompile(`^unheaded_container_running\{name="((?:[^"\\]|\\.)*)",project="((?:[^"\\]|\\.)*)",service="((?:[^"\\]|\\.)*)"\} ([01])$`)
 	hsStartedRE = regexp.MustCompile(`^unheaded_container_started_timestamp_seconds\{name="((?:[^"\\]|\\.)*)"\} ([0-9]{1,12})$`)
 	hsLastRunRE = regexp.MustCompile(`^unheaded_host_state_last_run_timestamp_seconds ([0-9]{1,12})$`)
 	hsDockerRE  = regexp.MustCompile(`^unheaded_host_state_docker_ok ([01])$`)
@@ -88,17 +88,24 @@ type BootEvent struct {
 	StackRunning  int      `json:"stack_running"`
 	StackTotal    int      `json:"stack_total"`
 	StackProjects []string `json:"stack_projects"`
+	// StackOneshot (BOOT_EVENT_ONESHOT) is the compose services that never
+	// count: one-shots, and services that run only on demand.
+	StackOneshot []string `json:"stack_oneshot"`
 }
 
-// valid reports whether e can be put in a mail: an id, a time, a host name
-// and project names of the expected shape.
+// valid reports whether e can be put in a mail: an id, a time, a host name,
+// and project and service names of the expected shape (boot-event.sh
+// refuses the same settings).
 func (e BootEvent) valid() bool {
-	if !bootIDRE.MatchString(e.BootID) || !bootHostRE.MatchString(e.Host) || e.BootedAt <= 0 || len(e.StackProjects) > 16 {
+	if !bootIDRE.MatchString(e.BootID) || !bootHostRE.MatchString(e.Host) || e.BootedAt <= 0 ||
+		len(e.StackProjects) > 16 || len(e.StackOneshot) > 64 {
 		return false
 	}
-	for _, p := range e.StackProjects {
-		if !bootProjectRE.MatchString(p) {
-			return false
+	for _, l := range [][]string{e.StackProjects, e.StackOneshot} {
+		for _, n := range l {
+			if !bootNameRE.MatchString(n) {
+				return false
+			}
 		}
 	}
 	return true
@@ -174,9 +181,9 @@ type stackNow struct {
 }
 
 // readStackNow reads host_state.prom for the containers of the given
-// compose projects. known is false when the file is missing, was last
+// compose projects, leaving out the services in skip. known is false when the file is missing, was last
 // written before bootedAt or more than maxAge ago, or Docker did not answer.
-func readStackNow(path string, projects []string, bootedAt int64, now time.Time, maxAge time.Duration) stackNow {
+func readStackNow(path string, projects, skip []string, bootedAt int64, now time.Time, maxAge time.Duration) stackNow {
 	var s stackNow
 	if path == "" {
 		return s
@@ -189,6 +196,10 @@ func readStackNow(path string, projects []string, bootedAt int64, now time.Time,
 	for _, p := range projects {
 		stack[p] = true
 	}
+	never := map[string]bool{}
+	for _, svc := range skip {
+		never[svc] = true
+	}
 	running := map[string]bool{} // the stack's containers by name
 	started := map[string]int64{}
 	var lastRun int64
@@ -198,8 +209,8 @@ func readStackNow(path string, projects []string, bootedAt int64, now time.Time,
 	for sc.Scan() {
 		line := sc.Bytes()
 		if m := hsRunningRE.FindSubmatch(line); m != nil {
-			if stack[string(m[2])] {
-				running[string(m[1])] = string(m[3]) == "1"
+			if stack[string(m[2])] && !never[string(m[3])] {
+				running[string(m[1])] = string(m[4]) == "1"
 			}
 		} else if m := hsStartedRE.FindSubmatch(line); m != nil {
 			started[string(m[1])], _ = strconv.ParseInt(string(m[2]), 10, 64)
@@ -314,7 +325,7 @@ func (m *Mailer) pendingBoots() pendingBoots {
 		latest := i == len(events)-1
 		var now stackNow
 		if latest {
-			now = readStackNow(m.cfg.HostStateFile, e.StackProjects, e.BootedAt, m.now(), maxAge)
+			now = readStackNow(m.cfg.HostStateFile, e.StackProjects, e.StackOneshot, e.BootedAt, m.now(), maxAge)
 		}
 		p.ids = append(p.ids, e.BootID)
 		p.lines = append(p.lines, bootLine(e, latest, now))

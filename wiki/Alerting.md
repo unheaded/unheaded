@@ -243,7 +243,7 @@ west booted 2026-11-21 01:44Z; stack down; previous shutdown: not clean
 | `stack down at boot (no current host state)` | the newest boot, but `host_state.prom` is missing, older than `boot.state_max_age` (5m), from before the boot, or Docker did not answer: the line says what the boot recorded (`down`, `up`, `partly up`, `state unknown`) |
 | `stack down at boot` | an earlier boot (two boots since the last digest give two lines, oldest first) |
 
-"Now" comes from `host_state.prom` (`HOST_STATE_FILE`), which `unheaded-host-state.timer` writes every 30 s whether the stack runs or not. "The stack" is the compose projects in `BOOT_EVENT_STACK_PROJECTS` (default `unheaded-dev`, [[Host-Settings]]); the monitoring project is left out, so with only the mailer started to get the digest out the line still reads `stack down`. One-shot services (`volume-init`, `clickhouse-schema`) never count.
+"Now" comes from `host_state.prom` (`HOST_STATE_FILE`), which `unheaded-host-state.timer` writes every 30 s whether the stack runs or not. "The stack" is the compose projects in `BOOT_EVENT_STACK_PROJECTS` (default `unheaded-dev`, [[Host-Settings]]); the monitoring project is left out, so with only the mailer started to get the digest out the line still reads `stack down`. The services in `BOOT_EVENT_ONESHOT` never count: one-shots (`volume-init`, `clickhouse-schema`, the default) and, once listed, services that run only on demand; a service stopped by design and not listed there makes the line read `stack partly up`.
 
 | `previous shutdown` | Means |
 |---|---|
