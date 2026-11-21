@@ -6,8 +6,12 @@ Copyright (c) 2024-2026 Stevie Bellis.
 # Docker host configuration
 
 `daemon.json` is the canonical Docker daemon config for a Kingdom host.
-`scripts/bootstrap-llm-lab.sh` installs it from here; it used to carry its own
-copy as a heredoc, which is how the two drifted apart.
+`scripts/install-prerequisites.sh` installs it from here to
+`/etc/docker/daemon.json` (`DOCKER_DAEMON_JSON`) before it installs Docker, so
+a new daemon starts with it. A `daemon.json` that is already on the host and
+differs is left alone and reported; Docker is never restarted by the script.
+The installer this replaced once carried its own copy as a heredoc, which is
+how the two drifted apart.
 
 ## `fixed-cidr-v6` — why it is not `fd00:dead:beef::/48`
 

@@ -20,7 +20,7 @@ Run with no argument, the script checks the repository instead: every manifest p
 
 | Host path | Repository file | What to change for another host |
 |---|---|---|
-| `/etc/sysctl.d/99-unheaded.conf` | `deploy/sysctl.d/99-unheaded-west.conf` | Copy to `99-unheaded-<host>.conf`; `scripts/bootstrap-llm-lab.sh` installs the one named after the host (`SYSCTL_SOURCE=` overrides) |
+| `/etc/sysctl.d/99-unheaded.conf` | `deploy/sysctl.d/99-unheaded-west.conf` | Copy to `99-unheaded-<host>.conf`; `scripts/install-prerequisites.sh --with sysctl` installs the one named after the host (`SYSCTL_SOURCE=` overrides) when the host has none, and refuses when no such file exists. It does not replace a host file that differs and does not apply the values: `sysctl --system`, or the next boot |
 | `/etc/fstab` (lines) | `deploy/host-settings/west-fstab.fragment` | The volume (`/dev/ubuntu-vg/unheaded-data` on `/srv/unheaded-data`), the five store binds, and the backup bind (`/var/backups/srv-backups` on `/srv/backups`, on the other disk) |
 | `/etc/systemd/system/docker.service.d/10-unheaded-data.conf` | `deploy/host-settings/west-docker-data.conf` | The five bind targets again: Docker waits for them. They follow from Docker's data root, the compose project name (`unheaded-dev`) and the monitoring directory's name |
 | `/usr/local/lib/unheaded/nft/west.nft` | `deploy/nftables/west.nft` | Copy to `<host>.nft` and edit only the `define` block at its top (below) |
@@ -68,6 +68,26 @@ The schedule (10 minutes after boot, then daily) is a systemd timer: `systemctl 
 | What `scripts/check-compose-pids.sh` holds the limits against (same lane) | `COMPOSE_PIDS_THREADS_MAX`, `COMPOSE_PIDS_SHARE_PERCENT`, `COMPOSE_PIDS_PER_SERVICE_MAX`, `COMPOSE_PIDS_PER_FILE_MAX`, `COMPOSE_PIDS_SLICE` | 115473 (west's `kernel.threads-max`), 15, 4096, 20000, `unheaded-env.slice` |
 | A Well role's connection limit | `<ROLE>_CONNECTION_LIMIT` and `scripts/well/set-role-limits.sh`; see [[The-Well]] | the ledger's (app_zhen 20) |
 | What is mailed | `mailer.delivery`, `mailer.immediate`, the caps; see [[Alerting]] | one digest a day |
+
+## The prerequisites installer
+
+`scripts/install-prerequisites.sh` puts on a fresh Ubuntu host what building, testing and the compose stack need (`QUICKSTART.md`). `--dry-run` prints each step and changes nothing; the real run needs root. The script itself starts, enables and restarts nothing (Ubuntu's Docker packages start the Docker daemon when installed), applies no kernel setting, and leaves alone a file or toolchain that is already there and differs (a `kept` line says what to do). A second run changes nothing. Parts: `packages`, `docker`, `go`, `rust` by default (`--without PART`); `ebpf`, `node-exporter`, `sysctl` on request (`--with PART`).
+
+Every value is a variable at the top of the script; one given in the environment replaces the default (`sudo env NAME=value scripts/install-prerequisites.sh ...`):
+
+| Variable | Default | What it is |
+|---|---|---|
+| `UBUNTU_MIN` | `24.04` | the oldest Ubuntu release it runs on; any other system is refused |
+| `BASE_PACKAGES` | `ca-certificates curl git make gcc libc6-dev python3 jq` | part `packages` |
+| `DOCKER_PACKAGES` | `docker.io docker-compose-v2 docker-buildx` | installed only when no docker is on the host; a host that takes Docker from another repository installs it first |
+| `DOCKER_DAEMON_JSON`, `DOCKER` | `/etc/docker/daemon.json`, `docker` | where `deploy/docker/daemon.json` goes; the command asked whether Docker and its compose plugin are already there |
+| `GO_VERSION`, `GO_SHA256` | `go.mod`'s toolchain line and that release's sha256 | changed together; `tests/scripts/test_install_prerequisites.sh` fails when the version is not `go.mod`'s |
+| `GO_BASE_URL`, `GO_INSTALL_DIR`, `GO_PROFILE` | `https://go.dev/dl`, `/usr/local`, `/etc/profile.d/golang.sh` | where the archive comes from, where `go/` is unpacked, the file that puts it on `PATH` |
+| `RUST_PACKAGES` | `rustup` | part `rust`; toolchains are installed by each user (`rustup default stable`) |
+| `EBPF_PACKAGES`, `BPF_LINKER_VERSION` | `bpftool`, `0.10.2` | part `ebpf`; the `bpf-linker` version is printed in the command for the user, not installed |
+| `NODE_EXPORTER_VERSION`, `NODE_EXPORTER_SHA256` | `1.12.1`, none | part `node-exporter`. The repository records no sha256 for the archive yet: the part refuses to download until one is given, from the release's `sha256sums.txt` |
+| `NODE_EXPORTER_BASE_URL`, `NODE_EXPORTER_BIN`, `NODE_EXPORTER_UNIT`, `NODE_EXPORTER_USER`, `SYSUSERS_TARGET` | the project's GitHub releases, `/usr/local/bin/node_exporter`, `/etc/systemd/system/node-exporter.service`, `node-exporter`, `/etc/sysusers.d/unheaded.conf` | the unit is installed and not started; the account comes from `deploy/sysusers.d/unheaded.conf`, which makes every service account in it |
+| `SYSCTL_SOURCE`, `SYSCTL_TARGET` | `deploy/sysctl.d/99-unheaded-<host>.conf`, `/etc/sysctl.d/99-unheaded.conf` | part `sysctl` (West's files, above) |
 
 ## A second host
 

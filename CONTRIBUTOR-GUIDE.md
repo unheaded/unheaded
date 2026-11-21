@@ -45,22 +45,23 @@ This appends `Signed-off-by: Your Name <your@email.com>` to the commit message. 
 
 ### Automated Setup (Recommended)
 
-For a fresh Ubuntu 25.x machine, the bootstrap script installs **everything** in one shot:
+For a fresh Ubuntu machine (24.04 or later), the prerequisites script installs what building, testing and running the compose stack need:
 
 ```bash
-sudo ./scripts/bootstrap-llm-lab.sh
+./scripts/install-prerequisites.sh --dry-run   # prints each step, changes nothing
+sudo ./scripts/install-prerequisites.sh
 ```
 
-This handles all prerequisites below plus GPU drivers, kernel tuning, eBPF environment, monitoring stack, secrets management, and LLM inference tooling. See the script for full details (16 phases).
+It installs the build packages, Docker Engine with the compose plugin, the Go release `go.mod` names (sha256 checked) and `rustup`, from Ubuntu's own repositories where a package exists. It starts no part of the stack (Ubuntu's Docker package starts the Docker daemon), replaces nothing that is already there, and a second run changes nothing. `--with ebpf` adds bpftool; `--help` lists the parts and the values that can be changed. It does not install LXD, Nix, SOPS, age or Claude Code: those rows below are by hand. Rust toolchains belong to your user, so the script prints the commands instead of running them (`rustup default stable`; for eBPF the nightly row below).
 
 ### Prerequisites
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
 | **Go** | 1.26+ (go.mod toolchain go1.27.4) | [go.dev/dl](https://go.dev/dl/) | `go version` |
-| **Rust** | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh -s -- -y --default-toolchain nightly` | `rustc --version` |
-| **Rust eBPF targets** | — | `rustup target add x86_64-unknown-linux-musl && rustup component add rust-src && cargo install bpf-linker` | `cargo install --list \| grep bpf` |
-| **Docker + Compose** | 24+ | [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) | `docker compose version` |
+| **Rust** | stable; nightly for eBPF | `apt install rustup && rustup default stable` | `rustc --version` |
+| **Rust eBPF toolchain** | nightly, bpf-linker 0.10.2 | `rustup toolchain install nightly --component rust-src && cargo install bpf-linker@0.10.2 --locked` | `cargo install --list \| grep bpf` |
+| **Docker + Compose** | 24+ | `apt install docker.io docker-compose-v2 docker-buildx`, or [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) | `docker compose version` |
 | **LXD/Incus** | latest | `snap install lxd` | `lxd --version` |
 | **Nix** | 2.18+ | `curl -L https://nixos.org/nix/install \| sh -s -- --daemon` | `nix --version` |
 | **Claude Code** | latest | `curl -fsSL https://claude.ai/install.sh \| bash` (native installer, as your user; no Node or npm, ADR-006) | `claude --version` |
