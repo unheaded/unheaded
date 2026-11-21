@@ -20,7 +20,7 @@ Run with no argument, the script checks the repository instead: every manifest p
 
 | Host path | Repository file | What to change for another host |
 |---|---|---|
-| `/etc/sysctl.d/99-unheaded.conf` | `deploy/sysctl.d/99-unheaded-west.conf` | Copy to `99-unheaded-<host>.conf`; `scripts/bootstrap-llm-lab.sh` installs the one named after the host (`SYSCTL_SOURCE=` overrides) |
+| `/etc/sysctl.d/99-unheaded.conf` | `deploy/sysctl.d/99-unheaded-west.conf` | Copy to `99-unheaded-<host>.conf`; `scripts/install-prerequisites.sh --with sysctl` installs the one named after the host (`SYSCTL_SOURCE=` overrides) when the host has none, and refuses when no such file exists. It does not replace a host file that differs and does not apply the values: `sysctl --system`, or the next boot |
 | `/etc/fstab` (lines) | `deploy/host-settings/west-fstab.fragment` | The volume (`/dev/ubuntu-vg/unheaded-data` on `/srv/unheaded-data`), the five store binds, and the backup bind (`/var/backups/srv-backups` on `/srv/backups`, on the other disk) |
 | `/etc/systemd/system/docker.service.d/10-unheaded-data.conf` | `deploy/host-settings/west-docker-data.conf` | The five bind targets again: Docker waits for them. They follow from Docker's data root, the compose project name (`unheaded-dev`) and the monitoring directory's name |
 | `/usr/local/lib/unheaded/nft/west.nft` | `deploy/nftables/west.nft` | Copy to `<host>.nft` and edit only the `define` block at its top (below) |
@@ -58,6 +58,21 @@ The two rates (ping 10 a second, drop logs 5 a minute) stay in the rules: nft ta
 
 The schedule (10 minutes after boot, then daily) is a systemd timer: `systemctl edit unheaded-host-settings.timer`. Runbook: `runbooks/infra/host-settings-drift.yaml`.
 
+## The boot record
+
+`unheaded-boot-event.service` records each boot of the host for the daily digest ([[Alerting]], "A boot of the host"). One unit for every host; it reads the same `/etc/unheaded/host-settings.env` when the file is there, and every key has a default:
+
+| Variable | Default | What it is |
+|---|---|---|
+| `BOOT_EVENT_HOST` | the host's short name | the name in the record and in the digest's line (`west booted ...`) |
+| `BOOT_EVENT_TEXTFILE` | `/var/lib/unheaded/textfile` | huginn's textfile directory: `host_boot.prom` is written there and `planned_stop.prom` read there (changing it also needs `ReadWritePaths=` in a drop-in) |
+| `BOOT_EVENT_STACK_PROJECTS` | `unheaded-dev` | the compose projects that are "the stack" in the record and in the digest's `stack down` / `stack up since`; the monitoring project is left out so that the mailer started alone does not read as "stack up" |
+| `BOOT_EVENT_ONESHOT` | `volume-init clickhouse-schema` | compose services that never count as stopped: they exit 0 by design (the default is `HOST_STATE_ONESHOT` of `host-state-textfile.sh`), or run only on demand, such as a deploy service that is up only during a deploy. The record carries the list and the mailer applies it when it reads the stack's state for the digest; a service that is stopped by design and not listed makes the line read `stack partly up` |
+| `BOOT_EVENT_KEEP` | 32 | boots kept in `/var/lib/unheaded/boot-event/boots.jsonl` (1 to 500; the mailer reads the newest 64) |
+| `BOOT_EVENT_DOCKER_WAIT` | 20 | seconds Docker gets to answer at boot, per project (1 to 50; the unit's start timeout is 60 s); past it the boot is recorded with the stack `unknown` |
+
+The record's directory is the unit's `StateDirectory` (`/var/lib/unheaded/boot-event`). The mailer finds it and the textfile directory through `ALERT_MAILER_BOOT_DIR` and `ALERT_MAILER_TEXTFILE_DIR` in `monitoring/.env` (unset: no boot line), and `boot.state_max_age` in `observability/alerting/policy.yaml` (5m) is how old `host_state.prom` may be and still count as the stack's state now.
+
 ## Other values a deployment sets
 
 | What | Where | Default |
@@ -68,6 +83,26 @@ The schedule (10 minutes after boot, then daily) is a systemd timer: `systemctl 
 | What `scripts/check-compose-pids.sh` holds the limits against (same lane) | `COMPOSE_PIDS_THREADS_MAX`, `COMPOSE_PIDS_SHARE_PERCENT`, `COMPOSE_PIDS_PER_SERVICE_MAX`, `COMPOSE_PIDS_PER_FILE_MAX`, `COMPOSE_PIDS_SLICE` | 115473 (west's `kernel.threads-max`), 15, 4096, 20000, `unheaded-env.slice` |
 | A Well role's connection limit | `<ROLE>_CONNECTION_LIMIT` and `scripts/well/set-role-limits.sh`; see [[The-Well]] | the ledger's (app_zhen 20) |
 | What is mailed | `mailer.delivery`, `mailer.immediate`, the caps; see [[Alerting]] | one digest a day |
+
+## The prerequisites installer
+
+`scripts/install-prerequisites.sh` puts on a fresh Ubuntu host what building, testing and the compose stack need (`QUICKSTART.md`). `--dry-run` prints each step and changes nothing; the real run needs root. The script itself starts, enables and restarts nothing (Ubuntu's Docker packages start the Docker daemon when installed), applies no kernel setting, and leaves alone a file or toolchain that is already there and differs (a `kept` line says what to do). A second run changes nothing. Parts: `packages`, `docker`, `go`, `rust` by default (`--without PART`); `ebpf`, `node-exporter`, `sysctl` on request (`--with PART`).
+
+Every value is a variable at the top of the script; one given in the environment replaces the default (`sudo env NAME=value scripts/install-prerequisites.sh ...`):
+
+| Variable | Default | What it is |
+|---|---|---|
+| `UBUNTU_MIN` | `24.04` | the oldest Ubuntu release it runs on; any other system is refused |
+| `BASE_PACKAGES` | `ca-certificates curl git make gcc libc6-dev python3 jq` | part `packages` |
+| `DOCKER_PACKAGES` | `docker.io docker-compose-v2 docker-buildx` | installed only when no docker is on the host; a host that takes Docker from another repository installs it first |
+| `DOCKER_DAEMON_JSON`, `DOCKER` | `/etc/docker/daemon.json`, `docker` | where `deploy/docker/daemon.json` goes; the command asked whether Docker and its compose plugin are already there |
+| `GO_VERSION`, `GO_SHA256` | `go.mod`'s toolchain line and that release's sha256 | changed together; `tests/scripts/test_install_prerequisites.sh` fails when the version is not `go.mod`'s |
+| `GO_BASE_URL`, `GO_INSTALL_DIR`, `GO_PROFILE` | `https://go.dev/dl`, `/usr/local`, `/etc/profile.d/golang.sh` | where the archive comes from, where `go/` is unpacked, the file that puts it on `PATH` |
+| `RUST_PACKAGES` | `rustup` | part `rust`; toolchains are installed by each user (`rustup default stable`) |
+| `EBPF_PACKAGES`, `BPF_LINKER_VERSION` | `bpftool`, `0.10.2` | part `ebpf`; the `bpf-linker` version is printed in the command for the user, not installed |
+| `NODE_EXPORTER_VERSION`, `NODE_EXPORTER_SHA256` | `1.12.1`, none | part `node-exporter`. The repository records no sha256 for the archive yet: the part refuses to download until one is given, from the release's `sha256sums.txt` |
+| `NODE_EXPORTER_BASE_URL`, `NODE_EXPORTER_BIN`, `NODE_EXPORTER_UNIT`, `NODE_EXPORTER_USER`, `SYSUSERS_TARGET` | the project's GitHub releases, `/usr/local/bin/node_exporter`, `/etc/systemd/system/node-exporter.service`, `node-exporter`, `/etc/sysusers.d/unheaded.conf` | the unit is installed and not started; the account comes from `deploy/sysusers.d/unheaded.conf`, which makes every service account in it |
+| `SYSCTL_SOURCE`, `SYSCTL_TARGET` | `deploy/sysctl.d/99-unheaded-<host>.conf`, `/etc/sysctl.d/99-unheaded.conf` | part `sysctl` (West's files, above) |
 
 ## A second host
 

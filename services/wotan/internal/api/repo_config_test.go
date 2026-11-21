@@ -4,6 +4,7 @@
 package api
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -36,5 +37,49 @@ func TestRepoWotanConfig_LoadsAndNamesEveryApprovedIdentity(t *testing.T) {
 		if ok, reason := cfg.Permit(serviceIdentity(name), PermitSubscribe, "system.health.reports"); !ok {
 			t.Errorf("%s cannot read system.health.reports: %s", name, reason)
 		}
+	}
+}
+
+// A host's copy of the topic config (scripts/wotan-host-config.py: the
+// repository's file plus that host's enrolled public keys) is checked with
+// Wotan's own parser before Wotan is restarted on it: a bad key is fatal at
+// start. Skipped unless WOTAN_HOST_CONFIG names the file:
+//
+//	WOTAN_HOST_CONFIG=/etc/unheaded/wotan/wotan.yaml go test ./services/wotan/internal/api -run TestHostWotanConfig -v
+//
+// It must load, and outside the keys it must say what the repository's file
+// says: the same approved identities, permissions and signed prefixes.
+func TestHostWotanConfig(t *testing.T) {
+	path := os.Getenv("WOTAN_HOST_CONFIG")
+	if path == "" {
+		t.Skip("WOTAN_HOST_CONFIG is not set")
+	}
+	host, err := LoadTopicConfig(path)
+	if err != nil {
+		t.Fatalf("%s: %v", path, err)
+	}
+	repo, err := LoadTopicConfig(filepath.Join("..", "..", "..", "..", "configs", "wotan.yaml"))
+	if err != nil {
+		t.Fatalf("configs/wotan.yaml: %v", err)
+	}
+	if got, want := strings.Join(host.Topics.AutoApprove, ","), strings.Join(repo.Topics.AutoApprove, ","); got != want {
+		t.Errorf("auto_approve differs from the repository's file: write the copy again (scripts/wotan-host-config.py)")
+	}
+	if host.PermissionsConfigured() != repo.PermissionsConfigured() {
+		t.Errorf("topics.permissions is configured in one file and not the other")
+	}
+	if len(host.Topics.SignedPrefixes) != len(repo.Topics.SignedPrefixes) {
+		t.Fatalf("%d signed prefixes, the repository's file has %d", len(host.Topics.SignedPrefixes), len(repo.Topics.SignedPrefixes))
+	}
+	enrolled := 0
+	for i, sp := range host.Topics.SignedPrefixes {
+		if sp.Prefix != repo.Topics.SignedPrefixes[i].Prefix {
+			t.Errorf("signed prefix %d is %q, the repository's file has %q", i, sp.Prefix, repo.Topics.SignedPrefixes[i].Prefix)
+		}
+		enrolled += len(sp.Keys)
+		t.Logf("%-26s %d key(s)", sp.Prefix, len(sp.Keys))
+	}
+	if enrolled == 0 {
+		t.Errorf("%s enrols no key: it is the repository's file, not a host's copy", path)
 	}
 }

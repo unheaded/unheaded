@@ -193,11 +193,23 @@ services:
       # per deployment).
       WOTAN_ADDR: ${ALERT_MAILER_WOTAN_ADDR:-}
       WOTAN_GRPC_ADDR: ${ALERT_MAILER_WOTAN_GRPC_ADDR:-}
+      # A boot of the host in the digest (cmd/alert-mailer/boot.go, decision
+      # pack 2026-11-18 row 22): the record unheaded-boot-event.service keeps
+      # and host_state.prom, both read through the two read-only mounts
+      # below. Off until monitoring/.env names the host's directories:
+      #   ALERT_MAILER_BOOT_DIR=/var/lib/unheaded/boot-event
+      #   ALERT_MAILER_TEXTFILE_DIR=/var/lib/unheaded/textfile
+      # Unset, both mounts are an empty directory of this repository and the
+      # digest carries no boot line.
+      BOOT_EVENTS_FILE: /run/host/boot-event/boots.jsonl
+      HOST_STATE_FILE: /run/host/textfile/host_state.prom
       GOMEMLIMIT: "54MiB"
     volumes:
       - ../observability/alerting/policy.yaml:/etc/alert-mailer/policy.yaml:ro
       - alert_mailer_data:/var/lib/alert-mailer
       - ${ALERT_MAILER_SECRETS_DIR:-./alert-mailer/no-secrets}:/run/secrets/alert-mailer:ro
+      - ${ALERT_MAILER_BOOT_DIR:-./alert-mailer/no-host-files}:/run/host/boot-event:ro
+      - ${ALERT_MAILER_TEXTFILE_DIR:-./alert-mailer/no-host-files}:/run/host/textfile:ro
     networks: [monitoring]
     depends_on:
       volume-init:

@@ -1,6 +1,6 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-11-18 (148 entries; the row set and each row's status word checked against the canonical that day)
+**Last synced from canonical:** 2026-11-21 (149 entries; ADR-152's row added that day, the other 148 as checked on 2026-11-18)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
@@ -8,10 +8,12 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 
 2026-11-18, later: rows for ADR-148, ADR-150 and ADR-151 added, so this page has the canonical's 148 rows. ADR-150 and ADR-151 Accepted (Stevie; the same pack, round 6, rows 21 to 23; neither is built). ADR-148 still parked (row 24). ADR-035 amended (a bus per host on the two-host pair), ADR-144 stays parked, ADR-149 annotated, ADR-135's D21 flip ruled (round 7). The counts below are a recount of the 148 rows.
 
+2026-11-21: row for ADR-152 added (Proposed, parked: zhend's four unspawned subsystems are archived in `unheaded-zhend-subsystems`; the same pack, row 36). 149 rows; Proposed goes from 36 to 37.
+
 | Status | Count |
 |--------|-------|
 | Accepted | 76 |
-| Proposed | 36 |
+| Proposed | 37 |
 | Planned | 10 |
 | In Progress | 1 |
 | Deferred | 2 |
@@ -177,6 +179,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [149](../docs/adr/ADR-149-zhen-is-a-module-behind-one-switch.md) | Zhen is a module behind one switch | **Proposed** (note 2026-11-18 under decision 2: Prometheus rule and scrape files are also copied to flat `_prometheus` directories) | 2026-11-15 |
 | [150](../docs/adr/ADR-150-east-and-west-as-a-pair.md) | East and west as a pair: what fails over, and how | **Accepted** (Stevie, 2026-11-18: choices 1 to 14 as recommended; 15, the stack stays down at boot and says so, starting at boot the intended later change. Not built; the plan is forged when the plans before it close) | 2026-11-17 |
 | [151](../docs/adr/ADR-151-the-log-store-is-a-setting.md) | The log store is a setting, not a dependency | **Accepted** (Stevie, 2026-11-18: L1 to L6 as recommended; its own plan after S-LOG-WEEK-2's verdict; nothing built) | 2026-11-18 |
+| [152](../docs/adr/ADR-152-zhend-archived-subsystems.md) | zhend's four unspawned subsystems are archived; how one comes back | **Proposed** (parked; the move out is done, 2026-11-21, no return is planned) | 2026-11-21 |
 
 ---
 

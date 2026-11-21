@@ -11,6 +11,8 @@ Get Unheaded running locally in ~10 minutes.
 | curl | any | `curl --version` |
 | Git | any | `git --version` |
 
+On a fresh Ubuntu host (24.04 or later) `sudo ./scripts/install-prerequisites.sh` installs these, with `rustup` for `make build`; `--dry-run` prints the steps first. It starts no part of the stack and replaces nothing already on the host. Its optional parts and the host files it places are in [[Host Settings|Host-Settings]] and [QUICKSTART.md](../QUICKSTART.md).
+
 ## Build
 
 ```bash

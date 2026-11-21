@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Each boot of this host as its own event (decision pack 2026-11-18 row 22,
+# ADR-150 choice 15; ADR-147's finding "an unplanned boot is its own
+# event"). The stack does not start at boot, so Prometheus, Alertmanager and
+# alert-mailer are down when the host comes up and no rule can say so. This
+# unit writes the boot down on the host, once, late in boot:
+# scripts/monitoring/boot-event.sh appends one line to
+# /var/lib/unheaded/boot-event/boots.jsonl (boot id, boot time, how the boot
+# before ended, the stack's state) and writes host_boot.prom for huginn.
+# alert-mailer reads boots.jsonl through a read-only mount and puts one line
+# in the next daily digest ("west booted 2026-11-21 01:44Z; stack down;
+# previous shutdown: not clean"); see wiki/Alerting.md.
+#
+# It stays active after it ran (RemainAfterExit), so systemd stops it at
+# shutdown: ExecStop stamps an orderly shutdown, only while the system is
+# stopping. A boot that finds no stamp followed a power loss, a hang or a
+# forced reset.
+#
+# Starting the stack at boot is the intended later change. Nothing here
+# depends on the stack being down: the unit only records, and the digest
+# reads the stack's state when it is written. Whatever starts the stack then
+# is not ordered against this unit.
+#
+# One unit for every host. Nothing about a host is written here:
+#   BOOT_EVENT_HOST            host name in the record (default: %l, this
+#                              host's short name)
+#   BOOT_EVENT_TEXTFILE        huginn's textfile directory (default
+#                              /var/lib/unheaded/textfile; if you change it,
+#                              also add a drop-in with ReadWritePaths= for
+#                              the new directory)
+#   BOOT_EVENT_STACK_PROJECTS  compose projects that are "the stack"
+#                              (default in the script: unheaded-dev)
+#   BOOT_EVENT_ONESHOT         compose services that never count: they exit
+#                              0 by design, or run only on demand
+#   BOOT_EVENT_KEEP            boots kept in the history (default 32)
+#   BOOT_EVENT_DOCKER_WAIT     seconds Docker gets to answer (default 20)
+# come from /etc/unheaded/host-settings.env when it is there
+# (deploy/systemd/host-settings.env.example, wiki/Host-Settings.md).
+#
+# Root, like unheaded-host-state.service and for the same reason: it asks
+# Docker which containers run, and the Docker socket is root-equivalent
+# anyway. No capability is kept and no network: Docker's and systemd's are
+# path sockets. The script it runs is a root-owned copy, never the repo's.
+# Install:
+#   sudo install -d -m 0755 /usr/local/lib/unheaded/monitoring
+#   sudo install -m 0755 -o root -g root scripts/monitoring/boot-event.sh /usr/local/lib/unheaded/monitoring/boot-event.sh
+#   sudo install -m 0644 deploy/systemd/unheaded-boot-event.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-boot-event.service
+# The first start records the running boot (previous shutdown: unknown).
+
+[Unit]
+Description=Unheaded: record this boot as an event (ADR-150 choice 15)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/wiki/Alerting.md
+# Late: after Docker (to ask it) and after the clock is set (the boot time
+# is wall-clock time). Neither is required: without Docker the stack's
+# state is recorded as unknown.
+After=docker.service time-set.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=BOOT_EVENT_HOST=%l
+Environment=BOOT_EVENT_TEXTFILE=/var/lib/unheaded/textfile
+Environment=DOCKER_CONFIG=/run/unheaded-boot-event
+EnvironmentFile=-/etc/unheaded/host-settings.env
+StateDirectory=unheaded/boot-event
+StateDirectoryMode=0755
+RuntimeDirectory=unheaded-boot-event
+ExecStart=/usr/local/lib/unheaded/monitoring/boot-event.sh record /var/lib/unheaded/boot-event ${BOOT_EVENT_TEXTFILE}
+ExecStop=/usr/local/lib/unheaded/monitoring/boot-event.sh shutdown /var/lib/unheaded/boot-event
+TimeoutStartSec=60s
+TimeoutStopSec=15s
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=64M
+TasksMax=32
+UMask=0022
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+# "-": without the directory the script says so, in words, and fails.
+ReadWritePaths=-/var/lib/unheaded/textfile
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+# The Docker socket and systemd's are path sockets: PrivateNetwork keeps them.
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

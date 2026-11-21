@@ -1,0 +1,26 @@
+-- SPDX-License-Identifier: GPL-3.0-or-later
+-- The Well — app_timeguru may read unheaded_app's migration ledger
+-- (ADR-147; the same grant 038 gave app_kanban), unheaded_app.
+--
+-- timeguru checks at startup that the ledger holds the migration its store
+-- depends on (050; pkg/database.RequireMigrations with TimelineMigration)
+-- and refuses to start when it is missing. LEDGER.sql revokes everything on
+-- well_schema_migrations from PUBLIC, so the role needs SELECT on it: the
+-- filenames, checksums and apply times, nothing else. No write: the ledger
+-- stays append-only and only well-migrate and db/init.sh add to it.
+--
+-- Why a file of its own: 050 created timeguru's table and granted it, and
+-- left this out; the first start of the new timeguru on west (2026-11-21)
+-- exited with "permission denied for table well_schema_migrations". 050 is
+-- applied and cannot change. On west the same statement was run by hand
+-- that day; applying this file there records it and changes nothing.
+--
+-- MANIFEST flags this file superuser: the ledger belongs to the bootstrap
+-- superuser (026 leaves it there), so the owner role cannot grant on it.
+--
+-- Lock plan: one GRANT, a catalog update on an existing table, instant.
+-- Rollback: a later numbered migration revokes it (timeguru then refuses
+-- to start until its check is removed). Proof: scripts/well/test-migrate.sh
+-- (app_timeguru reads the ledger and cannot write it).
+
+GRANT SELECT ON well_schema_migrations TO app_timeguru;

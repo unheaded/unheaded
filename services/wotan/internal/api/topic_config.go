@@ -69,7 +69,7 @@ type TopicConfig struct {
 // LoadTopicConfig reads topic configuration from a YAML file.
 // Returns a default (deny-all) config if the file does not exist.
 func LoadTopicConfig(path string) (*TopicConfig, error) {
-	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
+	data, err := os.ReadFile(path) // #nosec G304 G703 -- operator-supplied configuration file path (a flag; WOTAN_HOST_CONFIG in the host-copy test)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// No config file — deny all auto-approvals

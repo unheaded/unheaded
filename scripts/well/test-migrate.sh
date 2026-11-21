@@ -135,6 +135,12 @@ want_reach="app_kanban>unheaded_app app_kanban>unheaded_config app_kanban>unhead
 	pass "038: app_kanban reads the unheaded_app ledger and cannot write it" || fail "038: app_kanban ledger privileges"
 [[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename IN ('003_app_schema.sql', '007_grants.sql', '038_app_ledger_read.sql')")" == 3 ]] &&
 	pass "unheaded_app ledger holds kanban-app's required files (003, 007) and 038" || fail "kanban-app's required files not in the ledger"
+# 054: timeguru's startup check reads the same ledger as app_timeguru (050
+# granted its table and not the ledger: it exited at its first start on west).
+[[ "$(sq unheaded_app "SELECT has_table_privilege('app_timeguru', 'well_schema_migrations', 'SELECT') || ' ' || has_table_privilege('app_timeguru', 'well_schema_migrations', 'INSERT,UPDATE,DELETE,TRUNCATE')")" == "true false" ]] &&
+	pass "054: app_timeguru reads the unheaded_app ledger and cannot write it" || fail "054: app_timeguru ledger privileges"
+[[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename IN ('050_app_timeline_milestones.sql', '054_app_ledger_read_timeguru.sql')")" == 2 ]] &&
+	pass "unheaded_app ledger holds timeguru's required file (050) and 054" || fail "timeguru's required file or 054 not in the ledger"
 [[ "$(sq postgres "SELECT has_database_privilege('public', 'template1', 'CONNECT') OR has_database_privilege('public', 'template1', 'TEMPORARY') OR has_database_privilege('app_kanban', 'template1', 'CONNECT')")" == f ]] &&
 	pass "template1: PUBLIC has no CONNECT/TEMPORARY" || fail "template1: PUBLIC can connect"
 

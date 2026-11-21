@@ -72,6 +72,16 @@ type Settings struct {
 	// Immediate (mailer.immediate): alerts mailed at once whatever Delivery
 	// says: an intrusion, an indicator of compromise.
 	Immediate map[string]bool
+	// Boots in the digest (boot.go; decision pack 2026-11-18 row 22).
+	// BootEventsFile (BOOT_EVENTS_FILE) is boots.jsonl from
+	// scripts/monitoring/boot-event.sh; "" turns the boot line off.
+	// HostStateFile (HOST_STATE_FILE) is host_state.prom, for the stack's
+	// state now; "" leaves the line with what the boot recorded.
+	// BootStateMaxAge (boot.state_max_age) is how old host_state.prom may be
+	// and still be "now"; 0 is the default, 5m.
+	BootEventsFile  string
+	HostStateFile   string
+	BootStateMaxAge time.Duration
 }
 
 // digestOnly reports whether the digest is the only mail.
@@ -106,11 +116,12 @@ type state struct {
 	Urgent          map[string]bool  `json:"urgent,omitempty"`  // open entries that came as pages (delivery: digest): they lead the digest
 	Resolved        []string         `json:"resolved"`          // tickets resolved since the last digest
 	Outbox          []OutboxEntry    `json:"outbox"`
-	PageFiring      []string         `json:"page_firing"`       // SLOs the last page mail reported burning
-	PageMailedAt    time.Time        `json:"page_mailed_at"`    // when
-	PipelineLast    time.Time        `json:"pipeline_last"`     // last pipeline receipt from Alertmanager
-	PipelineAlerted bool             `json:"pipeline_alerted"`  // the silent mail went out; the back mail is owed
-	PipelineOverCap int              `json:"pipeline_over_cap"` // pipeline mails sent past a spent cap today
+	PageFiring      []string         `json:"page_firing"`              // SLOs the last page mail reported burning
+	PageMailedAt    time.Time        `json:"page_mailed_at"`           // when
+	PipelineLast    time.Time        `json:"pipeline_last"`            // last pipeline receipt from Alertmanager
+	PipelineAlerted bool             `json:"pipeline_alerted"`         // the silent mail went out; the back mail is owed
+	PipelineOverCap int              `json:"pipeline_over_cap"`        // pipeline mails sent past a spent cap today
+	BootsReported   []string         `json:"boots_reported,omitempty"` // boot ids a delivered digest carried (boot.go)
 }
 
 // Mailer turns Alertmanager webhooks into at most Settings.MaxPerDay mails a
@@ -464,9 +475,10 @@ func (m *Mailer) pipelineLastText() string {
 }
 
 // Tick checks the alert pipeline, then sends the day's digest once it is
-// due. Nothing open, nothing resolved and nothing held back means no digest.
-// Under delivery: digest the pages lead it and a silent alert path is its
-// first line.
+// due. Nothing open, nothing resolved, nothing held back and no boot to
+// report means no digest. Under delivery: digest the pages lead it and a
+// silent alert path is its first line. A boot of the host not yet reported
+// is one plain line after that, under either delivery (boot.go).
 func (m *Mailer) Tick() error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -479,7 +491,8 @@ func (m *Mailer) Tick() error {
 		return nil
 	}
 	silent := m.cfg.digestOnly() && m.st.PipelineAlerted
-	if len(m.st.Tickets) == 0 && len(m.st.Resolved) == 0 && m.st.HeldSinceDigest == 0 && !silent {
+	boots := m.pendingBoots()
+	if len(m.st.Tickets) == 0 && len(m.st.Resolved) == 0 && m.st.HeldSinceDigest == 0 && !silent && len(boots.ids) == 0 {
 		m.st.LastDigest = m.today()
 		return m.save()
 	}
@@ -506,6 +519,13 @@ func (m *Mailer) Tick() error {
 		subject += ", alert pipeline silent"
 		fmt.Fprintf(&b, "Alert pipeline silent: no heartbeat from Alertmanager since %s; Prometheus, Alertmanager or the route is down.\n"+
 			"Until it is back, no alert can reach you.\n  Runbook: runbooks/observe/alert-pipeline-silent.yaml\n\n", m.pipelineLastText())
+	}
+	if len(boots.ids) > 0 {
+		subject += boots.subject()
+		for _, l := range boots.lines {
+			b.WriteString(l + "\n")
+		}
+		b.WriteString("\n")
 	}
 	if len(urgent) > 0 {
 		b.WriteString("Urgent (a page: mailed at once under delivery: immediate):\n\n")
@@ -536,10 +556,11 @@ func (m *Mailer) Tick() error {
 	if err != nil {
 		return err
 	}
-	// A capped digest keeps its news for the next one.
+	// A capped digest keeps its news for the next one, boots included.
 	if !held(outcome) {
 		m.st.Resolved = nil
 		m.st.HeldSinceDigest = 0
+		m.bootsReported(boots)
 	}
 	m.st.LastDigest = m.today()
 	return m.save()

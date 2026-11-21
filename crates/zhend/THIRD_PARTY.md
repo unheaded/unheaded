@@ -1,6 +1,6 @@
 # Third-Party Dependencies — zhend
 
-**Last updated**: 2026-11-18  
+**Last updated**: 2026-11-21  
 **License**: GPL-3.0-or-later  
 **Compliance reviewed by**: MoatGhost  
 
@@ -16,14 +16,10 @@ The tables below list what zhend uses directly. Every crate in `Cargo.lock` is i
 | sled | 0.34 | MIT OR Apache-2.0 | https://github.com/spacejam/sled | L2 warm embedded KV store |
 | memmap2 | 0.9 | MIT OR Apache-2.0 | https://github.com/RazrFalcon/memmap2-rs | Memory-mapped I/O for L1/L3 |
 | serde | 1.x | MIT OR Apache-2.0 | https://github.com/serde-rs/serde | Serialization framework |
-| serde_json | 1.x | MIT OR Apache-2.0 | https://github.com/serde-rs/json | JSON serialization (QUIC API responses) |
 | bincode | 1.x | MIT | https://github.com/bincode-org/bincode | Compact binary serialization |
 | tokio | 1.x | MIT | https://github.com/tokio-rs/tokio | Async runtime |
 | tonic | 0.12 | MIT | https://github.com/hyperium/tonic | gRPC server/client |
 | prost | 0.13 | Apache-2.0 | https://github.com/tokio-rs/prost | Protobuf codegen |
-| quinn | 0.11 | MIT OR Apache-2.0 | https://github.com/quinn-rs/quinn | QUIC transport |
-| rustls | 0.23 | MIT OR Apache-2.0 OR ISC | https://github.com/rustls/rustls | TLS 1.3 |
-| ring | 0.17 | ISC-style | https://github.com/briansmith/ring | Crypto primitives (Ed25519 for self-signed certs) |
 | tokio-stream | 0.1 | MIT | https://github.com/tokio-rs/tokio | Stream utilities for gRPC streaming |
 | tracing | 0.1 | MIT | https://github.com/tokio-rs/tracing | Structured logging |
 | tracing-subscriber | 0.3 | MIT | https://github.com/tokio-rs/tracing | Log formatting |
@@ -44,6 +40,16 @@ The tables below list what zhend uses directly. Every crate in `Cargo.lock` is i
 Removed 2026-11-18 with the hybrid KEM and sealed fragment envelope, which had no
 callers: `pqcrypto-mlkem`, `x25519-dalek`, `aes-gcm`, `hkdf`, `sha2` (27 packages
 left `Cargo.lock`, none added).
+
+Removed 2026-11-21 with the QUIC server, the Monad bridge, the topology observer
+and the strata snapshot history, which the daemon never spawned (archived in
+`unheaded-zhend-subsystems`, ADR-152): `quinn`, `rustls`, `aws-lc-rs`,
+`serde_json` as direct dependencies. 24 packages left `Cargo.lock`, none added:
+aws-lc-rs, aws-lc-sys, cmake, fastbloom, foldhash 0.2.0, fs_extra, libm,
+lru-slab, pkg-config, portable-atomic, quinn, quinn-proto, quinn-udp, rand_pcg,
+ring, rustc-hash, rustls, rustls-pki-types, rustls-webpki, siphasher, subtle,
+tinyvec, untrusted, web-time. `serde_json` stays in the lock file through
+`tracing-subscriber`'s JSON log format.
 
 ### PQClean Upstream
 
