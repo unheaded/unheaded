@@ -4,6 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-117: One Grafana, one metrics store, one log store
 
+**Status (2026-11-21):** Accepted for work, in part, and that part is applied: the Grafana and metrics halves went onto west on 2026-11-11 (17:21Z to 17:46Z, all ten steps of `docs/runbooks/one-grafana-cutover.md`; see "Applied to west 2026-11-11" under "Status 2026-11-11"). Prometheus stays as the rule evaluator (see "Notes 2026-11-21" at the end). The log store is ADR-151's subject now. The two lines below are the earlier statuses, kept as written; "applied to no host" in the first was written before the cut-over of the same day.
 **Status (2026-11-11):** Accepted for work, in part. Stevie, 2026-11-11, after asking why west has two Grafanas: "go for it in background". Built on branch `sprint/s-one-grafana` and applied to no host: one Grafana, one metrics store, the three duplicates out of the files. Prometheus stays as the rule evaluator; its retirement is an open question. See "Status 2026-11-11" at the end. The next line is the 2026-11-03 status, kept as written.
 **Status:** Proposed (parked under ADR-112). Stevie asked for this ADR on 2026-11-03 (ADR-115 Q7: "yes, write the store-convergence ADR"). Nothing is built.
 **Date:** 2026-11-03
@@ -110,3 +111,9 @@ Answers to the open questions: Q1, none of the monitoring stack's dashboards was
 2. Log panels in Grafana need the ClickHouse datasource plugin, which is third party. Confirm it, or keep logs in the dashboard's own log page?
 3. The seven dashboards with no emitter (eBPF pipeline, LLM inference, services, load balancers, container fleet, firewall, routing): rebuild each when its emitter exists, or leave them in history?
 4. `deploy/sophia-eye`'s Prometheus: fold into the main store when that stack next runs (DP-207), or now?
+
+## Notes 2026-11-21
+
+Settled by Claude under `docs/battle-plans/DECISION-PACK-2026-11-18.md` row 41 (reviewable there, each with its undo). The text above is not edited.
+
+- **Status line and index row (M-201.7).** The header's 2026-11-11 line and the index row both still read "applied to no host" ten days after the cut-over recorded under "Applied to west 2026-11-11". A 2026-11-21 status line now sits above the earlier ones, and the rows in `docs/adr/ADR-INDEX.md` and `wiki/ADR-Index.md` follow it. Since the cut-over, west's Grafana has moved from 11.5.1 to 11.5.10 (2026-11-21, a security bump; `docker-compose.yml`).
