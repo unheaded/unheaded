@@ -637,6 +637,12 @@ jobs:
       - name: Log store table, its partitions and its role
         run: ./scripts/well/test-log-events.sh --go
 
+      # S-LOG-WEEK-2 Phase 1: scripts/logstore-measure.sh keeps each query
+      # inside a time budget; the server cuts the run that would pass it and
+      # that run is not counted.
+      - name: Log store reading keeps its time budget
+        run: ./scripts/well/test-logstore-budget.sh
+
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh
 

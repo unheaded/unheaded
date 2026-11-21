@@ -209,6 +209,14 @@ else
     skip_step "log store table (throwaway Well)" "docker not available"
 fi
 
+# 11b-3. The log store reading's time budget (S-LOG-WEEK-2 Phase 1) against a
+#      real psql and server: a run past the budget is cut and not counted.
+if command -v docker &>/dev/null && docker info &>/dev/null; then
+    run_step "log store reading budget (throwaway Well)" scripts/well/test-logstore-budget.sh
+else
+    skip_step "log store reading budget (throwaway Well)" "docker not available"
+fi
+
 # 11c. eBPF verifier-instruction ratchet (ADR-012; S-TRUE-WIRE Phase 7):
 #      loads every program (root) and compares the kernel's verified counts
 #      with docs/policy/ebpf-insns-baseline.tsv. Its baseline is west's

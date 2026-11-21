@@ -1312,6 +1312,17 @@ provoke_well_log_events() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_logstore_budget() {
+    # Contract (S-LOG-WEEK-2, G5): the server ends a run that would pass the
+    # reading's time budget. Set no timeout, so the sixth run of five that fit
+    # finishes late and is counted.
+    local f="scripts/logstore-measure.sh"
+    backup "${f}"
+    sed -i "s/'SET statement_timeout = :left_ms;'/'SET statement_timeout = 0;'/" "${REPO_ROOT}/${f}"
+    grep -q "'SET statement_timeout = 0;'" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_slo_definitions() {
     # Contract (S-WELL-SPRING Phase 3, migration 040): an SLO objective is
     # strictly between 0 and 1. Turn the CHECK into a no-op.
@@ -1507,6 +1518,7 @@ check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZH
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
 well/test-log-events|provoke_well_log_events|slow|log_writer granted SELECT on log_events in 048 (needs docker)
+well/test-logstore-budget|provoke_well_logstore_budget|slow|logstore-measure.sh setting no statement_timeout, so a run past the time budget finishes and is counted (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 well/test-deploy-journal|provoke_well_deploy_journal|slow|chaos_journal's UPDATE/DELETE trigger removed from 039 (needs docker)
 well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 052 (needs docker)
