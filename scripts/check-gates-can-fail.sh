@@ -1577,6 +1577,7 @@ monitoring/maintenance|creates or ends an Alertmanager silence for planned work 
 monitoring/host-state-textfile|writes container and unit state for node_exporter's textfile collector (unheaded-host-state.timer); no verdict of its own, proven by test-host-state-textfile
 monitoring/planned-stop|marks a container stop as planned so ContainerStopped and the SLOs do not count it; no verdict of its own, proven by test-planned-stop
 monitoring/boot-event|records each boot of the host for the daily digest (unheaded-boot-event.service); no verdict of its own, proven by test-boot-event
+logstore-measure|takes one reading of the two log stores on the host (S-LOG-WEEK-2; the user timer unheaded-logstore-measure); exit 1 is a reading with an NA in it, not a verdict on the tree. Proven by test-logstore-measure (stubs) and well/test-logstore-budget (a throwaway server)
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
 wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 wireguard/psk-gate|forced command for the rotation key on east (DP-05); what it lets through and what it refuses are proven by wireguard/test-rotate-psk
