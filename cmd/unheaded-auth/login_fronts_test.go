@@ -199,6 +199,10 @@ func TestLoginFronts_EveryForeignReaderOfTheIssuerKeyIsAccountedFor(t *testing.T
 				return fs.SkipDir
 			case rel != "." && strings.HasPrefix(name, "."):
 				return fs.SkipDir
+			case rel == "configs/certs", rel == "configs/keys", rel == "configs/trust.d":
+				// A host's certificates and keys: no source, and each
+				// service's directory is readable by that service alone.
+				return fs.SkipDir
 			}
 			return nil
 		}

@@ -101,6 +101,12 @@ func skipDir(rel, name string) bool {
 	case "node_modules", "target", "testdata", "vendor":
 		return true
 	}
+	// A host's certificates and keys: no source, and on a host that has made
+	// them each service's directory is readable by that service alone.
+	switch rel {
+	case "configs/certs", "configs/keys", "configs/trust.d":
+		return true
+	}
 	if rel != "." && strings.HasPrefix(name, ".") {
 		return true
 	}
