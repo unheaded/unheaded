@@ -105,6 +105,13 @@ type Config struct {
 	HTTPClient *http.Client
 	// Now defaults to time.Now.
 	Now func() time.Time
+	// ClientUserLoginFailures and ClientLoginFailures are this front's login
+	// failure budgets (failures.go); zero means the default.
+	ClientUserLoginFailures int
+	ClientLoginFailures     int
+
+	// envErr is what ConfigFromEnv could not read; New returns it.
+	envErr error
 }
 
 // CookieNameFor is the session cookie name for a service: one per app, and
@@ -123,13 +130,26 @@ func CookieNameFor(serviceName string, devPlaintext bool) string {
 // CookieName is the session cookie name this BFF sets and reads.
 func (b *BFF) CookieName() string { return b.cfg.CookieName }
 
-// ConfigFromEnv reads AUTH_ISSUER_URL and AUTH_BFF_DEV_PLAINTEXT.
+// LoginFailureBudgets are the budgets in force: failures per client address
+// and username, and per client address across usernames.
+func (b *BFF) LoginFailureBudgets() (perUser, perClient int) {
+	return b.cfg.ClientUserLoginFailures, b.cfg.ClientLoginFailures
+}
+
+// ConfigFromEnv reads AUTH_ISSUER_URL, AUTH_BFF_DEV_PLAINTEXT and the two
+// login failure budgets (EnvClientUserLoginFailures, EnvClientLoginFailures).
+// A value it cannot read is not replaced by a default: New refuses the Config.
 func ConfigFromEnv(serviceName string) Config {
-	return Config{
+	c := Config{
 		ServiceName:  serviceName,
 		IssuerURL:    strings.TrimSpace(os.Getenv("AUTH_ISSUER_URL")),
 		DevPlaintext: os.Getenv("AUTH_BFF_DEV_PLAINTEXT") == "true",
 	}
+	var uerr, cerr error
+	c.ClientUserLoginFailures, uerr = envBudget(EnvClientUserLoginFailures)
+	c.ClientLoginFailures, cerr = envBudget(EnvClientLoginFailures)
+	c.envErr = errors.Join(uerr, cerr)
+	return c
 }
 
 // Enabled reports whether an issuer is configured.
@@ -167,6 +187,14 @@ func New(cfg Config) (*BFF, error) {
 	if cfg.IssuerURL == "" {
 		return nil, errors.New("bff: no issuer URL (AUTH_ISSUER_URL)")
 	}
+	if cfg.envErr != nil {
+		return nil, cfg.envErr
+	}
+	perUser, perClient, err := loginBudgets(cfg.ClientUserLoginFailures, cfg.ClientLoginFailures)
+	if err != nil {
+		return nil, err
+	}
+	cfg.ClientUserLoginFailures, cfg.ClientLoginFailures = perUser, perClient
 	if cfg.CookieName == "" {
 		cfg.CookieName = CookieNameFor(cfg.ServiceName, cfg.DevPlaintext)
 	}
@@ -214,7 +242,7 @@ func New(cfg Config) (*BFF, error) {
 		store:    store,
 		now:      cfg.Now,
 		limits:   make(map[string]*window),
-		failures: newLoginFailures(cfg.Now),
+		failures: newLoginFailures(cfg.Now, cfg.ClientUserLoginFailures, cfg.ClientLoginFailures),
 		stop:     make(chan struct{}),
 	}
 	go b.evictLoop()
