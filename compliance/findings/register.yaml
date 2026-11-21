@@ -2095,10 +2095,8 @@ findings:
       Recorded at Stevie's word (DECISION-PACK-2026-11-18 row 37: the drafts were edited, the code was not, and that
       is an open finding). Found by the RFC desk on 2026-11-18; code citations read again on 2026-11-21, read and not
       run. The drafts stand as ruled, so the code follows them or goes. No plan exists for it under the plan freeze
-      (ADR-112). Row 6 needs its number first
-    decision: >-
-      the maximum signature age default: the draft's RECOMMENDED 300 seconds is the analysis's proposal and Stevie has
-      not named it; the code's tier defaults run from 15 minutes to 24 hours
+      (ADR-112). Row 6's number is ruled: a RECOMMENDED default of 300 seconds (DECISION-PACK-2026-11-18 row 56);
+      the code's tier defaults run from 15 minutes to 24 hours
   - id: FND-046
     title: >-
       Shield stamps a new random IPv6 Flow Label on every packet; the -01 drafts say one label per flow, set from a
