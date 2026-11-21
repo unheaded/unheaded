@@ -244,6 +244,22 @@ Run on develop in the main checkout (one executor; `WT` was not used, so the fas
 
 **Open in these phases:** the 24 h afters. Step 379 (W-28, W-29) from 2026-11-22 19:21Z; Step 392 (W-30: Step 313 twice, an hour apart, on a quiet host) from 2026-11-22 19:25Z.
 
+### 2026-11-21: Step 317, the mailer's half: `alerts.critical` is live (W-05)
+
+After `fix/mailer-wotan-wiring` merged (`c21c195c`: the Wotan client takes `WOTAN_TLS_SERVER_NAME`, the monitoring compose file passes the mailer its two keys, the CA and the address from `monitoring/.env`) and `scripts/monitoring/test-alert-path.sh` passed on the merged tree (7 checks).
+
+| Time (UTC) | What | Result |
+|---|---|---|
+| 19:30 | `unheaded-keygen -dir /etc/unheaded/alert-mailer -trust-dir configs/trust.d/dev -owner 16710:16710 alert-mailer` | `alert-mailer.key` (Ed25519, 0400, uid 16710); `alert-mailer.pub` in the trust directory Wotan's container mounts |
+| 19:30 | `alerts-critical.key` moved from `/etc/unheaded/keys/` into `/etc/unheaded/alert-mailer/` (one copy; the mailer's container mounts that directory alone) | 16710:16710, 0400 |
+| 19:30 | `ALERT_MAILER_WOTAN_ADDR=https://[fd00:dead:beef::1]:18000` appended to `/etc/unheaded/monitoring.env` (an address, no secret; the file was not printed) | present once |
+| 19:34:12 | The running image tagged `unheaded/alert-mailer:pre-wotan-wiring`; `compose up -d --build --no-deps alert-mailer` | healthy in 5 s; `mode: dry-run`, `boot_line: true`; "alerts.critical: publishing signed, as alert-mailer"; "first message accepted by Wotan" |
+| 19:36 | Signals | `alert_mailer_critical_published_total` 1, refused 0, errors 0; room `alerts.critical` holds 5.3 KB; `unheaded_critical_alerts_state{state="ok"}` is 1 for akira, dashboard-backend, kanban-app, kev-poller, timeguru and trace-collector (each read `unknown` before); kanban's `/health`: `critical_alerts: {active: 0, state: ok}`. The mailer uses 6.8 MiB of its 64 MiB |
+
+- **W-05: done.** A critical alert now reaches every client on the bus, and Sword and chaos-controller hold while one fires (D2 = B, confirmed in pack row 16).
+- The mailer is still `mode: dry-run`: plan 1 Steps 319-334 switch it to send in the morning window (pack row 53). This build also carries the boot line (pack row 22).
+- Seen: Wotan's trust directory on west (`configs/trust.d/dev`, not tracked) still holds the public keys of architect, captain, micromanager, monad and sophia. None is in `AUTH_ALLOW_CALLERS` or `topics.permissions`, so each would be refused; removing the five files and their private keys in `configs/keys/dev` belongs to this plan's close (Phase 23).
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
