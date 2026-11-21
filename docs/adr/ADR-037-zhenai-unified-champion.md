@@ -1,5 +1,7 @@
 # ADR-037: Zhenai Unified Champion — The Suit of Armor
 
+## Status (2026-11-21): SUPERSEDED IN PART by ADR-106 and ADR-149; what neither covers is parked under ADR-112. See "Status 2026-11-21" at the end. The next line is the 2026-04-05 status, kept as written.
+
 ## Status: PLANNED
 
 ## Date: 2026-04-05
@@ -154,3 +156,23 @@ here (MCP), a breastplate there (Flask), greaves somewhere else (scheduler).
 - `pkg/champion/` — existing Go Champion implementation (18 tests)
 - `raft/zhen_app.py` — current Python web UI (62KB)
 - `raft/zhen_mcp_server.py` — current MCP server (8 tools)
+
+## Status 2026-11-21
+
+Settled by Claude under `docs/battle-plans/DECISION-PACK-2026-11-18.md` row 41 (M-222.2), reviewable there. The text above is the April record and is not edited.
+
+This ADR has read "Planned" since 2026-04-05 and was never started as written. Meanwhile other work was built over the same ground, so the status now reads: superseded in part by ADR-106 (two brains, one gate; Accepted 2026-11-18) and ADR-149 (Zhen is a module behind one switch; Proposed, its switch live on west since 2026-11-21); the rest is parked under ADR-112's plan freeze. No plan is scheduled for it.
+
+Its five migration phases against develop at `08f4f961`, as a first reading; a later reading can refine what is left:
+
+| Phase, as written | Today |
+|---|---|
+| 1. Go web server replaces the Flask app | Not done. `raft/zhen_app.py` is still the web UI on 20103, behind the Go TLS front `cmd/zhen-ui-front` (ADR-138). Parked |
+| 2. Go MCP server | Done another way: `cmd/zhen-mcp` over `pkg/mcpserver`, every call through the Champion gate (S-CHAMPION-HARDENING Phase 10); `raft/zhen_mcp_server.py` is gone |
+| 3. Go scheduler | Done another way: `zhen-agentd -scheduler` (ADR-028 is superseded by it); the Python scheduler is gone. The merge with Akira that this phase names did not happen |
+| 4. Rust embedding engine (ONNX Runtime, FAISS) | Not built, and its premise is gone: the FAISS pipeline was retired on 2026-05-02 and retrieval goes through vor on 20110. Parked |
+| 5. Single binary, one unit, one package | Not done, and ADR-149 goes the other way: several units behind `unheaded-zhen.target`. Parked |
+
+The "Performance Gains (Expected)" table above was never measured; no figure in it describes a running system.
+
+Undo: strike this section and the 2026-11-21 status line, and set the index rows back to "Planned".

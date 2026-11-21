@@ -14,6 +14,8 @@ Five new MBC opcodes added to support a real kernel: `FENCE`, `MRET`, `SRET`, `L
 
 All five new opcodes are gated behind `cfg!(feature = "ascend-linux")` so the kernel 6.17 BPF verifier doesn't blow its complexity budget for the Doom build. **Always build the BPF program with `--features ascend-linux`** when running anything ASCEND-LINUX-related, or MRET/SRET silently NOP and the kernel never escapes start_mbc.c.
 
+**Rebuild order.** The Doom build (`cargo build --release -p monad-cpu-ebpf`, no feature) and the ascend build write the same object, so a Doom build overwrites the ascend one. Rebuild the ascend object after any Doom build and before a golden sweep or a boot: S-STAGE-2C's close line ended with the Doom build and its first close gate read 0 of 12 goldens the same for that reason alone (`docs/battle-plans/progress/S-STAGE-2C-progress.md`, open call 15; `references/s-stage-2c-log.md`). The regression harness (`scripts/upc-regression.sh`) builds the Doom object for its own gate and rebuilds the ascend object when it exits; a hand-run Doom build does not. The next UPC plan's rebuild line puts the ascend build last.
+
 ADR-067 captures the seven decisions; one shift, 15 commits.
 
 ### Phase 1.1 — First boot banner (2026-05-09 → 2026-05-11)

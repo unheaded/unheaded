@@ -118,3 +118,26 @@ Stevie, 2026-11-12: fix item 1 (the freeze is lifted for that item only) and rec
 Stevie's pitch of 2026-11-15 asks which services earn their cost, and that the stack be reliable and scalable. The second measurement of west and east and the questions it raises are in ADR-147. Items 2 to 7 above stand, still parked.
 
 **2026-11-18:** stays parked, the ring buffer reader with it; S-WATCH-TRUE's growth row accepted as bounded 2026-11-18 (Stevie Bellis, `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 7, row 26: 0.026 core at 41.9 h against a bar of 0.05; 3.4 times its first hour against 1.5). The same binary goes to east. Status unchanged.
+
+## Update 2026-11-21 (the rows plan 2 parked; decision pack row 41, M-178.1 and M-178.2)
+
+Settled by Claude under `docs/battle-plans/DECISION-PACK-2026-11-18.md` row 41, reviewable there. Status unchanged: Proposed (parked). Nothing is built and no plan is written.
+
+**Where the parked rows are kept.** Plan 2's scope ruling (`docs/battle-plans/S-WASTE-OUT-battle-plan.md`, "Marshal (scope)") parked a list of tuning ideas, "each to a `Proposed` ADR if Stevie wants it". They are kept here, in one place, instead of an ADR each: this ADR is already parked and already holds the first of them. The inventory counted six; the plan's sentence holds eight. Read against develop at `08f4f961`:
+
+| Parked row (the plan's words) | Today | Kept as |
+|---|---|---|
+| reading `FLOW_EVENTS` and `LATENCY_EVENTS` instead of sweeping maps (ADR-144, third option) | not built; parked with this ADR on 2026-11-18 (row 26) | candidate, item 1's third option above |
+| Wotan's 1 s room re-list per pattern stream | still in the tree (`services/wotan/internal/grpc/topic_service.go:507`, a one-second ticker) | candidate |
+| the trace collector's 50 ms flush tickers | still in the tree (`cmd/trace-collector-go/publisher.go`, `FlushInterval` default 50 ms) | candidate |
+| the dashboard's snapshots pushed on `/ws` | not re-read here | candidate, as the plan wrote it |
+| the ten unrun packages under `services/` that still carry their own alert listener | still ten packages that stream `alerts.critical` themselves: anomaly, compliance, firewall, gateway, keymgmt, loadbalancer, nfv, qos, selfheal, version. Seven are imported by no binary; `services/anomaly` (`cmd/anomaly`), `services/compliance` (`cmd/compliance-evidence wire`) and `services/gateway` are, so "unrun" is no longer true of all ten | candidate; a package costs nothing while nothing runs it, and whether the three reached ones open the stream when run was not measured |
+| ClickHouse's cache and pool settings against its container | the plan already sent it "to plan 9" | plan 9, unchanged |
+| `node_systemd_unit_state` | covered: plan 1's `unheaded_unit_active`, `unheaded_unit_failed` and `unheaded_unit_restarts` (`scripts/monitoring/host-state-textfile.sh`) | closed as covered |
+| the connection budget per role | now an open question of Stevie's about the Well (46 of 47 connections allotted, `max_connections` 50) | his; not a candidate here |
+
+**What happens to the candidates.** Plan 9 of the ADR-147 series (S-FINE-TUNE) reads the five candidates and the ClickHouse row against plan 8's baseline and keeps a change only if it clears that plan's bar. None of them gets a plan or an ADR of its own (ADR-112), and none is dropped: each is a seat's finding that costs nothing to keep.
+
+**Items 3 and 6 above** (the target footprint for a small adopter host; the per-component budget gate) are outputs of plan 8's baseline: `docs/battle-plans/SPRINT-SERIES-2026-11-15-ADR-147.md`, "Gates that stay open". The target number is still Stevie's to set.
+
+Undo: strike this section and the two lines in the series index.

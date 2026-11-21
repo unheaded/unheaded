@@ -2,6 +2,7 @@
 
 **Date**: 2026-03-18
 **Author**: Stevie Bellis, Kingdom Council
+**Status (2026-11-21)**: ACCEPTED — Phase 1 deferred under ADR-112's plan freeze, revisited when the freeze lifts; the OS half continues in ADR-148 (parked 2026-11-18). See "Update 2026-11-21" at the end. The next line is the earlier status, kept as written.
 **Status**: ACCEPTED — Phase 1 deferred to end of Age 2 (Q4 2026)
 **Scope**: Long-term vision (Age 2/3 features, not blocking public launch)
 
@@ -740,3 +741,13 @@ becomes 13). Egyptian terms are public-domain (ancient theology) and require no 
 ## Update 2026-11-15: Jenkins removed
 
 Stevie, 2026-11-15: no JVM, no Java, no Jenkins anywhere in the stack or the workflow. The repository's Jenkins files are deleted (`Jenkinsfile`, `jenkins/`, `nix/yggdrasil/Jenkinsfile`, `runbooks/infra/jenkins-server.yaml`, `scripts/install-trivy.sh`). The Yggdrasil image pipeline (packer build, smoke boot, apt and image publish) has no runner now: its driver was `nix/yggdrasil/Jenkinsfile`. The pre-merge gate `yggdrasil-verify.yml` still runs. Which runner replaces it is an open question for Stevie. The text above is kept as the record of what was decided then.
+
+## Update 2026-11-21: Phase 1's deferral follows the plan freeze, not a quarter
+
+Settled by Claude under `docs/battle-plans/DECISION-PACK-2026-11-18.md` row 41 (M-222.3), reviewable there. The text above is not edited.
+
+The status line and the timeline note of 2026-04-03 defer Sleipnir's Phase 1 "to end of Age 2 (Q4 2026)". That quarter is now, Age 2 is closed (`references/timeline.md`), and Phase 1 has not started. Starting it would be a new battle plan, which ADR-112 (2026-10-30) does not allow until Stevie lifts the freeze. So the deferral is tied to the condition that governs it: Phase 1 is deferred under ADR-112's plan freeze and is revisited when the freeze lifts. No new date is set; nobody chose one.
+
+The OS half (Yggdrasil, Feature B) continues in ADR-148 (Yggdrasil as packages), which is Proposed and parked and which Stevie kept parked on 2026-11-18 (the same pack, row 24). The image pipeline has had no runner since 2026-11-15 (the update above).
+
+The ADR stays Accepted. Nothing is built, scheduled or dropped by this note. Undo: strike this section and the 2026-11-21 status line, and set the index rows back.

@@ -93,3 +93,9 @@ From `docs/battle-plans/DECISION-PACK-2026-11-18.md`, round 6, row 23: L1 to L6 
 | L6 | What happens to the measurement path (`logstore-writer`, migration 048) | **A**: it becomes the Postgres driver's writer |
 
 State after this answer: accepted; its own plan after S-LOG-WEEK-2's verdict. Nothing is built and no plan is written. "What this does not decide" still holds: ClickHouse stays west's log store until plan 5 (S-LOG-WEEK-2) says otherwise.
+
+## Notes 2026-11-21 (decision pack 2026-11-18, row 41)
+
+Settled by Claude under row 41, reviewable there. The text above is not edited.
+
+- **The `cmd/logstore-writer/main.go` row in `docs/policy/http-auth-baseline.txt` (M-207.2).** Accepted as it stands until this ADR's driver work: the writer checks its own static bearer token (`LOGSTORE_INGEST_TOKEN`, 32 bytes or more, compared in constant time) and not `pkg/auth`, on a link that refuses plaintext. A condition for the plan that builds L6 (the writer becomes the Postgres driver's writer): that work moves its ingest to service tokens (`pkg/auth`) and deletes the baseline row in the same change. Until then the row stays, and `scripts/check-http-auth.sh` keeps it honest. Undo: strike this note; the row is not touched either way.

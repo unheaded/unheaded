@@ -10,24 +10,26 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 
 2026-11-21: row for ADR-152 added (Proposed, parked: zhend's four unspawned subsystems are archived in `unheaded-zhend-subsystems`; the same pack, row 36). 149 rows; Proposed goes from 36 to 37.
 
+2026-11-21, later: ADR-037 Planned → Superseded in part (by ADR-106 and ADR-149; the same pack, row 41), so Planned is 9 and Superseded / Deprecated 10. The Total below had stayed at 148 when ADR-152's row was added; it is 149. ADR-117's row says it is applied to west and ADR-69420's that Phase 1 is deferred under ADR-112's freeze; no count moves for those.
+
 | Status | Count |
 |--------|-------|
 | Accepted | 76 |
 | Proposed | 37 |
-| Planned | 10 |
+| Planned | 9 |
 | In Progress | 1 |
 | Deferred | 2 |
 | Pipe Dream | 4 |
 | Active | 1 |
 | PoC / Research | 2 |
-| Superseded / Deprecated | 9 |
+| Superseded / Deprecated | 10 |
 | Acknowledged | 1 |
 | Implemented | 2 |
 | Partially implemented | 1 |
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **148** |
+| **Total** | **149** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -68,9 +70,9 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [034](../docs/adr/ADR-034-grpc-mtls-default-transport.md) | [gRPC mTLS Default Transport](ADR-034-gRPC-mTLS-Default-Transport) | Accepted | 2026-04-02 |
 | [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [Wotan Active-Passive Redundancy](ADR-035-Wotan-Active-Passive-Redundancy) | **Accepted** (reinstated by DP-214, 2026-11-03; PostgreSQL persistence withdrawn 2026-11-09; amended 2026-11-18: on the two-host pair a bus per host, nothing replicated, ADR-150 choice 6) | 2026-04-05 |
 | [036](../docs/adr/ADR-036-claude-distillation-training.md) | [Claude Distillation Training Data](ADR-036-Claude-Distillation-Training) | **Withdrawn** | 2026-04-05 |
-| [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | Planned | 2026-04-05 |
+| [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | **Superseded** in part by ADR-106 and ADR-149 (2026-11-21); the rest is parked under ADR-112, never started as written | 2026-04-05 |
 | [038](../docs/adr/ADR-038-kanban-git-audit-trail.md) | [Kanban GUID → Git Commit Audit](ADR-038-Kanban-Git-Audit-Trail) | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
-| [69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md) | [BGP Sleipnir + Unheaded OS](ADR-69420-Kingdom-BGP-and-Unheaded-OS) | **Accepted**; Phase 1 deferred to end of Age 2 (Q4 2026) | 2026-03-18 |
+| [69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md) | [BGP Sleipnir + Unheaded OS](ADR-69420-Kingdom-BGP-and-Unheaded-OS) | **Accepted**; Phase 1 deferred under ADR-112's plan freeze, revisited when it lifts (2026-11-21; was "end of Age 2 (Q4 2026)"); the OS half continues in ADR-148 (parked) | 2026-03-18 |
 | [039](../docs/adr/ADR-039-cs-precision-reference-service.md) | [CS Precision Reference Service](ADR-039-CS-Precision-Reference-Service) | In Progress | 2026-04-05 |
 | [040](../docs/adr/ADR-040-kubernetes-ecosystem-strategy.md) | [Kubernetes Ecosystem Strategy](ADR-040-Kubernetes-Ecosystem-Strategy) | **Deferred** (ADR-047; decision 43) | 2026-04-05 |
 | [041](../docs/adr/ADR-041-kanban-timeline-sync.md) | [Kanban ↔ Timeline Bidirectional Sync](ADR-041-Kanban-Timeline-Sync) | Planned | 2026-04-05 |
@@ -144,7 +146,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [114](../docs/adr/ADR-114-user-authentication-for-every-web-page.md) | User authentication for every web page, one login for all (recommended: central IdP + one gate in front of every page + signed per-app passport + pushed revocation, after Google IAP/BeyondCorp, Netflix Passport, Microsoft CAE); BFF/gate/OIDC code flow per page type; outside-library decision per need (recommendation: zero new modules; WebAuthn native-minimal vs go-webauthn open) | **Proposed** (pitch, parked under ADR-112), except N5: server-side sessions in the Well left the park 2026-11-18 (decision pack row 44) and are built behind `AUTH_SESSION_STORE`, switched on nowhere (amendment 2026-11-21) | 2026-10-30 |
 | [115](../docs/adr/ADR-115-smallest-install-for-a-shop-owner.md) | The smallest install a shop owner can run ("Unheaded Shop", name TBD): an aid, not a promise; preflight keeps a badly configured app offline; gate, firewall, egress allowlist, sandbox, change detection, updates, backups, plain report; one binary + one deb | **Proposed** (pitch, parked under ADR-112) | 2026-10-30 |
 | [116](../docs/adr/ADR-116-monitor-the-monitors.md) | Monitor the monitors: every expected signal has a stated expectation and its absence is an alert; expectations registry + CI gate, out-of-stack wardens with mutual heartbeats, proven alert delivery, volume-drop and artifact-freshness checks (high emphasis) | **Proposed** (pitch, parked under ADR-112) | 2026-10-31 |
-| [117](../docs/adr/ADR-117-one-grafana-one-metrics-store-one-log-store.md) | One Grafana, one metrics store, one log store: converge the duplicated observability stores (two Grafanas, Prometheus + two VictoriaMetrics, Loki + ClickHouse) before Studio is sized | **Accepted** for work, in part (Stevie 2026-11-11; built on `sprint/s-one-grafana`, applied to no host; Prometheus stays as rule evaluator, open question) | 2026-11-03 |
+| [117](../docs/adr/ADR-117-one-grafana-one-metrics-store-one-log-store.md) | One Grafana, one metrics store, one log store: converge the duplicated observability stores (two Grafanas, Prometheus + two VictoriaMetrics, Loki + ClickHouse) before Studio is sized | **Accepted** for work, in part (Stevie 2026-11-11; the Grafana and metrics halves applied to west 2026-11-11; Prometheus stays as rule evaluator until ADR-116's warden, option A, 2026-11-21; the log store is ADR-151's) | 2026-11-03 |
 | [118](../docs/adr/ADR-118-pi-hole-twice-behind-one-front.md) | Pi-hole twice (Docker and LXD) behind one DNS front on west: two instances yes; HAProxy only for 53/tcp and 853 (it does not balance UDP); a native UDP front with health checks (B) or nft two-backend DNAT (A) for the UDP path; never 0.0.0.0:53 (LXD dnsmasq) | **Proposed** (pitch, parked under ADR-112) | 2026-11-03 |
 | [119](../docs/adr/ADR-119-shield-xdp-pqc-fast-path-design.md) | Shield XDP post-quantum signature fast path, designed with both ends (userspace ML-DSA-65 verifier as the only map writer, PQC_SIG_STATUS contract, OFF/OPTIMISTIC/PESSIMISTIC states, verifier budget, threat model, four stages behind a cargo feature); nothing built | **Proposed** (parked under ADR-112; Stevie 2026-11-03: design it properly, build after the freeze) | 2026-11-03 |
 | [120](../docs/adr/ADR-120-estimated-energy-per-llm-request.md) | Estimated energy per LLM request in the Well: sampled GPU power integrated per local request, NULL for Claude until a defensible published figure exists; joules per answer beside quality in the routing evals | **Accepted** (Stevie, 2026-11-18; built in S-ZHEN-POLISH) | 2026-11-04 |

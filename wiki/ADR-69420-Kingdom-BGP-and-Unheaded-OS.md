@@ -1,6 +1,6 @@
 # ADR-69420: Kingdom-Native BGP Routing Daemon + Unheaded OS
 
-**Status:** ACCEPTED — Phase 1 deferred to end of Age 2 (Q4 2026)  
+**Status:** ACCEPTED — Phase 1 deferred under ADR-112's plan freeze, revisited when it lifts (2026-11-21); the OS half continues in ADR-148 (parked). Was: Phase 1 deferred to end of Age 2 (Q4 2026)  
 **Date:** 2026-03-18
 
 > Wiki stub generated 2026-05-06 by Marshal overnight sweep (NORTH-STAR Appendix A B5). See the canonical ADR for full text and rationale.

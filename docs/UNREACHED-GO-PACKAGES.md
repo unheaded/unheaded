@@ -108,6 +108,10 @@ Deleted: `pkg/protocol/{amplification,dos,intermediary,prefetch,lifecycle,settin
 
 The G9 planes are not deleted (TRUE-WIRE C1-C6 defaults do not apply). `services/compliance` is reached by `cmd/compliance-evidence wire`, off unless `--serve` (ADR-127). The other seven stay on this list until Stevie has read ADR-128 to ADR-134.
 
+## Follow-up 2026-11-21 (the parked rows)
+
+[sweeps/REAL-STEEL-PARKED-FOLLOWUP-2026-11-21.md](sweeps/REAL-STEEL-PARKED-FOLLOWUP-2026-11-21.md) puts the sweep's 37 parked packages on one sheet with where each one's follow-up is recorded: 9 are gone, 4 are reached by a binary, 24 are still parked and unreached, and four of those are parked for something that has since happened or is not scheduled (`pkg/pqc_policy`, `services/wotan/internal/compute`, `pkg/protocol/integrity`, `pkg/protocol/sophiasync`). The list below was not regenerated for that page.
+
 ## The list
 
 - `cmd/dashboard-backend/jstest` (G6)
