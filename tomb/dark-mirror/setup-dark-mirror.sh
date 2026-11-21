@@ -12,6 +12,8 @@
 #   - Pre-saved Docker image tars in /tmp/dark-mirror-images/
 #   - Network connectivity to Kingdom at 192.168.13.1
 #   - Run as root or with sudo
+#   - GRAFANA_ADMIN_PASSWORD set in the environment (Grafana's admin password;
+#     not stored in this repo). Under sudo: --preserve-env=GRAFANA_ADMIN_PASSWORD
 #
 # Usage:
 #   sudo ./setup-dark-mirror.sh
@@ -262,7 +264,7 @@ verify() {
     echo "  Service Endpoints:"
     echo "  =================="
     echo "  Prometheus: http://127.0.0.1:9090"
-    echo "  Grafana:    http://127.0.0.1:3000 (admin/tomb-of-knowledge)"
+    echo "  Grafana:    http://127.0.0.1:3000 (user admin; the password is the GRAFANA_ADMIN_PASSWORD this was run with)"
     echo "  Loki:       http://127.0.0.1:3100"
     echo ""
 
@@ -299,6 +301,12 @@ main() {
         exit 0
     fi
 
+    # docker-compose.yml takes Grafana's admin password from the environment
+    # and refuses to start without it. Under sudo the variable has to be let
+    # through: sudo --preserve-env=GRAFANA_ADMIN_PASSWORD ./setup-dark-mirror.sh
+    : "${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD - credentials are not stored in this repo}"
+    export GRAFANA_ADMIN_PASSWORD
+
     setup_directories
     load_images
     deploy_configs
@@ -308,7 +316,7 @@ main() {
 
     echo ""
     log_info "Next steps:"
-    log_info "  1. Open Grafana: http://127.0.0.1:3000 (admin / tomb-of-knowledge)"
+    log_info "  1. Open Grafana: http://127.0.0.1:3000 (user admin; the password is the GRAFANA_ADMIN_PASSWORD this was run with)"
     log_info "  2. Check Prometheus targets: http://127.0.0.1:9090/targets"
     log_info "  3. Generate attack report: ${SCRIPT_DIR}/attack-report.sh"
     log_info "  4. Monitor: docker compose -f ${DARK_MIRROR_ROOT}/docker-compose.yml logs -f"

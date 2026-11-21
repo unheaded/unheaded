@@ -61,6 +61,7 @@ hosts).
 - **Credentials are never stored in the repo**: not in code, manifests, scripts, docs or test fixtures.
 - They come from environment variables with fail-loud guards (`${VAR:?...}` in compose, a startup error in Go), never a shipped default. On west they live outside the checkout since 2026-11-12, all root 0600 under `/etc/unheaded/`: `compose.env` (the main stack; the repo-root `.env` is a symlink to it, which compose follows under `sudo`), `monitoring.env` (`monitoring/.env` is a symlink) and `huginn.env` (`/etc/huginn.env` is a symlink), so a secrets file cannot ride along in a push, an archive or an image build context; other per-service env files sit beside them.
 - Enforced by CI: `gitleaks` on every push, `scripts/check-secrets-baseline.sh` (`.gitleaksignore` may only shrink), `trivy --scanners secret`.
+- Compose files are checked by key name as well, since a short lab password has no shape for gitleaks to match: `scripts/check-compose-secrets.sh` refuses a literal value, a literal default (`${X:-admin}`) or a URL with a password in it for any key ending in `PASSWORD`, `PASSWD`, `PASSPHRASE`, `SECRET`, `TOKEN` or `KEY`, in every tracked compose file (`tomb/` included, no exception list). A variable (`${X:?...}`) or a file under `/run`, `/etc`, `/var`, `/opt` or `/srv` passes.
 - The Well's passwords were all rotated on 2026-10-15; backup sets carry no password hashes.
 
 ---
@@ -167,6 +168,7 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
 | gitleaks (pinned binary, sha256) + shrink-only baseline | Secrets in the tracked tree; default rules plus `.gitleaks.toml` rule `unheaded-api-key` for leaked `uhk_` API keys (ADR-103 §5) | `scripts/check-gitleaks.sh`, `scripts/check-secrets-baseline.sh` |
+| Compose secrets | No compose file holds a credential: a secret-named key takes its value from a variable or a file (found in `tomb/dark-mirror` 2026-11-21, decision pack row 41) | `scripts/check-compose-secrets.sh`, `scripts/test-check-compose-secrets.sh` |
 | ruff, shellcheck, clippy | Python, shell and Rust lint (gating) | CI |
 | oxlint (pinned binary, sha256) | JavaScript lint (gating); replaced eslint, the only npm use (ADR-006) | `scripts/check-js-lint.sh` |
 | release freshness | Pinned tools (oxlint, gitleaks, syft, grype, cosign, buf, hadolint, trivy; all in `scripts/lib/tool-pins.sh`) fail once a newer release is 7 days old; so do the CI Python tools' pins (`.github/ci-python/requirements.in`); each is sha256-checked on every use (`scripts/lib/fetch-tool.sh`) | `scripts/check-tool-freshness.sh` |

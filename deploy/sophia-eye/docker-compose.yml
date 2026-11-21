@@ -179,14 +179,19 @@ services:
       # The image copies its static files at start; its own dir is read-only.
       STATIC_DIR: /app/backend/data/static
       OPENAI_API_BASE_URL: "${LLAMA_SERVER_URL:?set LLAMA_SERVER_URL to the llama-server base URL}/v1"
-      OPENAI_API_KEY: "unheaded-local"
+      # Neither endpoint checks a key today (llama-server runs without
+      # --api-key, the embeddings service takes none), and Open WebUI wants a
+      # value for each. The value still comes from the environment: this is
+      # where a real key goes the day llama-server gets one, and
+      # scripts/check-compose-secrets.sh refuses a literal here.
+      OPENAI_API_KEY: "${LLAMA_SERVER_API_KEY:?set LLAMA_SERVER_API_KEY to the key llama-server was started with, or any word if it takes none - credentials are not stored in this repo}"
       WEBUI_SECRET_KEY_FILE: /run/secrets/webui_secret_key
       WEBUI_AUTH: "true"
       PORT: "8080"
       RAG_EMBEDDING_ENGINE: "openai"
       RAG_EMBEDDING_MODEL: "bge-m3"
       RAG_OPENAI_API_BASE_URL: "http://embeddings:8080/v1"
-      RAG_OPENAI_API_KEY: "unused"
+      RAG_OPENAI_API_KEY: "${EMBEDDINGS_API_KEY:?set EMBEDDINGS_API_KEY to the embeddings service's key, or any word while it takes none - credentials are not stored in this repo}"
       VECTOR_DB: "qdrant"
       QDRANT_URI: "http://qdrant:6333"
       OFFLINE_MODE: "true"
