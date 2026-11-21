@@ -21,6 +21,7 @@ type fakePin struct {
 	path    string
 	entries map[string][]byte // what the map holds
 	writes  [][2][]byte
+	deleted [][]byte
 	closed  int
 	fail    error
 }
@@ -39,6 +40,12 @@ func (m *fakePin) Update(key, value []byte) error {
 
 func (m *fakePin) Lookup(key []byte) ([]byte, error) {
 	return m.entries[string(key)], nil
+}
+
+func (m *fakePin) Delete(key []byte) error {
+	m.deleted = append(m.deleted, key)
+	delete(m.entries, string(key))
+	return nil
 }
 
 func (m *fakePin) Iterate(fn func(key, value []byte) error) error {
@@ -316,5 +323,132 @@ func TestHopRulesApply_NotesATTLOnFlowZero(t *testing.T) {
 	}
 	if out := testBuf.String(); !strings.Contains(out, "hmac_keys[0]") || !strings.Contains(out, "expires in 24h") {
 		t.Errorf("output = %q", out)
+	}
+}
+
+// stalePins is the maps before an apply of rulesFile: what the file holds,
+// and one validator and one key it does not.
+func stalePins(t *testing.T) map[string]*fakePin {
+	t.Helper()
+	pins := fakePins(t)
+	u64 := func(v uint64) string { return string(binary.LittleEndian.AppendUint64(nil, v)) }
+	pins["/pins/"+bpfschema.MapHopValidators] = &fakePin{entries: map[string][]byte{
+		u64(3 | 1<<32): make([]byte, 32), // hop 3 namespace 1: in the file
+		u64(9 | 2<<32): make([]byte, 32), // hop 9 namespace 2: not
+	}}
+	pins["/pins/"+bpfschema.MapHMACKeys] = &fakePin{entries: map[string][]byte{
+		u64(0x2211 | 2<<16): make([]byte, 40), // flow 0x2211 namespace 2: not in the file
+	}}
+	pins["/pins/"+bpfschema.MapRetryTokens] = &fakePin{entries: map[string][]byte{}}
+	return pins
+}
+
+func pinCounts(pins map[string]*fakePin) (writes, deletes int) {
+	for _, p := range pins {
+		writes += len(p.writes)
+		deletes += len(p.deleted)
+	}
+	return writes, deletes
+}
+
+// Off by default: an apply without --prune deletes nothing.
+func TestHopRulesApply_NoPruneByDefault(t *testing.T) {
+	pins := stalePins(t)
+	if err := run(t, testContext(DefaultConfig()), NewHopCommand(), "rules apply", "--file", rulesFile(t), "--pin-dir", "/pins"); err != nil {
+		t.Fatal(err)
+	}
+	if _, deletes := pinCounts(pins); deletes != 0 {
+		t.Errorf("%d deletes without --prune", deletes)
+	}
+	if n := len(pins["/pins/"+bpfschema.MapHopValidators].entries); n != 2 {
+		t.Errorf("%d validators left, want both", n)
+	}
+}
+
+func TestHopRulesApply_Prune(t *testing.T) {
+	pins := stalePins(t)
+	if err := run(t, testContext(DefaultConfig()), NewHopCommand(), "rules apply", "--file", rulesFile(t), "--pin-dir", "/pins", "--prune"); err != nil {
+		t.Fatal(err)
+	}
+	v, k := pins["/pins/"+bpfschema.MapHopValidators], pins["/pins/"+bpfschema.MapHMACKeys]
+	if len(v.deleted) != 1 || binary.LittleEndian.Uint64(v.deleted[0]) != 9|2<<32 {
+		t.Errorf("HOP_VALIDATORS deletes = %x", v.deleted)
+	}
+	if len(k.deleted) != 1 || binary.LittleEndian.Uint64(k.deleted[0]) != 0x2211|2<<16 {
+		t.Errorf("HMAC_KEYS deletes = %x", k.deleted)
+	}
+	if len(v.entries) != 1 || len(k.entries) != 2 {
+		t.Errorf("left: %d validators, %d keys; want the file's 1 and 2", len(v.entries), len(k.entries))
+	}
+	out := testBuf.String()
+	for _, want := range []string{
+		"applied 1 validators, 2 HMAC keys, 0 retry entries",
+		"deleted HOP_VALIDATORS hop 9 namespace 2",
+		"deleted HMAC_KEYS flow 0x2211 namespace 2",
+		"pruned 1 validators, 1 HMAC keys, 0 retry entries",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output %q does not say %q", out, want)
+		}
+	}
+}
+
+// --dry-run lists what --prune would delete and touches nothing.
+func TestHopRulesApply_PruneDryRun(t *testing.T) {
+	pins := stalePins(t)
+	if err := run(t, testContext(DefaultConfig()), NewHopCommand(), "rules apply", "--file", rulesFile(t), "--pin-dir", "/pins", "--prune", "--dry-run"); err != nil {
+		t.Fatal(err)
+	}
+	if writes, deletes := pinCounts(pins); writes != 0 || deletes != 0 {
+		t.Errorf("a dry run made %d writes and %d deletes", writes, deletes)
+	}
+	out := testBuf.String()
+	for _, want := range []string{
+		"would apply 1 validators, 2 HMAC keys, 0 retry entries",
+		"would delete HOP_VALIDATORS hop 9 namespace 2",
+		"would delete HMAC_KEYS flow 0x2211 namespace 2",
+		"dry run: nothing was written",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output %q does not say %q", out, want)
+		}
+	}
+	if strings.Contains(out, "deleted ") || strings.Contains(out, "applied ") {
+		t.Errorf("a dry run claims a change: %q", out)
+	}
+}
+
+func TestHopRulesApply_DryRunAlone(t *testing.T) {
+	pins := stalePins(t)
+	if err := run(t, testContext(DefaultConfig()), NewHopCommand(), "rules apply", "--file", rulesFile(t), "--pin-dir", "/pins", "--dry-run"); err != nil {
+		t.Fatal(err)
+	}
+	if writes, deletes := pinCounts(pins); writes != 0 || deletes != 0 {
+		t.Errorf("a dry run made %d writes and %d deletes", writes, deletes)
+	}
+	out := testBuf.String()
+	if !strings.Contains(out, "would apply 1 validators, 2 HMAC keys, 0 retry entries") || strings.Contains(out, "would delete") {
+		t.Errorf("output = %q", out)
+	}
+}
+
+// With --prune the map's flow-0 entry is about to go, so it cannot stand in
+// for one the file lacks: refused, and nothing written or deleted.
+func TestHopRulesApply_PruneChecksFlowZeroInTheFileAlone(t *testing.T) {
+	pins := stalePins(t)
+	key := binary.LittleEndian.AppendUint64(nil, 1<<16) // flow 0, namespace 1, live
+	pins["/pins/"+bpfschema.MapHMACKeys].entries[string(key)] = make([]byte, 40)
+	file := rulesFileWith(t, noFlowZero)
+	if err := run(t, testContext(DefaultConfig()), NewHopCommand(), "rules apply", "--file", file, "--pin-dir", "/pins"); err != nil {
+		t.Fatalf("without --prune the map's entry counts: %v", err)
+	}
+	pins = stalePins(t)
+	pins["/pins/"+bpfschema.MapHMACKeys].entries[string(key)] = make([]byte, 40)
+	err := run(t, testContext(DefaultConfig()), NewHopCommand(), "rules apply", "--file", file, "--pin-dir", "/pins", "--prune")
+	if !errors.Is(err, hoprules.ErrNoFlowZero) {
+		t.Fatalf("err = %v, want ErrNoFlowZero", err)
+	}
+	if writes, deletes := pinCounts(pins); writes != 0 || deletes != 0 {
+		t.Errorf("a refusal made %d writes and %d deletes", writes, deletes)
 	}
 }

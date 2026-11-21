@@ -35,7 +35,9 @@ The CLI writes hop-ebpf's check maps, pinned under `/sys/fs/bpf/unheaded/hop-ebp
 
 | Command | Does |
 |---------|------|
-| `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Entries are never removed. The check mode stays as it is, so rules written while it is off do nothing. |
+| `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Without `--prune` nothing is removed. The check mode stays as it is, so rules written while it is off do nothing. |
+| `... --prune` | Off by default. After the file's entries have landed, deletes what `HOP_VALIDATORS`, `HMAC_KEYS` and `RETRY_TOKENS` hold and the file does not, validators first, and prints one `deleted` line per entry. `CONFIG` (the mode) is never pruned. The flow-0 check then reads the file alone. Deleting a validator removes a check: it happens only on this flag. |
+| `... --dry-run` | Runs every check, prints `would apply` with the counts and, with `--prune`, one `would delete` line per entry, and changes nothing. Run it before a first `--prune` on a host. |
 | `unheaded hop mode <off\|observe\|enforce>` | Sets the check mode (CONFIG key 4). `enforce` is refused until `hoprules.EnforceBlockers` is empty (today FND-031, FND-033, FND-035), and the packaged object runs enforce as observe anyway (ADR-125). |
 
 #### Flow 0 (FND-035)
