@@ -84,13 +84,32 @@ Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-t
 
 - **Every cookie request re-verifies** the stored token against the cached JWKS, so a session ends with its token, at logout, and when the issuer stops publishing the key that signed it. Expired sessions are evicted every minute. The store is in memory (sessions do not survive a restart) and keyed by SHA-256 of the cookie value; a Well-backed store can implement `bff.Store`.
 - **CSRF:** `SameSite=Strict`, plus a second guard: login, logout and every state-changing request that a session cookie authenticates need `X-Requested-With: unheaded` (403 without). Bearer-token callers are not affected.
-- **Login rate limit** in front of the issuer's lockout (which only sees the backend's address): 10 attempts a minute per client address and username, 60 per client address. Failure budget under the issuer's limits: 2 failed logins per client address and username, 9 per client address, over 10 minutes, charged before the issuer answers. Each backend keeps its own count and the dashboard and the board share one address at the issuer, so the budgets are sized for both added together: one client address cannot trip the issuer's lock on that address, but several together can. The Zhen web UI's app (`unheaded-zhen-app.service`) is a third login front on that address with its own budget of 5 and 5 (`raft/zhen_login.py`); added to the two backends' the sums are 9 and 23, under the issuer's 10 and 25. Any further backend on the same host means resizing them (`bff.IssuerAddressBackends`). A login always issues a new session id and drops a presented one.
+- **Login rate limit** in front of the issuer's lockout (which only sees the backend's address): 10 attempts a minute per client address and username, 60 per client address. Then the failure budget: see [Login budgets](#login-budgets). A login always issues a new session id and drops a presented one.
 - **Roles:** reads take `admin`, `operator`, `observer`, `viewer` or `service`; writes take `admin`, `operator` or `service`; `guest` gets nothing. The dashboard needs a login for every `/api/` call and WebSocket (its pages, scripts and styles stay open); the board stays publicly readable and needs an operator login to write. The compliance profile switch (`POST /api/v1/compliance/profile`) takes `admin` or `operator` only and records the login's `sub` as the change's actor.
 - **WebSockets** authenticate by the cookie; on the dashboard a handshake from a foreign `Origin` is refused (403) before authentication.
 - **Calling other services for a user:** the backend uses its own service token and signs the user into it as the RFC 8693 `act` claim (`auth.WithActor`; `bff.AuthorizeOutgoing` also sets `X-Unheaded-On-Behalf-Of`). The receiver sees `Identity.Extra["act"]`; it grants nothing and is for audit records.
 - **Decision trail:** refusals reach the service's journal. `AUTH_AUDIT_LOG=/var/log/unheaded/<name>/auth-audit.log` in the unit's env file keeps every decision there instead (each packaged unit declares that directory); the file rotates at 64 MiB and keeps 7 generations, 512 MiB at most, oldest dropped (`pkg/auth/README.md`).
 - **Issuer over TLS:** the BFF reaches the issuer with the system roots plus the deployment CA when `UNHEADED_TLS_ENABLED=true` (compose: `https://auth:19020`, Secure cookie). `AUTH_BFF_DEV_PLAINTEXT=true` (or dashboard-backend `-dev-plaintext`) remains for a stack without TLS: it drops `Secure` and allows a plain-http issuer; without it a plain-http issuer off loopback refuses to start.
 - The login speaks this issuer's `POST /login`. Another OIDC provider would need an authorization-code flow in `pkg/bff`, which is not built.
+
+## Login budgets
+
+The issuer locks an address out after 10 failed logins for one username, or 25 across usernames, within 10 minutes (`cmd/unheaded-auth/lockout.go`). Behind a login front the address the issuer sees is the front's, and every front on a host shares it, so those locks would fall on everyone at once. Each front therefore holds each *client* address to a budget of its own, charged before the issuer answers, and the budgets are sized so that their sum over all the fronts stays under the issuer's two limits: one client address runs out of tries on every front before it can lock anyone else out. Several client addresses together can still reach the issuer's lock.
+
+| Front | Failures per client address and username | Failures per client address | Where the default lives |
+|---|---|---|---|
+| dashboard-backend (`pkg/bff`) | 2 | 6 | `pkg/bff/failures.go` |
+| kanban-app (`pkg/bff`) | 2 | 6 | `pkg/bff/failures.go` |
+| wiki-server (`pkg/bff`, when `/etc/unheaded/wiki-server.env` names an issuer) | 2 | 6 | `pkg/bff/failures.go` |
+| Zhen web UI's app (`unheaded-zhen-app.service`) | 3 | 5 | `raft/zhen_login.py` |
+| **Sum** | **9** (issuer: 10) | **23** (issuer: 25) | |
+
+All of them count a failure for 10 minutes. The numbers were 2 and 9 for the two `pkg/bff` fronts and 5 and 5 for Zhen until the wiki became a fourth front and the sums reached 11 and 32; each front was shrunk to fit (decision pack 2026-11-18, row 28).
+
+- **Keys.** `AUTH_BFF_USER_LOGIN_FAILURES` and `AUTH_BFF_CLIENT_LOGIN_FAILURES` in a front's environment (unit env file, compose `environment:`) set that front's two budgets; unset, the defaults above apply. The Zhen app reads the same two keys. A value that is not a positive integer, or a username budget above the client budget, is refused: a `pkg/bff` front does not start, and the Zhen app answers every login 503 with the reason. No shipped unit or compose service sets them.
+- **If you change one,** keep both sums under the issuer's limits yourself: nothing at run time can see the other fronts' settings. A host with fewer fronts has room to raise them (two `pkg/bff` fronts alone: 4 and 12).
+- **A new front is counted without a list.** `cmd/unheaded-auth` `TestLoginFronts_BudgetsFitTheIssuerLockout` reads every binary that builds a BFF from the Go source (`pkg/bff/bfftest.GoFronts`), adds the Zhen app's budgets, and fails with the fronts and both sums in the message when they reach the issuer's limits. A front that is not Go is caught by the key it reads: a source file outside Go that names `AUTH_ISSUER_URL`, or a shipped unit or compose service that sets it, must be accounted for in that test file or it fails. `raft/tests/test_zhen_login.py` holds the same sum from the Python side.
+- **The issuer's own two limits** are constants in `cmd/unheaded-auth/lockout.go`, not keys.
 
 ## Replacing it with another IdP
 
