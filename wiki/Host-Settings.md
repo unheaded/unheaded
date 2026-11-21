@@ -58,6 +58,21 @@ The two rates (ping 10 a second, drop logs 5 a minute) stay in the rules: nft ta
 
 The schedule (10 minutes after boot, then daily) is a systemd timer: `systemctl edit unheaded-host-settings.timer`. Runbook: `runbooks/infra/host-settings-drift.yaml`.
 
+## The boot record
+
+`unheaded-boot-event.service` records each boot of the host for the daily digest ([[Alerting]], "A boot of the host"). One unit for every host; it reads the same `/etc/unheaded/host-settings.env` when the file is there, and every key has a default:
+
+| Variable | Default | What it is |
+|---|---|---|
+| `BOOT_EVENT_HOST` | the host's short name | the name in the record and in the digest's line (`west booted ...`) |
+| `BOOT_EVENT_TEXTFILE` | `/var/lib/unheaded/textfile` | huginn's textfile directory: `host_boot.prom` is written there and `planned_stop.prom` read there (changing it also needs `ReadWritePaths=` in a drop-in) |
+| `BOOT_EVENT_STACK_PROJECTS` | `unheaded-dev` | the compose projects that are "the stack" in the record and in the digest's `stack down` / `stack up since`; the monitoring project is left out so that the mailer started alone does not read as "stack up" |
+| `BOOT_EVENT_ONESHOT` | `volume-init clickhouse-schema` | compose services that exit 0 by design and never count as stopped (the same list as `HOST_STATE_ONESHOT` of `host-state-textfile.sh`) |
+| `BOOT_EVENT_KEEP` | 32 | boots kept in `/var/lib/unheaded/boot-event/boots.jsonl` (1 to 500; the mailer reads the newest 64) |
+| `BOOT_EVENT_DOCKER_WAIT` | 20 | seconds Docker gets to answer at boot, per project (1 to 50; the unit's start timeout is 60 s); past it the boot is recorded with the stack `unknown` |
+
+The record's directory is the unit's `StateDirectory` (`/var/lib/unheaded/boot-event`). The mailer finds it and the textfile directory through `ALERT_MAILER_BOOT_DIR` and `ALERT_MAILER_TEXTFILE_DIR` in `monitoring/.env` (unset: no boot line), and `boot.state_max_age` in `observability/alerting/policy.yaml` (5m) is how old `host_state.prom` may be and still count as the stack's state now.
+
 ## Other values a deployment sets
 
 | What | Where | Default |
