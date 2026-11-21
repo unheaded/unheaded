@@ -89,6 +89,13 @@ sudo scripts/wotan-host-config.py --keys /etc/unheaded/wotan/signing-keys.conf -
 scripts/wotan-host-config.py --keys /etc/unheaded/wotan/signing-keys.conf --out /etc/unheaded/wotan/wotan.yaml --check   # exit 4 on drift
 ```
 
+Before restarting Wotan on a new copy, load it with Wotan's own parser (a
+bad key is fatal at start):
+
+```bash
+WOTAN_HOST_CONFIG=/etc/unheaded/wotan/wotan.yaml go test ./services/wotan/internal/api -run TestHostWotanConfig -v
+```
+
 Run it after enrolling or rotating a key, and after any change to
 `configs/wotan.yaml` (a new identity in `auto_approve` or `permissions` does
 not reach the host until the copy is written again). Then restart Wotan: it
