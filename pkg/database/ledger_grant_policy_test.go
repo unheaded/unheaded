@@ -49,7 +49,7 @@ func TestLedgerReadersHaveGrant(t *testing.T) {
 			if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {
 				return nil
 			}
-			src, err := os.ReadFile(p) // #nosec G304 -- a path under the module root, walked by the test itself
+			src, err := os.ReadFile(p)
 			if err != nil {
 				return err
 			}
@@ -84,7 +84,7 @@ func TestLedgerReadersHaveGrant(t *testing.T) {
 	granted := map[string]string{}
 	grant := regexp.MustCompile(`(?im)^\s*GRANT\s+SELECT\s+ON\s+well_schema_migrations\s+TO\s+([^;]+);`)
 	for _, f := range files {
-		src, err := os.ReadFile(f) // #nosec G304 -- a migration file found by the glob above
+		src, err := os.ReadFile(f)
 		if err != nil {
 			t.Fatal(err)
 		}
