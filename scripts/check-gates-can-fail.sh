@@ -1554,6 +1554,7 @@ check-gates-can-fail|SELF|self|this script — see the self-exemption note
 # ---------------------------------------------------------------------------
 NOT_A_GATE="
 generate-sbom|emits an SBOM; failure surfaces in the jobs that consume it
+well/batch-apply|applies the Well's pending migrations behind a backup set (a runbook names it); an operator's tool, not a verdict: its refusals are proven by well/test-batch-apply
 build-all-debs|produces .deb artifacts
 build-sealed-cask|produces a sealed image
 kanban-git-link|writes kanban links, no verdict
