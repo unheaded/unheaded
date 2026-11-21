@@ -241,6 +241,10 @@ else
     rm -f "${PERF_REPORT}"
 fi
 
+# 13. The log store reading (S-LOG-WEEK-2, ADR-147 decision 5) against stub
+#     sudo, docker and curl: no container, no store.
+run_step "log store reading (stubs)" scripts/test-logstore-measure.sh
+
 # Summary
 echo ""
 echo "========================================"

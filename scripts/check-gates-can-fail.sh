@@ -1257,6 +1257,17 @@ provoke_check_perf_regression() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_logstore_measure() {
+    # Contract (S-LOG-WEEK-2, G5): a p50 and a p95 come from five finished runs
+    # or more; fewer is NA and a failed reading. Drop the floor to zero, so a
+    # query that finished twice inside its budget reads as a number.
+    local f="scripts/logstore-measure.sh"
+    backup "${f}"
+    sed -i 's/^MIN_RUNS=5$/MIN_RUNS=0/' "${REPO_ROOT}/${f}"
+    grep -q '^MIN_RUNS=0$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_zhen_mcp() {
     # Contract (S-CHAMPION-HARDENING Step 201): without ZHEN_MCP_ALLOW_WRITE=1
     # the server lists eight read-only tools and file_write is refused. Turn
@@ -1491,6 +1502,7 @@ check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited t
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
 nix/yggdrasil/scripts/yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
 test-check-perf-regression|provoke_check_perf_regression|fast|check-perf-regression.sh's p99 allowance widened from 20 % to 800 %, so the fixture's slow run passes
+test-logstore-measure|provoke_logstore_measure|fast|logstore-measure.sh's floor of five finished runs dropped to zero, so two runs inside the budget read as a p95 (stubs; about a minute a run)
 check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZHEN_MCP_ALLOW_WRITE=1 (builds the server; needs go and jq)
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
