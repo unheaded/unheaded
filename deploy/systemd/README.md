@@ -245,6 +245,30 @@ sudo systemctl reset-failed unheaded-vor-refresh.path unheaded-vor-refresh.servi
 sudo systemctl start unheaded-vor-refresh.path
 ```
 
+Seven commits or merges on develop inside ten minutes did trip it (S-WIKI-VOR;
+seven branches were merged on 2026-11-21). Since 2026-11-21 (M-194.1,
+decision pack row 41) the service waits before the restart:
+`ExecStartPre=/usr/bin/sleep ${VOR_REFRESH_SETTLE_SEC}`, 120 s by default.
+While it waits it is `activating`, so an export that lands then starts
+nothing new and is read by the one restart that follows. A run lasts at
+least the wait, so no more than 6 starts fit in 10 minutes and exports alone
+cannot reach the limit; the burst itself is not raised. The cost: vor serves
+a new export up to two minutes later. To change the wait on a host, a
+drop-in, with the wait at or above `StartLimitIntervalSec` /
+`StartLimitBurst` (100 s) and `TimeoutStartSec` at least a minute above the
+wait:
+
+```ini
+# /etc/systemd/system/unheaded-vor-refresh.service.d/10-settle.conf
+[Service]
+Environment=VOR_REFRESH_SETTLE_SEC=180
+TimeoutStartSec=240s
+```
+
+If the limit is reached anyway (starts by hand count too), `UnitFailed`
+names the path unit: `unheaded-host-state` reports `unheaded-*.path` units
+and any watched unit in the `failed` state (`wiki/Systemd-Units.md`).
+
 Install (the account first):
 
 ```bash
