@@ -61,6 +61,8 @@ The three questions, as answered and built:
 
 **Why the client address.** The login failure budget (`raft/zhen_login.py`, five failures per address per 600 s) is keyed on the client address. With every request arriving from one socket peer, all browsers would share one budget and any one of them could lock the rest out. A client cannot choose the value: the front overwrites it, and the app takes exactly one plain IP address or falls back to the local peer.
 
+> **2026-11-21:** the budget is three failures per address and username and five per address, not five and five: the wiki became a fourth login front and each front was shrunk so the sum stays under the issuer's lockout (decision pack 2026-11-18, row 28; `wiki/Service-Auth.md`, "Login budgets"). The sentence above is kept as the 2026-11-10 record.
+
 **Ops listener.** `/health`, `/ready` and `/metrics` are plain HTTP on `127.0.0.1:20112` (`pkg/ports.ZhenUIFrontMetrics`); the front refuses a non-loopback address for it. `/ready` is 200 while the app answers on its socket. Metrics: `unheaded_zhen_ui_front_tls_client_hellos_total{kex="hybrid"|"classical"}`, `..._upstream_errors_total`, `..._connections`. No Prometheus job scrapes it: the scrapers come over the overlay and this is loopback only.
 
 **Auth baseline.** `cmd/zhen-ui-front/main.go` has a row in `docs/policy/http-auth-baseline.txt` (listeners that do not import `pkg/auth`). Reason: the app behind the front does the login; the front has none of its own and its ops listener is loopback. That file says a new row is a decision for review, so this one is Stevie's to confirm.

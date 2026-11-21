@@ -5,11 +5,11 @@ package bff
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"sync"
 	"time"
+
+	"unheaded/pkg/bff/sessions"
 )
 
 // Session is what the backend holds for one browser login. The access token
@@ -35,11 +35,9 @@ type Store interface {
 	Evict(ctx context.Context, now time.Time) (int, error)
 }
 
-// storeKey is the key a cookie value is stored under.
-func storeKey(cookie string) string {
-	sum := sha256.Sum256([]byte(cookie))
-	return hex.EncodeToString(sum[:])
-}
+// storeKey is the key a cookie value is stored under, in either mode: its
+// SHA-256 in hex.
+func storeKey(cookie string) string { return sessions.KeyHash(cookie) }
 
 // MemStore is an in-memory Store with a cap. Sessions do not survive a
 // restart: users log in again.

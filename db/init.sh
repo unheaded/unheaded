@@ -94,5 +94,10 @@ set_password huginn_reader  HUGINN_READER_PASSWORD
 set_password well_backup    WELL_BACKUP_PASSWORD
 set_password retention_runner RETENTION_RUNNER_PASSWORD
 set_password log_writer     LOG_WRITER_PASSWORD
+# One role per login front, for sessions in the Well (055, 056). The compose
+# file does not pass these: set them with scripts/well/set-role-passwords.sh.
+set_password bff_dashboard_backend BFF_DASHBOARD_BACKEND_PASSWORD
+set_password bff_kanban_app BFF_KANBAN_APP_PASSWORD
+set_password bff_wiki_server BFF_WIKI_SERVER_PASSWORD
 
 echo "=== The Well — Ready ==="

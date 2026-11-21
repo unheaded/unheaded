@@ -84,12 +84,13 @@ _unheaded_completions() {
     local cur prev words cword
     _init_completion || return
 
-    local commands="container service config secret network status version completion generate observe apikey token hop"
+    local commands="container service config secret network status version completion generate observe apikey session token hop"
     local container_commands="list create start stop delete exec inspect"
     local service_commands="list deploy status logs restart scale"
     local config_commands="get set list validate current-context use-context view init"
     local secret_commands="get set delete list rotate generate"
     local apikey_commands="create list revoke"
+    local session_commands="list revoke revoke-all"
     local hop_commands="rules mode"
     local network_commands="policy route inspect"
     local policy_commands="list create delete apply"
@@ -118,6 +119,10 @@ _unheaded_completions() {
             ;;
         apikey|apikeys)
             COMPREPLY=($(compgen -W "${apikey_commands}" -- "${cur}"))
+            return 0
+            ;;
+        session|sessions)
+            COMPREPLY=($(compgen -W "${session_commands}" -- "${cur}"))
             return 0
             ;;
         hop)
@@ -169,6 +174,7 @@ _unheaded() {
     local -a secret_commands
     local -a network_commands
     local -a hop_commands
+    local -a session_commands
 
     commands=(
         'container:Manage containers'
@@ -182,6 +188,7 @@ _unheaded() {
         'generate:Generate IaC artifacts'
         'observe:Manage observability backends'
         'apikey:Create, list and revoke API keys'
+        'session:List and revoke browser login sessions'
         'token:Print a 5-minute service token for one service (for curl)'
         "hop:Manage hop-ebpf's checks"
     )
@@ -229,6 +236,12 @@ _unheaded() {
         'policy:Manage network policies'
         'route:Manage network routes'
         'inspect:Inspect network configuration'
+    )
+
+    session_commands=(
+        'list:List sessions'
+        'revoke:Revoke one session by its id'
+        'revoke-all:Revoke every session of one user'
     )
 
     hop_commands=(
@@ -284,6 +297,11 @@ _unheaded() {
                         _describe -t commands 'hop command' hop_commands
                     fi
                     ;;
+                session|sessions)
+                    if (( CURRENT == 2 )); then
+                        _describe -t commands 'session command' session_commands
+                    fi
+                    ;;
             esac
             ;;
         contexts)
@@ -311,6 +329,10 @@ complete -c unheaded -f -n "__fish_use_subcommand" -a "apikey" -d "Create, list 
 complete -c unheaded -f -n "__fish_seen_subcommand_from apikey apikeys" -a "create" -d "Create a key and print it once"
 complete -c unheaded -f -n "__fish_seen_subcommand_from apikey apikeys" -a "list" -d "List keys"
 complete -c unheaded -f -n "__fish_seen_subcommand_from apikey apikeys" -a "revoke" -d "Revoke a key by prefix or id"
+complete -c unheaded -f -n "__fish_use_subcommand" -a "session" -d "List and revoke browser login sessions"
+complete -c unheaded -f -n "__fish_seen_subcommand_from session sessions" -a "list" -d "List sessions"
+complete -c unheaded -f -n "__fish_seen_subcommand_from session sessions" -a "revoke" -d "Revoke one session by its id"
+complete -c unheaded -f -n "__fish_seen_subcommand_from session sessions" -a "revoke-all" -d "Revoke every session of one user"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "network" -d "Manage network policies and routes"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "status" -d "Show system status overview"
 complete -c unheaded -f -n "__fish_use_subcommand" -a "version" -d "Show version information"

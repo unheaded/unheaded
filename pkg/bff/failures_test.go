@@ -25,7 +25,7 @@ func (a *app) failLogin(user string) int {
 func TestFailureBudget_PerUsernameStopsAtTheBFF(t *testing.T) {
 	a := newApp(t, nil)
 	pw := a.is.AddUser(t, "dev", "operator")
-	for i := 0; i < bff.ClientUserLoginFailures; i++ {
+	for i := 0; i < bff.DefaultClientUserLoginFailures; i++ {
 		if got := a.failLogin("dev"); got != http.StatusUnauthorized {
 			t.Fatalf("failure %d = %d, want 401", i+1, got)
 		}
@@ -53,7 +53,7 @@ func TestFailureBudget_PerUsernameStopsAtTheBFF(t *testing.T) {
 
 func TestFailureBudget_AcrossUsernames(t *testing.T) {
 	a := newApp(t, nil)
-	for i := 0; i < bff.ClientLoginFailures; i++ {
+	for i := 0; i < bff.DefaultClientLoginFailures; i++ {
 		if got := a.failLogin(fmt.Sprintf("name-%d", i)); got != http.StatusUnauthorized {
 			t.Fatalf("failure %d = %d, want 401", i+1, got)
 		}
@@ -75,8 +75,8 @@ func TestFailureBudget_ConcurrentAttemptsCannotOutrunIt(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-	if got := a.is.Logins.Load(); got > bff.ClientUserLoginFailures {
-		t.Fatalf("issuer saw %d concurrent attempts, budget is %d", got, bff.ClientUserLoginFailures)
+	if got := a.is.Logins.Load(); got > bff.DefaultClientUserLoginFailures {
+		t.Fatalf("issuer saw %d concurrent attempts, budget is %d", got, bff.DefaultClientUserLoginFailures)
 	}
 }
 
@@ -84,7 +84,7 @@ func TestFailureBudget_ConcurrentAttemptsCannotOutrunIt(t *testing.T) {
 // stays for the answer.
 func TestFailureBudget_HangingUpKeepsTheCharge(t *testing.T) {
 	a := newApp(t, nil)
-	for i := 0; i < bff.ClientUserLoginFailures; i++ {
+	for i := 0; i < bff.DefaultClientUserLoginFailures; i++ {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 		req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(loginBody("dev", "wrong"))).WithContext(ctx)
@@ -94,7 +94,7 @@ func TestFailureBudget_HangingUpKeepsTheCharge(t *testing.T) {
 		a.h.ServeHTTP(httptest.NewRecorder(), req)
 	}
 	if got := a.failLogin("dev"); got != http.StatusTooManyRequests {
-		t.Fatalf("after %d abandoned attempts = %d, want 429", bff.ClientUserLoginFailures, got)
+		t.Fatalf("after %d abandoned attempts = %d, want 429", bff.DefaultClientUserLoginFailures, got)
 	}
 }
 
@@ -104,7 +104,7 @@ func TestFailureBudget_OtherAnswersDoNotSpendIt(t *testing.T) {
 	pw := a.is.AddUser(t, "dev", "operator")
 	for _, status := range []int{http.StatusTooManyRequests, http.StatusInternalServerError, http.StatusBadRequest} {
 		a.is.ForceStatus.Store(int64(status))
-		for i := 0; i < bff.ClientUserLoginFailures; i++ {
+		for i := 0; i < bff.DefaultClientUserLoginFailures; i++ {
 			a.failLogin("dev")
 		}
 		a.clk.Advance(time.Minute) // past the per-minute rate limit
@@ -119,21 +119,117 @@ func TestFailureBudget_OtherAnswersDoNotSpendIt(t *testing.T) {
 func TestFailureBudget_SuccessClearsOnlyTheUsername(t *testing.T) {
 	a := newApp(t, nil)
 	pw := a.is.AddUser(t, "dev", "operator")
-	for i := 0; i < bff.ClientUserLoginFailures-1; i++ {
+	for i := 0; i < bff.DefaultClientUserLoginFailures-1; i++ {
 		a.failLogin("dev")
 	}
 	if c := a.do(http.MethodPost, "/auth/login", loginBody("dev", pw), withXRW(), fromAddr(failingClient)).Code; c != http.StatusOK {
 		t.Fatalf("good login: %d, want 200", c)
 	}
-	for i := 0; i < bff.ClientUserLoginFailures-1; i++ {
+	for i := 0; i < bff.DefaultClientUserLoginFailures-1; i++ {
 		if got := a.failLogin("dev"); got != http.StatusUnauthorized {
 			t.Fatalf("failure %d after a good login = %d, want 401", i+1, got)
 		}
 	}
-	for i := 0; i < bff.ClientLoginFailures-2*(bff.ClientUserLoginFailures-1); i++ {
+	for i := 0; i < bff.DefaultClientLoginFailures-2*(bff.DefaultClientUserLoginFailures-1); i++ {
 		a.failLogin(fmt.Sprintf("name-%d", i))
 	}
 	if got := a.failLogin("one-more"); got != http.StatusTooManyRequests {
 		t.Fatalf("client budget after a good login = %d, want 429: it must not have reset", got)
+	}
+}
+
+// The budgets are configuration keys (decision pack 2026-11-18, row 28).
+func TestFailureBudget_ReadFromTheEnvironment(t *testing.T) {
+	t.Setenv("AUTH_ISSUER_URL", "https://auth.example")
+	c := bff.ConfigFromEnv(svc)
+	if c.ClientUserLoginFailures != 0 || c.ClientLoginFailures != 0 {
+		t.Fatalf("unset keys must leave the defaults to New: %d, %d", c.ClientUserLoginFailures, c.ClientLoginFailures)
+	}
+	t.Setenv(bff.EnvClientUserLoginFailures, "1")
+	t.Setenv(bff.EnvClientLoginFailures, " 4 ")
+	c = bff.ConfigFromEnv(svc)
+	if c.ClientUserLoginFailures != 1 || c.ClientLoginFailures != 4 {
+		t.Fatalf("budgets from the environment: %d, %d, want 1, 4", c.ClientUserLoginFailures, c.ClientLoginFailures)
+	}
+}
+
+func TestFailureBudget_DefaultsAndConfiguredValuesAreInForce(t *testing.T) {
+	a := newApp(t, nil)
+	if u, c := a.b.LoginFailureBudgets(); u != bff.DefaultClientUserLoginFailures || c != bff.DefaultClientLoginFailures {
+		t.Fatalf("default budgets in force: %d, %d", u, c)
+	}
+	a = newApp(t, func(c *bff.Config) { c.ClientUserLoginFailures, c.ClientLoginFailures = 1, 3 })
+	if got := a.failLogin("dev"); got != http.StatusUnauthorized {
+		t.Fatalf("first failure = %d, want 401", got)
+	}
+	if got := a.failLogin("dev"); got != http.StatusTooManyRequests {
+		t.Fatalf("second failure with a budget of 1 = %d, want 429", got)
+	}
+	a.failLogin("name-1")
+	a.failLogin("name-2")
+	if got := a.failLogin("name-3"); got != http.StatusTooManyRequests {
+		t.Fatalf("fourth name with a client budget of 3 = %d, want 429", got)
+	}
+}
+
+// A budget that cannot be read is never replaced by a default: the front
+// refuses to start.
+func TestFailureBudget_BadValuesRefuseToStart(t *testing.T) {
+	is := "https://auth.example"
+	for _, tc := range []struct{ user, client string }{
+		{"many", ""}, {"0", ""}, {"-1", ""}, {"", "0"}, {"", "1.5"}, {"7", "6"}, {"", "100000"},
+	} {
+		t.Setenv("AUTH_ISSUER_URL", is)
+		t.Setenv(bff.EnvClientUserLoginFailures, tc.user)
+		t.Setenv(bff.EnvClientLoginFailures, tc.client)
+		b, err := bff.New(bff.ConfigFromEnv(svc))
+		if err == nil {
+			b.Close()
+			t.Errorf("%s=%q %s=%q accepted", bff.EnvClientUserLoginFailures, tc.user, bff.EnvClientLoginFailures, tc.client)
+			continue
+		}
+		if !strings.Contains(err.Error(), "LOGIN_FAILURES") {
+			t.Errorf("%q, %q: error %q does not name the key", tc.user, tc.client, err)
+		}
+	}
+	if _, err := bff.New(bff.Config{ServiceName: svc, IssuerURL: is, ClientUserLoginFailures: -2}); err == nil {
+		t.Error("a negative budget in Config accepted")
+	}
+}
+
+// A front whose own budget reaches the issuer's limit would, alone, let one
+// client address lock a username (or everyone) for all the others behind
+// the host. It does not start, whatever file the number came from.
+func TestFailureBudget_ABudgetThatAloneReachesTheIssuersLimitRefusesToStart(t *testing.T) {
+	const is = "https://auth.example"
+	for name, tc := range map[string]struct {
+		user, client int
+		ok           bool
+	}{
+		"the defaults":                        {0, 0, true},
+		"two fronts alone on a host":          {4, 12, true},
+		"one below each limit":                {bff.IssuerPairLockout - 1, bff.IssuerSourceLockout - 1, true},
+		"per username at the issuer's limit":  {bff.IssuerPairLockout, 20, false},
+		"per client at the issuer's limit":    {2, bff.IssuerSourceLockout, false},
+		"per client far over the limit":       {2, 500, false},
+		"per username over, per client under": {bff.IssuerPairLockout + 5, bff.IssuerSourceLockout - 1, false},
+	} {
+		b, err := bff.New(bff.Config{ServiceName: svc, IssuerURL: is, ClientUserLoginFailures: tc.user, ClientLoginFailures: tc.client})
+		if err == nil {
+			b.Close()
+		}
+		if (err == nil) != tc.ok {
+			t.Errorf("%s (%d, %d): err = %v, want ok = %v", name, tc.user, tc.client, err, tc.ok)
+		}
+		if err != nil && !strings.Contains(err.Error(), "issuer") {
+			t.Errorf("%s: the error does not say why: %v", name, err)
+		}
+	}
+	t.Setenv("AUTH_ISSUER_URL", is)
+	t.Setenv(bff.EnvClientUserLoginFailures, "2")
+	t.Setenv(bff.EnvClientLoginFailures, "25")
+	if b, err := bff.New(bff.ConfigFromEnv(svc)); err == nil {
+		b.Close()
+		t.Error("a budget of 25 from the environment accepted")
 	}
 }

@@ -263,19 +263,100 @@ def _go_const(path, name):
     return int(m.group(1))
 
 
+def _go_fronts():
+    """The binaries that build a pkg/bff login front, read from the source as
+    pkg/bff/bfftest GoFronts reads them (that one parses; this one matches the
+    call), so a new front is counted here without anyone listing it."""
+    root = Path(__file__).resolve().parents[2]
+    fronts = set()
+    for top in ('cmd', 'services'):
+        for path in (root / top).rglob('*.go'):
+            if path.name.endswith('_test.go'):
+                continue
+            src = path.read_text(encoding='utf-8', errors='replace')
+            if '"unheaded/pkg/bff"' in src and re.search(r'\bbff\.New\b', src):
+                fronts.add(path.relative_to(root).parts[1])
+    return sorted(fronts)
+
+
 def test_budget_sums_stay_under_the_issuers_limits():
-    # The dashboard, the board and this UI reach the issuer from one address.
+    # Every login front on the host reaches the issuer from one address.
     # Summed, one client's budgets stay strictly under the issuer's locks, so
-    # one client cannot lock a username on every UI (Stevie, 2026-11-09).
-    backends = _go_const('pkg/bff/failures.go', 'IssuerAddressBackends')
-    per_user = _go_const('pkg/bff/failures.go', 'ClientUserLoginFailures')
-    per_client = _go_const('pkg/bff/failures.go', 'ClientLoginFailures')
+    # one client cannot lock a username on every UI (decision pack
+    # 2026-11-18, row 28: each front shrunk so that four fit). The Go side
+    # holds the same sum: cmd/unheaded-auth
+    # TestLoginFronts_BudgetsFitTheIssuerLockout.
+    fronts = _go_fronts()
+    assert {'dashboard-backend', 'kanban-app', 'wiki-server'} <= set(fronts), fronts
+    per_user = _go_const('pkg/bff/failures.go', 'DefaultClientUserLoginFailures')
+    per_client = _go_const('pkg/bff/failures.go', 'DefaultClientLoginFailures')
     pair = _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerPair')
     source = _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerSource')
-    assert backends * per_user + zhen_login.CLIENT_USER_FAILURES < pair
-    assert backends * per_client + zhen_login.CLIENT_FAILURES < source
-    assert zhen_login.CLIENT_USER_FAILURES == 5
+    user_sum = len(fronts) * per_user + zhen_login.CLIENT_USER_FAILURES
+    client_sum = len(fronts) * per_client + zhen_login.CLIENT_FAILURES
+    assert user_sum < pair, f'{fronts} at {per_user} each plus this UI: {user_sum}, issuer locks at {pair}'
+    assert client_sum < source, f'{fronts} at {per_client} each plus this UI: {client_sum}, issuer locks at {source}'
     assert zhen_login.FAILURE_WINDOW >= 600
+
+
+def test_the_budgets_are_configuration_keys():
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={
+        'AUTH_ISSUER_URL': 'https://issuer.test',
+        'AUTH_BFF_USER_LOGIN_FAILURES': '1',
+        'AUTH_BFF_CLIENT_LOGIN_FAILURES': '4',
+    })
+    assert login.config_error() is None
+    assert login.failures.charge('203.0.113.5', 'dev') == (True, 0)
+    ok, wait = login.failures.charge('203.0.113.5', 'dev')
+    assert not ok and wait > 0
+    for name in ('a', 'b', 'c'):
+        assert login.failures.charge('203.0.113.5', name) == (True, 0)
+    assert not login.failures.charge('203.0.113.5', 'd')[0]
+
+
+def test_unset_budgets_are_the_defaults():
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={'AUTH_ISSUER_URL': 'https://issuer.test'})
+    assert login.config_error() is None
+    for _ in range(zhen_login.CLIENT_USER_FAILURES):
+        assert login.failures.charge('203.0.113.5', 'dev') == (True, 0)
+    assert not login.failures.charge('203.0.113.5', 'dev')[0]
+
+
+def test_this_front_knows_the_issuers_limits():
+    # A budget that alone reaches the issuer's lock is refused at start; that
+    # needs the issuer's numbers, which must be the issuer's.
+    assert zhen_login.ISSUER_PAIR_LOCKOUT == _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerPair')
+    assert zhen_login.ISSUER_SOURCE_LOCKOUT == _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerSource')
+    assert zhen_login.ISSUER_PAIR_LOCKOUT == _go_const('pkg/bff/failures.go', 'IssuerPairLockout')
+    assert zhen_login.ISSUER_SOURCE_LOCKOUT == _go_const('pkg/bff/failures.go', 'IssuerSourceLockout')
+
+
+@pytest.mark.parametrize('env', [
+    {'AUTH_BFF_USER_LOGIN_FAILURES': '10', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '12'},
+    {'AUTH_BFF_USER_LOGIN_FAILURES': '2', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '25'},
+    {'AUTH_BFF_CLIENT_LOGIN_FAILURES': '400'},
+])
+def test_a_budget_that_alone_reaches_the_issuers_limit_stops_login(env):
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={'AUTH_ISSUER_URL': 'https://issuer.test', **env})
+    assert 'issuer' in login.config_error() and 'LOGIN_FAILURES' in login.config_error()
+
+
+def test_a_budget_just_under_the_issuers_limits_is_taken():
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={
+        'AUTH_ISSUER_URL': 'https://issuer.test',
+        'AUTH_BFF_USER_LOGIN_FAILURES': '9', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '24'})
+    assert login.config_error() is None
+
+
+@pytest.mark.parametrize('env', [
+    {'AUTH_BFF_USER_LOGIN_FAILURES': 'many'},
+    {'AUTH_BFF_USER_LOGIN_FAILURES': '0'},
+    {'AUTH_BFF_CLIENT_LOGIN_FAILURES': '-3'},
+    {'AUTH_BFF_USER_LOGIN_FAILURES': '6', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '5'},
+])
+def test_a_budget_that_cannot_be_read_stops_login_instead_of_defaulting(env):
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={'AUTH_ISSUER_URL': 'https://issuer.test', **env})
+    assert 'LOGIN_FAILURES' in login.config_error()
 
 
 # ── what a caller without a login gets ──────────────────────────────────
@@ -436,10 +517,10 @@ def test_a_login_past_loopback_works_through_the_socket(ui_socket):
 
 
 # The budget is per client address, and behind the front that address is the
-# front's header, never the socket's peer: five wrong passwords from one
-# address lock that address and nobody else.
+# front's header, never the socket's peer: wrong passwords from one address
+# lock that address and nobody else.
 def test_one_address_cannot_spend_anothers_login_budget(ui_socket, world):
-    for _ in range(zhen_login.CLIENT_FAILURES):
+    for _ in range(zhen_login.CLIENT_USER_FAILURES):
         assert _socket_login(ui_socket, '203.0.113.5', password='wrong').status == 401  # nosec B106 - the wrong password under test
     locked = _socket_login(ui_socket, '203.0.113.5')
     assert locked.status == 429 and int(locked.headers['Retry-After']) > 0

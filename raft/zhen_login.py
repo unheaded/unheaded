@@ -44,14 +44,51 @@ MAX_TOKEN_LIFE = 3600  # pkg/auth's cap on a user token (AUTH_OIDC_MAX_LIFETIME)
 ISSUER_TIMEOUT = 15  # argon2id is slow on purpose
 SESSION_ID_BYTES = 32
 
-# The issuer's lockout sees only this backend's address. The dashboard and the
-# board each spend 2 and 9 from that address (pkg/bff); with this UI's 5 and 5
-# the sums are 9 and 23, under the issuer's 10 and 25, so one client cannot
-# lock a username on every UI (Stevie, 2026-11-09: five tries, not one).
+# The issuer's lockout sees only this backend's address, and every login front
+# on the host shares it. The dashboard, the board and the wiki each spend 2
+# and 6 from that address (pkg/bff); with this UI's 3 and 5 the sums are 9 and
+# 23, under the issuer's 10 and 25, so one client cannot lock a username on
+# every UI. Four fronts did not fit the 2026-11-09 numbers (five tries here),
+# so each was shrunk (decision pack 2026-11-18, row 28). These are the
+# defaults; AUTH_BFF_USER_LOGIN_FAILURES and AUTH_BFF_CLIENT_LOGIN_FAILURES
+# set this front's, as they set a pkg/bff front's. Both sides test the sum
+# over the defaults: tests/test_zhen_login.py here, cmd/unheaded-auth
+# TestLoginFronts_BudgetsFitTheIssuerLockout there.
 FAILURE_WINDOW = 600
-CLIENT_USER_FAILURES = 5
+CLIENT_USER_FAILURES = 3
 CLIENT_FAILURES = 5
+ENV_CLIENT_USER_FAILURES = 'AUTH_BFF_USER_LOGIN_FAILURES'
+ENV_CLIENT_FAILURES = 'AUTH_BFF_CLIENT_LOGIN_FAILURES'
+# The issuer's two lockout limits (cmd/unheaded-auth/lockout.go; a test holds
+# these equal to them). This front's own budget must stay under each: a front
+# that alone lets a client reach the issuer's lock protects nobody. That the
+# sum over every front on the host stays under them too is the operator's to
+# keep when a budget is set on a host (wiki/Service-Auth.md, Login budgets).
+ISSUER_PAIR_LOCKOUT = 10
+ISSUER_SOURCE_LOCKOUT = 25
 MAX_TRACKED_KEYS = 10000
+
+
+def budgets_from_env(env):
+    """((per client and username, per client), None), or (None, why not). An
+    unset key is its default; a value that is no positive integer, or a
+    username budget above the client's, is an error and never a default."""
+    out = []
+    for key, default in ((ENV_CLIENT_USER_FAILURES, CLIENT_USER_FAILURES), (ENV_CLIENT_FAILURES, CLIENT_FAILURES)):
+        raw = env.get(key, '').strip()
+        if not raw:
+            out.append(default)
+            continue
+        if not raw.isascii() or not raw.isdigit() or int(raw) < 1:
+            return None, f'{key}={raw!r}: want a positive integer'
+        out.append(int(raw))
+    if out[0] >= ISSUER_PAIR_LOCKOUT or out[1] >= ISSUER_SOURCE_LOCKOUT:
+        return None, (f'{ENV_CLIENT_USER_FAILURES} {out[0]} and {ENV_CLIENT_FAILURES} {out[1]}: each must stay '
+                      f"under the issuer's lockout at {ISSUER_PAIR_LOCKOUT} and {ISSUER_SOURCE_LOCKOUT}")
+    if out[0] > out[1]:
+        return None, (f'{ENV_CLIENT_USER_FAILURES} {out[0]} and {ENV_CLIENT_FAILURES} {out[1]}: '
+                      'want 1 <= per username <= per client')
+    return (out[0], out[1]), None
 
 OPERATOR_ROLES = frozenset({'admin', 'operator'})
 
@@ -143,8 +180,10 @@ class FailureBudget:
     so concurrent attempts cannot outrun the count, and given back when the
     answer was no credential failure. Safe across threads."""
 
-    def __init__(self, now=time.time):
+    def __init__(self, now=time.time, per_user=CLIENT_USER_FAILURES, per_client=CLIENT_FAILURES):
         self._now = now
+        self._per_user = per_user
+        self._per_client = per_client
         self._lock = threading.Lock()
         self._fail = {}
 
@@ -165,7 +204,7 @@ class FailureBudget:
                     self._recent(key, now)
                 if len(self._fail) >= MAX_TRACKED_KEYS:
                     return False, 60
-            budgets = ((f'u|{client}|{user}', CLIENT_USER_FAILURES), (f'c|{client}', CLIENT_FAILURES))
+            budgets = ((f'u|{client}|{user}', self._per_user), (f'c|{client}', self._per_client))
             wait = 0
             for key, limit in budgets:
                 ts = self._recent(key, now)
@@ -235,23 +274,31 @@ class Sessions:
 class Login:
     """The login routes' logic; zhen_app.py holds the Flask side."""
 
-    def __init__(self, issuer_url, agentd_url, dev_plaintext=False, now=time.time):
+    def __init__(self, issuer_url, agentd_url, dev_plaintext=False, now=time.time, budgets=None, budget_error=None):
         self.issuer_url = issuer_url.rstrip('/')
         self.agentd_url = agentd_url.rstrip('/')
         self.dev_plaintext = dev_plaintext
         self._now = now
+        self._budget_error = budget_error
         self.sessions = Sessions(now)
-        self.failures = FailureBudget(now)
+        per_user, per_client = budgets or (CLIENT_USER_FAILURES, CLIENT_FAILURES)
+        self.failures = FailureBudget(now, per_user, per_client)
 
     @classmethod
     def from_env(cls, agentd_url, environ=None):
         env = os.environ if environ is None else environ
+        budgets, budget_error = budgets_from_env(env)
         return cls(env.get('AUTH_ISSUER_URL', '').strip(), agentd_url,
-                   dev_plaintext=env.get('AUTH_BFF_DEV_PLAINTEXT', '').strip() == 'true')
+                   dev_plaintext=env.get('AUTH_BFF_DEV_PLAINTEXT', '').strip() == 'true',
+                   budgets=budgets, budget_error=budget_error)
 
     def config_error(self):
         """Why nobody can log in, or None. A token and a password go over TLS,
-        except to loopback or under AUTH_BFF_DEV_PLAINTEXT."""
+        except to loopback or under AUTH_BFF_DEV_PLAINTEXT. A login failure
+        budget that could not be read stops logins: it is not replaced by a
+        default."""
+        if self._budget_error:
+            return self._budget_error
         if not self.issuer_url:
             return 'no issuer: set AUTH_ISSUER_URL to unheaded-auth'
         for name, url in (('AUTH_ISSUER_URL', self.issuer_url), ('ZHEN_AGENTD_URL', self.agentd_url)):

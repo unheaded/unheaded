@@ -80,6 +80,12 @@ unheaded_app     053_app_drop_zhen.sql
 # out; found at the deploy of 2026-11-21). After 053: it is applied on west with
 # the Zhen move's last file, and until then the grant there was made by hand.
 unheaded_app     054_app_ledger_read_timeguru.sql superuser
+# ADR-114 N5: browser sessions in the Well. 055 makes one login role per login
+# front; 056 the table, the view each front's role is held to, and app_auth's
+# read-and-revoke grant. Nothing uses them until a front runs with
+# AUTH_SESSION_STORE=well.
+postgres         055_bff_session_roles.sql
+unheaded_app     056_app_bff_sessions.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

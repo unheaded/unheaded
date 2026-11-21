@@ -16,14 +16,17 @@ import (
 // out. Locked attempts never reach argon2id, so they cost nothing.
 //
 // Behind a backend-for-frontend the source is that backend, so these locks
-// fall on all its clients together. pkg/bff holds each client address to
-// budgets that, summed over the backends sharing a source, stay under these
+// fall on all its clients together. Each login front holds a client address
+// to budgets that, summed over the fronts sharing a source, stay under these
 // limits, so one client address cannot reach them. Several together can. The
 // issuer takes no forwarded address.
 const (
 	lockoutWindow = 10 * time.Minute
-	// Above the summed budgets of the dashboard, the board and the Zhen UI,
-	// which share one source address (2+2+5 and 9+9+5; Stevie, 2026-11-09).
+	// Above the summed budgets of every login front on a host, which share
+	// one source address: the dashboard, the board, the wiki and the Zhen UI
+	// at 2+2+2+3 and 6+6+6+5 (decision pack 2026-11-18, row 28).
+	// TestLoginFronts_BudgetsFitTheIssuerLockout counts the fronts from the
+	// source and fails when a new one makes the sums reach these.
 	maxFailuresPerPair   = 10
 	maxFailuresPerSource = 25
 	// maxTrackedKeys bounds memory under a flood of distinct addresses.

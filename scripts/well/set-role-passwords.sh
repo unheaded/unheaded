@@ -44,5 +44,8 @@ huginn_reader HUGINN_READER_PASSWORD
 well_backup WELL_BACKUP_PASSWORD
 retention_runner RETENTION_RUNNER_PASSWORD
 log_writer LOG_WRITER_PASSWORD
+bff_dashboard_backend BFF_DASHBOARD_BACKEND_PASSWORD
+bff_kanban_app BFF_KANBAN_APP_PASSWORD
+bff_wiki_server BFF_WIKI_SERVER_PASSWORD
 ROLES
 echo "[well] $n role password(s) set"

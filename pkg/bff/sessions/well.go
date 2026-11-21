@@ -1,0 +1,462 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis.
+
+package sessions
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/lib/pq"
+	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/database"
+)
+
+// The Well keeps sessions in unheaded_app.bff_sessions (migrations 055 and
+// 056). A front never touches that table: it logs in as its own role
+// (WellRole) and is granted only the view bff_sessions_own, which shows and
+// accepts the rows of the front the role is named after. One front's
+// password therefore cannot read, forge or end another front's sessions.
+// The command line logs in as app_auth, which may read the table and set
+// revoked_at and nothing else.
+
+const (
+	// wellQueryTimeout bounds every query: a stuck Well refuses the
+	// request (fail closed) instead of hanging it.
+	wellQueryTimeout = 3 * time.Second
+
+	ownView      = "bff_sessions_own"
+	sessionTable = "bff_sessions"
+	columns      = `id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at, revoked_at, revoked_by`
+)
+
+// WellRole is the Well login role a front's sessions are kept under:
+// "bff_" and the front's name with "-" as "_". The view compares it to the
+// connection's user, which is why a front name carries no underscore.
+func WellRole(front string) string { return "bff_" + strings.ReplaceAll(front, "-", "_") }
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanSession(row rowScanner) (Session, error) {
+	var (
+		s         Session
+		roles     string
+		revoked   sql.NullTime
+		revokedBy sql.NullString
+	)
+	if err := row.Scan(&s.KeyHash, &s.Front, &s.Subject, &roles, &s.CreatedAt, &s.LastUsedAt, &s.ExpiresAt, &s.AbsoluteExpiresAt, &revoked, &revokedBy); err != nil {
+		return Session{}, err
+	}
+	if roles != "" {
+		s.Roles = strings.Split(roles, ",")
+	}
+	s.CreatedAt, s.LastUsedAt = s.CreatedAt.UTC(), s.LastUsedAt.UTC()
+	s.ExpiresAt, s.AbsoluteExpiresAt = s.ExpiresAt.UTC(), s.AbsoluteExpiresAt.UTC()
+	if revoked.Valid {
+		t := revoked.Time.UTC()
+		s.RevokedAt = &t
+		s.RevokedBy = revokedBy.String
+	}
+	return s, nil
+}
+
+func querySessions(ctx context.Context, db *sql.DB, q string, args ...any) ([]Session, error) {
+	ctx, cancel := context.WithTimeout(ctx, wellQueryTimeout)
+	defer cancel()
+	rows, err := db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Session
+	for rows.Next() {
+		s, err := scanSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+func execCount(ctx context.Context, db *sql.DB, q string, args ...any) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, wellQueryTimeout)
+	defer cancel()
+	res, err := db.ExecContext(ctx, q, args...)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
+// wellStore is one front's Store over the view.
+type wellStore struct {
+	db    *sql.DB
+	front string
+}
+
+// NewWellStore returns front's Store on db, a connection logged in as
+// WellRole(front). It checks the view is readable first, so a front with
+// the wrong login or an un-migrated Well finds out when it starts.
+func NewWellStore(ctx context.Context, db *sql.DB, front string) (Store, error) {
+	if db == nil {
+		return nil, errors.New("sessions: no database")
+	}
+	if !ValidFront(front) {
+		return nil, fmt.Errorf("%w: front %q cannot keep sessions in the Well (want [a-z0-9][a-z0-9-]*, at most 59 characters, no underscore)", ErrInvalid, front)
+	}
+	qctx, cancel := context.WithTimeout(ctx, wellQueryTimeout)
+	defer cancel()
+	if _, err := db.ExecContext(qctx, `SELECT 1 FROM `+ownView+` LIMIT 0`); err != nil {
+		return nil, fmt.Errorf("sessions: the Well's %s is not readable (migrations 055 and 056 applied? logged in as %s?): %w", ownView, WellRole(front), err)
+	}
+	return &wellStore{db: db, front: front}, nil
+}
+
+// Create runs in one transaction, so a login that is refused (the front is
+// full, the clocks disagree) leaves nothing behind, the revocations of the
+// subject's older sessions included:
+//
+//  1. the Well's clock is read and the session's creation time held to
+//     lim.MaxSkew of it;
+//  2. the subject's live sessions beyond the newest lim.MaxPerSubject-1 are
+//     revoked (ByLimit);
+//  3. the row is written, if the front's live sessions are under
+//     lim.MaxLive.
+//
+// Two logins of one subject at the same instant can each keep cap-1 and
+// add one, leaving that subject one over until its next login trims again.
+// The front's own cap is counted in the statement that writes the row.
+func (w *wellStore) Create(ctx context.Context, s Session, lim CreateLimits) (int, error) {
+	if err := s.Validate(); err != nil {
+		return 0, err
+	}
+	if s.Front != w.front {
+		return 0, fmt.Errorf("%w: a session of %q offered to the store of %q", ErrInvalid, s.Front, w.front)
+	}
+	ctx, cancel := context.WithTimeout(ctx, wellQueryTimeout)
+	defer cancel()
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no effect after Commit
+
+	created := s.CreatedAt.UTC()
+	if lim.MaxSkew > 0 {
+		var wellNow time.Time
+		if err := tx.QueryRowContext(ctx, `SELECT now()`).Scan(&wellNow); err != nil {
+			return 0, fmt.Errorf("sessions: create: the Well's clock: %w", err)
+		}
+		if d := created.Sub(wellNow); d > lim.MaxSkew || d < -lim.MaxSkew {
+			return 0, fmt.Errorf("%w: this host's clock is %v from the Well's, bound %v", ErrClockSkew, d.Round(time.Second), lim.MaxSkew)
+		}
+	}
+	ended := 0
+	if lim.MaxPerSubject > 0 {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE `+ownView+` SET revoked_at = GREATEST($3::timestamptz, created_at), revoked_by = $5::text
+			 WHERE id_hash IN (
+			     SELECT id_hash FROM `+ownView+`
+			     WHERE front = $1::text AND subject = $2::text AND revoked_at IS NULL AND expires_at > $3::timestamptz
+			     ORDER BY created_at DESC, id_hash OFFSET $4::int)`,
+			w.front, s.Subject, created, lim.MaxPerSubject-1, ByLimit)
+		if err != nil {
+			return 0, fmt.Errorf("sessions: create: per-user cap: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("sessions: create: per-user cap: %w", err)
+		}
+		ended = int(n)
+	}
+	// The cap is counted and the row written by one statement. front is
+	// named in the count as everywhere else, so it can use the
+	// (front, expires_at) index.
+	res, err := tx.ExecContext(ctx,
+		`INSERT INTO `+ownView+` (id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at)
+		 SELECT $1::text, $2::text, $3::text, $4::text, $5::timestamptz, $5::timestamptz, $6::timestamptz, $7::timestamptz
+		 WHERE (SELECT count(*) FROM `+ownView+`
+		        WHERE front = $2::text AND revoked_at IS NULL AND expires_at > $5::timestamptz) < $8::bigint`,
+		s.KeyHash, s.Front, s.Subject, strings.Join(s.Roles, ","), created, s.ExpiresAt.UTC(), s.AbsoluteExpiresAt.UTC(), lim.MaxLive)
+	if err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	if n == 0 {
+		return 0, ErrFull // rolled back: nothing was revoked either
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	return ended, nil
+}
+
+func (w *wellStore) Get(ctx context.Context, keyHash string) (Session, bool, error) {
+	if !ValidKeyHash(keyHash) {
+		return Session{}, false, nil
+	}
+	// front is named as well as implied by the view: two locks on one door.
+	out, err := querySessions(ctx, w.db,
+		`SELECT `+columns+` FROM `+ownView+` WHERE id_hash = $1::text AND front = $2::text`, keyHash, w.front)
+	if err != nil {
+		return Session{}, false, fmt.Errorf("sessions: get: %w", err)
+	}
+	if len(out) == 0 {
+		return Session{}, false, nil
+	}
+	return out[0], true, nil
+}
+
+func (w *wellStore) Touch(ctx context.Context, keyHash string, now, expires time.Time) (bool, error) {
+	if !ValidKeyHash(keyHash) {
+		return false, nil
+	}
+	// No condition on last_used_at: two requests may write out of order,
+	// and the one that lands second must still match the row, or a live
+	// session would look ended. GREATEST keeps both columns moving forward.
+	n, err := execCount(ctx, w.db,
+		`UPDATE `+ownView+` SET last_used_at = GREATEST(last_used_at, $3::timestamptz),
+		        expires_at = GREATEST(expires_at, LEAST($4::timestamptz, absolute_expires_at))
+		 WHERE id_hash = $1::text AND front = $2::text AND revoked_at IS NULL
+		   AND expires_at > $3::timestamptz AND absolute_expires_at > $3::timestamptz`,
+		keyHash, w.front, now.UTC(), expires.UTC())
+	if err != nil {
+		return false, fmt.Errorf("sessions: touch: %w", err)
+	}
+	return n > 0, nil
+}
+
+func (w *wellStore) Revoke(ctx context.Context, keyHash string, now time.Time, by string) error {
+	if err := checkActor(by); err != nil {
+		return err
+	}
+	if !ValidKeyHash(keyHash) {
+		return nil
+	}
+	_, err := execCount(ctx, w.db,
+		`UPDATE `+ownView+` SET revoked_at = GREATEST($3::timestamptz, created_at), revoked_by = $4::text
+		 WHERE id_hash = $1::text AND front = $2::text AND revoked_at IS NULL`,
+		keyHash, w.front, now.UTC(), by)
+	if err != nil {
+		return fmt.Errorf("sessions: revoke: %w", err)
+	}
+	return nil
+}
+
+func (w *wellStore) Sweep(ctx context.Context, endedBefore time.Time, limit int) (int, error) {
+	if limit <= 0 {
+		return 0, nil
+	}
+	n, err := execCount(ctx, w.db,
+		`DELETE FROM `+ownView+` WHERE id_hash IN (
+		     SELECT id_hash FROM `+ownView+`
+		     WHERE front = $1::text AND (expires_at < $2::timestamptz OR revoked_at < $2::timestamptz)
+		     ORDER BY expires_at LIMIT $3::int)`,
+		w.front, endedBefore.UTC(), limit)
+	if err != nil {
+		return 0, fmt.Errorf("sessions: sweep: %w", err)
+	}
+	return n, nil
+}
+
+func (w *wellStore) Close() error { return w.db.Close() }
+
+// EnvWellDevUnverified is the key that, set to "true", lets a front's session store connect
+// to a Well on another host with sslmode require, that is, without checking
+// the Well's certificate. For a development stack with no CA. It logs a
+// warning at every start.
+const EnvWellDevUnverified = "AUTH_SESSION_WELL_DEV_UNVERIFIED"
+
+// WellStoreConns is the size of a front's connection pool to the Well. Each
+// request with a session cookie is one short read; a pool of two keeps one
+// slow answer from holding up the rest. The role's connection limit
+// (migration 055) is one above it.
+const WellStoreConns = 2
+
+// connectWellStore opens the Well as front's role and returns its Store.
+func connectWellStore(ctx context.Context, front string) (Store, error) {
+	cfg := database.BFFSessionConfig(WellRole(front))
+	if cfg.Password == "" {
+		return nil, fmt.Errorf("sessions: the Well, as %s (set AUTH_SESSION_WELL_PASSWORD): %w", WellRole(front), database.ErrMissingCredentials)
+	}
+	// What the Well answers here is the authentication decision, so the
+	// Well's certificate is checked: verify-full unless told otherwise, and
+	// never an unverified connection to another host outside a development
+	// stack that says so.
+	if err := database.CheckVerifiedTLS(cfg, os.Getenv(EnvWellDevUnverified) == "true"); err != nil {
+		return nil, fmt.Errorf("sessions: the Well, as %s: %w (set AUTH_SESSION_WELL_SSLMODE=verify-full with WELL_SSLROOTCERT; %s=true admits require for a development stack)", WellRole(front), err, EnvWellDevUnverified)
+	}
+	db, err := database.Connect(ctx, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("sessions: the Well, as %s (AUTH_SESSION_WELL_PASSWORD, AUTH_SESSION_WELL_SSLMODE, WELL_SSLROOTCERT): %w", WellRole(front), err)
+	}
+	db.SetMaxOpenConns(WellStoreConns)
+	db.SetMaxIdleConns(WellStoreConns)
+	// The front's role cannot read the migration ledger; the view answering
+	// is the proof that 055 and 056 ran and that this is the right login.
+	s, err := NewWellStore(ctx, db, front)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+// refusedByWell reports whether err is the Well, or this process's own
+// configuration, saying no: a wrong password, a missing role or database, a
+// missing migration, a weak sslmode. Waiting cures none of these. Anything
+// else (a refused connection, a timeout) is a Well that is not there yet.
+func refusedByWell(err error) bool {
+	var pe *pq.Error
+	switch {
+	case errors.As(err, &pe):
+		// A server that is starting or stopping (class 57), out of
+		// connections (53) or dropping this one (08) is not there yet; any
+		// other answer is a refusal: a bad password or missing role (28), a
+		// missing database (3D), a missing view or grant (42).
+		cls := string(pe.Code.Class())
+		return cls != "57" && cls != "53" && cls != "08"
+	case errors.Is(err, database.ErrMissingCredentials),
+		errors.Is(err, database.ErrWeakTLS),
+		errors.Is(err, database.ErrMissingCA),
+		errors.Is(err, ErrInvalid):
+		return true
+	}
+	return false
+}
+
+// OpenWell returns front's Store in the Well.
+//
+// A Well that answers and refuses is an error: the front must not start
+// half-configured. A Well that does not answer is waited for, as kanban-app
+// waits for its board: the Store is returned at once and every call on it
+// is ErrUnavailable until the Well is reached, retried every second and
+// then less often, up to every 30 seconds. Nothing stands in for the Well
+// meanwhile: no session is accepted and no login succeeds.
+func OpenWell(ctx context.Context, front string) (Store, error) {
+	if !ValidFront(front) {
+		return nil, fmt.Errorf("%w: front %q cannot keep sessions in the Well (want [a-z0-9][a-z0-9-]*, at most 59 characters, no underscore)", ErrInvalid, front)
+	}
+	if os.Getenv(EnvWellDevUnverified) == "true" {
+		log.Warn().Str("service", front).
+			Msgf("sessions: %s=true: the Well's certificate may go unchecked; whoever answers at its address decides who is logged in (development only)", EnvWellDevUnverified)
+	}
+	return newGate(ctx, front, func(c context.Context) (Store, error) { return connectWellStore(c, front) },
+		refusedByWell, time.Second, 30*time.Second)
+}
+
+// wellAdmin is the command line's Admin over the table, as app_auth.
+type wellAdmin struct {
+	db *sql.DB
+}
+
+// NewWellAdmin returns an Admin on db, a connection logged in as app_auth.
+func NewWellAdmin(ctx context.Context, db *sql.DB) (Admin, error) {
+	if db == nil {
+		return nil, errors.New("sessions: no database")
+	}
+	qctx, cancel := context.WithTimeout(ctx, wellQueryTimeout)
+	defer cancel()
+	if _, err := db.ExecContext(qctx, `SELECT 1 FROM `+sessionTable+` LIMIT 0`); err != nil {
+		return nil, fmt.Errorf("sessions: the Well's %s is not readable (migration 056 applied? logged in as app_auth?): %w", sessionTable, err)
+	}
+	return &wellAdmin{db: db}, nil
+}
+
+// OpenWellAdmin connects as database.AppAuthConfig (AUTH_WELL_PASSWORD,
+// WELL_HOST, ...), the login unheaded-cli apikey uses, with one connection.
+func OpenWellAdmin(ctx context.Context) (Admin, error) {
+	db, err := database.Connect(ctx, database.AppAuthConfig())
+	if err != nil {
+		return nil, fmt.Errorf("sessions: the Well, as app_auth (set AUTH_WELL_PASSWORD): %w", err)
+	}
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	a, err := NewWellAdmin(ctx, db)
+	if err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	return a, nil
+}
+
+func (a *wellAdmin) List(ctx context.Context, f Filter) ([]Session, error) {
+	// No condition on expires_at: this caller's clock is not the front's.
+	out, err := querySessions(ctx, a.db,
+		`SELECT `+columns+` FROM `+sessionTable+`
+		 WHERE ($1::text = '' OR subject = $1::text) AND ($2::text = '' OR front = $2::text)
+		   AND ($3::boolean OR revoked_at IS NULL)
+		 ORDER BY created_at DESC, id_hash LIMIT $4::int`,
+		f.Subject, f.Front, f.Revoked, ListLimit)
+	if err != nil {
+		return nil, fmt.Errorf("sessions: list: %w", err)
+	}
+	return out, nil
+}
+
+func (a *wellAdmin) Revoke(ctx context.Context, prefix string, now time.Time, by string) (Session, error) {
+	if err := checkPrefix(prefix); err != nil {
+		return Session{}, err
+	}
+	if err := checkActor(by); err != nil {
+		return Session{}, err
+	}
+	hits, err := querySessions(ctx, a.db,
+		`SELECT `+columns+` FROM `+sessionTable+`
+		 WHERE left(id_hash, length($1::text)) = $1::text AND revoked_at IS NULL
+		 ORDER BY id_hash LIMIT 2`,
+		prefix)
+	if err != nil {
+		return Session{}, fmt.Errorf("sessions: revoke: %w", err)
+	}
+	switch len(hits) {
+	case 0:
+		return Session{}, fmt.Errorf("%w: no session with id %s that is not already revoked", ErrNotFound, prefix)
+	case 1:
+	default:
+		return Session{}, fmt.Errorf("%w: %s matches more than one session; give more characters", ErrAmbiguous, prefix)
+	}
+	out, err := querySessions(ctx, a.db,
+		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($2::timestamptz, created_at), revoked_by = $3::text
+		 WHERE id_hash = $1::text AND revoked_at IS NULL RETURNING `+columns,
+		hits[0].KeyHash, now.UTC(), by)
+	if err != nil {
+		return Session{}, fmt.Errorf("sessions: revoke: %w", err)
+	}
+	if len(out) == 0 {
+		return Session{}, fmt.Errorf("%w: session %s ended before it could be revoked", ErrNotFound, prefix)
+	}
+	return out[0], nil
+}
+
+func (a *wellAdmin) RevokeSubject(ctx context.Context, subject, front string, now time.Time, by string) (int, error) {
+	if !ValidSubject(subject) {
+		return 0, fmt.Errorf("%w: subject", ErrInvalid)
+	}
+	if err := checkActor(by); err != nil {
+		return 0, err
+	}
+	n, err := execCount(ctx, a.db,
+		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($3::timestamptz, created_at), revoked_by = $4::text
+		 WHERE subject = $1::text AND ($2::text = '' OR front = $2::text) AND revoked_at IS NULL`,
+		subject, front, now.UTC(), by)
+	if err != nil {
+		return 0, fmt.Errorf("sessions: revoke subject: %w", err)
+	}
+	return n, nil
+}
+
+func (a *wellAdmin) Close() error { return a.db.Close() }

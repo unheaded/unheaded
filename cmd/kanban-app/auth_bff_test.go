@@ -177,3 +177,53 @@ func TestAuthBFF_KanbanRefusesPlainHTTPIssuer(t *testing.T) {
 		t.Fatalf("with AUTH_BFF_DEV_PLAINTEXT: %v", err)
 	}
 }
+
+// The board takes its session store from the environment (ADR-114 N5).
+// "well" with no way to reach the Well stops the board from starting: it
+// never keeps sessions somewhere else instead. "dev-memory" has to be
+// named, and then the cookie is the server-side kind (not persistent).
+func TestAuthBFF_KanbanSessionStoreFromEnv(t *testing.T) {
+	is := bfftest.NewIssuer(t, "unheaded", "kanban-app")
+	t.Setenv("AUTH_ISSUER_URL", is.URL)
+	t.Setenv("RATE_LIMIT_ENABLED", "false")
+
+	t.Setenv(bff.EnvSessionStore, bff.SessionStoreWell)
+	t.Setenv("AUTH_SESSION_WELL_PASSWORD", "")
+	s := NewServer(Config{Port: "0"})
+	t.Cleanup(s.cancel)
+	if _, err := s.buildHandler(authtest.New(t, "kanban-app").Config("kanban-app")); err == nil ||
+		!strings.Contains(err.Error(), "AUTH_SESSION_WELL_PASSWORD") {
+		t.Fatalf("AUTH_SESSION_STORE=well without a Well login: %v, want a refusal naming AUTH_SESSION_WELL_PASSWORD", err)
+	}
+
+	t.Setenv(bff.EnvSessionStore, "sqlite")
+	if _, err := s.buildHandler(authtest.New(t, "kanban-app").Config("kanban-app")); err == nil {
+		t.Fatal("an unknown AUTH_SESSION_STORE was accepted")
+	}
+
+	t.Setenv(bff.EnvSessionStore, bff.SessionStoreDevMemory)
+	s2 := NewServer(Config{Port: "0"})
+	t.Cleanup(s2.cancel)
+	h, err := s2.buildHandler(authtest.New(t, "kanban-app").Config("kanban-app"))
+	if err != nil {
+		t.Fatalf("dev-memory: %v", err)
+	}
+	pw := is.AddUser(t, "dev", "operator")
+	body, _ := json.Marshal(map[string]string{"username": "dev", "password": pw})
+	rec := kanbanDo(h, http.MethodPost, "/auth/login", string(body), map[string]string{bff.HeaderRequestedWith: bff.RequestedWithValue}, nil)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "absolute_expires_at") {
+		t.Fatalf("login: %d %s", rec.Code, rec.Body)
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == bff.CookieNameFor("kanban-app", false) {
+			if c.MaxAge != 0 || !c.HttpOnly || !c.Secure || c.SameSite != http.SameSiteStrictMode {
+				t.Fatalf("server-side session cookie: %+v", c)
+			}
+			if code := kanbanDo(h, http.MethodGet, "/auth/me", "", nil, c).Code; code != http.StatusOK {
+				t.Fatalf("/auth/me with the session: %d", code)
+			}
+			return
+		}
+	}
+	t.Fatal("no session cookie")
+}

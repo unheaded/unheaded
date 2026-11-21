@@ -48,6 +48,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/bff/sessions"
 	"unheaded/pkg/httputil"
 	pqtls "unheaded/pkg/tls"
 )
@@ -105,6 +106,46 @@ type Config struct {
 	HTTPClient *http.Client
 	// Now defaults to time.Now.
 	Now func() time.Time
+	// ClientUserLoginFailures and ClientLoginFailures are this front's login
+	// failure budgets (failures.go); zero means the default.
+	ClientUserLoginFailures int
+	ClientLoginFailures     int
+
+	// SessionStore (AUTH_SESSION_STORE) chooses where a session lives and
+	// what ends it (server_sessions.go): "" keeps it in memory, ending with
+	// the issuer's token; SessionStoreWell keeps a record in the Well;
+	// SessionStoreDevMemory is the Well's behaviour in memory, for a
+	// development stack without one.
+	SessionStore string
+	// SessionIdle (AUTH_SESSION_IDLE) and SessionMaxAge
+	// (AUTH_SESSION_MAX_AGE) are a server-side session's two limits: it ends
+	// when unused for the first and, used or not, at the second. Zero means
+	// DefaultSessionIdle and DefaultSessionMaxAge.
+	SessionIdle   time.Duration
+	SessionMaxAge time.Duration
+	// SessionRetention (AUTH_SESSION_RETENTION) is how long an ended
+	// server-side session stays on record before the sweep deletes it.
+	// Zero means DefaultSessionRetention.
+	SessionRetention time.Duration
+	// SessionMaxPerUser (AUTH_SESSION_MAX_PER_USER) caps one user's live
+	// server-side sessions on this front. A login past it ends that user's
+	// oldest session; nobody is refused. Zero means
+	// DefaultSessionMaxPerUser.
+	SessionMaxPerUser int
+	// SessionMaxClockSkew (AUTH_SESSION_MAX_CLOCK_SKEW) is how far this
+	// host's clock may be from the session store's when a session starts;
+	// past it no login is accepted. Zero means DefaultSessionMaxClockSkew.
+	SessionMaxClockSkew time.Duration
+	// SessionMissBudget (AUTH_SESSION_MISS_BUDGET) is how many unknown or
+	// ended session ids one client address may present in a minute before
+	// further unknown ones are refused without asking the store. Zero
+	// means DefaultSessionMissBudget.
+	SessionMissBudget int
+	// Sessions replaces the store SessionStore would open (tests).
+	Sessions sessions.Store
+
+	// envErr is what ConfigFromEnv could not read; New returns it.
+	envErr error
 }
 
 // CookieNameFor is the session cookie name for a service: one per app, and
@@ -123,13 +164,38 @@ func CookieNameFor(serviceName string, devPlaintext bool) string {
 // CookieName is the session cookie name this BFF sets and reads.
 func (b *BFF) CookieName() string { return b.cfg.CookieName }
 
-// ConfigFromEnv reads AUTH_ISSUER_URL and AUTH_BFF_DEV_PLAINTEXT.
+// LoginFailureBudgets are the budgets in force: failures per client address
+// and username, and per client address across usernames.
+func (b *BFF) LoginFailureBudgets() (perUser, perClient int) {
+	return b.cfg.ClientUserLoginFailures, b.cfg.ClientLoginFailures
+}
+
+// ConfigFromEnv reads AUTH_ISSUER_URL, AUTH_BFF_DEV_PLAINTEXT, the two login
+// failure budgets (EnvClientUserLoginFailures, EnvClientLoginFailures) and
+// the session keys (EnvSessionStore, EnvSessionIdle, EnvSessionMaxAge,
+// EnvSessionRetention, EnvSessionMaxPerUser, EnvSessionMaxClockSkew,
+// EnvSessionMissBudget). A value it cannot read is not replaced by a
+// default: New refuses the Config.
 func ConfigFromEnv(serviceName string) Config {
-	return Config{
+	c := Config{
 		ServiceName:  serviceName,
 		IssuerURL:    strings.TrimSpace(os.Getenv("AUTH_ISSUER_URL")),
 		DevPlaintext: os.Getenv("AUTH_BFF_DEV_PLAINTEXT") == "true",
 	}
+	var uerr, cerr error
+	c.ClientUserLoginFailures, uerr = envBudget(EnvClientUserLoginFailures)
+	c.ClientLoginFailures, cerr = envBudget(EnvClientLoginFailures)
+	c.SessionStore = strings.TrimSpace(os.Getenv(EnvSessionStore))
+	var ierr, merr, rerr error
+	c.SessionIdle, ierr = envDuration(EnvSessionIdle)
+	c.SessionMaxAge, merr = envDuration(EnvSessionMaxAge)
+	c.SessionRetention, rerr = envDuration(EnvSessionRetention)
+	var perr, serr, berr error
+	c.SessionMaxPerUser, perr = envCount(EnvSessionMaxPerUser)
+	c.SessionMaxClockSkew, serr = envDuration(EnvSessionMaxClockSkew)
+	c.SessionMissBudget, berr = envCount(EnvSessionMissBudget)
+	c.envErr = errors.Join(uerr, cerr, ierr, merr, rerr, perr, serr, berr)
+	return c
 }
 
 // Enabled reports whether an issuer is configured.
@@ -142,7 +208,8 @@ type BFF struct {
 	issuer   string
 	verifier *auth.JWKSVerifier
 	client   *http.Client
-	store    Store
+	store    Store           // token-bound sessions; unused when sess is set
+	sess     *serverSessions // server-side sessions, nil in the token-bound mode
 	now      func() time.Time
 
 	limitMu sync.Mutex
@@ -167,6 +234,21 @@ func New(cfg Config) (*BFF, error) {
 	if cfg.IssuerURL == "" {
 		return nil, errors.New("bff: no issuer URL (AUTH_ISSUER_URL)")
 	}
+	if cfg.envErr != nil {
+		return nil, cfg.envErr
+	}
+	// The development switch drops Secure and the __Host- prefix from the
+	// session cookie. Beside TLS it is a contradiction, and it used to be
+	// only a warning: a deployment could keep it by accident and serve its
+	// logins a cookie any plaintext hop could read.
+	if cfg.DevPlaintext && pqtls.Enabled() {
+		return nil, fmt.Errorf("bff: AUTH_BFF_DEV_PLAINTEXT (or -dev-plaintext) with %s=true: the plaintext switch is for a stack without TLS; remove it", pqtls.EnvEnabled)
+	}
+	perUser, perClient, err := loginBudgets(cfg.ClientUserLoginFailures, cfg.ClientLoginFailures)
+	if err != nil {
+		return nil, err
+	}
+	cfg.ClientUserLoginFailures, cfg.ClientLoginFailures = perUser, perClient
 	if cfg.CookieName == "" {
 		cfg.CookieName = CookieNameFor(cfg.ServiceName, cfg.DevPlaintext)
 	}
@@ -198,8 +280,12 @@ func New(cfg Config) (*BFF, error) {
 	}
 	// The login carries a password: never follow a redirect with it.
 	client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	sess, err := newServerSessions(cfg)
+	if err != nil {
+		return nil, err
+	}
 	store := cfg.Store
-	if store == nil {
+	if store == nil && sess == nil {
 		store = NewMemStore(cfg.MaxSessions, cfg.Now)
 	}
 	if cfg.DevPlaintext {
@@ -212,19 +298,28 @@ func New(cfg Config) (*BFF, error) {
 		verifier: v,
 		client:   client,
 		store:    store,
+		sess:     sess,
 		now:      cfg.Now,
 		limits:   make(map[string]*window),
-		failures: newLoginFailures(cfg.Now),
+		failures: newLoginFailures(cfg.Now, cfg.ClientUserLoginFailures, cfg.ClientLoginFailures),
 		stop:     make(chan struct{}),
 	}
 	go b.evictLoop()
 	return b, nil
 }
 
-// Close stops the eviction loop.
-func (b *BFF) Close() { b.stopOnce.Do(func() { close(b.stop) }) }
+// Close stops the eviction loop and closes a session store New opened.
+func (b *BFF) Close() {
+	b.stopOnce.Do(func() {
+		close(b.stop)
+		if b.sess != nil {
+			b.sess.close()
+		}
+	})
+}
 
-// Store is the session store in use.
+// Store is the token-bound session store in use; nil with server-side
+// sessions.
 func (b *BFF) Store() Store { return b.store }
 
 func (b *BFF) evictLoop() {
@@ -243,9 +338,14 @@ func (b *BFF) evictLoop() {
 // Evict drops expired sessions and stale rate-limit windows now, returning
 // how many sessions went.
 func (b *BFF) Evict(ctx context.Context) int {
-	n, err := b.store.Evict(ctx, b.now())
-	if err != nil {
-		log.Warn().Err(err).Str("service", b.cfg.ServiceName).Msg("bff: session eviction failed")
+	var n int
+	if b.sess != nil {
+		n = b.sweepServerSide(ctx)
+	} else {
+		var err error
+		if n, err = b.store.Evict(ctx, b.now()); err != nil {
+			log.Warn().Err(err).Str("service", b.cfg.ServiceName).Msg("bff: session eviction failed")
+		}
 	}
 	b.limitMu.Lock()
 	now := b.now()
@@ -429,6 +529,12 @@ func (b *BFF) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "issuer_token_invalid"})
 		return
 	}
+	if b.sess != nil {
+		// The token has done its work: it proved who logged in. It is not
+		// kept, and the session does not end with it.
+		b.loginServerSide(w, r, id, client)
+		return
+	}
 	life, err := tokenLife(tok, b.now())
 	if err != nil || life <= 0 {
 		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "issuer_token_invalid"})
@@ -451,18 +557,26 @@ func (b *BFF) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "sessions_unavailable"})
 		return
 	}
+	b.setSessionCookie(w, sid, int(life/time.Second))
+	log.Info().Str("service", b.cfg.ServiceName).Str("user", id.Subject).Strs("roles", id.Roles).Str("source", client).Msg("bff: login")
+	writeJSON(w, http.StatusOK, meBody(id.Subject, id.Roles, expires))
+}
+
+// setSessionCookie is the one place the session cookie is written: at a
+// login in either mode, and to clear it at logout (value "", maxAge -1).
+// maxAge 0 leaves Max-Age out, so the browser keeps the cookie for its own
+// session only. Every attribute but Secure is fixed.
+func (b *BFF) setSessionCookie(w http.ResponseWriter, value string, maxAge int) {
 	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
 	http.SetCookie(w, &http.Cookie{
 		Name:     b.cfg.CookieName,
-		Value:    sid,
+		Value:    value,
 		Path:     "/",
-		MaxAge:   int(life / time.Second),
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   !b.cfg.DevPlaintext,
 		SameSite: http.SameSiteStrictMode,
 	})
-	log.Info().Str("service", b.cfg.ServiceName).Str("user", id.Subject).Strs("roles", id.Roles).Str("source", client).Msg("bff: login")
-	writeJSON(w, http.StatusOK, meBody(id.Subject, id.Roles, expires))
 }
 
 func meBody(sub string, roles []string, exp time.Time) map[string]any {
@@ -588,6 +702,15 @@ func (b *BFF) me(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method_not_allowed"})
 		return
 	}
+	if b.sess != nil {
+		s, err := b.serverSession(r)
+		if err != nil {
+			writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no_session"})
+			return
+		}
+		writeJSON(w, http.StatusOK, serverMeBody(s))
+		return
+	}
 	id, s, err := b.authenticate(r)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "no_session"})
@@ -605,15 +728,26 @@ func (b *BFF) logout(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing " + HeaderRequestedWith + ": " + RequestedWithValue})
 		return
 	}
-	if key, s, ok := b.session(r); ok {
+	var revokeErr error
+	if b.sess != nil {
+		revokeErr = b.logoutServerSide(r)
+	} else if key, s, ok := b.session(r); ok {
 		_ = b.store.Delete(r.Context(), key)
 		log.Info().Str("service", b.cfg.ServiceName).Str("user", s.Subject).Msg("bff: logout")
 	}
-	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
-	http.SetCookie(w, &http.Cookie{
-		Name: b.cfg.CookieName, Value: "", Path: "/", MaxAge: -1,
-		HttpOnly: true, Secure: !b.cfg.DevPlaintext, SameSite: http.SameSiteStrictMode,
-	})
+	// The browser's cookie is cleared whatever the store said: the person
+	// asked this browser to forget the session, and it can. Whether the
+	// session itself has ended is the status.
+	b.setSessionCookie(w, "", -1)
+	if revokeErr != nil {
+		// The record could not be revoked. It is still live until it runs
+		// out idle, for anyone who holds the id: say so, not 204.
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error":  "logout_incomplete",
+			"detail": "this browser forgot the session, but the session store could not be told; the session ends by itself when idle, or an operator can revoke it",
+		})
+		return
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
 }
@@ -647,7 +781,15 @@ func (b *BFF) Authenticator() auth.Authenticator { return sessionAuthenticator{b
 type sessionAuthenticator struct{ b *BFF }
 
 func (a sessionAuthenticator) Authenticate(_ context.Context, r *http.Request) (*auth.Identity, error) {
-	id, _, err := a.b.authenticate(r)
+	var (
+		id  *auth.Identity
+		err error
+	)
+	if a.b.sess != nil {
+		id, _, err = a.b.authenticateServerSide(r)
+	} else {
+		id, _, err = a.b.authenticate(r)
+	}
 	if err != nil {
 		return nil, err
 	}

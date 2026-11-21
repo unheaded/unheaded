@@ -622,6 +622,11 @@ jobs:
       - name: API keys table and the Well key store
         run: ./scripts/well/test-api-keys.sh --with-go
 
+      # ADR-114 N5: bff_sessions, the view each front's role is held to
+      # (055, 056) and pkg/bff/sessions' Well store.
+      - name: Browser sessions table and the Well session store
+        run: ./scripts/well/test-bff-sessions.sh --with-go
+
       # S-WELL-SPRING Phase 3: slo_definitions (040), alert-policy
       # -sync-well and the -check drift leg against this throwaway Well.
       - name: SLO definitions table and the alert-policy Well leg
