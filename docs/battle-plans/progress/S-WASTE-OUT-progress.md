@@ -214,6 +214,21 @@ Read 18:53:02Z to 18:53:10Z, 62 minutes after Step 355; W-20's pair at 18:53:09Z
 
 Promoted alerts firing at 18:53Z: `ErrorBudgetBurn` for `store-backups` and `well-backups`, two tiers each (the three nights without backups; the hand runs of 17:56Z started the windows clearing). The burns for `dashboard`, `wotan` and `log-shipping` seen at 17:57Z have ended.
 
+### 2026-11-21: Step 317, option B: west's keys, Wotan and Akira (the mailer's half waits)
+
+Answered ahead (DECISION-PACK-2026-11-18 row 2): Claude makes the keys on the host, private halves never read back or printed.
+
+| Time (UTC) | What | Result |
+|---|---|---|
+| 18:09 | `unheaded-keygen -algo mldsa65` (built from develop `a1545113`) | `/etc/unheaded/keys/akira-health.key` (uid 16731) and `alerts-critical.key` (uid 16710), each a 32-byte seed, 0400; the `.pub` files 0444 |
+| 18:09 | The public halves into `/etc/unheaded/wotan/signing-keys.conf` (three lines: both health prefixes, `alerts.critical.`); `scripts/wotan-host-config.py` wrote `/etc/unheaded/wotan/wotan.yaml` (root:16720, 0444) | The copy differs from `configs/wotan.yaml` in three `keys:` lines only; `--check` in step; `TestHostWotanConfig` loads it with Wotan's parser |
+| 19:03 | West's `docker-compose.override.yml` (copy before: `~/tmp/adr147-table/runs/override-before-2026-11-21.yml`): the mount under `wotan:`, the secret `health_signing_key` and `HEALTH_SIGNING_KEY_FILE` under `akira:` | `compose config` resolves one mount at `/etc/wotan/wotan.yaml`, from the host file |
+| 19:03:58 to 19:06 | Planned stop `all`, 10 m; `compose up -d --no-build --no-deps wotan`, then `akira`; mark ended 19:06Z | Wotan healthy in 6 s, `signed_prefixes: 5`, its mount source is the host file. Akira healthy in 11 s, no signing warning. Room `system.health.consensus` holds 37.9 KB a minute later (0 publishes were accepted there before); `akira_signed_publish_refused_total` has no series since the restart |
+
+- **W-19:** the key is enrolled and Akira's signed publishes are accepted. The after is read with the others at 24 h.
+- **Not done, on purpose:** alert-mailer's half (its Ed25519 service key, `ALERTS_SIGNING_KEY_FILE`, `ALERT_MAILER_WOTAN_ADDR`). The public half of its signing key is already enrolled, but the monitoring compose file passes the mailer no key and no CA, its Wotan client would dial plaintext, and Wotan's certificate does not name the overlay address the mailer dials. Branch `fix/mailer-wotan-wiring` closes those; the enrolment follows its merge. Until then every tracker reads `alerts.critical` as `unknown` (allows change).
+- **New, because option B forks the file:** `scripts/wotan-host-config.py` renders the host copy from the repository's file plus the keys file and `--check` exits 4 on drift. **After any change to `configs/wotan.yaml` on develop, run it on west and restart Wotan**, or the new permission does not reach the running Wotan. No timer or alert runs the check yet.
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z.
