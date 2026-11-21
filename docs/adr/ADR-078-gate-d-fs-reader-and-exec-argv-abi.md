@@ -70,27 +70,27 @@ One table for the ascend ecall surface. `surface.rs` and bootctl's `XV6_SYSCALLS
 | 1 | fork | BPF | |
 | 2 | exit | kernel closes, BPF ends the slot | ADR-135 D13 |
 | 3 | wait | BPF | status written as 0 until rung 7 |
-| 4 | pipe | kernel | ADR-135 D7, D10-D13; fds at 16 and up, read and write retry |
-| 5 | read | BPF for a file fd below 16; kernel at fd 16 and up, and under `UPC_RUNG4` (2026-11-15) on a console fd | ADR-135 D10-D11, D20 |
+| 4 | pipe | kernel | ADR-135 D7, D10-D13; read and write retry. Under `UPC_RUNG56` (on since 2026-11-21) the two fds are the lowest free ones; before, 16 and up |
+| 5 | read | kernel, every fd, under `UPC_RUNG56` (on since 2026-11-21). With it off: BPF for a file fd below 16; kernel at fd 16 and up, and under `UPC_RUNG4` (2026-11-15) on a console fd | ADR-135 D10-D11, D20, D21 |
 | 6 | kill | kernel validates, BPF acts | status 0 until rung 7 |
 | 7 | exec | BPF | |
-| 8 | fstat | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 8 | fstat | kernel, every fd, under `UPC_RUNG56` (on since 2026-11-21). With it off: BPF; kernel at fd 16 and up | ADR-135 D10-D11, D21 |
 | 9 | chdir | kernel | ADR-135 D15 |
-| 10 | dup | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 10 | dup | kernel, every fd, under `UPC_RUNG56` (on since 2026-11-21): the lowest free fd, 0 to 2 included. With it off: BPF; kernel at fd 16 and up | ADR-135 D10-D11, D21 |
 | 11 | getpid | kernel | ADR-109 |
 | 12 | sbrk | kernel | heap window, ADR-135 |
 | 13 | pause | kernel | n UPC ticks (ADR-110), retry hand-off |
 | 14 | uptime | kernel | ADR-110 |
-| 15 | open | BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC, or from a process off the root | ADR-135 D11, D15; O_RDWR alone at the root stays in BPF |
-| 16 | write | kernel: at fd 16 and up, and under `UPC_RUNG3` (2026-11-15) at any fd below 16 that is not a file; BPF answers -1 for a file fd below 16 | ADR-135 D10-D11, D19 |
+| 15 | open | kernel, every flag, under `UPC_RUNG56` (on since 2026-11-21); the console is matched by name. With it off: BPF; kernel with O_WRONLY, O_CREATE or O_TRUNC, or from a process off the root | ADR-135 D11, D15, D21; with the const off, O_RDWR alone at the root stays in BPF |
+| 16 | write | kernel, every fd, under `UPC_RUNG56` (on since 2026-11-21): a file opened O_RDWR is written. With it off: kernel at fd 16 and up, and under `UPC_RUNG3` (2026-11-15) at any fd below 16 that is not a file; BPF answers -1 for a file fd below 16 | ADR-135 D10-D11, D19, D21 |
 | 17 | mknod | BPF | stub |
 | 18 | unlink | kernel | DP-502 |
 | 19 | link | kernel | DP-502 |
 | 20 | mkdir | kernel | DP-502 |
-| 21 | close | BPF; kernel at fd 16 and up | ADR-135 D10-D11 |
+| 21 | close | kernel, every fd, under `UPC_RUNG56` (on since 2026-11-21). With it off: BPF; kernel at fd 16 and up | ADR-135 D10-D11, D21 |
 | 22 | reserved | probe builds | `UPC_PROBE_INJECT22` |
 | 23 | yield | BPF | DP-413; a stub in `user/uyield.h`, not `usys.pl`, so corpus binaries keep their size |
 | 24 | upc_forknote | kernel | ADR-135 D12: BPF re-runs a finished fork's ecall as this number; a user's 24 gets -1 |
 | 200, 201 | read block, write block | BPF | kernel-only, `monad_common::mbc_linux_syscalls` |
 
-Fds at 16 and up are kernel fds, `16 + ofile index` (ADR-135 D10); BPF's table stops at 15, so neither allocator sees the other. The routing compare is unsigned, so a negative fd reaches the kernel too and gets -1.
+Since 2026-11-21 (`UPC_RUNG56` on, ADR-135 D21) every fd is the kernel's and is its `ofile` index: BPF keeps no fd table, and the in-BPF reader of Gate D (`fs_walk`, `FD_INODE_MAP`) is out of the ascend object. With the const off, as before: fds at 16 and up are kernel fds, `16 + ofile index` (ADR-135 D10); BPF's table stops at 15, so neither allocator sees the other. The routing compare is unsigned, so a negative fd reaches the kernel too and gets -1.

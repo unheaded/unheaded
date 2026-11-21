@@ -238,7 +238,11 @@ rung_gate UPC_RUNG_FD bigprobe 8000000 BG 3
 # S-STAGE-2C Phase 12, ADR-135 D21 (rungs 5+6): the kernel's fd table is the
 # only one. A plain O_RDWR file can be written and read back (T-F3 closed), dup
 # lands on 0, and fstat on the console answers without stopping the kernel.
-rung_gate UPC_RUNG56 rwprobe 6000000 RW 5
+# Since the flip (2026-11-21, decision pack 2026-11-18 row 25) two lines are
+# init's own: a path string in slot 0's first page is opened (the kernel's
+# copyinstr reads it), and that page is still refused to a read into it and a
+# write from it.
+rung_gate UPC_RUNG56 rwprobe 6000000 RW 7
 if rung_on UPC_RUNG_SLEEP; then
   SLL="$(probe_lines sleepprobe 3000000 SL)"
   if [ "$(grep -c '=yes$' <<<"$SLL")" = 5 ] && ! grep -q '=no$' <<<"$SLL" && grep -q '^SL: pause-ticks=yes$' <<<"$SLL" \

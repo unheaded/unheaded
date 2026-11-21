@@ -139,6 +139,7 @@ until rung 6 lands.
 - **Gate**: template, run jointly with rung 6.
 - **usertests subset**: none alone.
 - **Status 2026-11-15 (S-STAGE-2C Phases 11-12, ADR-135 D21): built with rung 6, wired, off.** See rung 6.
+- **Status 2026-11-21 (`sprint/upc-rung56`): on, with rung 6.** See rung 6.
 
 ### Rung 6 — open (fs_walk hand-off) and file read/write
 
@@ -160,6 +161,14 @@ per decision 48 (S-ASCEND-2 Step 182).
   on is Stevie's choice (progress file): let `copyinstr` read slot 0's first page and trace U-mode PCs
   only (booted: 12 of 12 SAME at 532,152), or one named recapture of the trace. Departures from this
   section: no on-disk device node (the console is matched by name in the kernel); mknod stays a stub.
+- **Status 2026-11-21 (`sprint/upc-rung56`; decision pack 2026-11-18, row 25): on.** Stevie's ruling was
+  the first way: `UPC_RUNG56` on, the goldens comparing the user-mode trace only. The const and the
+  kernel's define are true; the tracer prints and counts U-mode PCs only under the const; `copyinstr`
+  reads a path string from slot 0's first page past BootParams. Ascend 883,522 → 532,152 (-351,370);
+  12 of 12 goldens SAME with no recapture; `rwprobe` 7 checks. The gate's four read-path goldens
+  (README, BIGFILE, `sub/NOTE`, `ls sub`) are among the twelve. Not done from this rung's list: the
+  usertests bodies as probes (`opentest`, `copyinstr1`, and rung 3's file-write bodies; plan Steps
+  231-234).
 
 ### Rung 7 — fork / exec / wait (PROC_TABLE hand-off)
 
@@ -176,6 +185,9 @@ re-anchors on the kernel's fork.
 - **usertests subset**: `exitwait`, `twochildren`, `forktest`, `forkfork`,
   `forkforkfork`, `reparent2`; `exectest` once FS writes exist.
 - **Status 2026-11-15 (S-STAGE-2C): not started.** Its design phase needs rungs 5+6 on.
+- **Status 2026-11-21: not started.** Rungs 5+6 are on, so the prerequisite is met. No design ADR
+  exists; a grounding note is in `docs/battle-plans/progress/S-STAGE-2C-progress.md` (section of this
+  date).
 
 ### Rung 8 — arrivals: sbrk, pipe, kill, mkdir, unlink, link, chdir, sleep
 

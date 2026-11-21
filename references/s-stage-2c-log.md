@@ -22,6 +22,9 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | `cd` in ush (no BPF change) | 883522 | 883522 | +0 | 37514 | cd-after |
 | security pass fixes (bootctl, kernel `consolewrite`, probes) | 883522 | 883522 | +0 | 37514 | review3-after |
 | develop merged in; close | 883522 | 883522 | +0 | 37514 | close2 |
+| 2026-11-21: rungs 5+6 on (const, define, U-mode tracer, slot 0 path read) | 883522 | 532152 | -351370 | 388884 | rung56-after |
+| 2026-11-21: atomics through `translate_address` (`UPC_ATOMIC_TRANSLATE`) | 532152 | 553534 | +21382 | 367502 | atomics-after |
+| 2026-11-21: fork scan skip and death clear (`UPC_FORK_RESERVE`) | 553534 | 549509 | -4025 | 371527 | reserve-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -454,4 +457,113 @@ ADR-135 stays **Proposed**. No rung 7 ADR was written (Phases 13 and 14 were not
 - Step 310: kernel, userland and gates, the ascend object, bootctl and the Doom object rebuilt; `cargo test --release` in `cmd/upc-bootctl` green.
 - Step 311, first run (`close`): `same=0 diff=12 rc=0 doom=1 ascend=883522`, harness ALL GREEN. Cause: Step 310's order ends with the Doom build, which writes the same object path, so the twelve sweep boots ran on the Doom object; the harness builds each object before it uses it and was unaffected. Not a regression: with the ascend object rebuilt, `echo hello` is SAME. The gate was run again with the ascend object in place.
 - Step 311, second run (`close2`): `same=12 diff=0 rc=0 doom=1 ascend=883522 head=de471513`, harness ALL GREEN (62 PASS lines, no FAIL); `check-ebpf-insns.sh` PASS (41 programs within 10 % of the baseline; 0 allowlisted over 900000); `BUDGET-OK 883522 (headroom 16478, ladder net 37514)`. For the next plan: put `ebuild` after `dbuild` in the rebuild line, or the sweep runs on the Doom object.
+
+## Rungs 5+6 on (2026-11-21, lane `upc-rung56`, branch `sprint/upc-rung56`)
+
+Ruling: `docs/battle-plans/DECISION-PACK-2026-11-18.md` row 25, open call 10: "On; the goldens compare the user-mode trace only (the option that booted 12 of 12 SAME). Kernel-side trace changes stop being a regression signal." That is the first of the three options recorded on 2026-11-15 (no recapture; one named recapture of the trace; leave the rung off, or retire the tracer, also a recapture). Worktree `~/tmp/wt/upc-rung56` from develop `c3fa967e`; everything rebuilt there (translator, kernel, userland and gates, the ascend object, bootctl). The goldens in `~/tmp/golden` were read and not written.
+
+**Before (rung off, the tree as branched).** `vcount` 883,522; `sweep12` 12 of 12 SAME; harness ALL GREEN (62 PASS lines, `rwprobe gate skipped: UPC_RUNG56 is off`), Doom `verified 758199 insns`.
+
+**What changed.**
+
+| Where | Change |
+|---|---|
+| `ebpf/monad-cpu-ebpf/src/main.rs` | `const UPC_RUNG56: bool = true`. The tracer's test is `n > 0 && !(cfg!(feature = "ascend-linux") && UPC_RUNG56 && cpu.priv_level != 3)`: under the const a PC outside U-mode is neither printed nor counted |
+| `crates/xv6-mbc/adapters/upc_slots.h` | `#define UPC_RUNG56 1`; `UPC_INIT_STR_LO` 0x200 (BootParams is 256 bytes at 0x100) |
+| `crates/xv6-mbc/adapters/upc_slots.c` | `upc_slot0_str_ok(va)`: inside a tagged trap, slot 0, `va` in [0x200, 0x1000); 0 with the define off |
+| `crates/xv6-mbc/adapters/uvm.c` | `copyinstr` gives up on a page only when `walkaddr` answers 0 and `upc_slot0_str_ok(srcva)` is 0. `copyin` and `copyout` are untouched |
+| `crates/xv6-mbc/upstream/user/rwprobe.c`, `scripts/upc-regression.sh` | two lines run by init itself, `RW 5` → `RW 7` (below) |
+
+Nothing else was needed: no Makefile carries the switch (`Makefile.mbc` already names `upc_slots.h` for the ten objects that include it), and bootctl holds no expectation of it beyond `parity_slot_tables`, which reads the two source lines.
+
+**Measured.**
+
+- Rung on: **532,152**, delta **-351,370** against 883,522. `BUDGET-OK 532152 (headroom 367848, ladder net 388884)`. Object file 897,784 → 729,256 bytes. It is the number recorded on 2026-11-15 for this way (529,305 for the const and the define alone, +2,847 for the tracer's test).
+- `sweep12`: **12 of 12 SAME**, `uinit_echo` among them; `init.c` and `uinit.c` untouched; no golden written. Each boot was kept and its `forks`, `waitpid` and `tty_r` are the golden's. `insn_count`: `ls` 63,571,865, `cat BIGFILE` 63,548,330, `echo hello` 63,538,879 (4,000,000 triggers; the prompt's wait is what it counts, as after rung 4).
+- `rwprobe`, first run with the new lines: `slot0-literal-open=no`. The probe's `.text` is 0x10B4 bytes, so its `.rodata` starts past the first page and the literal was not where the line said (`nm`: `lit` at 0x10C0). The address test in the line caught it. The probe now stores the path at 0xF00 itself (RAM this image does not use: the code runs from ROM; init reaches it through its identity map) and reads the store back before it opens. Then: seven `=yes`, `RW: done`.
+
+**Mutants, each rebuilt, booted and restored.**
+
+| Mutant | Result |
+|---|---|
+| `upc_slot0_str_ok` answers 0 (the first page refused to `copyinstr` again) | `RW: slot0-literal-open=no`; `sweep12` 0 SAME, 12 DIFF |
+| the tracer's test back to `n > 0` | `vcount` 529,305; `sweep12` 0 SAME, 12 DIFF |
+| `copyin` takes the first page too | `RW: slot0-first-page-closed=no`, the other six `yes` |
+| `UPC_KFD_BASE` 16 under the define (plan Step 229) | `rwprobe` prints nothing: the first image's fds 0 to 2 are out of the caller's reach |
+| no console name match in `sys_open` (plan Step 229) | `sweep12` 0 SAME, 12 DIFF |
+
+After the last restore: `vcount` 532,152, `rwprobe` seven `=yes`.
+
+**Rollback checked (A7).** The const false and the define 0, kernel and object rebuilt: `vcount` 883,522 (the off object exactly), `sweep12` 12 of 12 SAME. The tracer's test and `upc_slot0_str_ok` are dead with the switch off. Switched back on: 532,152.
+
+**Gate `rung56-after`:** `same=12 diff=0 rc=0 doom=1 ascend=532152` (worktree at `c3fa967e` plus this commit's changes). Harness ALL GREEN, 63 PASS lines, no FAIL: `rwprobe: 7 checks (UPC_RUNG56)`, `fdprobe: 51 checks`, `chdirprobe: 24 checks`, `pipeprobe: 20 checks`, `bigprobe: 3 checks`, `conprobe: 5 checks`, `crprobe: 4 checks ... tty_r=17`, `hostile_path: 6 checks`, `devprobe`, `gate2 ISOLATION-PASS`, `gate_nway 3x NWAY-ok`, `forkloop`, the four `ut_*`, the two `uinit` lines; `Doom verifier: verified 758199 insns`.
+
+### What the goldens compare from here
+
+The goldens are the files they were (`~/tmp/golden`, last written 2026-11-15 for `ls`). What changed is what the object prints into a boot's TTY: the 100-PC window after init first reaches U-mode now holds 100 U-mode PCs, where it held the first 100 PCs of any privilege. Before this rung nothing in that window trapped to the kernel, so the two were the same bytes, which is why no recapture was needed. From here a kernel-side change inside that window (a different path through `sys_open`, a longer `copyinstr`) leaves the goldens SAME. The kernel side's regression signals are the probes (`rwprobe`, `fdprobe`, `chdirprobe`, `pipeprobe`, `bigprobe`, `crprobe`, `conprobe`, the hostile set) and the corpus output itself, which is still compared byte for byte.
+
+### Attack surface, rungs 5+6 on
+
+| Landed change | What a hostile caller can try | What bounds it | Probe line that proves it | Harness line |
+|---|---|---|---|---|
+| Every fd call is the kernel's (`UPC_RUNG56`) | a bad buffer or `struct stat` pointer; a fd outside the caller's row; a write to a read-only fd | `argfd` on the caller's own `ofile`; `upc_user_pa()` in copy-in and copy-out | `FD: fstat-ptr-refused`, `FD: read-ptr-refused`, `FD: write-ptr-refused`, the `RW:` lines | `rung_gate UPC_RUNG_FD fdprobe`, `rung_gate UPC_RUNG56 rwprobe` |
+| `copyinstr` reads slot 0's first page from 0x200 up | init (slot 0, trusted by design) names a path whose bytes lie in its first page; a child cannot (its VA 0 is its own slice, never physical page 0) | `upc_slot0_str_ok()`: tagged trap, `myproc() == &proc[0]`, start in [0x200, 0x1000); BootParams and the words below it stay refused; `copyin` and `copyout` still refuse the page | `RW: slot0-literal-open`, `RW: slot0-first-page-closed` | `rung_gate UPC_RUNG56 rwprobe` |
+| The tracer skips PCs outside U-mode | nothing: it is output only | | the twelve goldens | `sweep12` |
+
+The first-page read hands the kernel nothing init could not pass it from its stack: init reads those bytes in U-mode through its identity map. Slot 0's literal limit (open call 6) is answered for path strings only; a `write` of a first-page literal by init still answers -1, so probes keep their tokens in `.data`.
+
+Closed by the flip, as D21 said: T-F3 (a file opened `O_RDWR` is written by the kernel: `RW: write-lands`), R-P1 (BPF's 16-byte chunk past a short read: the BPF file read is out of the object, and `rmprobe`'s note reads `RM: read-past-end=0`, where it read 12 on 2026-11-15), D10's stale offset between parent and child (by the design: one `struct file` shared through `filedup`; no probe line of its own).
+
+## Atomics through translate_address (2026-11-21, lane `upc-rung56`)
+
+Plan Steps 78 to 81, `[STUCK]` on 2026-11-15 on the verifier budget, run on the rungs 5+6 object (`offv` 532,152). ADR-135 D17 part 2, the decided design as written: one translation per opcode.
+
+- **How a patched image is booted now.** The opcode scan refuses it, at the path check and again on the loaded words. A throwaway bootctl was built from the tree with `opscan::scan_user_image` returning at once, into `~/.cache/unheaded-lanes/upc-rung56/bc-noscan`; the two source files were restored before anything else ran (`git status` clean). For each boot the throwaway binary stood at the worktree's bootctl path and the stock one was copied back after (`cmp` equal). Nothing of it is committed.
+- **Images.** `scripts/upc-mbc-patch-opcode.py` on `hostile_atomic.mbc`, marker `0x1D000400` mask `0xFF00FFFF`: word 16 `0x30DD0000` → `0x3DDD0000` (`XCHG`), and a second copy → `0x49DD0000` (`LR_W`, which has `LD`'s operand shape). Each with the stock `.rv2mbc`, its sha256 and `.data`.
+- **Red, on the 532,152 object:** both copies print `HA: xchg-translated=no`, `HA: done`. A child's atomic at VA 0x800400 read the ramdisk's superblock word.
+- **The change:** `atomic_addr()` (`translate_address` under `cfg!(feature = "ascend-linux") && UPC_ATOMIC_TRANSLATE`) in the `XCHG`, `CAS`, `LR_W` and `SC_W` arms; the reservation keeps the virtual address. Count **553,534**, delta **+21,382** (it measured +20,993 on the 895,768 object). `BUDGET-OK 553534 (headroom 346466, ladder net 367502)`.
+- **Green:** both copies print `HA: xchg-translated=yes`, `HA: done`.
+- **Mutant** (the translation taken out of the `XCHG` arm only): 548,430; the `XCHG` copy prints `=no`, the `LR_W` copy `=yes`. Restored: 553,534.
+- **Const off** (`UPC_ATOMIC_TRANSLATE` false): 532,152, the earlier object exactly. Back on: 553,534.
+- **Not booted:** `CAS` (fixed registers r0, r1, r2) and `SC_W` (a store): no compiled probe has their shape, so no one-word patch makes one. They are the same one-line change; read, not run.
+- The stock bootctl still refuses the patched copy: `UserImageOpcode: hostile_atomic_x: word 16 (0x3DDD0000) is XCHG (opcode 0x3D)`.
+- Not built: the single shared arm (+16,855 on 2026-11-15) and the linear-map form (+3,263). The decided design fits as written with 346,466 to spare.
+- Gate `atomics-after`: `same=12 diff=0 rc=0 doom=1 ascend=553534`; harness ALL GREEN, 63 PASS lines; the two opcode scan lines PASS; `Doom verifier: verified 758199 insns`. `check-ebpf-loads.sh` 41 programs pass; `check-ebpf-insns.sh` PASS, baseline rewritten by `--update` (the ascend row only moved).
+
+| Landed change | What a hostile caller can try | What bounds it | Proof | Harness line |
+|---|---|---|---|---|
+| Atomics translate (D17 part 2) | an image that did not come from the translator, holding `XCHG`, `CAS`, `LR_W` or `SC_W` with an address outside its slice | first the load-time scan (the boot is refused); then `translate_address`: at U-mode the access stays in the caller's mapping, a miss reads 0 and drops the store | the two patched boots above, on a scan-less bootctl; not repeatable from a stock tree, by design | `opcode scan refuses a user image with XCHG (hatch or not) and one with MRET/SRET` (the scan; the translation has no harness line) |
+
+## Fork slot reservation (2026-11-21, lane `upc-rung56`)
+
+Plan Step 116's second half, `[STUCK]` on 2026-11-15 (+11,789 against 4,064 of headroom), run on the 553,534 object. ADR-135 D18: the scan skips a row another parent has marked; a slot that exits or is killed clears its own marks. Behind `UPC_FORK_RESERVE` (needs `UPC_FORK_MARK`, asserted).
+
+**Counts.**
+
+| Object | Verified | Against 553,534 |
+|---|---|---|
+| scan skip and death clear (landed) | 549,509 | -4,025 |
+| scan skip only | 549,054 | -4,480 |
+| death clear only | 553,989 | +455 |
+| `UPC_FORK_RESERVE` false | 553,534 | 0: the earlier object exactly |
+
+The count falls. The skip reads the candidate's PROC_TABLE row inside the scan, and the verifier then walks fewer states through the rest of the fork arm; on the 2026-11-15 object the same change measured +11,789. `BUDGET-OK 549509 (headroom 350491, ladder net 371527)`. A first form computed the parent's mark once, ahead of the scan, for both uses: with the const off that object read 553,518, not 553,534, so the first-entry code keeps its own `want` and the scan has `own_mark`.
+
+**Proof.** No stock boot reaches either path: nothing runs between a fork's first tick and its finalize (no timer switch under ascend; `TIMER_SWITCH` forced true still fails the build, 2 hits of `ADR-135 I9`). So each path was run on a mutant object that plants a mark in the fork arm, with a throwaway probe, `forkres` (init forks A, A exits and is reaped; init forks B, which pauses; init forks C, which prints its pid). Neither the plants nor the probe are committed; `main.rs` was restored from a copy after each and the count read 549,509 again.
+
+| Run | Object | `forkres` prints |
+|---|---|---|
+| stock | landed | `a-pid=2`, `c-pid=3`, `b-pid=2`, `done` |
+| A1: a mark of slot 7's planted once on slot 1 after A is reaped | landed + plant | `a-pid=2`, `c-pid=4`, `b-pid=3`, `done`: B and C each skip the held slot |
+| A2: the same plant | `UPC_FORK_RESERVE` false + plant | `a-pid=2`, `c-pid=3`, `b-pid=2`, `done`: no skip, the first entry overwrites the mark |
+| B1: a mark of slot 1's planted on slot 2 at init's first fork | landed + plant | `a-pid=2`, `c-pid=3`, `b-pid=2`, `done`: A's exit cleared it, C lands in slot 2 |
+| B2: the same plant | death clear removed + plant | `a-pid=2`, then nothing: `halted=1 num_proc=4 cur_pid=2`, `PC=0x00000000`, `ROM-FAULT CTX: target=0x0 ... cur_pid=2` |
+
+**What B2 shows beyond the death clear.** C skipped the stale mark on slot 2 and took slot 3, so `num_processes` became 4. Slot 2 was never built, and it is below the high-water mark with neither its halted nor its suspended bit set, so the scheduler switched to it and the machine halted at PC 0. A live reservation under preemption has the same shape: A is copying into a never-used slot k, B skips k and finalizes into k+1, and slot k is runnable before A finalizes it. A recycled slot does not have the problem (its halted and reaped bits stay set until finalize revives it). The reservation as D18 describes it is therefore necessary and not sufficient: the scheduler must also leave a reserved row alone. Not designed, not built; I9's assertion message now names it.
+
+- Gate `reserve-after`: `same=12 diff=0 rc=0 doom=1 ascend=549509`; harness ALL GREEN, 63 PASS lines: `hostile_fork: 3 checks`, `forkloop`, `gate_nway`, `gate2`, `getpidloop` (slot 1 reused three times), `getpidmulti` (three live children), the four `ut_*`; `Doom verifier: verified 758199 insns`. `check-ebpf-loads.sh` 41 programs pass; `check-ebpf-insns.sh` PASS, baseline rewritten by `--update` (the ascend row only moved). `cargo test --release --locked --offline` in `cmd/upc-bootctl`: all ok.
+
+| Landed change | What a hostile caller can try | What bounds it | Proof | Harness line |
+|---|---|---|---|---|
+| Scan skip and death clear (`UPC_FORK_RESERVE`) | nothing from a process: the marks are in PROC_TABLE, BPF's own map, and no register or guest word feeds the test | the row's state word, written only by fork's first entry, finalize and `slot_exited` | mutant runs A1, A2, B1, B2 above; unreachable in a stock boot | `rung_gate UPC_D6_MISS_FAULT hostile_fork`, `forkloop`, `getpidloop`, `getpidmulti` (that nothing regressed; none reaches the new paths) |
 

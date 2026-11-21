@@ -460,7 +460,9 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   while(got_null == 0 && max > 0){
     va0 = PGROUNDDOWN(srcva);
     pa0 = walkaddr(pagetable, va0);
-    if(pa0 == 0)
+    // ADR-135 D21 (ruled 2026-11-18): slot 0's first page is physical page 0, so
+    // pa0 stays 0 when upc_slot0_str_ok() admits the string's start.
+    if(pa0 == 0 && !upc_slot0_str_ok(srcva))
       return -1;
     n = PGSIZE - (srcva - va0);
     if(n > max)

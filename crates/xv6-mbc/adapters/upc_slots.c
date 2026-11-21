@@ -189,6 +189,29 @@ upc_user_pa(uint64 va)
   return UPC_SLICE_BASE(s) + va;
 }
 
+// ADR-135 D21 as ruled 2026-11-18 (decision pack row 25, the "no recapture" way).
+// upc_user_pa() refuses slot 0's first page, because its base is 0 and 0 means
+// refused. Under UPC_RUNG56 every open is the kernel's, and init's and uinit's
+// "console" literal sits in that page (user.ld: .rodata follows .text from 0), so
+// the open answered -1 and init took its mknod path. copyinstr asks here before
+// it gives up on a page: for slot 0, inside a tagged trap, a string may be read
+// from [UPC_INIT_STR_LO, UPC_INIT_IMAGE_LO). Reads of a NUL-terminated string
+// only: copyin and copyout still refuse the page, so a write from it and a read
+// into it answer -1 as before (rwprobe: slot0-first-page-closed). Init can read
+// these bytes itself in U-mode, so the kernel learns nothing init could not pass
+// it from its stack. With UPC_RUNG56 off this answers 0 and the page is refused.
+int
+upc_slot0_str_ok(uint64 va)
+{
+#if UPC_RUNG56
+  return upc_active && myproc() == &proc[0]
+      && va >= UPC_INIT_STR_LO && va < UPC_INIT_IMAGE_LO;
+#else
+  (void)va;
+  return 0;
+#endif
+}
+
 // ADR-135 D15: BPF open walks from the root, so it has to know who is off it.
 void
 upc_cwd_mark(struct proc *p, int off_root)
@@ -236,10 +259,9 @@ upc_slots_init(void)
 
 #if UPC_RUNG56
   // ADR-135 D21: the kernel gives the first image its console, fds 0 to 2, one
-  // file with three references, as Linux does for pid 1. Init's own
-  // open("console") cannot be answered (its literal sits in the first page,
-  // which copy-in refuses for slot 0), and most first images open nothing and
-  // print on fd 1. fileinit and consoleinit have run; userinit left ofile
+  // file with three references, as Linux does for pid 1. Most first images
+  // open nothing and print on fd 1. Init's own open("console") is answered too
+  // (upc_slot0_str_ok() lets copyinstr read its literal) and lands on fd 3. fileinit and consoleinit have run; userinit left ofile
   // empty. ip is stored as 0: see sys_open.
   struct file *con = filealloc();
   if(con == 0)

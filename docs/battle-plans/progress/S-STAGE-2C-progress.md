@@ -116,3 +116,49 @@ Closed 2026-11-15 from Stop F plus Stop I, by the plan's rule for a rung that wi
 14. ADR-135 (D16 to D21, three review tables) is Proposed; ADR-145 and ADR-146 are parked. Acceptance is yours.
 15. For the next UPC plan: Step 310's rebuild order ends with the Doom build, which overwrites the ascend object before the sweep; the first close gate read `same=0 diff=12` for that reason alone.
 
+## 2026-11-21: rungs 5+6 on (lane `upc-rung56`, branch `sprint/upc-rung56`)
+
+Open call 10 was ruled on 2026-11-18 (`docs/battle-plans/DECISION-PACK-2026-11-18.md`, row 25): "On; the goldens compare the user-mode trace only (the option that booted 12 of 12 SAME). Kernel-side trace changes stop being a regression signal." This section records the switch. Evidence: `references/s-stage-2c-log.md`, "Rungs 5+6 on (2026-11-21 ...)". Unattended, on west, in the lab only (`upc0`).
+
+**Stop G reached 2026-11-21.** `UPC_RUNG56` is on: `const UPC_RUNG56: bool = true` and `#define UPC_RUNG56 1`. With it, as the ruled option needs: the tracer prints and counts U-mode PCs only, and the kernel's `copyinstr` reads a path string from slot 0's first page from 0x200 up.
+
+| | Before | After |
+|---|---|---|
+| Ascend, verified instructions | 883,522 | 532,152 (-351,370; headroom 367,848 under 900,000) |
+| Doom, verified instructions | 758,199 | 758,199 |
+| Goldens (`~/tmp/golden`, not written) | 12 of 12 SAME | 12 of 12 SAME |
+| Harness | ALL GREEN, 62 PASS, `rwprobe` skipped | ALL GREEN, 63 PASS, `rwprobe: 7 checks` |
+
+Gate `rung56-after`: `same=12 diff=0 rc=0 doom=1 ascend=532152`. `check-ebpf-loads.sh`: 41 programs pass the verifier. `check-ebpf-insns.sh`: PASS; the baseline was rewritten by `--update`. `cargo test --release --locked --offline` in `cmd/upc-bootctl`: all ok (`parity_slot_tables` among them). Five mutants and the rollback (switch off: 883,522, 12 of 12) are in the ledger.
+
+Plan steps: 223-230 and 235-243 done (the flip, the mutants of Step 229, the gate, the records). **Not done: Steps 231-234** (seven usertests bodies as probes: `ut_writetest`, `ut_createtest`, `ut_truncate1`, `ut_writebig`, `ut_bigwrite`, `ut_opentest`, `ut_copyinstr1`): outside this lane's task. Step 241's note: `dup` onto fds 0 to 2 works now (`RW: dup-to-zero`), which is what ush pipelines and redirection waited on; the ush grammar for `|` and `>` is in no plan.
+
+### For Stevie (2026-11-21), each with the option taken
+
+1. **The ruled option carries the slot 0 first-page read (open call 6).** The option that booted 12 of 12 SAME is two changes: the U-mode-only tracer, and `copyinstr` reading slot 0's first page. Row 25 names the option and ADR-135's ruling note calls it the "No recapture" way, so both landed. Taken narrowly: path strings only, slot 0 only, from 0x200 (past BootParams); `copyin` and `copyout` still refuse the page, and a probe line holds that. Init reads those bytes itself in U-mode, so nothing new is exposed. If you meant the tracer change alone: `upc_slot0_str_ok()` answering 0 undoes it, and then the twelve goldens need the one named recapture (measured: 0 of 12 SAME without it).
+2. **The baseline file.** `check-ebpf-insns.sh --update` rewrites every row. Besides the ascend row it recorded six rows that had drifted on develop before this lane: `flow-tracker` egress and ingress 16,096 and 16,097 → 9,638 and 9,639, `latency-probe` `tcp_connect_exit` 515 → 520, `tcp_recvmsg_exit` 516 → 521, `tcp_sendmsg_exit` 400 → 406, `packet-marker` 5,497 → 5,605. All inside the gate's 10 %. They are in the commit because the update command writes them; nobody reviewed those six as growth.
+3. **The namespace.** `upc0` belongs to `unheaded-upc-netns.service` on west (active, enabled), so `upc-netns.sh down` refuses and the lane left it up, as found.
+4. Open calls 6 (slot 0 literal, for `write`), 7 (R-P1: closed by the flip, `RM: read-past-end=0`), 9 and 11 to 14 stand as written above, except where a later entry of this section says otherwise.
+5. **Open call 2, the atomics: which form.** Row 25 says the flip unblocks the atomics fix, and your A-61 answer decided the design (through `translate_address`). Taken: that design as the plan's Step 78 wrote it, one translation per opcode, +21,382. The single shared arm would be about 4,500 instructions cheaper (+16,855 when measured on 2026-11-15) and is not built; say if you want it instead. `UPC_ATOMIC_TRANSLATE` off restores the earlier object. ADR-135's D17 part 2 is marked landed, not accepted: acceptance is yours.
+6. **The fork reservation is dead code today, and incomplete for the day it is not.** Landed as the task and D18 describe it (scan skip, death clear). It cannot be exercised by a stock boot; the proof is on mutants. It also showed that preemption needs a third piece nobody has designed: the scheduler must not run a reserved row. Taken: landed with the gap written down and I9's assertion kept. `UPC_FORK_RESERVE` off restores the earlier object exactly (553,534). If you would sooner not carry unreachable code in the object, turn it off.
+
+### Atomics through `translate_address` (Steps 78 and 81, no longer stuck)
+
+Landed 2026-11-21 on the rungs 5+6 object: 532,152 → 553,534 (+21,382), headroom 346,466. A patched `XCHG` and a patched `LR_W` at U-mode read the ramdisk before the change and read 0 after it; with the translation taken out of one arm that arm reads the ramdisk again. The patched images boot only on a throwaway bootctl with the scan removed (never committed): the stock bootctl refuses them, which is the first control and is unchanged. `CAS` and `SC_W` were read, not booted. Gate `atomics-after`: `same=12 diff=0 rc=0 doom=1 ascend=553534`, harness ALL GREEN.
+
+### Fork slot scan skip and death clear (Step 116's second half, no longer stuck)
+
+Landed 2026-11-21 behind `UPC_FORK_RESERVE`: 553,534 → 549,509 (-4,025; the count fell, the skip alone is -4,480 and the clear +455). Neither path can run in a stock boot (no timer switch, I9), so each was shown on a mutant that plants a mark, with a throwaway probe: the skip moves the next children one slot up, the const off puts them back, and a dead slot's mark is gone when the slot exits. Gate `reserve-after`: `same=12 diff=0 rc=0 doom=1 ascend=549509`, harness ALL GREEN.
+
+**Found by the same experiment:** the reservation is not enough for preemption. A skipped slot that was never built sits below `num_processes` once a later fork passes it, and the scheduler runs it: the mutant without the death clear halted at PC 0 in that slot. A timer switch under ascend needs a scheduler that leaves a reserved row alone as well. Written into ADR-135 and into the I9 assertion's message.
+
+### Rung 7: grounding note (2026-11-21; no design, no code)
+
+A plan freeze is in force (ADR-112) and this lane was told to ground rung 7, not to start it. What follows is read from the tree and from the plan.
+
+- **What the plan holds.** S-STAGE-2C's plan has two phases for it: Phase 13 (Steps 245-252: a new Proposed ADR, "UPC rung 7: process authority in the owned kernel", an independent review, and two [DECIDE]s) and Phase 14 (Steps 253-278: the build, behind `UPC_RUNG7`). Neither was run. The skeleton (`EVOLUTION-1-STAGE-2-skeleton.md`, rung 7) names the gate and the usertests subset.
+- **What it needs.** The kernel's `proc[]` decides pid, parent, `ZOMBIE`, exit status, reparenting to init and wait's answer. `wait` (3) becomes a kernel-routed number that copies the status out and retries (D7) while a child lives. BPF keeps the slice copy at fork, the page directories, the run queue, and frees a slot only when the kernel says reaped: a new reply flag, `REAP`, bounded like `KILL`. Exec stays BPF's.
+- **What is already there.** Its prerequisite, the kernel's `ofile` as the only fd table, is met since today. The kernel keeps a row per BPF slot (ADR-109); the fork note (D12) dups the parent's files into the child's row; exit and kill already pass through the kernel and close the row (D13, D8); the retry hand-off (D7) and the reply word exist (flags 1, 2, 4, 8 and 16 are in use, rung 4 having taken 16 for `KBD` after the plan's Appendix C was written, so `REAP` would be 32). Probes `ut_exitwait`, `ut_twochildren`, `ut_forktest`, `ut_reparent2`, `forkloop`, `gate_nway`, `gate2` are in the harness. Verifier headroom was 367,848 at the flip (350,491 after the atomics translation and the fork reservation).
+- **What is not there.** `kexit`, `freeproc`, `sched` and `sleep` panic on a slot row by design (ADR-109 I4, I7), and `kwait` frees and sleeps through them, so the kernel's own exit and wait cannot be called as they are. BPF's wait arm writes status 0 and reaps by its own `PARENT_OF` and `SCHED_STATE` words; exit status is carried nowhere. `NPROC` is 64 against 8 slots.
+- **Open choices, all Stevie's or the design review's.** (1) Step 248: rung 7 inside this plan, or its own plan (the plan's own override sends it to a new plan if it needs scheduler rework, preemption or an ABI change; a new plan needs the freeze lifted). (2) Step 250: a U-mode MRET or SRET kills the process with status -1, or stays a NOP. (3) What init's exit does: every gate program runs as slot 0 and exits there, while stock xv6 panics "init exiting". (4) Whether `forks` and `waitpid`, which the goldens compare, are bumped where they are today (a retried wait must not count twice). (5) Whether preemption comes with it: it would need the I9 assertion lifted, and the fork reservation finished (the scan skip and the death clear landed today; the scheduler side is missing, see above).
+
