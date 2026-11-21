@@ -66,11 +66,37 @@ topic `alerts.critical` itself.
 
 Enrolling the `alerts.critical.` key (ADR-147 Phase 8): run
 `unheaded-keygen -algo mldsa65 -owner <alert-mailer's account> alerts-critical`
-on the host; paste the public key under the `alerts.critical.` prefix in the
-topic config Wotan reads on that host (on west that file is bind-mounted from
-the repository today: where a deployment's keys go is Stevie's choice); give
+on the host; enrol the public key it prints under the `alerts.critical.` prefix
+in the topic config Wotan reads on that host (next section); give
 alert-mailer `ALERTS_SIGNING_KEY_FILE`, `ALERT_MAILER_WOTAN_ADDR` and its
 service key; restart Wotan, then alert-mailer.
+
+### A host's copy of the topic config
+
+A deployment's public keys live on the host, not in the repository (ruled
+2026-11-17, plan 2 Step 317 option B). The host runs a copy of
+`configs/wotan.yaml` that differs in the `keys:` lines only, and
+`scripts/wotan-host-config.py` writes it:
+
+| File | What | Default on west |
+|---|---|---|
+| `--keys` | the enrolled public keys, one `<prefix> <base64 key>` a line; public, may be world-readable | `/etc/unheaded/wotan/signing-keys.conf` |
+| `--out` | the copy Wotan's container mounts at `/etc/wotan/wotan.yaml` | `/etc/unheaded/wotan/wotan.yaml` |
+| `--source` | the repository's file | `configs/wotan.yaml` |
+
+```bash
+sudo scripts/wotan-host-config.py --keys /etc/unheaded/wotan/signing-keys.conf --out /etc/unheaded/wotan/wotan.yaml
+scripts/wotan-host-config.py --keys /etc/unheaded/wotan/signing-keys.conf --out /etc/unheaded/wotan/wotan.yaml --check   # exit 4 on drift
+```
+
+Run it after enrolling or rotating a key, and after any change to
+`configs/wotan.yaml` (a new identity in `auto_approve` or `permissions` does
+not reach the host until the copy is written again). Then restart Wotan: it
+refuses a change of signing keys on SIGHUP, because a reload would reset
+replay protection. The copy is written in place, since the container mounts
+that one file. The compose mount is in the host's own
+`docker-compose.override.yml`:
+`- /etc/unheaded/wotan/wotan.yaml:/etc/wotan/wotan.yaml:ro` under `wotan:`.
 
 `configs/wotan.yaml` lists each with `keys: []`: enrolled per deployment, never
 in the checked-in copy. Producers never send these unsigned: every unsigned
