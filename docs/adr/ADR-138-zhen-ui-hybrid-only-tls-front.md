@@ -65,7 +65,11 @@ The three questions, as answered and built:
 
 **Ops listener.** `/health`, `/ready` and `/metrics` are plain HTTP on `127.0.0.1:20112` (`pkg/ports.ZhenUIFrontMetrics`); the front refuses a non-loopback address for it. `/ready` is 200 while the app answers on its socket. Metrics: `unheaded_zhen_ui_front_tls_client_hellos_total{kex="hybrid"|"classical"}`, `..._upstream_errors_total`, `..._connections`. No Prometheus job scrapes it: the scrapers come over the overlay and this is loopback only.
 
+> **closed 2026-11-21:** how the scraper should reach this and the other loopback-only host units is left as it is: unit state (`unheaded_unit_active`, `unheaded_unit_failed`, `unheaded_unit_restarts` from the host-state textfile) and per-cgroup CPU, memory, I/O and pressure (huginn) already cover liveness and cost for every such unit, and the health sweep runs on the host. No application series from a loopback unit is needed today. If one ever is, huginn, which runs on the host and is already scraped, reads the named loopback `/metrics` page and re-exposes it; binding these listeners on a bridge or overlay address would widen them and is not done (decision pack row 41, M-207.7).
+
 **Auth baseline.** `cmd/zhen-ui-front/main.go` has a row in `docs/policy/http-auth-baseline.txt` (listeners that do not import `pkg/auth`). Reason: the app behind the front does the login; the front has none of its own and its ops listener is loopback. That file says a new row is a decision for review, so this one is Stevie's to confirm.
+
+> **closed 2026-11-21:** the row is accepted and stays: the front is the login surface's TLS end and cannot sit behind the middleware it fronts; its budgets and sessions were reviewed in the work for rows 28 and 44 of the same pack. Settled by Claude under row 41 and reviewable there, so "Stevie's to confirm" above now means his later review (decision pack row 41, M-207.1).
 
 **Callers.** Port 20103 no longer answers plain http. Akira's `zhenai` target is `https://localhost:20103/health` through the front, checked against the deployment CA. `zhen-mcp`'s `service_health`, the dashboard's `zhenai` row (`172.28.1.1:20112`) and five runbooks probe `/ready` on 20112. `scripts/run-coding-gate-via-webui.sh` and `eval/memory-ablation/run.sh` default to `https://localhost:20103` with the dev CA.
 
