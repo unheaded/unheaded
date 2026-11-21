@@ -177,9 +177,9 @@ sudo docker compose -f monitoring/docker-compose.yml up -d --build alert-mailer
 The other `monitoring/.env` variables have defaults that fit the compose stack
 (TLS on, the dev CA, server name `wotan`, gRPC on the same host at 18001); the
 table is in [[Alerting]]. Order: Wotan first, then the mailer. The other order
-heals by itself: the mailer joins again at each publish, sends a snapshot every
-5 minutes and re-probes gRPC every 30 s; `alert_mailer_critical_publish_errors_total`
-rises until then. Mail is never affected: the bus is told after the mail
+heals by itself: the mailer tries the join again at each publish until it
+succeeds, sends a snapshot every 5 minutes and re-probes gRPC every 30 s;
+`alert_mailer_critical_publish_errors_total` rises until then. Mail is never affected: the bus is told after the mail
 decision and a failed publish is only counted.
 
 **It works when**, within a minute of the mailer's start:
