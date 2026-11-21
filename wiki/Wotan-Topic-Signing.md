@@ -64,12 +64,11 @@ topic `alerts.critical` itself.
 | `alerts.critical.` | alert-mailer (each critical Alertmanager notification, firing and resolved, and a snapshot every 5 min; every service on the bus subscribes through `pkg/critalert`) | `ALERTS_SIGNING_KEY_FILE` |
 | `system.health.consensus.`, `system.health.remediate.` | Akira | `HEALTH_SIGNING_KEY_FILE` |
 
-Enrolling the `alerts.critical.` key (ADR-147 Phase 8): run
-`unheaded-keygen -algo mldsa65 -owner <alert-mailer's account> alerts-critical`
-on the host; enrol the public key it prints under the `alerts.critical.` prefix
-in the topic config Wotan reads on that host (next section); give
-alert-mailer `ALERTS_SIGNING_KEY_FILE`, `ALERT_MAILER_WOTAN_ADDR` and its
-service key; restart Wotan, then alert-mailer.
+Enrolling the `alerts.critical.` key (ADR-147 Phase 8) is configuration on the
+host: two key files for alert-mailer, their public halves on Wotan's side, one
+line of `monitoring/.env`. The steps are in
+[Enrolling alert-mailer on `alerts.critical`](#enrolling-alert-mailer-on-alertscritical)
+below.
 
 ### A host's copy of the topic config
 
@@ -116,6 +115,112 @@ remediation (`akira_signed_publish_refused_total`); the consensus is still on
 the rest of `alerts.*` and `logs.*` stay unsigned. Keys come from
 `unheaded-keygen -algo mldsa65 -owner <account> <name>`, which prints the
 base64 public key to enrol.
+
+### Enrolling alert-mailer on `alerts.critical`
+
+Off until a host does this (ADR-147 Phase 8). Nothing in the repository
+changes: two key files, the two public halves on Wotan's side, one line of
+`monitoring/.env`.
+
+alert-mailer runs in the monitoring stack (`monitoring/docker-compose.yml`), a
+different compose project from Wotan's, so it reaches Wotan at the host address
+Wotan's ports are published on for that network (`UNHEADED_OVERLAY_BIND` in the
+main stack; `[fd00:dead:beef::1]` on west): 18000 for the join over HTTPS,
+18001 for the signed publish over gRPC. Both are TLS 1.3. Wotan's certificate
+does not carry that address, so the mailer verifies it against the name
+`wotan`, which every Wotan certificate carries (`WOTAN_TLS_SERVER_NAME`,
+[[Transport Cascade|Transport-Cascade]]). The chain must still end at the CA.
+
+**What goes where.** `<secrets>` is the host directory `ALERT_MAILER_SECRETS_DIR`
+names, the one that holds `smtp-password` (`/etc/unheaded/alert-mailer` on
+west: 0700, uid 16710, the uid the container runs as). The container reads it
+read-only at `/run/secrets/alert-mailer`; the file names are fixed.
+
+| File on the host | What | Its public half |
+|---|---|---|
+| `<secrets>/alert-mailer.key` | the Ed25519 service key of identity `alert-mailer`, 0400, uid 16710. Without it Wotan answers 401 | `alert-mailer.pub` in Wotan's trust directory `<trust>`. Compose mounts the repository's `configs/trust.d/dev` at `/etc/unheaded/trust.d`; a Wotan host unit reads `/etc/unheaded/trust.d`. Wotan re-reads the directory every 30 s: no restart |
+| `<secrets>/alerts-critical.key` | the ML-DSA-65 seed, 0400, uid 16710. Without it every message is refused and counted, never sent unsigned | one line `alerts.critical. <base64>` in the host's `signing-keys.conf` (previous section). Wotan takes a signing key only at start |
+| `configs/certs/dev/ca.pem` | the CA that signed Wotan's certificate (public). It is the file the stack's Prometheus already mounts; for another CA set `ALERT_MAILER_WOTAN_CA_FILE` | |
+
+Wotan's side of the identity is in the repository: `alert-mailer` is in
+`AUTH_ALLOW_CALLERS` (compose and `deploy/systemd/unheaded-wotan.service`), in
+`topics.auto_approve`, and in `topics.permissions` with
+`publish: ["alerts.critical"]` (`configs/wotan.yaml`;
+`TestRepoWotanConfig_AlertMailerPublishesAlertsCritical` holds it there). A
+host's copy of the topic config must be written from that file.
+
+**Steps**, on the host:
+
+```bash
+# 1. The service key. The public half lands in <trust>; Wotan sees it within 30 s.
+sudo unheaded-keygen -dir <secrets> -trust-dir <trust> -owner 16710 alert-mailer
+
+# 2. The signing key. This prints its base64 public key
+#    (again later: unheaded-keygen -algo mldsa65 -dir <secrets> -print-kid alerts-critical).
+sudo unheaded-keygen -algo mldsa65 -dir <secrets> -owner 16710 alerts-critical
+#    A key already made in another directory is moved there, not copied, and
+#    keeps owner 16710 and mode 0400:
+#      sudo mv /etc/unheaded/keys/alerts-critical.key <secrets>/alerts-critical.key
+
+# 3. Enrol the public key (previous section): add "alerts.critical. <base64>"
+#    to signing-keys.conf, write the host's copy, check it, then restart Wotan.
+sudo scripts/wotan-host-config.py --keys /etc/unheaded/wotan/signing-keys.conf --out /etc/unheaded/wotan/wotan.yaml
+WOTAN_HOST_CONFIG=/etc/unheaded/wotan/wotan.yaml go test ./services/wotan/internal/api -run TestHostWotanConfig -v
+
+# 4. monitoring/.env: the one line that switches it on (the host address, https).
+#      ALERT_MAILER_WOTAN_ADDR=https://[fd00:dead:beef::1]:18000
+
+# 5. Recreate the mailer, from an image built from a tree that has this page.
+sudo docker compose -f monitoring/docker-compose.yml up -d --build alert-mailer
+```
+
+The other `monitoring/.env` variables have defaults that fit the compose stack
+(TLS on, the dev CA, server name `wotan`, gRPC on the same host at 18001); the
+table is in [[Alerting]]. Order: Wotan first, then the mailer. The other order
+heals by itself: the mailer joins again at each publish, sends a snapshot every
+5 minutes and re-probes gRPC every 30 s; `alert_mailer_critical_publish_errors_total`
+rises until then. Mail is never affected: the bus is told after the mail
+decision and a failed publish is only counted.
+
+**It works when**, within a minute of the mailer's start:
+
+- its log has `alerts.critical: publishing signed, as alert-mailer` with
+  `"service_key":true`, then `alerts.critical: first message accepted by Wotan`
+  (`sudo docker logs unheaded-alert-mailer 2>&1 | grep alerts.critical`);
+- `curl -s 127.0.0.1:19130/metrics | grep alert_mailer_critical` shows
+  `alert_mailer_critical_published_total` at 1 or more and one higher every
+  5 minutes, with `alert_mailer_critical_publish_refused_total`,
+  `alert_mailer_critical_publish_errors_total` and
+  `alert_mailer_critical_rebuild_errors_total` flat;
+- every service on the bus reports `unheaded_critical_alerts_state{state="ok"} 1`
+  on its `/metrics` (or `firing` while a critical alert fires) where it read
+  `unknown` before, and `critical_alerts` in `/health` says the same;
+- Wotan has the topic: `rooms` in its `/health` went up by one, and
+  `GET /api/v1/topics` (with a service token) lists `alerts.critical` with a
+  rising `message_count`.
+
+**When it does not**, the mailer's log says which piece is missing:
+
+| Log line or symptom | Missing |
+|---|---|
+| `alerts.critical: not published` with `ALERTS_SIGNING_KEY_FILE` in the error at start, `..._publish_refused_total` rising | `<secrets>/alerts-critical.key` is absent, not readable by uid 16710, or readable by group or others |
+| `no service key at "/run/secrets/alert-mailer/alert-mailer.key"` at start and `"service_key":false`, then publish errors (401) | `<secrets>/alert-mailer.key` |
+| publish errors (401 or 403) with `"service_key":true` | `alert-mailer.pub` is not in the trust directory Wotan reads, or `alert-mailer` is not in that Wotan's `AUTH_ALLOW_CALLERS` |
+| `x509: certificate is valid for ..., not ...` | the certificate does not carry the name in `ALERT_MAILER_WOTAN_TLS_SERVER_NAME` (default `wotan`) |
+| `x509: certificate signed by unknown authority` | `ALERT_MAILER_WOTAN_CA_FILE` is not the CA that signed Wotan's certificate |
+| `alerts.critical: not published` with `UNHEADED_TLS_CA_CERT` in the error | the CA file is absent on the host (docker then makes a directory at that path: remove it, put the file there, recreate the container) |
+| `service token withheld on a plaintext link` | `ALERT_MAILER_WOTAN_TLS` is set to something other than `true` |
+| publish errors with `PermissionDenied` | the public key is not under `alerts.critical.` in the config Wotan runs, or Wotan was not restarted after it was enrolled |
+| publish errors with a refused or timed-out connection | Wotan's 18000 and 18001 are not published on that address, or the host firewall does not let the monitoring network reach them |
+
+To rotate the signing key: make a new one under another name
+(`... -algo mldsa65 ... alerts-critical-next`), enrol its public key beside the
+old one and restart Wotan, rename it over `<secrets>/alerts-critical.key`,
+recreate the mailer, then take the old public key out of `signing-keys.conf`.
+The service key: `unheaded-keygen -dir <secrets> -trust-dir <trust> -owner 16710 -rotate alert-mailer`,
+then recreate the mailer. A development stack gets the service key from
+`sudo scripts/gen-dev-keys.sh` (in `configs/keys/dev/alert-mailer/`, which is
+then the `<secrets>` directory); the script prints the remaining steps.
 
 ## Subscriber verification
 
