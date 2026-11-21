@@ -82,16 +82,16 @@ func (m *Mem) Revoke(_ context.Context, prefix string, now time.Time) (Session, 
 	defer m.mu.Unlock()
 	var hit []string
 	for k, s := range m.m {
-		if strings.HasPrefix(k, prefix) && s.Live(now) {
+		if strings.HasPrefix(k, prefix) && s.RevokedAt == nil {
 			hit = append(hit, k)
 		}
 	}
 	switch len(hit) {
 	case 0:
-		return Session{}, fmt.Errorf("%w: no live session with id %s", ErrNotFound, prefix)
+		return Session{}, fmt.Errorf("%w: no session with id %s that is not already revoked", ErrNotFound, prefix)
 	case 1:
 	default:
-		return Session{}, fmt.Errorf("%w: %s matches %d live sessions; give more characters", ErrAmbiguous, prefix, len(hit))
+		return Session{}, fmt.Errorf("%w: %s matches %d sessions; give more characters", ErrAmbiguous, prefix, len(hit))
 	}
 	return copySession(m.revokeLocked(hit[0], now)), nil
 }
@@ -105,7 +105,7 @@ func (m *Mem) RevokeSubject(_ context.Context, subject, front string, now time.T
 	defer m.mu.Unlock()
 	n := 0
 	for k, s := range m.m {
-		if s.Subject == subject && (front == "" || s.Front == front) && s.Live(now) {
+		if s.Subject == subject && (front == "" || s.Front == front) && s.RevokedAt == nil {
 			m.revokeLocked(k, now)
 			n++
 		}

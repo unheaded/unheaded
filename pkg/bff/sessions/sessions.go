@@ -214,12 +214,16 @@ type Filter struct {
 type Admin interface {
 	// List returns at most ListLimit sessions, newest first.
 	List(ctx context.Context, f Filter, now time.Time) ([]Session, error)
-	// Revoke ends the one live session whose hash starts with prefix (at
-	// least MinPrefix hex characters): ErrNotFound for none, ErrAmbiguous
-	// for several.
+	// Revoke ends the one session not yet revoked whose hash starts with
+	// prefix (at least MinPrefix hex characters): ErrNotFound for none,
+	// ErrAmbiguous for several. now only stamps the revocation: whether a
+	// session has expired is not asked, because the front's clock decides
+	// that and this caller's may differ. Revoking an expired session is
+	// harmless; skipping a live one that looked expired from here is not.
 	Revoke(ctx context.Context, prefix string, now time.Time) (Session, error)
-	// RevokeSubject ends every live session of subject, on one front or
-	// (front "") on all, and returns how many.
+	// RevokeSubject ends every session of subject not yet revoked, on one
+	// front or (front "") on all, and returns how many. Like Revoke it does
+	// not ask whether they have expired.
 	RevokeSubject(ctx context.Context, subject, front string, now time.Time) (int, error)
 	Close() error
 }

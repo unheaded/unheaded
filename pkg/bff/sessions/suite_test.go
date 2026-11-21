@@ -388,6 +388,40 @@ func storeSuite(t *testing.T, fresh func(t *testing.T) world) {
 			t.Fatalf("empty subject: %v, want ErrInvalid (never every session by accident)", err)
 		}
 	})
+
+	// The admin's clock is not the front's. A session that looks expired
+	// from where the command runs may be live at the front, so revocation
+	// never asks the clock.
+	t.Run("admin revocation does not depend on the admin's clock", func(t *testing.T) {
+		w := fresh(t)
+		mustCreate(t, w.a, sess(w.frontA, 1, t0)) // expires t0+30m by the front's clock
+		mustCreate(t, w.a, sess(w.frontA, 2, t0))
+		fast := t0.Add(10 * time.Hour) // the admin's clock runs ten hours ahead
+		if n, err := w.admin.RevokeSubject(ctx, "dev", "", fast); n != 2 || err != nil {
+			t.Fatalf("revoke subject with a fast clock: %d %v, want both sessions", n, err)
+		}
+		frontNow := t0.Add(time.Minute)
+		for _, k := range []string{key(1), key(2)} {
+			if got, _, _ := w.a.Get(ctx, k); got.Live(frontNow) || got.RevokedAt == nil {
+				t.Fatalf("a session survived a revocation issued under a fast clock: %+v", got)
+			}
+		}
+		mustCreate(t, w.a, sess(w.frontA, 3, t0))
+		if _, err := w.admin.Revoke(ctx, key(3)[:16], fast); err != nil {
+			t.Fatalf("revoke by id with a fast clock: %v", err)
+		}
+		if got, _, _ := w.a.Get(ctx, key(3)); got.Live(frontNow) {
+			t.Fatal("a session survived a revocation by id issued under a fast clock")
+		}
+		// And a slow clock: the stamp is held to the creation time.
+		mustCreate(t, w.a, sess(w.frontA, 4, t0))
+		if n, err := w.admin.RevokeSubject(ctx, "dev", "", t0.Add(-10*time.Hour)); n != 1 || err != nil {
+			t.Fatalf("revoke subject with a slow clock: %d %v", n, err)
+		}
+		if got, _, _ := w.a.Get(ctx, key(4)); got.Live(frontNow) {
+			t.Fatal("a session survived a revocation issued under a slow clock")
+		}
+	})
 }
 
 func fillRoles(r []string) {

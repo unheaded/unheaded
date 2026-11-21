@@ -321,18 +321,18 @@ func (a *wellAdmin) Revoke(ctx context.Context, prefix string, now time.Time) (S
 	}
 	hits, err := querySessions(ctx, a.db,
 		`SELECT `+columns+` FROM `+sessionTable+`
-		 WHERE left(id_hash, length($1::text)) = $1::text AND revoked_at IS NULL AND expires_at > $2::timestamptz
+		 WHERE left(id_hash, length($1::text)) = $1::text AND revoked_at IS NULL
 		 ORDER BY id_hash LIMIT 2`,
-		prefix, now.UTC())
+		prefix)
 	if err != nil {
 		return Session{}, fmt.Errorf("sessions: revoke: %w", err)
 	}
 	switch len(hits) {
 	case 0:
-		return Session{}, fmt.Errorf("%w: no live session with id %s", ErrNotFound, prefix)
+		return Session{}, fmt.Errorf("%w: no session with id %s that is not already revoked", ErrNotFound, prefix)
 	case 1:
 	default:
-		return Session{}, fmt.Errorf("%w: %s matches more than one live session; give more characters", ErrAmbiguous, prefix)
+		return Session{}, fmt.Errorf("%w: %s matches more than one session; give more characters", ErrAmbiguous, prefix)
 	}
 	out, err := querySessions(ctx, a.db,
 		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($2::timestamptz, created_at)
@@ -353,8 +353,7 @@ func (a *wellAdmin) RevokeSubject(ctx context.Context, subject, front string, no
 	}
 	n, err := execCount(ctx, a.db,
 		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($3::timestamptz, created_at)
-		 WHERE subject = $1::text AND ($2::text = '' OR front = $2::text)
-		   AND revoked_at IS NULL AND expires_at > $3::timestamptz`,
+		 WHERE subject = $1::text AND ($2::text = '' OR front = $2::text) AND revoked_at IS NULL`,
 		subject, front, now.UTC())
 	if err != nil {
 		return 0, fmt.Errorf("sessions: revoke subject: %w", err)
