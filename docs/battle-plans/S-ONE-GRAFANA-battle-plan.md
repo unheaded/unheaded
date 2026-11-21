@@ -39,6 +39,7 @@ Boxes 9 to 13 were ticked on 2026-11-21 (decision pack 2026-11-18, row 41, M-201
 ## Phase 3: waits on an answer
 
 - [ ] **Step 14**: Prometheus retires when Stevie answers ADR-117's evaluator question (keep until ADR-116's warden, build a native evaluator, `vmalert`, or Grafana alerting). Nothing is built toward it here.
+  - 2026-11-21 (decision pack 2026-11-18, row 41, M-201.1): the evaluator question is settled as option A, keep Prometheus as the rule evaluator until ADR-116's warden exists (ADR-117, "Notes 2026-11-21"; ADR-147 decisions 9 and 10 as Stevie answered them on 2026-11-15). The box stays open: Prometheus has not retired, and ADR-116 is parked.
 
 ## ESCALATIONS (Stevie)
 
