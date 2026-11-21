@@ -28,11 +28,13 @@ Copyright (c) 2026 Stevie Bellis.
 
 ## Phase 2: west (attended; `docs/runbooks/one-grafana-cutover.md`)
 
-- [ ] **Step 9**: merge to `develop`, then runbook steps 0 to 2 (lint, recreate Grafana).
-- [ ] **Step 10**: runbook steps 3 to 6 (recreate VictoriaMetrics, check targets and the overlay publish, reload Prometheus, look at the dashboards).
-- [ ] **Step 11** (Stevie's word): runbook steps 7 and 8 (copy the old Grafana database, remove the three containers). `check-image-drift.sh` passes.
-- [ ] **Step 12** (Stevie's word): runbook step 9 (remove the three volumes), a day later.
-- [ ] **Step 13**: runbook step 10 (LAN forward on 3000, next.md rows).
+- [x] **Step 9**: merge to `develop`, then runbook steps 0 to 2 (lint, recreate Grafana). Done 2026-11-11 (merge `ffdc0786`).
+- [x] **Step 10**: runbook steps 3 to 6 (recreate VictoriaMetrics, check targets and the overlay publish, reload Prometheus, look at the dashboards). Done 2026-11-11.
+- [x] **Step 11** (Stevie's word): runbook steps 7 and 8 (copy the old Grafana database, remove the three containers). `check-image-drift.sh` passes. Done 2026-11-11.
+- [x] **Step 12** (Stevie's word): runbook step 9 (remove the three volumes), a day later. Done 2026-11-11, the same day, on the word that covered steps 7 to 9.
+- [x] **Step 13**: runbook step 10 (LAN forward on 3000, next.md rows). Done 2026-11-11.
+
+Boxes 9 to 13 were ticked on 2026-11-21 (decision pack 2026-11-18, row 41, M-201.8): the steps ran on west on 2026-11-11, 17:21Z to 17:46Z, and the boxes had not followed. The record is ADR-117, "Applied to west 2026-11-11", with Stevie's words for steps 1 to 6 and 7 to 9 of the runbook.
 
 ## Phase 3: waits on an answer
 
