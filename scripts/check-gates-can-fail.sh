@@ -736,6 +736,17 @@ provoke_well_zhen_captures() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_bff_sessions() {
+    # Contract (ADR-114 N5): a login front writes sessions only in its own
+    # name. Drop the view's check option, and one front's login can insert a
+    # session that names another front.
+    local f="db/migrations/056_app_bff_sessions.sql"
+    backup "${f}"
+    sed -i "s/^    WITH CASCADED CHECK OPTION;\$/;/" "${REPO_ROOT}/${f}"
+    if grep -q "WITH CASCADED CHECK OPTION;" "${REPO_ROOT}/${f}"; then echo "provocation anchor missing in ${f}" >&2; return 1; fi
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_api_keys() {
     # Contract (S-IRON-GATE Step 105, ADR-103 §5): every API key expires
     # within 366 days of creation. Turn the cap into a no-op.
@@ -1479,6 +1490,7 @@ well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition tri
 well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 052, so a claim race has several winners (needs docker)
 well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 052 (needs docker)
 well/test-api-keys|provoke_well_api_keys|slow|the 366-day expiry cap on api_keys turned into CHECK (true) in 036 (needs docker)
+well/test-bff-sessions|provoke_well_bff_sessions|slow|the check option dropped from bff_sessions_own in 056, so one front can write a session in another's name (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 test-go-root|provoke_go_root|slow|pkg/ebpf OpenPinnedMap no longer refuses a per-CPU map, which only a root test reaches (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
