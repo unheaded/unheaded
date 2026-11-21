@@ -55,6 +55,12 @@ type Connection interface {
 | `WOTAN_ADDR`, `WOTAN_HTTP_ADDR` | Wotan HTTP address, `host:port` or URL; `WOTAN_HTTP_ADDR` wins if both are set |
 | `CONNECT_TIMEOUT` | connect timeout (Go duration) |
 
+`pkg/wotan-client` itself reads one more, in every binary:
+
+| Env | Sets |
+|-----|------|
+| `WOTAN_TLS_SERVER_NAME` | the name the client verifies Wotan's certificate against, on gRPC and HTTP, when that is not the host it dials (a host name or an IP address; unset: the dialled host). For a client that reaches Wotan at an address its certificate does not carry, such as alert-mailer over the host's overlay address ([[Wotan Topic Signing|Wotan-Topic-Signing]]). Verification stays on: the chain must end at the trusted CA and the certificate must carry this name. A value with a port, a scheme or brackets stops the client from being built |
+
 `transport.RegisterFlags()` defines `--transport`, `--wotan-grpc-addr`, `--wotan-http-addr`, `--connect-timeout` and `--fallback`, but no binary calls it: services take their own `--wotan`-style flags or the environment.
 
 7 binaries call `ConfigFromEnv()`: timeguru, dashboard-backend, kanban-app, unheaded-daemon, trace-collector-go, chaos-controller, sword.

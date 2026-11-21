@@ -451,6 +451,14 @@ sinks:
       when_full: block
     request:
       timeout_secs: 10
+    # One insert per 30 s, not per second (ADR-147, Erda F1): 47,000 inserts
+    # a day of 5 rows made ClickHouse merge 42 GiB a day to keep 127 MiB.
+    # Rows become readable up to 30 s later; the disk buffer above keeps
+    # durability as it was.
+    batch:
+      max_events: 100000
+      max_bytes: 10485760
+      timeout_secs: 30
       retry_max_duration_secs: 60
 
   # The measured week (S-E1-LIVE Evening 16, Step 279; ADR-117): west's own

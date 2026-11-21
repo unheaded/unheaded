@@ -184,6 +184,13 @@ scrape_configs:
     scrape_interval: 15s
     static_configs:
       - targets: ["host.docker.internal:9598"]
+    # Vector's own series carry the container id as host; each recreate minted
+    # ~1,400 series (ADR-147, Erda F12). Its journal_* series keep the journal's host.
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'vector_.+'
+        target_label: host
+        replacement: west
 
   # The two below serve on west's overlay address and are up since
   # 2026-11-12: syslog-relay (ADR-124, installed with 8efe36e2); zhen-agentd's

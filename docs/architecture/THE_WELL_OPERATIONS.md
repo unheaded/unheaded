@@ -249,7 +249,7 @@ After restoring a set for real, set role passwords again
 ## Resource Limits
 
 From `docker-compose.yml`:
-- **Memory:** 256MB (`shared_buffers` 64MB, `work_mem` 2MB, see `db/postgresql.conf`)
+- **Memory:** 2GB, 1.0 CPU (`shared_buffers` 512MB, `effective_cache_size` 1536MB, `work_mem` 2MB, see `db/postgresql.conf`; ADR-147 D8, 2026-11-21: the 256MB limit had been hit 52,740 times)
 - **CPU:** 0.5 cores
 - **Health check:** `pg_isready -U unheaded -d postgres`, every 10s, 5 retries
 

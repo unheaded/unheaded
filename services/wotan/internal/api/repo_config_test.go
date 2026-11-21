@@ -40,6 +40,49 @@ func TestRepoWotanConfig_LoadsAndNamesEveryApprovedIdentity(t *testing.T) {
 	}
 }
 
+// alert-mailer's side of alerts.critical (ADR-147 Phase 8) as the
+// repository's file ships it: the identity is approved, may publish that
+// one topic and join it (the client joins before it publishes; a service
+// may read what it may publish), and nothing else. The topic takes signed
+// messages only, with no key in the checked-in file: a deployment enrols
+// its own (wiki/Wotan-Topic-Signing.md).
+func TestRepoWotanConfig_AlertMailerPublishesAlertsCritical(t *testing.T) {
+	cfg, err := LoadTopicConfig(filepath.Join("..", "..", "..", "..", "configs", "wotan.yaml"))
+	if err != nil {
+		t.Fatalf("configs/wotan.yaml: %v", err)
+	}
+	const topic = "alerts.critical"
+	mailer := serviceIdentity("alert-mailer")
+	if !cfg.IsAutoApproved(mailer, "alert-mailer") {
+		t.Error("alert-mailer is not on topics.auto_approve: its join would stay pending and its publish be refused")
+	}
+	for _, action := range []string{PermitPublish, PermitSubscribe} {
+		if ok, reason := cfg.Permit(mailer, action, topic); !ok {
+			t.Errorf("alert-mailer may not %s %s: %s", action, topic, reason)
+		}
+	}
+	for _, other := range []string{"alerts.warning", "alerts.critical.extra", "system.health.reports", "config.wotan"} {
+		if ok, _ := cfg.Permit(mailer, PermitPublish, other); ok {
+			t.Errorf("alert-mailer may publish %s: its entry is wider than alerts.critical", other)
+		}
+	}
+	if ok, _ := cfg.Permit(mailer, PermitSubscribe, "#"); ok {
+		t.Error("alert-mailer may read every topic")
+	}
+	signed := false
+	for _, sp := range cfg.Topics.SignedPrefixes {
+		if sp.Prefix == topic+"." {
+			signed = true
+			if len(sp.Keys) != 0 {
+				t.Errorf("configs/wotan.yaml enrols %d key(s) under %s: keys are per deployment, never in the repository", len(sp.Keys), sp.Prefix)
+			}
+		}
+	}
+	if !signed {
+		t.Errorf("no signed prefix %s. in topics.signed_prefixes: %s would take unsigned messages", topic, topic)
+	}
+}
+
 // A host's copy of the topic config (scripts/wotan-host-config.py: the
 // repository's file plus that host's enrolled public keys) is checked with
 // Wotan's own parser before Wotan is restarted on it: a bad key is fatal at

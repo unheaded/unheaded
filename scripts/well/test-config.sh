@@ -71,8 +71,8 @@ refused() { [[ "$2" == *"pg_hba.conf rejects"* || "$2" == *"no pg_hba.conf entry
 
 # Settings in effect.
 [[ "$(sq postgres "SELECT string_agg(name || '=' || setting, ' ' ORDER BY name) FROM pg_settings WHERE name IN ('ssl', 'data_checksums', 'shared_preload_libraries', 'shared_buffers', 'max_connections', 'listen_addresses', 'statement_timeout')")" == \
-	"data_checksums=on listen_addresses=* max_connections=50 shared_buffers=8192 shared_preload_libraries=pg_stat_statements ssl=on statement_timeout=0" ]] &&
-	pass "settings: ssl, checksums, preload, 64MB buffers, 50 connections, no global statement_timeout" ||
+	"data_checksums=on listen_addresses=* max_connections=50 shared_buffers=65536 shared_preload_libraries=pg_stat_statements ssl=on statement_timeout=0" ]] &&
+	pass "settings: ssl, checksums, preload, 512MB buffers, 50 connections, no global statement_timeout" ||
 	fail "settings: $(sq postgres "SELECT string_agg(name || '=' || setting, ' ' ORDER BY name) FROM pg_settings WHERE name IN ('ssl', 'data_checksums', 'shared_preload_libraries', 'shared_buffers', 'max_connections', 'listen_addresses', 'statement_timeout')")"
 [[ "$(sq postgres "SELECT count(*) >= 0 FROM pg_stat_statements")" == t ]] && pass "pg_stat_statements readable" || fail "pg_stat_statements"
 [[ "$(sq postgres "SELECT array_to_string(setconfig, ',') FROM pg_db_role_setting WHERE setrole = 'well_backup'::regrole")" == "idle_in_transaction_session_timeout=0" ]] &&

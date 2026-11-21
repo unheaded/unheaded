@@ -151,6 +151,25 @@ Use the Google Workspace account (bellis.tech): it allows 2,000 sends a day agai
 
 STARTTLS is required, and a login over plaintext is refused. A relay error is not counted against the cap: Alertmanager retries.
 
+### Critical alerts on Wotan (`alerts.critical`)
+
+After the mail decision, mailed or not, the mailer publishes every critical notification (firing and resolved) and a snapshot of what fires every 5 minutes on the Wotan topic `alerts.critical`, signed with ML-DSA-65 or not at all; every service on the bus holds changes while one fires (`pkg/critalert`, ADR-147 Phase 8). The message is metadata only: fingerprint, alert name, severity, status, host, start time. It is off until a host enrols, and a failure there never touches the mail. The enrolment steps, the signals that it works and what each failure looks like are in [[Wotan Topic Signing|Wotan-Topic-Signing]].
+
+The mailer's settings for it, in `monitoring/.env` (the monitoring stack is started with `-f monitoring/docker-compose.yml`, so no override file is read):
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `ALERT_MAILER_WOTAN_ADDR` | unset: off | Wotan's HTTP address as the monitoring network reaches it: the host address its port is published on, `https://[fd00:dead:beef::1]:18000` on west |
+| `ALERT_MAILER_WOTAN_GRPC_ADDR` | the same host, port 18001 | Wotan's gRPC address, `host:port` |
+| `ALERT_MAILER_SECRETS_DIR` | an empty directory of the repository | the host directory with `smtp-password`, `heartbeat-token` and, for this, `alert-mailer.key` (Ed25519 service key) and `alerts-critical.key` (ML-DSA-65 seed), each 0400 and owned by uid 16710 |
+| `ALERT_MAILER_WOTAN_TLS` | `true` | TLS 1.3 to Wotan with the CA below. Anything else dials plaintext, where the service token is withheld off loopback: for a Wotan without TLS and without auth only |
+| `ALERT_MAILER_WOTAN_CA_FILE` | `../configs/certs/dev/ca.pem` (relative to `monitoring/`) | the CA that signed Wotan's certificate; the default is the file Prometheus mounts. One file mount: a replaced CA is seen after the container is recreated |
+| `ALERT_MAILER_WOTAN_TLS_SERVER_NAME` | `wotan` | the name Wotan's certificate is verified against, since it does not carry the host address dialled (`WOTAN_TLS_SERVER_NAME`, [[Transport Cascade|Transport-Cascade]]). Verification is never off |
+
+These settings are the Wotan client's. The mailer's own listeners (19130 for Alertmanager and the healthcheck, 19131 for heartbeats) stay plain HTTP inside the monitoring network whatever `ALERT_MAILER_WOTAN_TLS` says; a test in `cmd/alert-mailer` fails if that changes without the callers.
+
+Metrics on `127.0.0.1:19130/metrics`: `alert_mailer_critical_published_total` (accepted by Wotan; one more every 5 minutes at least), `alert_mailer_critical_publish_refused_total` (no usable signing key), `alert_mailer_critical_publish_errors_total` (Wotan down or refusing), `alert_mailer_critical_rebuild_errors_total` (Alertmanager's firing alerts not read; no snapshot goes out until one read succeeds).
+
 ## Planned work
 
 A reboot or a stack restart burns budget like an outage does. Silence first:

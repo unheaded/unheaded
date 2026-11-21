@@ -579,7 +579,7 @@ log.Info().
 ### Wotan Topics
 
 **Required subscriptions:**
-- `alerts.critical`: alert-mailer publishes each critical alert, signed (ML-DSA-65), with a snapshot every 5 min. Every service that holds a Wotan client attaches `pkg/critalert` (`critalert.Attach`); a test fails one that does not. The state is in `/health` under `critical_alerts` (timeguru, sword, chaos-controller, kanban-app, kev-poller) and on `/metrics` as `unheaded_critical_alerts_state`. Sword starts no deploy and chaos-controller no experiment while one fires; unknown (15 min without a message) allows.
+- `alerts.critical`: alert-mailer publishes each critical alert, signed (ML-DSA-65), with a snapshot every 5 min. Every service that holds a Wotan client attaches `pkg/critalert` (`critalert.Attach`); a test fails one that does not. The state is in `/health` under `critical_alerts` (timeguru, sword, chaos-controller, kanban-app, kev-poller) and on `/metrics` as `unheaded_critical_alerts_state`. Sword starts no deploy and chaos-controller no experiment while one fires; unknown (15 min without a message) allows. The publisher is off until a host enrols alert-mailer, which is configuration only (two key files in `ALERT_MAILER_SECRETS_DIR`, `ALERT_MAILER_WOTAN_ADDR` in `monitoring/.env`; `wiki/Wotan-Topic-Signing.md`); it reaches Wotan over the host's overlay address and verifies the certificate by name (`WOTAN_TLS_SERVER_NAME`).
 
 **Publishing guidelines:**
 - Include `trace_id` in all messages
