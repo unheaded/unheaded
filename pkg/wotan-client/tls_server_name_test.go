@@ -14,9 +14,11 @@ import (
 	"encoding/pem"
 	"math/big"
 	"net"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -426,5 +428,22 @@ func TestTLSServerName_HTTPSWithSystemRoots(t *testing.T) {
 	}
 	if len(rec.all()) != 0 {
 		t.Fatal("the server saw a request")
+	}
+	// The transport it used: TLS 1.3, the Strict key exchange, the system
+	// roots (no pool of its own), verification on.
+	_, rt, err := httpBase("https://"+addr, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tr, ok := rt.(*http.Transport)
+	if !ok || tr.TLSClientConfig == nil {
+		t.Fatalf("httpBase transport = %T, want an *http.Transport with a TLS config", rt)
+	}
+	cfg := tr.TLSClientConfig
+	if cfg.ServerName != "wotan" || cfg.MinVersion != tls.VersionTLS13 || cfg.RootCAs != nil || cfg.InsecureSkipVerify {
+		t.Fatalf("TLS config: name %q, min %x, own roots %v, skip verify %v", cfg.ServerName, cfg.MinVersion, cfg.RootCAs != nil, cfg.InsecureSkipVerify)
+	}
+	if len(cfg.CurvePreferences) == 0 || !slices.Equal(cfg.CurvePreferences, pqtls.StrictKEX()) {
+		t.Fatalf("key exchange groups %v, want the Strict profile's %v", cfg.CurvePreferences, pqtls.StrictKEX())
 	}
 }

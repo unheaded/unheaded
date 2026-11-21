@@ -4,7 +4,6 @@
 package wotanClient
 
 import (
-	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -159,7 +158,10 @@ func httpBase(addr string, opts []ClientOption) (string, http.RoundTripper, erro
 		if name == "" {
 			return base + "/api/v1", nil, nil
 		}
-		tr.TLSClientConfig = &tls.Config{MinVersion: tls.VersionTLS13, ServerName: name}
+		// With a server name the transport needs a TLS config of its own:
+		// the one the gRPC side uses with system roots (TLS 1.3, Strict).
+		tr.TLSClientConfig = TLSConfig()
+		tr.TLSClientConfig.ServerName = name
 		return base + "/api/v1", tr, nil
 	}
 	// "" leaves the name to net/http: the dialled host.
