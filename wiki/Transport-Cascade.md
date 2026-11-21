@@ -41,8 +41,10 @@ type Connection interface {
 | State | HTTP Response | Meaning |
 |-------|--------------|---------|
 | HEALTHY | 200 | Service fully operational |
-| DEGRADED | 200 (body says `DEGRADED`) | Partial functionality |
+| DEGRADED | 200 (body says `DEGRADED`) | Partial functionality; `/ready` is 200 too |
 | DOWN | 503 | Service unavailable; `/ready` is 503 too |
+
+DEGRADED means one of the two transports is down: the gRPC stream has fallen back to HTTP polling, which is the designed fallback, and the service still serves. So `/ready` stays 200 on DEGRADED and turns 503 only on DOWN; a 503 there would take a working service out of anything that honours readiness. `TestHealthServer_ReadyEndpoint_Degraded` (`pkg/transport`) holds it. The SLOs read `up`, latency and errors, not `/health` or `/ready` (settled 2026-11-21; decision pack 2026-11-18, row 41, M-167.1).
 
 ## Configuration
 
