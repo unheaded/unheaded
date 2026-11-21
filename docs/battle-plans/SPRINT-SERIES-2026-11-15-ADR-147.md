@@ -34,6 +34,8 @@ The seats' full reports are on west in `~/tmp/adr147-table/` (not in the reposit
 
 Plans 6 to 11 are forged when the plan before them closes, from what it measured. Forging them now would be guessing. Plan 5 reads plan 2's and plan 4's numbers at its Phase 2 and stops without them.
 
+Added 2026-11-21 (decision pack 2026-11-18, row 41, M-178.2): when plan 9 is forged it reads the tuning candidates plan 2 parked, listed in ADR-144, "Update 2026-11-21", against plan 8's baseline. They get no ADR and no plan of their own.
+
 **The live order of plans 1 to 5** after the evidence week, with the steps that the single integration merge made stale: `docs/battle-plans/ADR147-LIVE-RUN-ORDER.md` (2026-11-17).
 
 ## Gates that stay open
