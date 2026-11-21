@@ -21,6 +21,11 @@
 //	                           every 5 minutes); none for pipeline.silent_after
 //	                           mails "alert pipeline silent" once
 //
+// With BOOT_EVENTS_FILE set (boots.jsonl of unheaded-boot-event.service,
+// through a read-only mount) each boot of the host is one line in the next
+// digest, with the stack's state from HOST_STATE_FILE (host_state.prom);
+// nothing is mailed for a boot on its own (boot.go).
+//
 // With HEARTBEAT_HOSTS set it also runs the dead-man's switch on its own
 // listener (-heartbeat-addr, heartbeat.go):
 //
@@ -76,6 +81,9 @@ func loadSettings(path string) (Settings, error) {
 		Pipeline struct {
 			SilentAfter string `yaml:"silent_after"`
 		} `yaml:"pipeline"`
+		Boot struct {
+			StateMaxAge string `yaml:"state_max_age"`
+		} `yaml:"boot"`
 	}
 	if err := yaml.Unmarshal(data, &doc); err != nil {
 		return Settings{}, fmt.Errorf("%s: %w", path, err)
@@ -128,6 +136,16 @@ func loadSettings(path string) (Settings, error) {
 	if v := doc.Pipeline.SilentAfter; v != "" {
 		if s.PipelineSilentAfter, err = parseDuration(v); err != nil || s.PipelineSilentAfter < 10*time.Minute {
 			return s, fmt.Errorf("pipeline.silent_after %q: want a duration of at least 10m", v)
+		}
+	}
+	// boot.state_max_age: how old host_state.prom may be and still give the
+	// boot line the stack's state now (boot.go). Absent is 5m; at least 1m
+	// (the file is written every 30 s). The same rule is in
+	// cmd/alert-policy's validate.
+	s.BootStateMaxAge = defaultBootStateMaxAge
+	if v := doc.Boot.StateMaxAge; v != "" {
+		if s.BootStateMaxAge, err = parseDuration(v); err != nil || s.BootStateMaxAge < time.Minute {
+			return s, fmt.Errorf("boot.state_max_age %q: want a duration of at least 1m", v)
 		}
 	}
 	return s, nil
@@ -197,6 +215,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("alert policy")
 	}
+	bootFilesFromEnv(&cfg, os.Getenv)
 	var sender Sender
 	smtpCfg, smtpErr := smtpFromEnv(os.Getenv)
 	switch {
@@ -277,7 +296,7 @@ func main() {
 		log.Info().Str("addr", *hbAddr).Str("hosts", os.Getenv("HEARTBEAT_HOSTS")).Msg("heartbeat listener started")
 	}
 	log.Info().Str("addr", *addr).Str("mode", cfg.Mode).Int("max_per_day", cfg.MaxPerDay).
-		Bool("relay_configured", sender != nil).Msg("alert-mailer started")
+		Bool("relay_configured", sender != nil).Bool("boot_line", cfg.BootEventsFile != "").Msg("alert-mailer started")
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()

@@ -382,6 +382,29 @@ func TestValidatePipeline(t *testing.T) {
 	}
 }
 
+// boot.state_max_age (the mailer's boot line, decision pack 2026-11-18 row
+// 22): absent is the mailer's default, under 1m is refused. The mailer alone
+// reads it; the repository's policy carries it.
+func TestValidateBoot(t *testing.T) {
+	for v, ok := range map[string]bool{"": true, "5m": true, "1m": true, "30s": false, "soon": false} {
+		p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.Boot.StateMaxAge == "" {
+			t.Fatal("the repository's policy has no boot.state_max_age")
+		}
+		p.Boot.StateMaxAge = v
+		var hit bool
+		for _, e := range p.validate() {
+			hit = hit || strings.Contains(e.Error(), "boot.state_max_age")
+		}
+		if hit == ok {
+			t.Errorf("state_max_age %q: refused=%v, want %v", v, hit, !ok)
+		}
+	}
+}
+
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
 	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")
