@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# One reading of the measured log store week (scripts/logstore-measure.sh;
+# S-LOG-WEEK-2, ADR-147 decision 5) appended to the week's readings file on
+# the host. Week 1 was read only when a session ran the script, and two of its
+# seven days have no reading.
+# A USER unit, like unheaded-compliance-evidence: the script uses the
+# operator's sudo -n for docker and for the backup set's size, the same as a
+# run by hand. A reading takes up to about 25 minutes while the two slow
+# queries are slow; each query has QUERY_BUDGET_S (default 900 s) on each side.
+#
+# Install (as the operator, on west), for the week only; S-LOG-WEEK-2 Step 88
+# disables the timer when the week closes:
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/systemd/user/unheaded-logstore-measure.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now unheaded-logstore-measure.timer
+#   sudo loginctl enable-linger "$USER"     # keep running while logged out
+#
+# Another week, another file, or a shorter budget: a drop-in with
+# Environment=LOGSTORE_TSV=... or Environment=QUERY_BUDGET_S=300
+# (systemctl --user edit unheaded-logstore-measure.service).
+
+[Unit]
+Description=Unheaded: one reading of the measured log store week (S-LOG-WEEK-2)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/tmp/unheaded
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=LOGSTORE_TSV=%h/.local/state/unheaded/S-LOG-WEEK-2-logstore.tsv
+ExecStart=%h/tmp/unheaded/scripts/logstore-measure.sh
+# 1 is a reading with an NA in it: recorded, read at the close, not a failed unit.
+SuccessExitStatus=1
+TimeoutStartSec=90min

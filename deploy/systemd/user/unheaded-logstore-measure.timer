@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Daily at 00:15 UTC: week 1's readings were taken near 00:10Z, and the
+# readings of a week are compared hour for hour, so there is no randomized
+# delay. Persistent: a reading missed while the host was off is taken at the
+# next start of the user manager.
+[Unit]
+Description=Unheaded: the log store reading, daily at 00:15 UTC
+
+[Timer]
+OnCalendar=*-*-* 00:15:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target
