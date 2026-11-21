@@ -182,6 +182,38 @@ Run unattended under DECISION-PACK-2026-11-18 rows 1, 2, 39 and 53. West had bee
 
 **PHASE 18 EXIT GATE: passed. PHASE 19 EXIT GATE: passed.** Every changed container is healthy and every changed unit active; the six are gone; nothing was rolled back. Deploy time for the afters: **Step 355 at 17:51:25Z** (1 h reading from 18:51Z; 24 h reading 2026-11-22 17:51Z). The mailer stays in dry-run (pack row 53).
 
+### 2026-11-21: the 1 h afters (Phase 20, Steps 359-360)
+
+Read 18:53:02Z to 18:53:10Z, 62 minutes after Step 355; W-20's pair at 18:53:09Z and 19:03:09Z. No build or test ran on the host from 18:29Z. Raw: `afters-1h.txt` in the scratch directory. Rates are over the hour since the deploy unless a window is named. The 24 h reading (Step 361) decides each row's status; this is the first reading.
+
+| Row | Reading at 1 h | Bar | At 1 h |
+|---|---|---|---|
+| W-01 | Wotan GET 0.37 a second (30 m rate); POST 0.67. No client polls (`unheaded_wotan_client_polls_total` rate: no series above 0) | ≤ 1.0 | met (68.8 before) |
+| W-02 | kanban-app `/health`: no `"grpc": true`; no `stream_transport` field either (it carries `critical_alerts`, `well: connected`, `timeline_subscribed: true`). The field exists in `pkg/wotan-client` (`stream_health.go`) and kanban's `/health` does not include it | as stated | half: the false claim is gone, the field is not shown |
+| W-03 | 107 approved members, flat since two minutes after the start (12, then 106 to 107 for the hour) | ≤ 25 | **over, and above the before (63).** One look: Wotan counts a member per client and topic, not per process. Its log has 85 `topic_subscriber_created` lines: dashboard-backend 29, timeguru 22 (two starts of 11: the first exited, W-E1), kanban-app 15 and 1, trace-collector 7, akira 5, chaos-controller 4, kev-poller 2. Nine processes hold one client each (Phase 7's test holds); each client is a member of every topic it reads, and Phase 8 added `alerts.critical` to all of them. Not growing. Timeguru's 11 from its failed start were not reaped within the hour |
+| W-04 | `unheaded_wotan_client_stream_up{topic="system.discovery"}`: 1 series, akira | 1 or 0 | met |
+| W-05 | `unheaded_critical_alerts_state` for akira, dashboard-backend, kanban-app, kev-poller, timeguru, trace-collector; the `alerts.critical` room exists (0 bytes; the mailer's key is not enrolled yet, every tracker reads `unknown`) | one per client binary | met for the six scraped; chaos-controller is not scraped; the live half waits for the mailer's enrolment |
+| W-06 | No `ebpf.*.events` room holds bytes (`ebpf.syscall.events` exists at 0: the dashboard subscribes, nothing publishes). Trace rooms 14.2 MB (latency 8.4, packet 4.6, flow 1.2, stats 0.07) | no mirror room; ≤ 55% of 39.3 MB | met (36%) |
+| W-07 | No 429 in the hour | 0 in 24 h | so far |
+| W-08 | `unheaded_auth_audit_write_failures_total` present on eight jobs, all 0 | present, 0 | met |
+| W-09, W-10, W-11 | The six containers are removed | absent | met |
+| W-12 | `prometheus_tsdb_head_series` 4,621. By job: huginn 1,503, prometheus 1,438, no job 433, dashboard-backend 182, alert-mailer 160, vector 157, trace-collector 136 | ≤ 4,000 at 3 h | over at 1 h (13,730 before). Plan 1's per-cgroup series from huginn arrived after this bar was set; Prometheus's own job has no keep filter |
+| W-13 | dashboard RSS 59.7 MiB; allocation 1.12 MB a second; CPU 0.0023 core | ≤ 120 MiB; ≤ 2 MB/s | met (285 MiB; 2.23 MB/s) |
+| W-14, W-22 | `/health` 0.83 a second across all services | ≤ 2.6 | met (6.46) |
+| W-15 | dashboard: 962 answers 200, one 401 in the hour | ≤ 0.01 a second | met |
+| W-16 | 54.9 lines a minute on west (systemd 20.8, `unheaded-baseline.service` 13.0, sudo 5.3: this session's own commands) | ≤ 60 | met (241) |
+| W-17 | Akira: 245 of 2,454 periods throttled since its start (10.0%) | ≤ 1% over 1 h at the 24 h reading | over at 1 h (44% before); its start-up is inside this hour |
+| W-18 | Akira zombies 0 | 0 | met |
+| W-19 | `akira_signed_publish_refused_total`: consensus 10, remediate 1 | flat once the key is enrolled | waits (Step 317's keys are made, not yet in use) |
+| W-20 | 20 upserts and 92 WAL syncs in 600 s: 0.033 and 0.153 a second | ≤ 0.1; ≤ 0.4 | met (0.73; 0.98) |
+| W-21 | `go_sched_gomaxprocs_threads` for akira, alert-mailer, dashboard-backend, kanban-app, kev-poller, logstore-writer, timeguru, trace-collector, wotan | every first-party job | met for the rebuilt ones; wiki-server (old binary until plan 3) has none |
+| W-23 | `FLOW_STATE` `lru_hash`, 1,689 entries; the insert-failure gauge present, 0 | lru_hash; present | met |
+| W-24 | No `FLOW_EVENTS` map | not loaded | met |
+| W-25 | 78 rows = `milestones=78` in timeguru's load line; `/data` tmpfs kept on purpose | rows equal | met |
+| W-26 | `kanban.db` in the running image's binary: 0 occurrences | absent | met |
+
+Promoted alerts firing at 18:53Z: `ErrorBudgetBurn` for `store-backups` and `well-backups`, two tiers each (the three nights without backups; the hand runs of 17:56Z started the windows clearing). The burns for `dashboard`, `wotan` and `log-shipping` seen at 17:57Z have ended.
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z.
