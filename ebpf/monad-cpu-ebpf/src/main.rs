@@ -270,6 +270,35 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
 /// frees the instructions. Off, the object is the pde-keyed one exactly.
 const UPC_FORK_MARK: bool = true;
 
+/// ADR-135 D18, the second half of the slot reservation (R-F6). The scan for a
+/// free slot skips a row that carries another parent's mark, and a slot that
+/// exits or is killed takes its own marks with it. Neither path can run today:
+/// nothing else runs between a fork's first tick and its finalize, because the
+/// ascend object has no timer switch (I9, asserted below). They are here so that
+/// preemption does not have to bring them. Measured +11,789 on 2026-11-15 against
+/// 4,064 of headroom; it fits since rungs 5+6. Needs UPC_FORK_MARK. Rollback =
+/// this const off: the object is the earlier one exactly.
+///
+/// Not enough for preemption by itself: the scheduler runs every slot below
+/// num_processes that is not halted or suspended, and a skipped row that was
+/// never built is such a slot once a later fork raises num_processes past it.
+/// Shown on a mutant on 2026-11-21 (references/s-stage-2c-log.md): the machine
+/// halts at PC 0 in the skipped slot. I9's assertion stays.
+const UPC_FORK_RESERVE: bool = true;
+const _: () = assert!(!UPC_FORK_RESERVE || UPC_FORK_MARK);
+
+/// Does row `cand` carry a fork mark that is not `want` (this parent's own)?
+#[inline(always)]
+fn fork_row_held(cand: u32, want: u32) -> bool {
+    match PROC_TABLE.get(cand) {
+        Some(row) => {
+            let st = row[phase12::PROC_TABLE_STATE_SLOT];
+            (st & phase12::PROC_FORK_RESERVED) != 0 && st != want
+        }
+        None => false,
+    }
+}
+
 /// ADR-135 D17 part 2 (R-S4): XCHG, CAS, LR_W and SC_W reach memory through
 /// translate_address in the ascend object, as LD and ST do, so at U-mode they
 /// stay inside the caller's mapping and a miss resolves where a D6 miss does.
@@ -297,7 +326,7 @@ fn atomic_addr(cpu: &MbcCpuState, vaddr: u32) -> u32 {
 const TIMER_SWITCH: bool = !cfg!(feature = "ascend-linux");
 const _: () = assert!(
     !(cfg!(feature = "ascend-linux") && TIMER_SWITCH),
-    "ADR-135 I9: ascend fork assumes no timer switch; add slot reservation and the tagged cursor review first"
+    "ADR-135 I9: ascend fork assumes no timer switch. The scan skip and the death clear are in (UPC_FORK_RESERVE); before a timer switch the scheduler must also leave a reserved row alone, and the fork cursor needs its review"
 );
 
 /// A syscall number no arm answers: what `kernel_routed_alias` turns a refused
@@ -2426,10 +2455,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 let nprocs = cpu.num_processes as u32;
                 let mut child_pid = intr::MAX_PROCESSES as u32; // sentinel: none free
                 let mut cand = 1u32;
+                // ADR-135 D18: this parent's own reservation mark (`want`, below).
+                let own_mark = phase12::PROC_FORK_RESERVED | ((cpu.current_pid as u32) << 8);
                 while cand < intr::MAX_PROCESSES as u32 {
                     let used_live = cand < nprocs
                         && !(((halted_m >> cand) & 1) != 0 && ((reaped_m >> cand) & 1) != 0);
-                    if !used_live {
+                    // ADR-135 D18 (R-F6): a row that carries another parent's mark
+                    // is a slot that parent is copying into; it is not free.
+                    if !used_live && !(UPC_FORK_RESERVE && fork_row_held(cand, own_mark)) {
                         child_pid = cand;
                         break;
                     }
@@ -4024,12 +4057,26 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 /// ≤8 scan.
 #[inline(always)]
 fn slot_exited(slot: u32) {
+    // ADR-135 D18: a parent that dies between a fork's first tick and its
+    // finalize leaves its mark on the child's row. Clear it, or the row is
+    // skipped by every later scan and, for the next process in this slot,
+    // reads as a fork already under way.
+    let mark = phase12::PROC_FORK_RESERVED | (slot << 8);
     let mut q = 0u32;
     while q < intr::MAX_PROCESSES as u32 {
         if let Some(pp) = PARENT_OF.get_ptr_mut(q) {
             unsafe {
                 if *pp == slot {
                     *pp = 0;
+                }
+            }
+        }
+        if cfg!(feature = "ascend-linux") && UPC_FORK_RESERVE {
+            if let Some(row) = PROC_TABLE.get_ptr_mut(q) {
+                unsafe {
+                    if (*row)[phase12::PROC_TABLE_STATE_SLOT] == mark {
+                        (*row)[phase12::PROC_TABLE_STATE_SLOT] = 0;
+                    }
                 }
             }
         }

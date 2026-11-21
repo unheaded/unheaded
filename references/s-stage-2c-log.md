@@ -24,6 +24,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | develop merged in; close | 883522 | 883522 | +0 | 37514 | close2 |
 | 2026-11-21: rungs 5+6 on (const, define, U-mode tracer, slot 0 path read) | 883522 | 532152 | -351370 | 388884 | rung56-after |
 | 2026-11-21: atomics through `translate_address` (`UPC_ATOMIC_TRANSLATE`) | 532152 | 553534 | +21382 | 367502 | atomics-after |
+| 2026-11-21: fork scan skip and death clear (`UPC_FORK_RESERVE`) | 553534 | 549509 | -4025 | 371527 | reserve-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -532,4 +533,37 @@ Plan Steps 78 to 81, `[STUCK]` on 2026-11-15 on the verifier budget, run on the 
 | Landed change | What a hostile caller can try | What bounds it | Proof | Harness line |
 |---|---|---|---|---|
 | Atomics translate (D17 part 2) | an image that did not come from the translator, holding `XCHG`, `CAS`, `LR_W` or `SC_W` with an address outside its slice | first the load-time scan (the boot is refused); then `translate_address`: at U-mode the access stays in the caller's mapping, a miss reads 0 and drops the store | the two patched boots above, on a scan-less bootctl; not repeatable from a stock tree, by design | `opcode scan refuses a user image with XCHG (hatch or not) and one with MRET/SRET` (the scan; the translation has no harness line) |
+
+## Fork slot reservation (2026-11-21, lane `upc-rung56`)
+
+Plan Step 116's second half, `[STUCK]` on 2026-11-15 (+11,789 against 4,064 of headroom), run on the 553,534 object. ADR-135 D18: the scan skips a row another parent has marked; a slot that exits or is killed clears its own marks. Behind `UPC_FORK_RESERVE` (needs `UPC_FORK_MARK`, asserted).
+
+**Counts.**
+
+| Object | Verified | Against 553,534 |
+|---|---|---|
+| scan skip and death clear (landed) | 549,509 | -4,025 |
+| scan skip only | 549,054 | -4,480 |
+| death clear only | 553,989 | +455 |
+| `UPC_FORK_RESERVE` false | 553,534 | 0: the earlier object exactly |
+
+The count falls. The skip reads the candidate's PROC_TABLE row inside the scan, and the verifier then walks fewer states through the rest of the fork arm; on the 2026-11-15 object the same change measured +11,789. `BUDGET-OK 549509 (headroom 350491, ladder net 371527)`. A first form computed the parent's mark once, ahead of the scan, for both uses: with the const off that object read 553,518, not 553,534, so the first-entry code keeps its own `want` and the scan has `own_mark`.
+
+**Proof.** No stock boot reaches either path: nothing runs between a fork's first tick and its finalize (no timer switch under ascend; `TIMER_SWITCH` forced true still fails the build, 2 hits of `ADR-135 I9`). So each path was run on a mutant object that plants a mark in the fork arm, with a throwaway probe, `forkres` (init forks A, A exits and is reaped; init forks B, which pauses; init forks C, which prints its pid). Neither the plants nor the probe are committed; `main.rs` was restored from a copy after each and the count read 549,509 again.
+
+| Run | Object | `forkres` prints |
+|---|---|---|
+| stock | landed | `a-pid=2`, `c-pid=3`, `b-pid=2`, `done` |
+| A1: a mark of slot 7's planted once on slot 1 after A is reaped | landed + plant | `a-pid=2`, `c-pid=4`, `b-pid=3`, `done`: B and C each skip the held slot |
+| A2: the same plant | `UPC_FORK_RESERVE` false + plant | `a-pid=2`, `c-pid=3`, `b-pid=2`, `done`: no skip, the first entry overwrites the mark |
+| B1: a mark of slot 1's planted on slot 2 at init's first fork | landed + plant | `a-pid=2`, `c-pid=3`, `b-pid=2`, `done`: A's exit cleared it, C lands in slot 2 |
+| B2: the same plant | death clear removed + plant | `a-pid=2`, then nothing: `halted=1 num_proc=4 cur_pid=2`, `PC=0x00000000`, `ROM-FAULT CTX: target=0x0 ... cur_pid=2` |
+
+**What B2 shows beyond the death clear.** C skipped the stale mark on slot 2 and took slot 3, so `num_processes` became 4. Slot 2 was never built, and it is below the high-water mark with neither its halted nor its suspended bit set, so the scheduler switched to it and the machine halted at PC 0. A live reservation under preemption has the same shape: A is copying into a never-used slot k, B skips k and finalizes into k+1, and slot k is runnable before A finalizes it. A recycled slot does not have the problem (its halted and reaped bits stay set until finalize revives it). The reservation as D18 describes it is therefore necessary and not sufficient: the scheduler must also leave a reserved row alone. Not designed, not built; I9's assertion message now names it.
+
+- Gate `reserve-after`: `same=12 diff=0 rc=0 doom=1 ascend=549509`; harness ALL GREEN, 63 PASS lines: `hostile_fork: 3 checks`, `forkloop`, `gate_nway`, `gate2`, `getpidloop` (slot 1 reused three times), `getpidmulti` (three live children), the four `ut_*`; `Doom verifier: verified 758199 insns`. `check-ebpf-loads.sh` 41 programs pass; `check-ebpf-insns.sh` PASS, baseline rewritten by `--update` (the ascend row only moved). `cargo test --release --locked --offline` in `cmd/upc-bootctl`: all ok.
+
+| Landed change | What a hostile caller can try | What bounds it | Proof | Harness line |
+|---|---|---|---|---|
+| Scan skip and death clear (`UPC_FORK_RESERVE`) | nothing from a process: the marks are in PROC_TABLE, BPF's own map, and no register or guest word feeds the test | the row's state word, written only by fork's first entry, finalize and `slot_exited` | mutant runs A1, A2, B1, B2 above; unreachable in a stock boot | `rung_gate UPC_D6_MISS_FAULT hostile_fork`, `forkloop`, `getpidloop`, `getpidmulti` (that nothing regressed; none reaches the new paths) |
 

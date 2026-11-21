@@ -921,6 +921,19 @@ Proof, on west (`references/s-stage-2c-log.md`, "Atomics through translate_addre
 
 The load-time scan (part 1) is unchanged and stays the first control: the stock bootctl still refuses both patched copies. D17's closing sentence ("Until part 2 lands, a U-mode atomic is unreachable only because no loadable image can hold one") is met: part 2 has landed, and there are two controls now. The interpreter's own arms for `PUSH`, `POP`, `INT` and `IRET` still have no privilege test or translation (SP-2's residue): the scan is their only control. Acceptance of this part is Stevie's: the round 5 acceptance covered what was built and on that day.
 
+## D18's second half landed 2026-11-21: the scan skip and the death clear (`sprint/upc-rung56`)
+
+D18 left two things out for want of instructions: the slot scan did not skip a row another parent had marked, and nothing cleared a mark when a parent died between a fork's first tick and its finalize. Both are in the tree behind `UPC_FORK_RESERVE` (true; it needs `UPC_FORK_MARK`):
+
+- **The scan skips a held row.** `fork_row_held(cand, own_mark)`: a row whose state word has `PROC_FORK_RESERVED` and is not this parent's own mark is not a free slot.
+- **A dying slot takes its marks with it.** `slot_exited(slot)`, which exit and kill both reach, stores 0 over any row whose state word is `PROC_FORK_RESERVED | slot << 8`.
+
+Measured: 553,534 → 549,509 (-4,025; the skip alone -4,480, the clear alone +455: the verifier walks fewer states with the row read in the scan). On 2026-11-15 the skip measured +11,789 on the object of that day. With the const off the object is 553,534 again.
+
+**Neither path can run in a stock boot**, for the reason D18 gives: nothing else runs between a fork's first tick and its finalize while the ascend object has no timer switch (I9). So each was shown on a mutant object that plants a mark, with a throwaway probe (`references/s-stage-2c-log.md`, "Fork slot reservation (2026-11-21)"): a foreign mark planted on a recycled slot 1 sends the next two children to slots 2 and 3 (pids 3 and 4), and with the const off they land in slots 1 and 2 as before; a mark of slot 1's planted on slot 2 is gone once slot 1 exits, and the next child lands in slot 2.
+
+**What the same experiment found: the reservation is not enough for preemption.** With the death clear taken out, the stale mark made a later fork skip slot 2 and take slot 3, which raised `num_processes` to 4. Slot 2 was then below the high-water mark and neither halted nor suspended, so the scheduler ran it: a row that was never built. The machine halted at PC 0 in slot 2. The same would happen to a live reservation under preemption: parent A is copying into a never-used slot k, parent B skips it and finalizes into k+1, and the scheduler now sees slot k as runnable. A recycled slot is safe (its halted and reaped bits stay set until finalize); a never-used one is not. So before a timer switch under ascend, three things are needed, not two: the scan skip and the death clear (here), and a scheduler that leaves a reserved row alone (not designed, not built). I9's assertion stays and its message now says so.
+
 ## Alternatives considered
 
 - **BPF serves sbrk itself.** One arm and no reply word, but kill and blocking still need a way back, so the channel
