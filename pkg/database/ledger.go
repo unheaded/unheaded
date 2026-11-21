@@ -38,7 +38,8 @@ var ledgerFile = regexp.MustCompile(`^[0-9]{3}_[a-z0-9_]+\.sql$`)
 // connected database's well_schema_migrations ledger, *ErrMigrationMissing
 // naming the absent ones otherwise, and a wrapped error when the ledger
 // cannot be read (a role without SELECT on it gets permission denied:
-// db/migrations/038 grants it to app_kanban). An empty list is nil without
+// db/migrations/038 grants it to app_kanban, 054 to app_timeguru, and
+// TestLedgerReadersHaveGrant lists every caller). An empty list is nil without
 // a query. The ledger is tens of rows, so it is read whole and diffed here.
 func RequireMigrations(ctx context.Context, q Querier, files ...string) error {
 	if len(files) == 0 {

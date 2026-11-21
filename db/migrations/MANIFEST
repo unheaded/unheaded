@@ -76,6 +76,10 @@ unheaded_app     050_app_timeline_milestones.sql
 postgres         051_zhen_database.sql   notx
 unheaded_zhen    052_zhen_schema.sql
 unheaded_app     053_app_drop_zhen.sql
+# timeguru's start check reads the ledger as app_timeguru (050 left the grant
+# out; found at the deploy of 2026-11-21). After 053: it is applied on west with
+# the Zhen move's last file, and until then the grant there was made by hand.
+unheaded_app     054_app_ledger_read_timeguru.sql superuser
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and
