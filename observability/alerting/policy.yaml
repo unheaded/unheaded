@@ -81,6 +81,18 @@ page:
 pipeline:
   silent_after: 20m
 
+# A boot of the host in the digest (decision pack 2026-11-18 row 22, ADR-150
+# choice 15). The stack does not start at boot, so nothing can alert then:
+# unheaded-boot-event.service writes each boot down on the host, and the
+# mailer gives each boot it has not reported one plain line in the next
+# digest ("west booted 2026-11-21 01:44Z; stack down; previous shutdown: not
+# clean"). Never a mail of its own. state_max_age is how old host_state.prom
+# (unheaded-host-state.timer, every 30 s) may be and still give that line the
+# stack's state now; past it the line says what the boot recorded. The mailer
+# alone reads this block; no regeneration.
+boot:
+  state_max_age: 5m
+
 # Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
 #   - alert: WellBackupMissing

@@ -81,6 +81,13 @@ type Policy struct {
 	Pipeline struct {
 		SilentAfter string `yaml:"silent_after"`
 	} `yaml:"pipeline"`
+	// Boot is the mailer's boot line (decision pack 2026-11-18 row 22,
+	// cmd/alert-mailer/boot.go): StateMaxAge is how old host_state.prom may
+	// be and still give the line the stack's state now. The mailer alone
+	// reads it; the generated files do not change with it.
+	Boot struct {
+		StateMaxAge string `yaml:"state_max_age,omitempty"`
+	} `yaml:"boot,omitempty"`
 	Promote []Promotion `yaml:"promote"`
 	Window  string      `yaml:"window"`
 	SLOs    []SLO       `yaml:"slos"`
@@ -246,6 +253,11 @@ func (p *Policy) validate() []error {
 	if v := p.Pipeline.SilentAfter; v != "" {
 		if d, err := parsePromDuration(v); err != nil || d < 10*time.Minute {
 			bad("pipeline.silent_after %q: want a duration of at least 10m (two missed 5-minute receipts)", v)
+		}
+	}
+	if v := p.Boot.StateMaxAge; v != "" {
+		if d, err := parsePromDuration(v); err != nil || d < time.Minute {
+			bad("boot.state_max_age %q: want a duration of at least 1m (host_state.prom is written every 30 s)", v)
 		}
 	}
 	if len(p.SLOs) == 0 {
