@@ -50,7 +50,7 @@ func TestGate_AWellThatAnswersIsUsedAtOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := g.Create(context.Background(), sess("front-a", 1, t0), 10); err != nil {
+	if _, err := g.Create(context.Background(), sess("front-a", 1, t0), CreateLimits{MaxLive: 10}); err != nil {
 		t.Fatalf("create through the gate: %v", err)
 	}
 	if _, ok, err := g.Get(context.Background(), key(1)); !ok || err != nil {
@@ -88,7 +88,7 @@ func TestGate_AWellThatIsDownFailsClosedUntilItArrives(t *testing.T) {
 	}
 	defer g.Close()
 	ctx := context.Background()
-	if err := g.Create(ctx, sess("front-a", 1, t0), 10); !errors.Is(err, ErrUnavailable) {
+	if _, err := g.Create(ctx, sess("front-a", 1, t0), CreateLimits{MaxLive: 10}); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("create while down: %v", err)
 	}
 	if _, ok, err := g.Get(ctx, key(1)); ok || !errors.Is(err, ErrUnavailable) {
@@ -97,7 +97,7 @@ func TestGate_AWellThatIsDownFailsClosedUntilItArrives(t *testing.T) {
 	if ok, err := g.Touch(ctx, key(1), t0, t0.Add(time.Minute)); ok || !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("touch while down: %v %v", ok, err)
 	}
-	if err := g.Revoke(ctx, key(1), t0); !errors.Is(err, ErrUnavailable) {
+	if err := g.Revoke(ctx, key(1), t0, ByLogout); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("revoke while down: %v", err)
 	}
 	if n, err := g.Sweep(ctx, t0, 10); n != 0 || !errors.Is(err, ErrUnavailable) {
@@ -105,7 +105,10 @@ func TestGate_AWellThatIsDownFailsClosedUntilItArrives(t *testing.T) {
 	}
 	waitFor(t, "a retry", func() bool { return calls.Load() >= 3 })
 	up.Store(true)
-	waitFor(t, "the Well to be attached", func() bool { return g.Create(ctx, sess("front-a", 1, t0), 10) == nil })
+	waitFor(t, "the Well to be attached", func() bool {
+		_, err := g.Create(ctx, sess("front-a", 1, t0), CreateLimits{MaxLive: 10})
+		return err == nil
+	})
 	if _, ok, err := g.Get(ctx, key(1)); !ok || err != nil {
 		t.Fatalf("get after the Well arrived: %v %v", ok, err)
 	}
@@ -243,7 +246,7 @@ func TestOpenWell_AWellThatIsNotListeningIsWaitedFor(t *testing.T) {
 	if _, ok, err := st.Get(context.Background(), key(1)); ok || !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("get with no Well: %v %v", ok, err)
 	}
-	if err := st.Create(context.Background(), sess("front-a", 1, t0), 10); !errors.Is(err, ErrUnavailable) {
+	if _, err := st.Create(context.Background(), sess("front-a", 1, t0), CreateLimits{MaxLive: 10}); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("create with no Well: %v", err)
 	}
 }

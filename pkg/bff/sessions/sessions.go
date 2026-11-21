@@ -3,7 +3,8 @@
 
 // Package sessions is the server-side record of browser logins (ADR-114 N5,
 // decision pack 2026-11-18 row 44): who logged in to which front, when the
-// session was last used, when it ends, and whether it was revoked.
+// session was last used, when it ends, and whether it was revoked and by
+// what.
 //
 // A session is known by the SHA-256 of its cookie value. Nothing here ever
 // holds the cookie value or a token, so a dump of a store, in memory or in
@@ -35,6 +36,11 @@ import (
 var (
 	// ErrFull refuses a new session while the front is at its cap.
 	ErrFull = errors.New("sessions: store full")
+	// ErrClockSkew refuses a new session whose creation time is further
+	// from the store's own clock than the caller allows. The front's clock
+	// is what later judges the session's expiry, so a front whose clock is
+	// wrong must not start sessions.
+	ErrClockSkew = errors.New("sessions: clock skew")
 	// ErrUnavailable is every call while the Well is not connected. A caller
 	// treats it like any other store error: no session, no login.
 	ErrUnavailable = errors.New("sessions: the Well is unavailable")
@@ -59,6 +65,25 @@ const (
 	ListLimit = 1000
 )
 
+// What ended a session, as RevokedBy records it. A front writes the first
+// three; the command line writes "cli:" and who ran it (CLIActor). The
+// Well refuses a front that writes a "cli:" actor (migration 056).
+const (
+	// ByLogout: the user logged out.
+	ByLogout = "logout"
+	// ByLogin: the browser presented this session at a new login, which
+	// replaced it.
+	ByLogin = "login"
+	// ByLimit: its user logged in past the per-user cap and this was the
+	// oldest.
+	ByLimit = "limit"
+	// cliActorPrefix starts the actor of a revocation from the command
+	// line.
+	cliActorPrefix = "cli:"
+	// maxActorWho bounds the name after the prefix (the table's CHECK).
+	maxActorWho = 128
+)
+
 var (
 	keyHashRE = regexp.MustCompile(`^[0-9a-f]{64}$`)
 	prefixRE  = regexp.MustCompile(`^[0-9a-f]{8,64}$`)
@@ -66,6 +91,9 @@ var (
 	// that the Well role named after it (WellRole) fits a role name.
 	frontRE = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,58}$`)
 	roleRE  = regexp.MustCompile(`^[a-z][a-z0-9_-]{0,31}$`)
+	// actorRE is what RevokedBy may hold; the table has the same CHECK.
+	actorRE    = regexp.MustCompile(`^[a-z]{1,16}(:[A-Za-z0-9._@-]{1,128})?$`)
+	notActorRE = regexp.MustCompile(`[^A-Za-z0-9._@-]`)
 )
 
 // Session is one browser login.
@@ -84,8 +112,12 @@ type Session struct {
 	ExpiresAt time.Time
 	// AbsoluteExpiresAt is when it ends whatever its use.
 	AbsoluteExpiresAt time.Time
-	// RevokedAt is set once, by a logout or from the command line.
+	// RevokedAt is set once, with RevokedBy: by a logout, a new login, the
+	// per-user cap, or the command line.
 	RevokedAt *time.Time
+	// RevokedBy says what revoked it: ByLogout, ByLogin, ByLimit, or
+	// "cli:" and who. Empty while RevokedAt is nil.
+	RevokedBy string
 }
 
 // KeyHash is the name a cookie value is stored and looked up under.
@@ -102,6 +134,24 @@ func ValidFront(name string) bool { return frontRE.MatchString(name) }
 
 // ValidRole reports whether r is a role a session can record.
 func ValidRole(r string) bool { return roleRE.MatchString(r) }
+
+// ValidActor reports whether by can be recorded as what revoked a session.
+func ValidActor(by string) bool { return actorRE.MatchString(by) }
+
+// CLIActor is the actor of a revocation from the command line: "cli:" and
+// who (an operating-system user at a host, say), with anything outside
+// [A-Za-z0-9._@-] turned into "_" and the whole held to what the record
+// takes. An empty who is "unknown".
+func CLIActor(who string) string {
+	who = notActorRE.ReplaceAllString(who, "_")
+	if who == "" {
+		who = "unknown"
+	}
+	if len(who) > maxActorWho {
+		who = who[:maxActorWho]
+	}
+	return cliActorPrefix + who
+}
 
 // ValidSubject reports whether s is a subject a session can record: 1 to
 // MaxSubjectLen bytes of UTF-8 with no space or control character.
@@ -166,7 +216,7 @@ func (s Session) Validate() error {
 		return fmt.Errorf("%w: expiry must be after creation and not after the maximum age", ErrInvalid)
 	case s.AbsoluteExpiresAt.Sub(s.CreatedAt) > MaxLifetime:
 		return fmt.Errorf("%w: maximum age over %v", ErrInvalid, MaxLifetime)
-	case s.RevokedAt != nil:
+	case s.RevokedAt != nil || s.RevokedBy != "":
 		return fmt.Errorf("%w: a new session is not revoked", ErrInvalid)
 	}
 	for _, r := range s.Roles {
@@ -177,12 +227,29 @@ func (s Session) Validate() error {
 	return nil
 }
 
+// CreateLimits bound what Create writes.
+type CreateLimits struct {
+	// MaxLive is the front's cap of live sessions: past it Create is
+	// ErrFull.
+	MaxLive int
+	// MaxPerSubject is one subject's cap of live sessions on the front.
+	// A login past it is not refused: the subject's oldest live sessions
+	// are revoked (ByLimit) until the new one fits. So a user can always
+	// log in, and no one account can fill the front. Zero or less: no cap.
+	MaxPerSubject int
+	// MaxSkew is how far the session's CreatedAt may be from the store's
+	// own clock, either way: past it Create is ErrClockSkew. Zero or less:
+	// not checked.
+	MaxSkew time.Duration
+}
+
 // Store is one front's sessions. Every method sees that front's sessions
 // only. An implementation must be safe for concurrent use.
 type Store interface {
-	// Create stores s, whose Front must be the store's. ErrFull when the
-	// front already holds maxLive sessions live at s.CreatedAt.
-	Create(ctx context.Context, s Session, maxLive int) error
+	// Create stores s, whose Front must be the store's, within lim, and
+	// returns how many of the subject's older sessions it revoked to keep
+	// MaxPerSubject. A Create that fails changes nothing.
+	Create(ctx context.Context, s Session, lim CreateLimits) (int, error)
 	// Get returns the session under keyHash, live or ended: the caller
 	// judges. False when the front has none.
 	Get(ctx context.Context, keyHash string) (Session, bool, error)
@@ -192,9 +259,10 @@ type Store interface {
 	// held to the maximum age), so of two uses recorded out of order the
 	// later one stands and both report true.
 	Touch(ctx context.Context, keyHash string, now, expires time.Time) (bool, error)
-	// Revoke ends the session under keyHash at now. Revoking twice, or
-	// revoking nothing, is no error.
-	Revoke(ctx context.Context, keyHash string, now time.Time) error
+	// Revoke ends the session under keyHash at now and records by as what
+	// ended it. Revoking twice, or revoking nothing, is no error; the
+	// first revocation stands.
+	Revoke(ctx context.Context, keyHash string, now time.Time, by string) error
 	// Sweep deletes at most limit sessions that ended before endedBefore
 	// and returns how many.
 	Sweep(ctx context.Context, endedBefore time.Time, limit int) (int, error)
@@ -206,33 +274,42 @@ type Store interface {
 type Filter struct {
 	Subject string
 	Front   string
-	// Ended also lists sessions that are expired or revoked and not yet
-	// swept.
-	Ended bool
+	// Revoked also lists revoked sessions not yet swept.
+	Revoked bool
 }
 
 // Admin lists and revokes sessions of every front, for the command line.
 // It cannot create one.
+//
+// Admin never judges expiry. The clock that decides whether a session has
+// expired is its front's, and the caller's may differ: List returns every
+// session not revoked, expired by the caller's clock or not, and the
+// revocations act on every session not yet revoked. Revoking an expired
+// session is harmless; hiding or skipping a live one that looked expired
+// from here is not.
 type Admin interface {
 	// List returns at most ListLimit sessions, newest first.
-	List(ctx context.Context, f Filter, now time.Time) ([]Session, error)
+	List(ctx context.Context, f Filter) ([]Session, error)
 	// Revoke ends the one session not yet revoked whose hash starts with
-	// prefix (at least MinPrefix hex characters): ErrNotFound for none,
-	// ErrAmbiguous for several. now only stamps the revocation: whether a
-	// session has expired is not asked, because the front's clock decides
-	// that and this caller's may differ. Revoking an expired session is
-	// harmless; skipping a live one that looked expired from here is not.
-	Revoke(ctx context.Context, prefix string, now time.Time) (Session, error)
+	// prefix (at least MinPrefix hex characters) and records by:
+	// ErrNotFound for none, ErrAmbiguous for several. now only stamps it.
+	Revoke(ctx context.Context, prefix string, now time.Time, by string) (Session, error)
 	// RevokeSubject ends every session of subject not yet revoked, on one
-	// front or (front "") on all, and returns how many. Like Revoke it does
-	// not ask whether they have expired.
-	RevokeSubject(ctx context.Context, subject, front string, now time.Time) (int, error)
+	// front or (front "") on all, records by, and returns how many.
+	RevokeSubject(ctx context.Context, subject, front string, now time.Time, by string) (int, error)
 	Close() error
 }
 
 func checkPrefix(prefix string) error {
 	if !prefixRE.MatchString(prefix) {
 		return fmt.Errorf("%w: a session id is %d to 64 hex characters (see the ID column of the listing)", ErrInvalid, MinPrefix)
+	}
+	return nil
+}
+
+func checkActor(by string) error {
+	if !ValidActor(by) {
+		return fmt.Errorf("%w: revocation actor %q", ErrInvalid, by)
 	}
 	return nil
 }

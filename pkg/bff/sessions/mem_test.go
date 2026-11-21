@@ -15,7 +15,9 @@ import (
 func TestMem_Suite(t *testing.T) {
 	storeSuite(t, func(*testing.T) world {
 		m := NewMem()
-		return world{a: m.Front("front-a"), b: m.Front("front-b"), admin: m, frontA: "front-a", frontB: "front-b"}
+		clock := func() time.Time { return t0 }
+		m.SetClock(clock)
+		return world{a: m.Front("front-a"), b: m.Front("front-b"), admin: m, frontA: "front-a", frontB: "front-b", storeNow: clock}
 	})
 }
 
@@ -50,6 +52,37 @@ func TestSession_StateAndID(t *testing.T) {
 	}
 	if len(s.ID()) != 16 || !strings.HasPrefix(s.KeyHash, s.ID()) {
 		t.Fatalf("id %q", s.ID())
+	}
+}
+
+// A Mem that was given no clock has no second clock to disagree with.
+func TestMem_WithoutAClockSkewIsNotChecked(t *testing.T) {
+	st := NewMem().Front("front-a")
+	if _, err := st.Create(context.Background(), sess("front-a", 1, t0), CreateLimits{MaxLive: 5, MaxSkew: time.Second}); err != nil {
+		t.Fatalf("no clock given: %v", err)
+	}
+}
+
+func TestCLIActor(t *testing.T) {
+	for who, want := range map[string]string{
+		"stevie@west":       "cli:stevie@west",
+		"":                  "cli:unknown",
+		"root user@my host": "cli:root_user@my_host",
+		"a\nb;DROP":         "cli:a_b_DROP",
+		"jürgen@west":       "cli:j_rgen@west",
+	} {
+		got := CLIActor(who)
+		if got != want || !ValidActor(got) {
+			t.Errorf("CLIActor(%q) = %q (valid %v), want %q", who, got, ValidActor(got), want)
+		}
+	}
+	if long := CLIActor(strings.Repeat("a", 500)); !ValidActor(long) || len(long) > 140 {
+		t.Errorf("a long name: %d characters, valid %v", len(long), ValidActor(long))
+	}
+	for _, by := range []string{ByLogout, ByLogin, ByLimit} {
+		if !ValidActor(by) {
+			t.Errorf("%q is not a valid actor", by)
+		}
 	}
 }
 
@@ -90,17 +123,17 @@ func TestMem_ConcurrentUse(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			s := sess("front-a", i, t0)
-			_ = st.Create(ctx, s, 8)
+			_, _ = st.Create(ctx, s, CreateLimits{MaxLive: 8, MaxPerSubject: 6})
 			_, _, _ = st.Get(ctx, s.KeyHash)
 			_, _ = st.Touch(ctx, s.KeyHash, t0.Add(time.Minute), t0.Add(31*time.Minute))
-			_, _ = m.List(ctx, Filter{}, t0)
-			_ = st.Revoke(ctx, s.KeyHash, t0.Add(2*time.Minute))
+			_, _ = m.List(ctx, Filter{})
+			_ = st.Revoke(ctx, s.KeyHash, t0.Add(2*time.Minute), ByLogout)
 			_, _ = st.Sweep(ctx, t0.Add(time.Hour), 2)
 		}(i)
 	}
 	wg.Wait()
-	if live, _ := m.List(ctx, Filter{}, t0.Add(3*time.Minute)); len(live) != 0 {
-		t.Fatalf("%d sessions live after every one was revoked", len(live))
+	if left, _ := m.List(ctx, Filter{}); len(left) != 0 {
+		t.Fatalf("%d sessions not revoked after every one was", len(left))
 	}
 }
 
@@ -115,7 +148,7 @@ func TestMem_CapHoldsUnderConcurrentCreates(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			if err := st.Create(context.Background(), sess("front-a", i, t0), 5); errors.Is(err, ErrFull) {
+			if _, err := st.Create(context.Background(), sess("front-a", i, t0), CreateLimits{MaxLive: 5}); errors.Is(err, ErrFull) {
 				mu.Lock()
 				full++
 				mu.Unlock()

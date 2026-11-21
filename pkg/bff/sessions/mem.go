@@ -18,12 +18,23 @@ import (
 // restart, and another process, the command line included, cannot see or
 // revoke them. Mem is an Admin; Front returns one front's Store.
 type Mem struct {
-	mu sync.Mutex
-	m  map[string]Session // by KeyHash
+	mu  sync.Mutex
+	m   map[string]Session // by KeyHash
+	now func() time.Time   // the store's own clock, for CreateLimits.MaxSkew
 }
 
 // NewMem returns an empty Mem.
 func NewMem() *Mem { return &Mem{m: make(map[string]Session)} }
+
+// SetClock gives the store a clock of its own, as the Well has one: Create
+// then holds a session's CreatedAt to CreateLimits.MaxSkew of it. Without
+// one there is no second clock to disagree with, and MaxSkew is not
+// checked.
+func (m *Mem) SetClock(now func() time.Time) {
+	m.mu.Lock()
+	m.now = now
+	m.mu.Unlock()
+}
 
 // Front returns the Store of one front over m.
 func (m *Mem) Front(front string) Store { return &memFront{m: m, front: front} }
@@ -47,8 +58,18 @@ func copySession(s Session) Session {
 	return s
 }
 
+// newestFirst orders sessions as a listing shows them.
+func newestFirst(out []Session) {
+	sort.Slice(out, func(i, j int) bool {
+		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].CreatedAt.After(out[j].CreatedAt)
+		}
+		return out[i].KeyHash < out[j].KeyHash
+	})
+}
+
 // List implements Admin.
-func (m *Mem) List(_ context.Context, f Filter, now time.Time) ([]Session, error) {
+func (m *Mem) List(_ context.Context, f Filter) ([]Session, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	var out []Session
@@ -56,17 +77,12 @@ func (m *Mem) List(_ context.Context, f Filter, now time.Time) ([]Session, error
 		if (f.Subject != "" && s.Subject != f.Subject) || (f.Front != "" && s.Front != f.Front) {
 			continue
 		}
-		if !f.Ended && !s.Live(now) {
+		if !f.Revoked && s.RevokedAt != nil {
 			continue
 		}
 		out = append(out, copySession(s))
 	}
-	sort.Slice(out, func(i, j int) bool {
-		if !out[i].CreatedAt.Equal(out[j].CreatedAt) {
-			return out[i].CreatedAt.After(out[j].CreatedAt)
-		}
-		return out[i].KeyHash < out[j].KeyHash
-	})
+	newestFirst(out)
 	if len(out) > ListLimit {
 		out = out[:ListLimit]
 	}
@@ -74,8 +90,11 @@ func (m *Mem) List(_ context.Context, f Filter, now time.Time) ([]Session, error
 }
 
 // Revoke implements Admin.
-func (m *Mem) Revoke(_ context.Context, prefix string, now time.Time) (Session, error) {
+func (m *Mem) Revoke(_ context.Context, prefix string, now time.Time, by string) (Session, error) {
 	if err := checkPrefix(prefix); err != nil {
+		return Session{}, err
+	}
+	if err := checkActor(by); err != nil {
 		return Session{}, err
 	}
 	m.mu.Lock()
@@ -93,35 +112,39 @@ func (m *Mem) Revoke(_ context.Context, prefix string, now time.Time) (Session, 
 	default:
 		return Session{}, fmt.Errorf("%w: %s matches %d sessions; give more characters", ErrAmbiguous, prefix, len(hit))
 	}
-	return copySession(m.revokeLocked(hit[0], now)), nil
+	return copySession(m.revokeLocked(hit[0], now, by)), nil
 }
 
 // RevokeSubject implements Admin.
-func (m *Mem) RevokeSubject(_ context.Context, subject, front string, now time.Time) (int, error) {
+func (m *Mem) RevokeSubject(_ context.Context, subject, front string, now time.Time, by string) (int, error) {
 	if !ValidSubject(subject) {
 		return 0, fmt.Errorf("%w: subject", ErrInvalid)
+	}
+	if err := checkActor(by); err != nil {
+		return 0, err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	n := 0
 	for k, s := range m.m {
 		if s.Subject == subject && (front == "" || s.Front == front) && s.RevokedAt == nil {
-			m.revokeLocked(k, now)
+			m.revokeLocked(k, now, by)
 			n++
 		}
 	}
 	return n, nil
 }
 
-// revokeLocked sets RevokedAt once, never before the session was created.
-func (m *Mem) revokeLocked(key string, now time.Time) Session {
+// revokeLocked sets RevokedAt and RevokedBy once, the time never before the
+// session was created.
+func (m *Mem) revokeLocked(key string, now time.Time, by string) Session {
 	s := m.m[key]
 	if s.RevokedAt == nil {
 		at := now
 		if at.Before(s.CreatedAt) {
 			at = s.CreatedAt
 		}
-		s.RevokedAt = &at
+		s.RevokedAt, s.RevokedBy = &at, by
 		m.m[key] = s
 	}
 	return s
@@ -132,29 +155,48 @@ type memFront struct {
 	front string
 }
 
-func (f *memFront) Create(_ context.Context, s Session, maxLive int) error {
+func (f *memFront) Create(_ context.Context, s Session, lim CreateLimits) (int, error) {
 	if err := s.Validate(); err != nil {
-		return err
+		return 0, err
 	}
 	if s.Front != f.front {
-		return fmt.Errorf("%w: a session of %q offered to the store of %q", ErrInvalid, s.Front, f.front)
+		return 0, fmt.Errorf("%w: a session of %q offered to the store of %q", ErrInvalid, s.Front, f.front)
 	}
 	f.m.mu.Lock()
 	defer f.m.mu.Unlock()
-	if _, exists := f.m.m[s.KeyHash]; exists {
-		return fmt.Errorf("%w: key already in use", ErrInvalid)
-	}
-	live := 0
-	for _, o := range f.m.m {
-		if o.Front == f.front && o.Live(s.CreatedAt) {
-			live++
+	if lim.MaxSkew > 0 && f.m.now != nil {
+		if d := s.CreatedAt.Sub(f.m.now()); d > lim.MaxSkew || d < -lim.MaxSkew {
+			return 0, fmt.Errorf("%w: the session's creation time is %v from the store's clock, bound %v", ErrClockSkew, d.Round(time.Second), lim.MaxSkew)
 		}
 	}
-	if live >= maxLive {
-		return ErrFull
+	if _, exists := f.m.m[s.KeyHash]; exists {
+		return 0, fmt.Errorf("%w: key already in use", ErrInvalid)
+	}
+	live := 0
+	var own []Session // the subject's live sessions on this front
+	for _, o := range f.m.m {
+		if o.Front != f.front || !o.Live(s.CreatedAt) {
+			continue
+		}
+		live++
+		if o.Subject == s.Subject {
+			own = append(own, o)
+		}
+	}
+	// The subject's oldest go first, until the new session fits its cap.
+	var drop []Session
+	if lim.MaxPerSubject > 0 && len(own) >= lim.MaxPerSubject {
+		newestFirst(own)
+		drop = own[lim.MaxPerSubject-1:]
+	}
+	if live-len(drop) >= lim.MaxLive {
+		return 0, ErrFull // and nothing was revoked
+	}
+	for _, o := range drop {
+		f.m.revokeLocked(o.KeyHash, s.CreatedAt, ByLimit)
 	}
 	f.m.m[s.KeyHash] = copySession(s)
-	return nil
+	return len(drop), nil
 }
 
 func (f *memFront) Get(_ context.Context, keyHash string) (Session, bool, error) {
@@ -188,11 +230,14 @@ func (f *memFront) Touch(_ context.Context, keyHash string, now, expires time.Ti
 	return true, nil
 }
 
-func (f *memFront) Revoke(_ context.Context, keyHash string, now time.Time) error {
+func (f *memFront) Revoke(_ context.Context, keyHash string, now time.Time, by string) error {
+	if err := checkActor(by); err != nil {
+		return err
+	}
 	f.m.mu.Lock()
 	defer f.m.mu.Unlock()
 	if s, ok := f.m.m[keyHash]; ok && s.Front == f.front {
-		f.m.revokeLocked(keyHash, now)
+		f.m.revokeLocked(keyHash, now, by)
 	}
 	return nil
 }

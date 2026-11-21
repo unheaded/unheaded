@@ -31,7 +31,7 @@ const (
 
 	ownView      = "bff_sessions_own"
 	sessionTable = "bff_sessions"
-	columns      = `id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at, revoked_at`
+	columns      = `id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at, revoked_at, revoked_by`
 )
 
 // WellRole is the Well login role a front's sessions are kept under:
@@ -45,11 +45,12 @@ type rowScanner interface {
 
 func scanSession(row rowScanner) (Session, error) {
 	var (
-		s       Session
-		roles   string
-		revoked sql.NullTime
+		s         Session
+		roles     string
+		revoked   sql.NullTime
+		revokedBy sql.NullString
 	)
-	if err := row.Scan(&s.KeyHash, &s.Front, &s.Subject, &roles, &s.CreatedAt, &s.LastUsedAt, &s.ExpiresAt, &s.AbsoluteExpiresAt, &revoked); err != nil {
+	if err := row.Scan(&s.KeyHash, &s.Front, &s.Subject, &roles, &s.CreatedAt, &s.LastUsedAt, &s.ExpiresAt, &s.AbsoluteExpiresAt, &revoked, &revokedBy); err != nil {
 		return Session{}, err
 	}
 	if roles != "" {
@@ -60,6 +61,7 @@ func scanSession(row rowScanner) (Session, error) {
 	if revoked.Valid {
 		t := revoked.Time.UTC()
 		s.RevokedAt = &t
+		s.RevokedBy = revokedBy.String
 	}
 	return s, nil
 }
@@ -118,27 +120,86 @@ func NewWellStore(ctx context.Context, db *sql.DB, front string) (Store, error) 
 	return &wellStore{db: db, front: front}, nil
 }
 
-func (w *wellStore) Create(ctx context.Context, s Session, maxLive int) error {
+// Create runs in one transaction, so a login that is refused (the front is
+// full, the clocks disagree) leaves nothing behind, the revocations of the
+// subject's older sessions included:
+//
+//  1. the Well's clock is read and the session's creation time held to
+//     lim.MaxSkew of it;
+//  2. the subject's live sessions beyond the newest lim.MaxPerSubject-1 are
+//     revoked (ByLimit);
+//  3. the row is written, if the front's live sessions are under
+//     lim.MaxLive.
+//
+// Two logins of one subject at the same instant can each keep cap-1 and
+// add one, leaving that subject one over until its next login trims again.
+// The front's own cap is counted in the statement that writes the row.
+func (w *wellStore) Create(ctx context.Context, s Session, lim CreateLimits) (int, error) {
 	if err := s.Validate(); err != nil {
-		return err
+		return 0, err
 	}
 	if s.Front != w.front {
-		return fmt.Errorf("%w: a session of %q offered to the store of %q", ErrInvalid, s.Front, w.front)
+		return 0, fmt.Errorf("%w: a session of %q offered to the store of %q", ErrInvalid, s.Front, w.front)
 	}
-	// One statement: the cap is counted and the row written together. The
-	// count is of this front's live rows (the view shows no others).
-	n, err := execCount(ctx, w.db,
+	ctx, cancel := context.WithTimeout(ctx, wellQueryTimeout)
+	defer cancel()
+	tx, err := w.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }() // no effect after Commit
+
+	created := s.CreatedAt.UTC()
+	if lim.MaxSkew > 0 {
+		var wellNow time.Time
+		if err := tx.QueryRowContext(ctx, `SELECT now()`).Scan(&wellNow); err != nil {
+			return 0, fmt.Errorf("sessions: create: the Well's clock: %w", err)
+		}
+		if d := created.Sub(wellNow); d > lim.MaxSkew || d < -lim.MaxSkew {
+			return 0, fmt.Errorf("%w: this host's clock is %v from the Well's, bound %v", ErrClockSkew, d.Round(time.Second), lim.MaxSkew)
+		}
+	}
+	ended := 0
+	if lim.MaxPerSubject > 0 {
+		res, err := tx.ExecContext(ctx,
+			`UPDATE `+ownView+` SET revoked_at = GREATEST($3::timestamptz, created_at), revoked_by = $5::text
+			 WHERE id_hash IN (
+			     SELECT id_hash FROM `+ownView+`
+			     WHERE front = $1::text AND subject = $2::text AND revoked_at IS NULL AND expires_at > $3::timestamptz
+			     ORDER BY created_at DESC, id_hash OFFSET $4::int)`,
+			w.front, s.Subject, created, lim.MaxPerSubject-1, ByLimit)
+		if err != nil {
+			return 0, fmt.Errorf("sessions: create: per-user cap: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return 0, fmt.Errorf("sessions: create: per-user cap: %w", err)
+		}
+		ended = int(n)
+	}
+	// The cap is counted and the row written by one statement. front is
+	// named in the count as everywhere else, so it can use the
+	// (front, expires_at) index.
+	res, err := tx.ExecContext(ctx,
 		`INSERT INTO `+ownView+` (id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at)
 		 SELECT $1::text, $2::text, $3::text, $4::text, $5::timestamptz, $5::timestamptz, $6::timestamptz, $7::timestamptz
-		 WHERE (SELECT count(*) FROM `+ownView+` WHERE revoked_at IS NULL AND expires_at > $5::timestamptz) < $8::bigint`,
-		s.KeyHash, s.Front, s.Subject, strings.Join(s.Roles, ","), s.CreatedAt.UTC(), s.ExpiresAt.UTC(), s.AbsoluteExpiresAt.UTC(), maxLive)
+		 WHERE (SELECT count(*) FROM `+ownView+`
+		        WHERE front = $2::text AND revoked_at IS NULL AND expires_at > $5::timestamptz) < $8::bigint`,
+		s.KeyHash, s.Front, s.Subject, strings.Join(s.Roles, ","), created, s.ExpiresAt.UTC(), s.AbsoluteExpiresAt.UTC(), lim.MaxLive)
 	if err != nil {
-		return fmt.Errorf("sessions: create: %w", err)
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
 	}
 	if n == 0 {
-		return ErrFull
+		return 0, ErrFull // rolled back: nothing was revoked either
 	}
-	return nil
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("sessions: create: %w", err)
+	}
+	return ended, nil
 }
 
 func (w *wellStore) Get(ctx context.Context, keyHash string) (Session, bool, error) {
@@ -176,14 +237,17 @@ func (w *wellStore) Touch(ctx context.Context, keyHash string, now, expires time
 	return n > 0, nil
 }
 
-func (w *wellStore) Revoke(ctx context.Context, keyHash string, now time.Time) error {
+func (w *wellStore) Revoke(ctx context.Context, keyHash string, now time.Time, by string) error {
+	if err := checkActor(by); err != nil {
+		return err
+	}
 	if !ValidKeyHash(keyHash) {
 		return nil
 	}
 	_, err := execCount(ctx, w.db,
-		`UPDATE `+ownView+` SET revoked_at = GREATEST($3::timestamptz, created_at)
+		`UPDATE `+ownView+` SET revoked_at = GREATEST($3::timestamptz, created_at), revoked_by = $4::text
 		 WHERE id_hash = $1::text AND front = $2::text AND revoked_at IS NULL`,
-		keyHash, w.front, now.UTC())
+		keyHash, w.front, now.UTC(), by)
 	if err != nil {
 		return fmt.Errorf("sessions: revoke: %w", err)
 	}
@@ -306,21 +370,25 @@ func OpenWellAdmin(ctx context.Context) (Admin, error) {
 	return a, nil
 }
 
-func (a *wellAdmin) List(ctx context.Context, f Filter, now time.Time) ([]Session, error) {
+func (a *wellAdmin) List(ctx context.Context, f Filter) ([]Session, error) {
+	// No condition on expires_at: this caller's clock is not the front's.
 	out, err := querySessions(ctx, a.db,
 		`SELECT `+columns+` FROM `+sessionTable+`
 		 WHERE ($1::text = '' OR subject = $1::text) AND ($2::text = '' OR front = $2::text)
-		   AND ($3::boolean OR (revoked_at IS NULL AND expires_at > $4::timestamptz))
-		 ORDER BY created_at DESC, id_hash LIMIT $5::int`,
-		f.Subject, f.Front, f.Ended, now.UTC(), ListLimit)
+		   AND ($3::boolean OR revoked_at IS NULL)
+		 ORDER BY created_at DESC, id_hash LIMIT $4::int`,
+		f.Subject, f.Front, f.Revoked, ListLimit)
 	if err != nil {
 		return nil, fmt.Errorf("sessions: list: %w", err)
 	}
 	return out, nil
 }
 
-func (a *wellAdmin) Revoke(ctx context.Context, prefix string, now time.Time) (Session, error) {
+func (a *wellAdmin) Revoke(ctx context.Context, prefix string, now time.Time, by string) (Session, error) {
 	if err := checkPrefix(prefix); err != nil {
+		return Session{}, err
+	}
+	if err := checkActor(by); err != nil {
 		return Session{}, err
 	}
 	hits, err := querySessions(ctx, a.db,
@@ -339,9 +407,9 @@ func (a *wellAdmin) Revoke(ctx context.Context, prefix string, now time.Time) (S
 		return Session{}, fmt.Errorf("%w: %s matches more than one session; give more characters", ErrAmbiguous, prefix)
 	}
 	out, err := querySessions(ctx, a.db,
-		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($2::timestamptz, created_at)
+		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($2::timestamptz, created_at), revoked_by = $3::text
 		 WHERE id_hash = $1::text AND revoked_at IS NULL RETURNING `+columns,
-		hits[0].KeyHash, now.UTC())
+		hits[0].KeyHash, now.UTC(), by)
 	if err != nil {
 		return Session{}, fmt.Errorf("sessions: revoke: %w", err)
 	}
@@ -351,14 +419,17 @@ func (a *wellAdmin) Revoke(ctx context.Context, prefix string, now time.Time) (S
 	return out[0], nil
 }
 
-func (a *wellAdmin) RevokeSubject(ctx context.Context, subject, front string, now time.Time) (int, error) {
+func (a *wellAdmin) RevokeSubject(ctx context.Context, subject, front string, now time.Time, by string) (int, error) {
 	if !ValidSubject(subject) {
 		return 0, fmt.Errorf("%w: subject", ErrInvalid)
 	}
+	if err := checkActor(by); err != nil {
+		return 0, err
+	}
 	n, err := execCount(ctx, a.db,
-		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($3::timestamptz, created_at)
+		`UPDATE `+sessionTable+` SET revoked_at = GREATEST($3::timestamptz, created_at), revoked_by = $4::text
 		 WHERE subject = $1::text AND ($2::text = '' OR front = $2::text) AND revoked_at IS NULL`,
-		subject, front, now.UTC())
+		subject, front, now.UTC(), by)
 	if err != nil {
 		return 0, fmt.Errorf("sessions: revoke subject: %w", err)
 	}

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"os"
+	"os/user"
 	"strings"
 	"time"
 
@@ -21,6 +23,22 @@ import (
 // replace it.
 var openSessionAdmin = func(ctx context.Context) (sessions.Admin, error) {
 	return sessions.OpenWellAdmin(ctx)
+}
+
+// revocationActor is what a revocation from here is recorded as having
+// been done by: "cli:" and the operating-system user at this host. It is a
+// note for whoever reads the row later, not a proof: anyone who can log in
+// to the Well as app_auth can write any name. Tests replace it.
+var revocationActor = func() string {
+	name := "unknown"
+	if u, err := user.Current(); err == nil && u.Username != "" {
+		name = u.Username
+	}
+	host, err := os.Hostname()
+	if err != nil || host == "" {
+		host = "unknown"
+	}
+	return sessions.CLIActor(name + "@" + host)
 }
 
 // SessionRow is one session as the command line shows it. ID is the first
@@ -37,6 +55,7 @@ type SessionRow struct {
 	ExpiresAt         time.Time  `json:"expires_at" yaml:"expires_at"`
 	AbsoluteExpiresAt time.Time  `json:"absolute_expires_at" yaml:"absolute_expires_at"`
 	RevokedAt         *time.Time `json:"revoked_at,omitempty" yaml:"revoked_at,omitempty"`
+	RevokedBy         string     `json:"revoked_by,omitempty" yaml:"revoked_by,omitempty"`
 }
 
 // SessionListResult is the output of session list.
@@ -52,14 +71,14 @@ func sessionRow(s sessions.Session, now time.Time) SessionRow {
 	return SessionRow{
 		ID: s.ID(), Subject: s.Subject, Front: s.Front, Roles: roles, State: s.State(now),
 		CreatedAt: s.CreatedAt, LastUsedAt: s.LastUsedAt, ExpiresAt: s.ExpiresAt,
-		AbsoluteExpiresAt: s.AbsoluteExpiresAt, RevokedAt: s.RevokedAt,
+		AbsoluteExpiresAt: s.AbsoluteExpiresAt, RevokedAt: s.RevokedAt, RevokedBy: s.RevokedBy,
 	}
 }
 
 // WriteTable implements output.TableWriter.
 func (r *SessionListResult) WriteTable(t *output.Table, wide bool) {
 	if wide {
-		t.SetHeaders("ID", "SUBJECT", "FRONT", "STATE", "LAST USED", "EXPIRES", "CREATED", "MAX AGE ENDS", "ROLES")
+		t.SetHeaders("ID", "SUBJECT", "FRONT", "STATE", "LAST USED", "EXPIRES", "CREATED", "MAX AGE ENDS", "ROLES", "REVOKED BY")
 	} else {
 		t.SetHeaders("ID", "SUBJECT", "FRONT", "STATE", "LAST USED", "EXPIRES")
 	}
@@ -67,8 +86,12 @@ func (r *SessionListResult) WriteTable(t *output.Table, wide bool) {
 	for _, s := range r.Sessions {
 		expires := s.ExpiresAt.UTC().Format(stamp)
 		if wide {
+			by := s.RevokedBy
+			if by == "" {
+				by = "-"
+			}
 			t.AddRow(s.ID, s.Subject, s.Front, s.State, formatAge(s.LastUsedAt), expires,
-				s.CreatedAt.UTC().Format(stamp), s.AbsoluteExpiresAt.UTC().Format(stamp), strings.Join(s.Roles, ","))
+				s.CreatedAt.UTC().Format(stamp), s.AbsoluteExpiresAt.UTC().Format(stamp), strings.Join(s.Roles, ","), by)
 		} else {
 			t.AddRow(s.ID, s.Subject, s.Front, s.State, formatAge(s.LastUsedAt), expires)
 		}
@@ -86,12 +109,22 @@ that runs with AUTH_SESSION_STORE=well (ADR-114 N5).
 A session is who logged in to which front, when it was last used and when it
 ends. The Well keeps it under the SHA-256 of the browser's cookie; the ID
 shown here is the first 16 characters of that hash. Neither can be turned
-into the cookie. A revoked session is refused on its next request.
+into the cookie. A revoked session is refused on its next request, and the
+row records what revoked it: this command writes "cli:" and the operating-
+system user and host it ran as.
+
+STATE is by this host's clock. The clock that decides whether a session has
+expired is its front's, so a session shown as expired here is listed all the
+same and can still be revoked, and revoke never skips one for looking
+expired.
 
 Store: the Well, unheaded_app.bff_sessions, as app_auth (AUTH_WELL_PASSWORD,
 with WELL_HOST, WELL_PORT, WELL_SSLMODE and WELL_SSLROOTCERT as for apikey).
 A front that keeps sessions in its own memory (AUTH_SESSION_STORE unset or
-dev-memory) has nothing here: restart it to end its sessions.`,
+dev-memory) has nothing here: restart it to end its sessions.
+
+There is no command that revokes everyone's sessions at once: revoke-all
+takes one user.`,
 		Aliases:     []string{"sessions"},
 		SubCommands: make(map[string]*Command),
 	}
@@ -107,11 +140,11 @@ func newSessionListCommand() *Command {
 	flags := flag.NewFlagSet("list", flag.ContinueOnError)
 	flags.StringVar(&subject, "subject", "", "Only this user's sessions")
 	flags.StringVar(&front, "front", "", "Only this front's sessions (dashboard-backend, kanban-app, wiki-server)")
-	flags.BoolVar(&all, "all", false, "Also expired and revoked sessions not yet swept")
+	flags.BoolVar(&all, "all", false, "Also revoked sessions not yet swept")
 
 	return &Command{
 		Name:    "list",
-		Short:   "List sessions (id, subject, front, state; never a cookie)",
+		Short:   "List sessions (id, subject, front, state, expiry; never a cookie)",
 		Usage:   "unheaded session list [--subject <user>] [--front <front>] [--all] [-o wide|json|yaml]",
 		Aliases: []string{"ls"},
 		Flags:   flags,
@@ -124,11 +157,13 @@ func newSessionListCommand() *Command {
 				return fmt.Errorf("open session store: %w", err)
 			}
 			defer admin.Close()
-			now := time.Now()
-			list, err := admin.List(context.Background(), sessions.Filter{Subject: subject, Front: front, Ended: all}, now)
+			// Every session not revoked is listed, expired by this host's
+			// clock or not: the front's clock decides, and it may differ.
+			list, err := admin.List(context.Background(), sessions.Filter{Subject: subject, Front: front, Revoked: all})
 			if err != nil {
 				return err
 			}
+			now := time.Now()
 			rows := make([]SessionRow, 0, len(list))
 			for _, s := range list {
 				rows = append(rows, sessionRow(s, now))
@@ -155,7 +190,8 @@ func newSessionRevokeCommand() *Command {
 				return fmt.Errorf("open session store: %w", err)
 			}
 			defer admin.Close()
-			s, err := admin.Revoke(context.Background(), strings.ToLower(args[0]), time.Now())
+			by := revocationActor()
+			s, err := admin.Revoke(context.Background(), strings.ToLower(args[0]), time.Now(), by)
 			if err != nil {
 				if errors.Is(err, sessions.ErrAmbiguous) {
 					return fmt.Errorf("%w (or end every session of the user: unheaded session revoke-all --subject <user>)", err)
@@ -166,8 +202,8 @@ func newSessionRevokeCommand() *Command {
 			if s.RevokedAt != nil {
 				at = *s.RevokedAt
 			}
-			ctx.Output.WriteSuccess("revoked session %s (subject %s, front %s) at %s; its next request is refused",
-				s.ID(), s.Subject, s.Front, at.UTC().Format(time.RFC3339))
+			ctx.Output.WriteSuccess("revoked session %s (subject %s, front %s) at %s as %s; its next request is refused",
+				s.ID(), s.Subject, s.Front, at.UTC().Format(time.RFC3339), by)
 			return nil
 		},
 	}
@@ -200,7 +236,8 @@ func newSessionRevokeAllCommand() *Command {
 				return fmt.Errorf("open session store: %w", err)
 			}
 			defer admin.Close()
-			n, err := admin.RevokeSubject(context.Background(), subject, front, time.Now())
+			by := revocationActor()
+			n, err := admin.RevokeSubject(context.Background(), subject, front, time.Now(), by)
 			if err != nil {
 				return err
 			}
@@ -212,7 +249,7 @@ func newSessionRevokeAllCommand() *Command {
 			if n == 1 {
 				noun = "session"
 			}
-			ctx.Output.WriteSuccess("revoked %d %s of %s on %s", n, noun, subject, where)
+			ctx.Output.WriteSuccess("revoked %d %s of %s on %s as %s", n, noun, subject, where, by)
 			return nil
 		},
 	}

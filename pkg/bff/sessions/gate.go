@@ -99,11 +99,11 @@ func (g *gate) store() Store {
 	return g.st
 }
 
-func (g *gate) Create(ctx context.Context, s Session, maxLive int) error {
+func (g *gate) Create(ctx context.Context, s Session, lim CreateLimits) (int, error) {
 	if st := g.store(); st != nil {
-		return st.Create(ctx, s, maxLive)
+		return st.Create(ctx, s, lim)
 	}
-	return ErrUnavailable
+	return 0, ErrUnavailable
 }
 
 func (g *gate) Get(ctx context.Context, keyHash string) (Session, bool, error) {
@@ -120,9 +120,9 @@ func (g *gate) Touch(ctx context.Context, keyHash string, now, expires time.Time
 	return false, ErrUnavailable
 }
 
-func (g *gate) Revoke(ctx context.Context, keyHash string, now time.Time) error {
+func (g *gate) Revoke(ctx context.Context, keyHash string, now time.Time, by string) error {
 	if st := g.store(); st != nil {
-		return st.Revoke(ctx, keyHash, now)
+		return st.Revoke(ctx, keyHash, now, by)
 	}
 	return ErrUnavailable
 }

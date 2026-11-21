@@ -4,11 +4,13 @@
 package bff_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +18,9 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/bff"
@@ -181,7 +186,7 @@ func TestServerSession_CookieIsHardenedAndNotPersistent(t *testing.T) {
 		t.Fatalf("the login answer carries the session id or a token: %s", rec.Body)
 	}
 
-	plain := serverApp(t, sessions.NewMem(), func(c *bff.Config) { c.DevPlaintext = true })
+	plain := newApp(t, func(c *bff.Config) { c.SessionStore = bff.SessionStoreDevMemory; c.DevPlaintext = true })
 	pc := plain.login("dev", "operator")
 	if !pc.HttpOnly || pc.Secure || pc.SameSite != http.SameSiteStrictMode || strings.HasPrefix(pc.Name, "__Host-") {
 		t.Fatalf("DevPlaintext drops Secure and the prefix, nothing else: %+v", pc)
@@ -203,21 +208,32 @@ type recording struct {
 	mu      sync.Mutex
 	keys    []string
 	created []sessions.Session
-	touches atomic.Int64
-	gets    atomic.Int64
+	limits  []sessions.CreateLimits
+	// ctxErrs and deadlines are what each call's context looked like.
+	ctxErrs   []error
+	deadlines []bool
+	touches   atomic.Int64
+	gets      atomic.Int64
 }
 
 func (r *recording) note(k string) { r.mu.Lock(); r.keys = append(r.keys, k); r.mu.Unlock() }
-func (r *recording) Create(ctx context.Context, s sessions.Session, max int) error {
+func (r *recording) Create(ctx context.Context, s sessions.Session, lim sessions.CreateLimits) (int, error) {
 	r.note(s.KeyHash)
 	r.mu.Lock()
 	r.created = append(r.created, s)
+	r.limits = append(r.limits, lim)
+	r.ctxErrs = append(r.ctxErrs, ctx.Err())
 	r.mu.Unlock()
-	return r.Store.Create(ctx, s, max)
+	return r.Store.Create(ctx, s, lim)
 }
 func (r *recording) Get(ctx context.Context, k string) (sessions.Session, bool, error) {
 	r.note(k)
 	r.gets.Add(1)
+	_, hasDeadline := ctx.Deadline()
+	r.mu.Lock()
+	r.ctxErrs = append(r.ctxErrs, ctx.Err())
+	r.deadlines = append(r.deadlines, hasDeadline)
+	r.mu.Unlock()
 	return r.Store.Get(ctx, k)
 }
 func (r *recording) Touch(ctx context.Context, k string, now, exp time.Time) (bool, error) {
@@ -225,9 +241,9 @@ func (r *recording) Touch(ctx context.Context, k string, now, exp time.Time) (bo
 	r.touches.Add(1)
 	return r.Store.Touch(ctx, k, now, exp)
 }
-func (r *recording) Revoke(ctx context.Context, k string, now time.Time) error {
+func (r *recording) Revoke(ctx context.Context, k string, now time.Time, by string) error {
 	r.note(k)
-	return r.Store.Revoke(ctx, k, now)
+	return r.Store.Revoke(ctx, k, now, by)
 }
 
 // The store never sees the cookie value or a token: only the SHA-256 of
@@ -328,13 +344,13 @@ func TestServerSession_LoginAlwaysIssuesANewIDAndEndsThePresentedOne(t *testing.
 	if code := a.get(fresh); code != http.StatusUnauthorized {
 		t.Fatalf("the session presented at login still works: %d", code)
 	}
-	old, err := mem.List(context.Background(), sessions.Filter{Ended: true}, a.clk.Now())
+	old, err := mem.List(context.Background(), sessions.Filter{Revoked: true})
 	if err != nil || len(old) != 2 {
 		t.Fatalf("sessions on record: %d %v", len(old), err)
 	}
 	for _, s := range old {
-		if s.KeyHash == sessions.KeyHash(fresh.Value) && s.RevokedAt == nil {
-			t.Fatal("the replaced session was not revoked in the store")
+		if s.KeyHash == sessions.KeyHash(fresh.Value) && (s.RevokedAt == nil || s.RevokedBy != sessions.ByLogin) {
+			t.Fatalf("the replaced session was not revoked in the store as replaced by a login: %+v", s)
 		}
 	}
 
@@ -416,7 +432,7 @@ type leaky struct {
 }
 
 func (l leaky) Get(ctx context.Context, k string) (sessions.Session, bool, error) {
-	list, _ := l.all.List(ctx, sessions.Filter{Ended: true}, time.Time{})
+	list, _ := l.all.List(ctx, sessions.Filter{Revoked: true})
 	for _, s := range list {
 		if s.KeyHash == k {
 			return s, true, nil
@@ -479,7 +495,7 @@ func TestServerSession_RevocationTakesEffectOnTheNextRequest(t *testing.T) {
 		}
 	}
 	// One session, by the id a listing shows.
-	if _, err := mem.Revoke(ctx, sessions.KeyHash(one.Value)[:16], a.clk.Now()); err != nil {
+	if _, err := mem.Revoke(ctx, sessions.KeyHash(one.Value)[:16], a.clk.Now(), "cli:tester@host"); err != nil {
 		t.Fatal(err)
 	}
 	if code := a.get(one); code != http.StatusUnauthorized {
@@ -489,7 +505,7 @@ func TestServerSession_RevocationTakesEffectOnTheNextRequest(t *testing.T) {
 		t.Fatalf("dev's other session: %d", code)
 	}
 	// Every session of a subject.
-	if n, err := mem.RevokeSubject(ctx, "dev", "", a.clk.Now()); n != 1 || err != nil {
+	if n, err := mem.RevokeSubject(ctx, "dev", "", a.clk.Now(), "cli:tester@host"); n != 1 || err != nil {
 		t.Fatalf("revoke subject: %d %v", n, err)
 	}
 	if code := a.get(two); code != http.StatusUnauthorized {
@@ -524,8 +540,8 @@ func TestServerSession_LogoutRevokesInTheStore(t *testing.T) {
 	if code := a.get(c); code != http.StatusUnauthorized {
 		t.Fatalf("after logout: %d", code)
 	}
-	list, _ := mem.List(context.Background(), sessions.Filter{Ended: true}, a.clk.Now())
-	if len(list) != 1 || list[0].RevokedAt == nil {
+	list, _ := mem.List(context.Background(), sessions.Filter{Revoked: true})
+	if len(list) != 1 || list[0].RevokedAt == nil || list[0].RevokedBy != sessions.ByLogout {
 		t.Fatalf("the store after logout: %+v", list)
 	}
 }
@@ -542,7 +558,7 @@ func TestServerSession_DoesNotEndWithTheIssuersKey(t *testing.T) {
 	if code := a.get(c); code != http.StatusOK {
 		t.Fatalf("after the issuer rotated its key: %d, want 200 (revoke to end it)", code)
 	}
-	if n, _ := mem.RevokeSubject(context.Background(), "dev", "", a.clk.Now()); n != 1 {
+	if n, _ := mem.RevokeSubject(context.Background(), "dev", "", a.clk.Now(), "cli:tester@host"); n != 1 {
 		t.Fatal("revocation found no session")
 	}
 	if code := a.get(c); code != http.StatusUnauthorized {
@@ -560,11 +576,11 @@ type outage struct {
 	touchFail atomic.Bool
 }
 
-func (o *outage) Create(ctx context.Context, s sessions.Session, max int) error {
+func (o *outage) Create(ctx context.Context, s sessions.Session, lim sessions.CreateLimits) (int, error) {
 	if o.down.Load() {
-		return sessions.ErrUnavailable
+		return 0, sessions.ErrUnavailable
 	}
-	return o.Store.Create(ctx, s, max)
+	return o.Store.Create(ctx, s, lim)
 }
 func (o *outage) Get(ctx context.Context, k string) (sessions.Session, bool, error) {
 	if o.down.Load() {
@@ -578,11 +594,11 @@ func (o *outage) Touch(ctx context.Context, k string, now, exp time.Time) (bool,
 	}
 	return o.Store.Touch(ctx, k, now, exp)
 }
-func (o *outage) Revoke(ctx context.Context, k string, now time.Time) error {
+func (o *outage) Revoke(ctx context.Context, k string, now time.Time, by string) error {
 	if o.down.Load() {
 		return sessions.ErrUnavailable
 	}
-	return o.Store.Revoke(ctx, k, now)
+	return o.Store.Revoke(ctx, k, now, by)
 }
 func (o *outage) Sweep(ctx context.Context, before time.Time, limit int) (int, error) {
 	if o.down.Load() {
@@ -874,11 +890,30 @@ func TestServerSession_Config(t *testing.T) {
 	mem := sessions.NewMem()
 
 	bad := map[string]func(*bff.Config){
-		"an unknown store":                 func(c *bff.Config) { c.SessionStore = "redis"; c.Sessions = mem.Front(svc) },
-		"memory spelled without dev":       func(c *bff.Config) { c.SessionStore = "memory"; c.Sessions = mem.Front(svc) },
-		"limits without a store":           func(c *bff.Config) { c.SessionIdle = 10 * time.Minute },
-		"a maximum age without a store":    func(c *bff.Config) { c.SessionMaxAge = time.Hour },
-		"retention without a store":        func(c *bff.Config) { c.SessionRetention = time.Hour },
+		"an unknown store":               func(c *bff.Config) { c.SessionStore = "redis"; c.Sessions = mem.Front(svc) },
+		"memory spelled without dev":     func(c *bff.Config) { c.SessionStore = "memory"; c.Sessions = mem.Front(svc) },
+		"limits without a store":         func(c *bff.Config) { c.SessionIdle = 10 * time.Minute },
+		"a maximum age without a store":  func(c *bff.Config) { c.SessionMaxAge = time.Hour },
+		"retention without a store":      func(c *bff.Config) { c.SessionRetention = time.Hour },
+		"a per-user cap without a store": func(c *bff.Config) { c.SessionMaxPerUser = 3 },
+		"a clock bound without a store":  func(c *bff.Config) { c.SessionMaxClockSkew = time.Minute },
+		"a miss budget without a store":  func(c *bff.Config) { c.SessionMissBudget = 5 },
+		"a negative per-user cap":        func(c *bff.Config) { c.SessionStore = bff.SessionStoreDevMemory; c.SessionMaxPerUser = -1 },
+		"a per-user cap over the front's": func(c *bff.Config) {
+			c.SessionStore = bff.SessionStoreDevMemory
+			c.MaxSessions, c.SessionMaxPerUser = 5, 6
+		},
+		"a clock bound under a second": func(c *bff.Config) {
+			c.SessionStore = bff.SessionStoreDevMemory
+			c.SessionMaxClockSkew = time.Millisecond
+		},
+		"a clock bound over an hour": func(c *bff.Config) { c.SessionStore = bff.SessionStoreDevMemory; c.SessionMaxClockSkew = 2 * time.Hour },
+		"a negative miss budget":     func(c *bff.Config) { c.SessionStore = bff.SessionStoreDevMemory; c.SessionMissBudget = -1 },
+		"the Well with the plaintext switch": func(c *bff.Config) {
+			c.SessionStore = bff.SessionStoreWell
+			c.Sessions = mem.Front(svc)
+			c.DevPlaintext = true
+		},
 		"a store handed in without a mode": func(c *bff.Config) { c.Sessions = mem.Front(svc) },
 		"idle under a minute":              func(c *bff.Config) { c.SessionStore = bff.SessionStoreDevMemory; c.SessionIdle = 30 * time.Second },
 		"idle over the maximum age": func(c *bff.Config) {
@@ -962,12 +997,20 @@ func TestServerSession_WellUnreachableStartsClosed(t *testing.T) {
 
 func TestServerSession_ConfigFromEnv(t *testing.T) {
 	t.Setenv("AUTH_ISSUER_URL", "https://auth.example")
-	for _, k := range []string{bff.EnvSessionStore, bff.EnvSessionIdle, bff.EnvSessionMaxAge, bff.EnvSessionRetention} {
+	for _, k := range []string{bff.EnvSessionStore, bff.EnvSessionIdle, bff.EnvSessionMaxAge, bff.EnvSessionRetention,
+		bff.EnvSessionMaxPerUser, bff.EnvSessionMaxClockSkew, bff.EnvSessionMissBudget} {
 		t.Setenv(k, "")
 	}
 	c := bff.ConfigFromEnv(svc)
-	if c.SessionStore != "" || c.SessionIdle != 0 || c.SessionMaxAge != 0 || c.SessionRetention != 0 {
+	if c.SessionStore != "" || c.SessionIdle != 0 || c.SessionMaxAge != 0 || c.SessionRetention != 0 ||
+		c.SessionMaxPerUser != 0 || c.SessionMaxClockSkew != 0 || c.SessionMissBudget != 0 {
 		t.Fatalf("unset keys: %+v", c)
+	}
+	t.Setenv(bff.EnvSessionMaxPerUser, "4")
+	t.Setenv(bff.EnvSessionMaxClockSkew, "30s")
+	t.Setenv(bff.EnvSessionMissBudget, " 12 ")
+	if c = bff.ConfigFromEnv(svc); c.SessionMaxPerUser != 4 || c.SessionMaxClockSkew != 30*time.Second || c.SessionMissBudget != 12 {
+		t.Fatalf("the three bounds from the environment: %+v", c)
 	}
 	t.Setenv(bff.EnvSessionStore, " dev-memory ")
 	t.Setenv(bff.EnvSessionIdle, "45m")
@@ -980,10 +1023,14 @@ func TestServerSession_ConfigFromEnv(t *testing.T) {
 	// A value that cannot be read is not replaced by the default.
 	for _, tc := range [][2]string{
 		{bff.EnvSessionIdle, "thirty minutes"}, {bff.EnvSessionIdle, "30"}, {bff.EnvSessionMaxAge, "12 hours"}, {bff.EnvSessionRetention, "1d"},
+		{bff.EnvSessionMaxPerUser, "ten"}, {bff.EnvSessionMaxPerUser, "0"}, {bff.EnvSessionMaxClockSkew, "2"}, {bff.EnvSessionMissBudget, "1.5"},
 	} {
 		t.Setenv(bff.EnvSessionIdle, "45m")
 		t.Setenv(bff.EnvSessionMaxAge, "8h")
 		t.Setenv(bff.EnvSessionRetention, "72h")
+		t.Setenv(bff.EnvSessionMaxPerUser, "4")
+		t.Setenv(bff.EnvSessionMaxClockSkew, "30s")
+		t.Setenv(bff.EnvSessionMissBudget, "12")
 		t.Setenv(tc[0], tc[1])
 		b, err := bff.New(bff.ConfigFromEnv(svc))
 		if err == nil {
@@ -1005,5 +1052,458 @@ func TestServerSession_UnsetKeepsTheTokenBoundSessions(t *testing.T) {
 	a.clk.Advance(16 * time.Minute)
 	if code := a.get(c); code != http.StatusUnauthorized {
 		t.Fatalf("a token-bound session after 16 minutes: %d, want 401", code)
+	}
+}
+
+// ---- review of 2026-11-21: floods, caps, clocks, logout, plaintext ----
+
+func unknownCookie(a *app, n int) *http.Cookie {
+	raw := make([]byte, 32)
+	raw[0], raw[1] = byte(n), byte(n>>8)
+	return &http.Cookie{Name: a.b.CookieName(), Value: base64.RawURLEncoding.EncodeToString(raw)}
+}
+
+// M2. A flood of well-formed ids nobody holds costs the store one read
+// each, until the address runs out its budget; after that such ids are
+// refused unread, and the people who are logged in are still read.
+func TestServerSession_AFloodOfUnknownIDsStopsReachingTheStore(t *testing.T) {
+	rec := &recording{Store: sessions.NewMem().Front(svc)}
+	a := newApp(t, func(c *bff.Config) {
+		c.SessionStore = bff.SessionStoreWell
+		c.Sessions = rec
+		c.SessionMissBudget = 5
+	})
+	const flooder, other = "198.51.100.7:4000", "198.51.100.8:4000"
+	alice := sessionCookie(t, a.do(http.MethodPost, "/auth/login", loginBody("alice", a.is.AddUser(t, "alice", "operator")), withXRW(), fromAddr(flooder)))
+	if code := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(alice), fromAddr(flooder)).Code; code != http.StatusOK {
+		t.Fatalf("alice before the flood: %d", code)
+	}
+	before := rec.gets.Load()
+	for i := 0; i < 200; i++ {
+		if code := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(unknownCookie(a, i)), fromAddr(flooder)).Code; code != http.StatusUnauthorized {
+			t.Fatalf("unknown id %d: %d, want 401", i, code)
+		}
+	}
+	if reads := rec.gets.Load() - before; reads != 5 {
+		t.Fatalf("200 unknown ids from one address cost the store %d reads, want the budget of 5", reads)
+	}
+	// Alice shares the flooder's address (one office, one proxy). Her
+	// session is one this front has seen live: it is still read, and works.
+	before = rec.gets.Load()
+	if code := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(alice), fromAddr(flooder)).Code; code != http.StatusOK {
+		t.Fatalf("alice during the flood, from the flooder's address: %d, want 200", code)
+	}
+	if rec.gets.Load() == before {
+		t.Fatal("alice's session was accepted without asking the store: the memory of ids seen live must not stand in for it")
+	}
+	// A login from that address works too, and its session is used at once.
+	bob := sessionCookie(t, a.do(http.MethodPost, "/auth/login", loginBody("bob", a.is.AddUser(t, "bob", "operator")), withXRW(), fromAddr(flooder)))
+	if code := a.do(http.MethodGet, "/api/v1/thing", "", withCookie(bob), fromAddr(flooder)).Code; code != http.StatusOK {
+		t.Fatalf("a session made during the flood: %d, want 200", code)
+	}
+	// Another address has its own budget.
+	before = rec.gets.Load()
+	a.do(http.MethodGet, "/api/v1/thing", "", withCookie(unknownCookie(a, 9000)), fromAddr(other))
+	if rec.gets.Load() != before+1 {
+		t.Fatal("another address was refused unread because of the flooder")
+	}
+	// The budget is per minute.
+	a.clk.Advance(time.Minute)
+	before = rec.gets.Load()
+	a.do(http.MethodGet, "/api/v1/thing", "", withCookie(unknownCookie(a, 9001)), fromAddr(flooder))
+	if rec.gets.Load() != before+1 {
+		t.Fatal("a minute later the flooder's address is still refused unread")
+	}
+}
+
+// A session this front has seen live is not waved through by that memory:
+// revoke it and the next request is refused, and it is forgotten.
+func TestServerSession_TheMemoryOfLiveIDsGrantsNothing(t *testing.T) {
+	mem := sessions.NewMem()
+	rec := &recording{Store: mem.Front(svc)}
+	a := newApp(t, func(c *bff.Config) { c.SessionStore = bff.SessionStoreWell; c.Sessions = rec; c.SessionMissBudget = 1 })
+	c := a.login("dev", "operator")
+	if code := a.get(c); code != http.StatusOK {
+		t.Fatal(code)
+	}
+	if n, err := mem.RevokeSubject(context.Background(), "dev", "", a.clk.Now(), "cli:tester@host"); n != 1 || err != nil {
+		t.Fatal(n, err)
+	}
+	if code := a.get(c); code != http.StatusUnauthorized { // read, found revoked: one miss
+		t.Fatalf("a revoked session the front had seen live: %d, want 401", code)
+	}
+	before := rec.gets.Load()
+	if code := a.get(c); code != http.StatusUnauthorized {
+		t.Fatalf("again: %d", code)
+	}
+	if rec.gets.Load() != before {
+		t.Fatal("a revoked id was still treated as known after the store said it had ended")
+	}
+}
+
+// M2. A client that hangs up cannot cancel the store's work: the read runs
+// under its own deadline, not the request's.
+func TestServerSession_AClientThatHangsUpDoesNotCancelTheStore(t *testing.T) {
+	rec := &recording{Store: sessions.NewMem().Front(svc)}
+	a := newApp(t, func(c *bff.Config) { c.SessionStore = bff.SessionStoreWell; c.Sessions = rec })
+	c := a.login("dev", "operator")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // the client is already gone
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/thing", nil).WithContext(ctx)
+	req.AddCookie(c)
+	a.h.ServeHTTP(httptest.NewRecorder(), req)
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.ctxErrs) < 2 {
+		t.Fatalf("store calls seen: %d", len(rec.ctxErrs))
+	}
+	for i, err := range rec.ctxErrs {
+		if err != nil {
+			t.Fatalf("store call %d ran under a cancelled context: %v", i, err)
+		}
+	}
+	for i, has := range rec.deadlines {
+		if !has {
+			t.Fatalf("store read %d ran with no deadline of its own", i)
+		}
+	}
+}
+
+// M3. One account cannot fill the front: past its own cap its oldest
+// session is ended, the login succeeds, and other people still get in.
+func TestServerSession_OneAccountCannotFillTheFront(t *testing.T) {
+	mem := sessions.NewMem()
+	a := serverApp(t, mem, func(c *bff.Config) { c.MaxSessions, c.SessionMaxPerUser = 5, 2 })
+	pw := a.is.AddUser(t, "greedy", "viewer")
+	var cookies []*http.Cookie
+	for i := 0; i < 8; i++ {
+		a.clk.Advance(7 * time.Second) // each login a little later (and under the login rate limit)
+		rec := a.do(http.MethodPost, "/auth/login", loginBody("greedy", pw), withXRW())
+		if rec.Code != http.StatusOK {
+			t.Fatalf("login %d of one account at a per-user cap of 2 and a front cap of 5: %d %s", i+1, rec.Code, rec.Body)
+		}
+		cookies = append(cookies, sessionCookie(t, rec))
+	}
+	for i, c := range cookies {
+		want := http.StatusUnauthorized
+		if i >= len(cookies)-2 {
+			want = http.StatusOK
+		}
+		if code := a.get(c); code != want {
+			t.Fatalf("session %d of 8: %d, want %d (only the newest two live)", i+1, code, want)
+		}
+	}
+	// Everyone else still logs in: the account holds 2 of 5.
+	for _, who := range []string{"alice", "bob", "carol"} {
+		a.login(who, "viewer")
+	}
+	ended, _ := mem.List(context.Background(), sessions.Filter{Subject: "greedy", Revoked: true})
+	byLimit := 0
+	for _, s := range ended {
+		if s.RevokedBy == sessions.ByLimit {
+			byLimit++
+		}
+	}
+	if byLimit != 6 {
+		t.Fatalf("%d of the account's sessions ended by the cap, want 6", byLimit)
+	}
+}
+
+// L1. A logout the store could not be told about is not a 204: the
+// browser's cookie is cleared, the answer says the session is still on
+// record, and it is.
+func TestServerSession_LogoutDuringAnOutageSaysTheSessionWasNotEnded(t *testing.T) {
+	mem := sessions.NewMem()
+	o := &outage{Store: mem.Front(svc)}
+	a := newApp(t, func(c *bff.Config) { c.SessionStore = bff.SessionStoreWell; c.Sessions = o })
+	c := a.login("dev", "operator")
+	o.down.Store(true)
+	rec := a.do(http.MethodPost, "/auth/logout", "", withCookie(c), withXRW())
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "logout_incomplete") {
+		t.Fatalf("logout with the store down: %d %s, want 503 logout_incomplete", rec.Code, rec.Body)
+	}
+	cleared := sessionCookie(t, rec)
+	if cleared.MaxAge >= 0 || cleared.Value != "" || !cleared.HttpOnly || !cleared.Secure {
+		t.Fatalf("the browser's cookie must still be cleared: %+v", cleared)
+	}
+	o.down.Store(false)
+	if code := a.get(c); code != http.StatusOK {
+		t.Fatalf("the session after the failed logout: %d; the test's premise is that it is still live", code)
+	}
+	// With the store back, logout ends it and says so.
+	rec = a.do(http.MethodPost, "/auth/logout", "", withCookie(c), withXRW())
+	if rec.Code != http.StatusNoContent {
+		t.Fatalf("logout with the store back: %d", rec.Code)
+	}
+	if code := a.get(c); code != http.StatusUnauthorized {
+		t.Fatalf("after the logout that worked: %d", code)
+	}
+	// A logout with no session at all is still a plain 204.
+	if code := a.do(http.MethodPost, "/auth/logout", "", withXRW()).Code; code != http.StatusNoContent {
+		t.Fatalf("logout without a session: %d", code)
+	}
+}
+
+// L2. The front's clock judges expiry, so a front whose clock is far from
+// the store's starts no sessions; the browser is told only that sessions
+// are unavailable, the log says clock skew.
+func TestServerSession_AFrontWithAWrongClockStartsNoSessions(t *testing.T) {
+	mem := sessions.NewMem()
+	storeTime := time.Now()
+	mem.SetClock(func() time.Time { return storeTime })
+	logs := captureLog(t)
+	a := serverApp(t, mem, func(c *bff.Config) { c.SessionMaxClockSkew = 30 * time.Second })
+	a.login("dev", "operator") // the clocks agree: fine
+
+	a.clk.Advance(10 * time.Minute) // the front's clock runs ahead; the store's did not move
+	pw := a.is.AddUser(t, "late", "operator")
+	rec := a.do(http.MethodPost, "/auth/login", loginBody("late", pw), withXRW())
+	if rec.Code != http.StatusServiceUnavailable || !strings.Contains(rec.Body.String(), "sessions_unavailable") {
+		t.Fatalf("login with the front's clock ten minutes ahead, bound 30 s: %d %s, want 503", rec.Code, rec.Body)
+	}
+	if strings.Contains(strings.ToLower(rec.Body.String()), "clock") || strings.Contains(strings.ToLower(rec.Body.String()), "skew") {
+		t.Fatalf("the browser was told about the clock: %s", rec.Body)
+	}
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == a.b.CookieName() && c.Value != "" {
+			t.Fatal("a session cookie was set by a refused login")
+		}
+	}
+	if !strings.Contains(logs.String(), "clock skew") || !strings.Contains(logs.String(), bff.EnvSessionMaxClockSkew) {
+		t.Fatalf("the log does not say clock skew and name the key:\n%s", logs.String())
+	}
+	if left, _ := mem.List(context.Background(), sessions.Filter{Subject: "late", Revoked: true}); len(left) != 0 {
+		t.Fatal("the refused login left a session on record")
+	}
+	storeTime = storeTime.Add(10 * time.Minute) // the clocks agree again
+	if code := a.do(http.MethodPost, "/auth/login", loginBody("late", pw), withXRW()).Code; code != http.StatusOK {
+		t.Fatalf("login once the clocks agree: %d", code)
+	}
+}
+
+// L4. The plaintext switch beside TLS, or beside sessions in the Well,
+// used to be a warning. It is a refusal.
+func TestNew_RefusesThePlaintextSwitchBesideTLS(t *testing.T) {
+	is := bfftest.NewIssuer(t, svc)
+	t.Setenv("UNHEADED_TLS_ENABLED", "")
+	b, err := bff.New(bff.Config{ServiceName: svc, IssuerURL: is.URL, DevPlaintext: true})
+	if err != nil {
+		t.Fatalf("the plaintext switch without TLS (a development stack): %v", err)
+	}
+	b.Close()
+
+	for name, cfg := range map[string]bff.Config{
+		"token-bound sessions": {ServiceName: svc, IssuerURL: is.URL, DevPlaintext: true},
+		"memory sessions":      {ServiceName: svc, IssuerURL: is.URL, DevPlaintext: true, SessionStore: bff.SessionStoreDevMemory},
+	} {
+		t.Setenv("UNHEADED_TLS_ENABLED", "true")
+		b, err := bff.New(cfg)
+		if err == nil {
+			b.Close()
+			t.Errorf("%s: AUTH_BFF_DEV_PLAINTEXT accepted with UNHEADED_TLS_ENABLED=true", name)
+		} else if !strings.Contains(err.Error(), "UNHEADED_TLS_ENABLED") || !strings.Contains(err.Error(), "AUTH_BFF_DEV_PLAINTEXT") {
+			// Another refusal (a missing CA, say) is not this one.
+			t.Errorf("%s: the error does not name the two keys: %v", name, err)
+		}
+	}
+	t.Setenv("UNHEADED_TLS_ENABLED", "")
+	b, err = bff.New(bff.Config{ServiceName: svc, IssuerURL: is.URL, DevPlaintext: true,
+		SessionStore: bff.SessionStoreWell, Sessions: sessions.NewMem().Front(svc)})
+	if err == nil {
+		b.Close()
+		t.Fatal("AUTH_BFF_DEV_PLAINTEXT accepted with AUTH_SESSION_STORE=well: an hours-long session cookie without Secure")
+	}
+	if !strings.Contains(err.Error(), "AUTH_BFF_DEV_PLAINTEXT") || !strings.Contains(err.Error(), bff.SessionStoreDevMemory) {
+		t.Fatalf("the error does not say what to use instead: %v", err)
+	}
+}
+
+// The limits a login passes to the store are the configured ones.
+func TestServerSession_LimitsReachTheStore(t *testing.T) {
+	rec := &recording{Store: sessions.NewMem().Front(svc)}
+	a := newApp(t, func(c *bff.Config) {
+		c.SessionStore = bff.SessionStoreWell
+		c.Sessions = rec
+		c.MaxSessions, c.SessionMaxPerUser, c.SessionMaxClockSkew = 50, 3, 45*time.Second
+	})
+	a.login("dev", "operator")
+	rec.mu.Lock()
+	defer rec.mu.Unlock()
+	if len(rec.limits) != 1 || rec.limits[0] != (sessions.CreateLimits{MaxLive: 50, MaxPerSubject: 3, MaxSkew: 45 * time.Second}) {
+		t.Fatalf("limits handed to the store: %+v", rec.limits)
+	}
+	def := &recording{Store: sessions.NewMem().Front(svc)}
+	b := newApp(t, func(c *bff.Config) { c.SessionStore = bff.SessionStoreWell; c.Sessions = def })
+	b.login("dev", "operator")
+	def.mu.Lock()
+	defer def.mu.Unlock()
+	want := sessions.CreateLimits{MaxLive: 10000, MaxPerSubject: bff.DefaultSessionMaxPerUser, MaxSkew: bff.DefaultSessionMaxClockSkew}
+	if len(def.limits) != 1 || def.limits[0] != want {
+		t.Fatalf("default limits handed to the store: %+v, want %+v", def.limits, want)
+	}
+}
+
+// ---- what reaches the log ----
+
+// syncBuffer is a bytes.Buffer several goroutines may write.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// captureLog sends the process's log to a buffer for the test.
+func captureLog(t *testing.T) *syncBuffer {
+	t.Helper()
+	buf := &syncBuffer{}
+	prev := zlog.Logger
+	zlog.Logger = zerolog.New(buf).Level(zerolog.DebugLevel)
+	t.Cleanup(func() { zlog.Logger = prev })
+	return buf
+}
+
+// tokenTap notes every access token the issuer hands the front.
+type tokenTap struct {
+	next   http.RoundTripper
+	mu     sync.Mutex
+	tokens []string
+}
+
+func (tt *tokenTap) RoundTrip(r *http.Request) (*http.Response, error) {
+	resp, err := tt.next.RoundTrip(r)
+	if err != nil || !strings.HasSuffix(r.URL.Path, "/login") {
+		return resp, err
+	}
+	body, rerr := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if rerr != nil {
+		return nil, rerr
+	}
+	var out struct {
+		AccessToken string `json:"access_token"`
+	}
+	if json.Unmarshal(body, &out) == nil && out.AccessToken != "" {
+		tt.mu.Lock()
+		tt.tokens = append(tt.tokens, out.AccessToken)
+		tt.mu.Unlock()
+	}
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	return resp, nil
+}
+
+// Nothing a browser or an attacker could present is ever logged: not the
+// session id (the cookie value), not the issuer's token, not the password.
+// A login, a replaced login, a login past the per-user cap, a miss, a spent
+// miss budget, a logout, a revocation seen, a store outage and a refused
+// login are each driven with the log captured.
+func TestServerSession_NoSecretReachesTheLog(t *testing.T) {
+	logs := captureLog(t)
+	mem := sessions.NewMem()
+	o := &outage{Store: mem.Front(svc)}
+	tap := &tokenTap{next: http.DefaultTransport}
+	a := newApp(t, func(c *bff.Config) {
+		c.SessionStore = bff.SessionStoreWell
+		c.Sessions = o
+		c.SessionMaxPerUser = 2
+		c.SessionMissBudget = 3
+		c.HTTPClient = &http.Client{Transport: tap, Timeout: 10 * time.Second}
+	})
+	var secrets []string
+	login := func(user string, present *http.Cookie) *http.Cookie {
+		t.Helper()
+		pw := a.is.AddUser(t, user, "operator")
+		secrets = append(secrets, pw)
+		opts := []reqOpt{withXRW()}
+		if present != nil {
+			opts = append(opts, withCookie(present))
+		}
+		rec := a.do(http.MethodPost, "/auth/login", loginBody(user, pw), opts...)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("login %s: %d %s", user, rec.Code, rec.Body)
+		}
+		c := sessionCookie(t, rec)
+		secrets = append(secrets, c.Value)
+		return c
+	}
+
+	first := login("dev", nil)
+	a.get(first)
+	second := login("dev", first) // replaces the presented session
+	third := login("dev", nil)    // dev now has two
+	fourth := login("dev", nil)   // past the per-user cap: the oldest is ended
+	a.get(second)                 // ended by the cap: a miss
+	a.get(third)
+	for i := 0; i < 6; i++ { // unknown ids, past the miss budget
+		u := unknownCookie(a, 100+i)
+		secrets = append(secrets, u.Value)
+		a.get(u)
+	}
+	a.do(http.MethodPost, "/auth/logout", "", withCookie(third), withXRW())
+	if _, err := mem.Revoke(context.Background(), sessions.KeyHash(fourth.Value)[:16], a.clk.Now(), "cli:tester@host"); err != nil {
+		t.Fatal(err)
+	}
+	a.get(fourth) // revoked from outside
+
+	fifth := login("alice", nil)
+	o.down.Store(true)
+	a.get(fifth)                                                            // the store cannot be read
+	a.clk.Advance(61 * time.Second)                                         // store errors are logged once a minute
+	a.do(http.MethodPost, "/auth/logout", "", withCookie(fifth), withXRW()) // nor told of a logout
+	pw := a.is.AddUser(t, "bob", "operator")
+	secrets = append(secrets, pw)
+	a.clk.Advance(61 * time.Second)
+	a.do(http.MethodPost, "/auth/login", loginBody("bob", pw), withXRW()) // nor given a new session
+	a.do(http.MethodPost, "/auth/login", loginBody("bob", "wrong-password-typed-by-bob"), withXRW())
+	secrets = append(secrets, "wrong-password-typed-by-bob")
+	o.down.Store(false)
+
+	tap.mu.Lock()
+	if len(tap.tokens) < 5 {
+		t.Fatalf("the tap saw %d tokens: the test no longer sees what the issuer hands over", len(tap.tokens))
+	}
+	secrets = append(secrets, tap.tokens...)
+	tap.mu.Unlock()
+
+	out := logs.String()
+	for _, want := range []string{"bff: login", "bff: logout", "ended_oldest", "budget of unknown session ids", "cannot read a session", "cannot end a session at logout", "cannot store a new session", "login refused"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the log lacks %q: this test no longer drives that path\n%s", want, out)
+		}
+	}
+	for i, secret := range secrets {
+		if len(secret) < 12 {
+			t.Fatalf("secret %d is too short to search for", i)
+		}
+		if strings.Contains(out, secret) {
+			t.Errorf("the log carries a session id, a token or a password (secret %d of %d)", i+1, len(secrets))
+		}
+		// A token's parts, and the id with a character dropped, would be as bad.
+		for _, part := range strings.Split(secret, ".") {
+			if len(part) >= 20 && strings.Contains(out, part) {
+				t.Errorf("the log carries part of secret %d", i+1)
+			}
+		}
+	}
+	// What is logged of a session is the first 16 characters of its hash,
+	// never the whole hash.
+	for _, c := range []*http.Cookie{first, second, third, fourth, fifth} {
+		h := sessions.KeyHash(c.Value)
+		if strings.Contains(out, h) {
+			t.Error("the log carries a session's whole hash")
+		}
+	}
+	if !strings.Contains(out, sessions.KeyHash(first.Value)[:16]) {
+		t.Error("the login line no longer names the session by its short id")
 	}
 }

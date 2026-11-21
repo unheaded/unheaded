@@ -16,14 +16,18 @@ import (
 	"unheaded/pkg/bff/sessions"
 )
 
+const testCLIActor = "cli:tester@testhost"
+
 // withMemSessions points the session commands at one in-memory set of
-// sessions, as the Well's table would hold them.
+// sessions, as the Well's table would hold them, and fixes who the
+// command line says it is.
 func withMemSessions(t *testing.T) *sessions.Mem {
 	t.Helper()
 	mem := sessions.NewMem()
-	prev := openSessionAdmin
+	prev, prevActor := openSessionAdmin, revocationActor
 	openSessionAdmin = func(context.Context) (sessions.Admin, error) { return mem, nil }
-	t.Cleanup(func() { openSessionAdmin = prev })
+	revocationActor = func() string { return testCLIActor }
+	t.Cleanup(func() { openSessionAdmin, revocationActor = prev, prevActor })
 	return mem
 }
 
@@ -36,15 +40,16 @@ func seed(t *testing.T, mem *sessions.Mem, front, subject, cookie string, age ti
 		CreatedAt: created, LastUsedAt: created,
 		ExpiresAt: created.Add(30 * time.Minute), AbsoluteExpiresAt: created.Add(12 * time.Hour),
 	}
-	if err := mem.Front(front).Create(context.Background(), s, 100); err != nil {
+	if _, err := mem.Front(front).Create(context.Background(), s, sessions.CreateLimits{MaxLive: 100}); err != nil {
 		t.Fatal(err)
 	}
 	return s
 }
 
-func liveCount(t *testing.T, mem *sessions.Mem, f sessions.Filter) int {
+// notRevoked counts the sessions matching f that nothing has revoked.
+func notRevoked(t *testing.T, mem *sessions.Mem, f sessions.Filter) int {
 	t.Helper()
-	list, err := mem.List(context.Background(), f, time.Now())
+	list, err := mem.List(context.Background(), f)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +61,10 @@ func TestSession_ListShowsWhoWhereAndStateNeverTheCookie(t *testing.T) {
 	const cookie = "kJ3xQ9vT2mN8bV5cX1zL7pR4sD6fG0hA2wE9yU3iO5t"
 	a := seed(t, mem, "dashboard-backend", "dev", cookie, time.Minute, "operator", "viewer")
 	seed(t, mem, "kanban-app", "alice", "another-cookie-value", 2*time.Minute, "admin")
-	old := seed(t, mem, "wiki-server", "bob", "an-expired-one", time.Hour, "viewer")
+	gone := seed(t, mem, "wiki-server", "carol", "a-revoked-one", 3*time.Minute, "viewer")
+	if err := mem.Front("wiki-server").Revoke(context.Background(), gone.KeyHash, time.Now(), sessions.ByLogout); err != nil {
+		t.Fatal(err)
+	}
 	ctx := testContext(DefaultConfig())
 
 	if err := run(t, ctx, NewSessionCommand(), "list"); err != nil {
@@ -71,16 +79,16 @@ func TestSession_ListShowsWhoWhereAndStateNeverTheCookie(t *testing.T) {
 	if strings.Contains(out, cookie) || strings.Contains(out, a.KeyHash) {
 		t.Errorf("list shows a cookie value or a whole hash:\n%s", out)
 	}
-	if strings.Contains(out, "bob") || strings.Contains(out, old.ID()) {
-		t.Errorf("list shows an expired session without --all:\n%s", out)
+	if strings.Contains(out, "carol") || strings.Contains(out, gone.ID()) {
+		t.Errorf("list shows a revoked session without --all:\n%s", out)
 	}
 
 	testBuf.Reset()
 	if err := run(t, ctx, NewSessionCommand(), "list", "--all"); err != nil {
 		t.Fatal(err)
 	}
-	if out := testBuf.String(); !strings.Contains(out, "bob") || !strings.Contains(out, "expired") {
-		t.Errorf("list --all lacks the expired session:\n%s", out)
+	if out := testBuf.String(); !strings.Contains(out, "carol") || !strings.Contains(out, "revoked") {
+		t.Errorf("list --all lacks the revoked session:\n%s", out)
 	}
 
 	testBuf.Reset()
@@ -104,6 +112,32 @@ func TestSession_ListShowsWhoWhereAndStateNeverTheCookie(t *testing.T) {
 	}
 }
 
+// The clock that decides whether a session has expired is its front's.
+// This host's may differ, so a session that looks expired from here is
+// shown, marked, with its expiry, and never hidden.
+func TestSession_ListDoesNotHideWhatLooksExpiredFromHere(t *testing.T) {
+	mem := withMemSessions(t)
+	old := seed(t, mem, "wiki-server", "bob", "expired-by-this-clock", time.Hour, "viewer")
+	ctx := testContext(DefaultConfig())
+	if err := run(t, ctx, NewSessionCommand(), "list"); err != nil {
+		t.Fatal(err)
+	}
+	out := testBuf.String()
+	if !strings.Contains(out, old.ID()) || !strings.Contains(out, "bob") || !strings.Contains(out, "expired") {
+		t.Fatalf("a session expired by this host's clock is not listed and marked:\n%s", out)
+	}
+	if !strings.Contains(out, old.ExpiresAt.UTC().Format("2006-01-02 15:04Z")) {
+		t.Fatalf("the listing does not show when it expires:\n%s", out)
+	}
+	// And it can be revoked: it may be live where it counts.
+	if err := run(t, ctx, NewSessionCommand(), "revoke", old.ID()); err != nil {
+		t.Fatalf("revoking a session that looks expired from here: %v", err)
+	}
+	if notRevoked(t, mem, sessions.Filter{}) != 0 {
+		t.Fatal("it was not revoked")
+	}
+}
+
 func TestSession_ListJSONCarriesNoHashBeyondTheID(t *testing.T) {
 	mem := withMemSessions(t)
 	s := seed(t, mem, "dashboard-backend", "dev", "cookie-one", time.Minute, "operator")
@@ -122,13 +156,15 @@ func TestSession_ListJSONCarriesNoHashBeyondTheID(t *testing.T) {
 	if row["id"] != s.ID() || row["subject"] != "dev" || row["front"] != "dashboard-backend" || row["state"] != "active" {
 		t.Errorf("row: %v", row)
 	}
+	if _, has := row["revoked_by"]; has {
+		t.Errorf("a live session has a revoker: %v", row)
+	}
 	if strings.Contains(testBuf.String(), s.KeyHash) {
 		t.Errorf("json carries the whole hash:\n%s", testBuf.String())
 	}
 
 	// An empty table is an empty list, not null.
-	empty := withMemSessions(t)
-	_ = empty
+	withMemSessions(t)
 	ctx = testContext(DefaultConfig())
 	ctx.Output.SetFormat(output.FormatJSON)
 	if err := run(t, ctx, NewSessionCommand(), "list"); err != nil {
@@ -139,7 +175,7 @@ func TestSession_ListJSONCarriesNoHashBeyondTheID(t *testing.T) {
 	}
 }
 
-func TestSession_RevokeOneByID(t *testing.T) {
+func TestSession_RevokeOneByIDAndRecordWho(t *testing.T) {
 	mem := withMemSessions(t)
 	a := seed(t, mem, "dashboard-backend", "dev", "cookie-one", time.Minute, "operator")
 	b := seed(t, mem, "dashboard-backend", "dev", "cookie-two", time.Minute, "operator")
@@ -148,15 +184,33 @@ func TestSession_RevokeOneByID(t *testing.T) {
 	if err := run(t, ctx, NewSessionCommand(), "revoke", a.ID()); err != nil {
 		t.Fatal(err)
 	}
-	if out := testBuf.String(); !strings.Contains(out, a.ID()) || !strings.Contains(out, "dev") || !strings.Contains(out, "dashboard-backend") {
+	if out := testBuf.String(); !strings.Contains(out, a.ID()) || !strings.Contains(out, "dev") ||
+		!strings.Contains(out, "dashboard-backend") || !strings.Contains(out, testCLIActor) {
 		t.Errorf("revoke output:\n%s", out)
 	}
-	list, _ := mem.List(context.Background(), sessions.Filter{}, time.Now())
+	list, _ := mem.List(context.Background(), sessions.Filter{})
 	if len(list) != 1 || list[0].KeyHash != b.KeyHash {
-		t.Fatalf("after revoke: %d live", len(list))
+		t.Fatalf("after revoke: %d not revoked", len(list))
+	}
+	all, _ := mem.List(context.Background(), sessions.Filter{Revoked: true})
+	for _, s := range all {
+		if s.KeyHash == a.KeyHash && s.RevokedBy != testCLIActor {
+			t.Fatalf("the row does not record who revoked it: %q", s.RevokedBy)
+		}
 	}
 
-	// Again, or an id that is nobody's: an error, and it says how to look.
+	// The record shows in the JSON listing with --all.
+	ctx = testContext(DefaultConfig())
+	ctx.Output.SetFormat(output.FormatJSON)
+	if err := run(t, ctx, NewSessionCommand(), "list", "--all"); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(testBuf.String(), testCLIActor) {
+		t.Errorf("list --all -o json does not say who revoked:\n%s", testBuf.String())
+	}
+
+	// Again, or an id that is nobody's: an error.
+	ctx = testContext(DefaultConfig())
 	err := run(t, ctx, NewSessionCommand(), "revoke", a.ID())
 	if !errors.Is(err, sessions.ErrNotFound) {
 		t.Errorf("revoking it twice: %v", err)
@@ -166,7 +220,7 @@ func TestSession_RevokeOneByID(t *testing.T) {
 			t.Errorf("revoke %q accepted", args)
 		}
 	}
-	if liveCount(t, mem, sessions.Filter{}) != 1 {
+	if notRevoked(t, mem, sessions.Filter{}) != 1 {
 		t.Fatal("a refused revoke ended a session")
 	}
 }
@@ -175,7 +229,8 @@ func TestSession_RevokeAllForASubject(t *testing.T) {
 	mem := withMemSessions(t)
 	seed(t, mem, "dashboard-backend", "dev", "c1", time.Minute, "operator")
 	seed(t, mem, "kanban-app", "dev", "c2", time.Minute, "operator")
-	seed(t, mem, "wiki-server", "dev", "c3", time.Minute, "operator")
+	// One that looks expired from here is revoked with the rest.
+	seed(t, mem, "wiki-server", "dev", "c3", 2*time.Hour, "operator")
 	seed(t, mem, "dashboard-backend", "alice", "c4", time.Minute, "admin")
 	ctx := testContext(DefaultConfig())
 
@@ -183,11 +238,11 @@ func TestSession_RevokeAllForASubject(t *testing.T) {
 	if err := run(t, ctx, NewSessionCommand(), "revoke-all", "--subject", "dev", "--front", "kanban-app"); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(testBuf.String(), "1 session") {
-		t.Errorf("output:\n%s", testBuf.String())
+	if out := testBuf.String(); !strings.Contains(out, "1 session") || !strings.Contains(out, testCLIActor) {
+		t.Errorf("output:\n%s", out)
 	}
-	if n := liveCount(t, mem, sessions.Filter{Subject: "dev"}); n != 2 {
-		t.Fatalf("dev has %d live sessions, want 2", n)
+	if n := notRevoked(t, mem, sessions.Filter{Subject: "dev"}); n != 2 {
+		t.Fatalf("dev has %d sessions not revoked, want 2", n)
 	}
 	// Then everywhere.
 	testBuf.Reset()
@@ -197,11 +252,11 @@ func TestSession_RevokeAllForASubject(t *testing.T) {
 	if !strings.Contains(testBuf.String(), "2 sessions") {
 		t.Errorf("output:\n%s", testBuf.String())
 	}
-	if n := liveCount(t, mem, sessions.Filter{Subject: "dev"}); n != 0 {
-		t.Fatalf("dev still has %d live sessions", n)
+	if n := notRevoked(t, mem, sessions.Filter{Subject: "dev"}); n != 0 {
+		t.Fatalf("dev still has %d sessions not revoked", n)
 	}
-	if n := liveCount(t, mem, sessions.Filter{Subject: "alice"}); n != 1 {
-		t.Fatalf("alice has %d live sessions, want 1", n)
+	if n := notRevoked(t, mem, sessions.Filter{Subject: "alice"}); n != 1 {
+		t.Fatalf("alice has %d sessions, want 1", n)
 	}
 	// Nothing to revoke is said, not an error.
 	testBuf.Reset()
@@ -223,7 +278,7 @@ func TestSession_RevokeAllNeedsASubject(t *testing.T) {
 			t.Errorf("revoke-all %q accepted", args)
 		}
 	}
-	if liveCount(t, mem, sessions.Filter{}) != 1 {
+	if notRevoked(t, mem, sessions.Filter{}) != 1 {
 		t.Fatal("a refused revoke-all ended a session")
 	}
 }
@@ -240,6 +295,15 @@ func TestSession_StoreErrorsAreReported(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "AUTH_WELL_PASSWORD") {
 			t.Errorf("%v: %v, want the store's error", c, err)
 		}
+	}
+}
+
+// The actor the command line records is "cli:" and a name a row can hold,
+// whatever the operating system calls the user and the host.
+func TestSession_RevocationActorIsRecordable(t *testing.T) {
+	got := revocationActor()
+	if !strings.HasPrefix(got, "cli:") || !sessions.ValidActor(got) {
+		t.Fatalf("revocationActor() = %q: not an actor a session row can hold", got)
 	}
 }
 

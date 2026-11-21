@@ -127,6 +127,20 @@ type Config struct {
 	// server-side session stays on record before the sweep deletes it.
 	// Zero means DefaultSessionRetention.
 	SessionRetention time.Duration
+	// SessionMaxPerUser (AUTH_SESSION_MAX_PER_USER) caps one user's live
+	// server-side sessions on this front. A login past it ends that user's
+	// oldest session; nobody is refused. Zero means
+	// DefaultSessionMaxPerUser.
+	SessionMaxPerUser int
+	// SessionMaxClockSkew (AUTH_SESSION_MAX_CLOCK_SKEW) is how far this
+	// host's clock may be from the session store's when a session starts;
+	// past it no login is accepted. Zero means DefaultSessionMaxClockSkew.
+	SessionMaxClockSkew time.Duration
+	// SessionMissBudget (AUTH_SESSION_MISS_BUDGET) is how many unknown or
+	// ended session ids one client address may present in a minute before
+	// further unknown ones are refused without asking the store. Zero
+	// means DefaultSessionMissBudget.
+	SessionMissBudget int
 	// Sessions replaces the store SessionStore would open (tests).
 	Sessions sessions.Store
 
@@ -159,8 +173,9 @@ func (b *BFF) LoginFailureBudgets() (perUser, perClient int) {
 // ConfigFromEnv reads AUTH_ISSUER_URL, AUTH_BFF_DEV_PLAINTEXT, the two login
 // failure budgets (EnvClientUserLoginFailures, EnvClientLoginFailures) and
 // the session keys (EnvSessionStore, EnvSessionIdle, EnvSessionMaxAge,
-// EnvSessionRetention). A value it cannot read is not replaced by a default:
-// New refuses the Config.
+// EnvSessionRetention, EnvSessionMaxPerUser, EnvSessionMaxClockSkew,
+// EnvSessionMissBudget). A value it cannot read is not replaced by a
+// default: New refuses the Config.
 func ConfigFromEnv(serviceName string) Config {
 	c := Config{
 		ServiceName:  serviceName,
@@ -175,7 +190,11 @@ func ConfigFromEnv(serviceName string) Config {
 	c.SessionIdle, ierr = envDuration(EnvSessionIdle)
 	c.SessionMaxAge, merr = envDuration(EnvSessionMaxAge)
 	c.SessionRetention, rerr = envDuration(EnvSessionRetention)
-	c.envErr = errors.Join(uerr, cerr, ierr, merr, rerr)
+	var perr, serr, berr error
+	c.SessionMaxPerUser, perr = envCount(EnvSessionMaxPerUser)
+	c.SessionMaxClockSkew, serr = envDuration(EnvSessionMaxClockSkew)
+	c.SessionMissBudget, berr = envCount(EnvSessionMissBudget)
+	c.envErr = errors.Join(uerr, cerr, ierr, merr, rerr, perr, serr, berr)
 	return c
 }
 
@@ -217,6 +236,13 @@ func New(cfg Config) (*BFF, error) {
 	}
 	if cfg.envErr != nil {
 		return nil, cfg.envErr
+	}
+	// The development switch drops Secure and the __Host- prefix from the
+	// session cookie. Beside TLS it is a contradiction, and it used to be
+	// only a warning: a deployment could keep it by accident and serve its
+	// logins a cookie any plaintext hop could read.
+	if cfg.DevPlaintext && pqtls.Enabled() {
+		return nil, fmt.Errorf("bff: AUTH_BFF_DEV_PLAINTEXT (or -dev-plaintext) with %s=true: the plaintext switch is for a stack without TLS; remove it", pqtls.EnvEnabled)
 	}
 	perUser, perClient, err := loginBudgets(cfg.ClientUserLoginFailures, cfg.ClientLoginFailures)
 	if err != nil {
@@ -702,13 +728,26 @@ func (b *BFF) logout(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusForbidden, map[string]string{"error": "missing " + HeaderRequestedWith + ": " + RequestedWithValue})
 		return
 	}
+	var revokeErr error
 	if b.sess != nil {
-		b.logoutServerSide(r)
+		revokeErr = b.logoutServerSide(r)
 	} else if key, s, ok := b.session(r); ok {
 		_ = b.store.Delete(r.Context(), key)
 		log.Info().Str("service", b.cfg.ServiceName).Str("user", s.Subject).Msg("bff: logout")
 	}
+	// The browser's cookie is cleared whatever the store said: the person
+	// asked this browser to forget the session, and it can. Whether the
+	// session itself has ended is the status.
 	b.setSessionCookie(w, "", -1)
+	if revokeErr != nil {
+		// The record could not be revoked. It is still live until it runs
+		// out idle, for anyone who holds the id: say so, not 204.
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
+			"error":  "logout_incomplete",
+			"detail": "this browser forgot the session, but the session store could not be told; the session ends by itself when idle, or an operator can revoke it",
+		})
+		return
+	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
 }

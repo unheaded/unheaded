@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"os"
 	"testing"
+	"time"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -62,7 +63,9 @@ func TestWell_Suite(t *testing.T) {
 				t.Fatalf("empty the table: %v", err)
 			}
 		}
-		return world{a: a, b: b, admin: admin, frontA: wellFrontA, frontB: wellFrontB}
+		// The Well's clock is this host's, near enough, on a throwaway
+		// server started a moment ago.
+		return world{a: a, b: b, admin: admin, frontA: wellFrontA, frontB: wellFrontB, storeNow: time.Now}
 	})
 }
 
@@ -89,13 +92,13 @@ func TestWell_TheViewHoldsAFrontToItsOwnRows(t *testing.T) {
 	}
 	// And cannot write a session in A's name: the view's check option.
 	forged := sess(wellFrontA, 2, t0)
-	if err := lying.Create(ctx, forged, 100); err == nil {
+	if _, err := lying.Create(ctx, forged, CreateLimits{MaxLive: 100, MaxPerSubject: 5}); err == nil {
 		t.Fatal("front B's login created a session of front A")
 	}
 	if _, ok, _ := a.Get(ctx, forged.KeyHash); ok {
 		t.Fatal("the forged session exists")
 	}
-	if err := lying.Revoke(ctx, s.KeyHash, t0); err != nil {
+	if err := lying.Revoke(ctx, s.KeyHash, t0, ByLogout); err != nil {
 		t.Fatal(err)
 	}
 	if got, _, _ := a.Get(ctx, s.KeyHash); got.RevokedAt != nil {
@@ -107,6 +110,28 @@ func TestWell_TheViewHoldsAFrontToItsOwnRows(t *testing.T) {
 	// No front role may touch the table itself.
 	if _, err := dbB.ExecContext(ctx, `SELECT 1 FROM `+sessionTable+` LIMIT 1`); err == nil {
 		t.Fatal("a front role read bff_sessions directly")
+	}
+}
+
+// The Well holds a front to its own actors: it cannot write a revocation in
+// the command line's name, whatever this package would send.
+func TestWell_AFrontCannotRevokeAsTheCommandLine(t *testing.T) {
+	ctx := context.Background()
+	dbA := wellTestDB(t, "WELL_TEST_SESSION_DSN_A")
+	a, err := NewWellStore(ctx, dbA, wellFrontA)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dbA.ExecContext(ctx, `DELETE FROM `+ownView); err != nil {
+		t.Fatal(err)
+	}
+	s := sess(wellFrontA, 1, t0)
+	mustCreate(t, a, s)
+	if err := a.Revoke(ctx, s.KeyHash, t0.Add(time.Minute), CLIActor("root@west")); err == nil {
+		t.Fatal("a front revoked a session as the command line")
+	}
+	if got, _, _ := a.Get(ctx, s.KeyHash); got.RevokedAt != nil {
+		t.Fatalf("the refused revocation is on the row: %+v", got)
 	}
 }
 

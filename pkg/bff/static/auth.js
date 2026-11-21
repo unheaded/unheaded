@@ -161,7 +161,15 @@
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'X-Requested-With': VALUE }
-    }).finally(function () { location.reload(); });
+    }).then(function (resp) {
+      if (resp.status === 503) {
+        // The browser's cookie is gone; the server could not end the
+        // session on its side (its session store is unreachable).
+        window.alert('Logged out of this browser, but the server could not end the session (HTTP 503). ' +
+          'It ends by itself when idle; an operator can revoke it sooner.');
+      }
+    }).catch(function () { /* the reload below shows what is left */ })
+      .finally(function () { location.reload(); });
   }
 
   function renderBadge(me) {

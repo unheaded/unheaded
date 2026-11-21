@@ -17,12 +17,13 @@
 #   4. CHECKs: a hash that is not 64 hex, a front with an underscore, a
 #      subject with a space or a newline, an upper-case role, an expiry past the maximum
 #      age, a maximum age over 31 days, an expiry at creation;
-#   5. only last_used_at, expires_at and revoked_at change: a front has no
-#      grant on the rest and the trigger refuses the owner; a revocation is
-#      set once and a revoked row never changes; last_used_at does not go
-#      back;
-#   6. app_auth reads the table and sets revoked_at, and nothing else: no
-#      insert, no delete, no change of an expiry;
+#   5. only last_used_at, expires_at and revoked_at with revoked_by change:
+#      a front has no grant on the rest and the trigger refuses the owner; a
+#      revocation is set once, with what did it, and a revoked row never
+#      changes; last_used_at does not go back; a front cannot revoke in the
+#      command line's name;
+#   6. app_auth reads the table and sets revoked_at with revoked_by, and
+#      nothing else: no insert, no delete, no change of an expiry;
 #   7. a front deletes its own ended rows (the sweep);
 #   8. --with-go: pkg/bff/sessions' store suite (build tag wellint) against
 #      the same server, each front as its own role and the Admin as
@@ -142,7 +143,7 @@ is "the owner sees nothing through the view (it is no front)" 0 "$(own "SELECT c
 refused "the board INSERT a session naming the dashboard" board "$(row 3 dashboard-backend admin admin)"
 is "nothing was written by it" 0 "$(sq "SELECT count(*) FROM bff_sessions WHERE id_hash = '$(hex 3)'")"
 ok "the board INSERT its own session" board "$(row 4 kanban-app)"
-board "UPDATE bff_sessions_own SET revoked_at = now() WHERE id_hash = '$(hex 1)'" >/dev/null
+board "UPDATE bff_sessions_own SET revoked_at = now(), revoked_by = 'logout' WHERE id_hash = '$(hex 1)'" >/dev/null
 board "UPDATE bff_sessions_own SET expires_at = now() + interval '1 hour' WHERE id_hash = '$(hex 1)'" >/dev/null
 board "DELETE FROM bff_sessions_own WHERE id_hash = '$(hex 1)'" >/dev/null
 is "the board's update, revocation and delete of the dashboard's row changed nothing" "1 t" \
@@ -175,15 +176,23 @@ refused "owner UPDATE of the maximum age (trigger)" own "UPDATE bff_sessions SET
 ok "front records a use" dash "UPDATE bff_sessions_own SET last_used_at = now(), expires_at = LEAST(now() + interval '30 minutes', absolute_expires_at) WHERE id_hash = '$(hex 1)'"
 refused "front extends past the maximum age" dash "UPDATE bff_sessions_own SET expires_at = absolute_expires_at + interval '1 second' WHERE id_hash = '$(hex 1)'"
 refused "last_used_at moves backwards" dash "UPDATE bff_sessions_own SET last_used_at = created_at WHERE id_hash = '$(hex 1)' AND last_used_at > created_at"
-ok "front revokes (logout)" dash "UPDATE bff_sessions_own SET revoked_at = now() WHERE id_hash = '$(hex 1)'"
-refused "un-revoke" dash "UPDATE bff_sessions_own SET revoked_at = NULL WHERE id_hash = '$(hex 1)'"
+refused "a revocation without what did it" dash "UPDATE bff_sessions_own SET revoked_at = now() WHERE id_hash = '$(hex 1)'"
+refused "an actor without a revocation" dash "UPDATE bff_sessions_own SET revoked_by = 'logout' WHERE id_hash = '$(hex 1)'"
+refused "an actor with a space" dash "UPDATE bff_sessions_own SET revoked_at = now(), revoked_by = 'log out' WHERE id_hash = '$(hex 1)'"
+refused "a front revoking in the command line's name" dash "UPDATE bff_sessions_own SET revoked_at = now(), revoked_by = 'cli:root@west' WHERE id_hash = '$(hex 1)'"
+ok "front revokes (logout)" dash "UPDATE bff_sessions_own SET revoked_at = now(), revoked_by = 'logout' WHERE id_hash = '$(hex 1)'"
+is "the row says what revoked it" logout "$(sq "SELECT revoked_by FROM bff_sessions WHERE id_hash = '$(hex 1)'")"
+refused "un-revoke" dash "UPDATE bff_sessions_own SET revoked_at = NULL, revoked_by = NULL WHERE id_hash = '$(hex 1)'"
+refused "change what revoked it" dash "UPDATE bff_sessions_own SET revoked_by = 'limit' WHERE id_hash = '$(hex 1)'"
 refused "move a revocation" dash "UPDATE bff_sessions_own SET revoked_at = now() + interval '1 hour' WHERE id_hash = '$(hex 1)'"
 refused "a revoked session records no use" dash "UPDATE bff_sessions_own SET last_used_at = now() + interval '1 second' WHERE id_hash = '$(hex 1)'"
-refused "owner un-revoke" own "UPDATE bff_sessions SET revoked_at = NULL WHERE id_hash = '$(hex 1)'"
+refused "owner un-revoke" own "UPDATE bff_sessions SET revoked_at = NULL, revoked_by = NULL WHERE id_hash = '$(hex 1)'"
 
 # 6. app_auth: read and revoke.
 is "app_auth lists every front's sessions" t "$(au "SELECT count(DISTINCT front) >= 2 FROM bff_sessions")"
-ok "app_auth revokes the board's session" au "UPDATE bff_sessions SET revoked_at = GREATEST(now(), created_at) WHERE id_hash = '$(hex 4)' AND revoked_at IS NULL"
+refused "app_auth revokes without saying who" au "UPDATE bff_sessions SET revoked_at = GREATEST(now(), created_at) WHERE id_hash = '$(hex 4)' AND revoked_at IS NULL"
+ok "app_auth revokes the board's session" au "UPDATE bff_sessions SET revoked_at = GREATEST(now(), created_at), revoked_by = 'cli:tester@host' WHERE id_hash = '$(hex 4)' AND revoked_at IS NULL"
+is "the row names the command line's user" cli:tester@host "$(sq "SELECT revoked_by FROM bff_sessions WHERE id_hash = '$(hex 4)'")"
 is "the board sees its session revoked" t "$(board "SELECT revoked_at IS NOT NULL FROM bff_sessions_own WHERE id_hash = '$(hex 4)'")"
 refused "app_auth INSERT a session" au "$(row 20 dashboard-backend admin admin '' '' '' bff_sessions)"
 refused "app_auth DELETE" au "DELETE FROM bff_sessions WHERE id_hash = '$(hex 15)'"

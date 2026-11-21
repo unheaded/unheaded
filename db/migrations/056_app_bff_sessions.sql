@@ -9,9 +9,12 @@
 --
 -- A session ends at expires_at, which moves forward while the session is in
 -- use (the idle time) and never past absolute_expires_at (the maximum age,
--- fixed at login); or earlier, when revoked_at is set, by a logout or by
--- `unheaded session revoke`. An ended row stays for the front's retention
--- time, then the front's sweep deletes it.
+-- fixed at login); or earlier, when revoked_at is set, with revoked_by
+-- saying what did it: 'logout', 'login' (a new login in the same browser
+-- replaced it), 'limit' (its user logged in past the per-user cap and this
+-- was the oldest), or 'cli:' and who ran `unheaded session revoke`. An ended
+-- row stays for the front's retention time, then the front's sweep deletes
+-- it.
 --
 -- Two ways in, and no third:
 --
@@ -24,23 +27,31 @@
 --                      another front's name. No front role has any grant
 --                      on the table itself.
 --   bff_sessions       the table. app_auth (035; unheaded-cli) may read it
---                      and set revoked_at, and nothing else: the command
---                      line lists and revokes, and cannot create a session.
+--                      and set revoked_at with revoked_by, and nothing else:
+--                      the command line lists and revokes, and cannot
+--                      create a session.
 --
 -- The front's name carries no underscore (CHECK), so the role name is
 -- unambiguous: 'a-b' and 'a_b' cannot both exist.
 --
--- What may change in a row: last_used_at, expires_at, revoked_at. revoked_at
--- is set once; a revoked row never changes again. The trigger holds the
--- owner to this too.
+-- What may change in a row: last_used_at, expires_at, and revoked_at with
+-- revoked_by. A revocation is set once, with its actor; a revoked row never
+-- changes again. Use and expiry only move forward. The trigger holds the
+-- owner to this too, and refuses a front role that names the command line
+-- as the actor.
 --
 -- Access paths (pkg/bff/sessions/well.go):
 --   every request with a session cookie:
 --     SELECT ... FROM bff_sessions_own WHERE id_hash = $1 AND front = $2   (primary key)
 --   at most once a minute per session in use:
 --     UPDATE bff_sessions_own SET last_used_at, expires_at WHERE id_hash = $1 ...
---   each login: one INSERT ... SELECT with a count of the front's live rows
---     (bff_sessions_front_expires_idx), bounded by the front's cap (10000);
+--   each login, in one transaction: SELECT now() (the clock-skew guard);
+--     an UPDATE revoking the user's live rows past the per-user cap, found
+--     by front and subject (bff_sessions_subject_idx; a handful of rows);
+--     one INSERT ... SELECT with a count of the front's live rows, which
+--     names front and so can use bff_sessions_front_expires_idx (the view
+--     is a security barrier, but = on text is leakproof and is pushed into
+--     it), bounded by the front's cap (10000);
 --   each minute per front: DELETE of at most 1000 ended rows, oldest first;
 --   the command line: list (LIMIT 1000), revoke by id prefix or by subject
 --     (bff_sessions_subject_idx).
@@ -67,29 +78,34 @@ CREATE TABLE bff_sessions (
     expires_at          TIMESTAMPTZ NOT NULL,
     absolute_expires_at TIMESTAMPTZ NOT NULL,
     revoked_at          TIMESTAMPTZ,
+    revoked_by          TEXT CHECK (revoked_by ~ '^[a-z]{1,16}(:[A-Za-z0-9._@-]{1,128})?$'),
     CHECK (last_used_at >= created_at),
     CHECK (expires_at > created_at),
     CHECK (expires_at <= absolute_expires_at),
     CHECK (absolute_expires_at <= created_at + interval '31 days'),
-    CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+    CHECK (revoked_at IS NULL OR revoked_at >= created_at),
+    CHECK ((revoked_at IS NULL) = (revoked_by IS NULL))
 );
 
 CREATE INDEX bff_sessions_front_expires_idx ON bff_sessions (front, expires_at);
 CREATE INDEX bff_sessions_subject_idx ON bff_sessions (subject);
 
--- Update: the three moving columns only; a revoked row is final; use and
--- expiry do not move backwards in a way that would hide a use.
+-- Update: the moving columns only; a revoked row is final; use does not
+-- move backwards; the command line's actor is the command line's to write.
 CREATE OR REPLACE FUNCTION bff_sessions_update() RETURNS TRIGGER AS $$
 BEGIN
-    IF (to_jsonb(NEW) - 'last_used_at' - 'expires_at' - 'revoked_at') IS DISTINCT FROM
-       (to_jsonb(OLD) - 'last_used_at' - 'expires_at' - 'revoked_at') THEN
-        RAISE EXCEPTION 'bff_sessions: a session is immutable except last_used_at, expires_at and revoked_at';
+    IF (to_jsonb(NEW) - 'last_used_at' - 'expires_at' - 'revoked_at' - 'revoked_by') IS DISTINCT FROM
+       (to_jsonb(OLD) - 'last_used_at' - 'expires_at' - 'revoked_at' - 'revoked_by') THEN
+        RAISE EXCEPTION 'bff_sessions: a session is immutable except last_used_at, expires_at, revoked_at and revoked_by';
     END IF;
     IF OLD.revoked_at IS NOT NULL AND to_jsonb(NEW) IS DISTINCT FROM to_jsonb(OLD) THEN
         RAISE EXCEPTION 'bff_sessions: a revoked session is never changed';
     END IF;
     IF NEW.last_used_at < OLD.last_used_at THEN
         RAISE EXCEPTION 'bff_sessions: last_used_at does not move backwards';
+    END IF;
+    IF left(NEW.revoked_by, 4) = 'cli:' AND left(current_user::text, 4) = 'bff_' THEN
+        RAISE EXCEPTION 'bff_sessions: a front does not revoke in the command line''s name';
     END IF;
     RETURN NEW;
 END $$ LANGUAGE plpgsql;
@@ -101,12 +117,12 @@ CREATE OR REPLACE TRIGGER trg_bff_sessions_update BEFORE UPDATE ON bff_sessions
 -- after. security_barrier keeps a caller's own conditions from running on
 -- rows the view does not show.
 CREATE VIEW bff_sessions_own WITH (security_barrier = true) AS
-    SELECT id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at, revoked_at
+    SELECT id_hash, front, subject, roles, created_at, last_used_at, expires_at, absolute_expires_at, revoked_at, revoked_by
     FROM bff_sessions
     WHERE 'bff_' || replace(front, '-', '_') = current_user::text
     WITH CASCADED CHECK OPTION;
 
-GRANT SELECT, INSERT, UPDATE (last_used_at, expires_at, revoked_at), DELETE ON bff_sessions_own
+GRANT SELECT, INSERT, UPDATE (last_used_at, expires_at, revoked_at, revoked_by), DELETE ON bff_sessions_own
     TO bff_dashboard_backend, bff_kanban_app, bff_wiki_server;
 
-GRANT SELECT, UPDATE (revoked_at) ON bff_sessions TO app_auth;
+GRANT SELECT, UPDATE (revoked_at, revoked_by) ON bff_sessions TO app_auth;
