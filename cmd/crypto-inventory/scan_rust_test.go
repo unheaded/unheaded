@@ -107,24 +107,6 @@ func TestRustlsVersionAtLeast(t *testing.T) {
 	}
 }
 
-// zhend is single-node gRPC-only (DP-209): quic.rs compiles and never runs, so
-// the inventory must not read as a live listener.
-func TestApplyNotSpawned(t *testing.T) {
-	a := Asset{Path: "crates/zhend/src/api/quic.rs", Detail: "aws-lc-rs provider"}
-	applyNotSpawned(&a)
-	if a.LinkState != linkNotSpawned {
-		t.Errorf("quic.rs link state = %q, want %q", a.LinkState, linkNotSpawned)
-	}
-	if !strings.Contains(a.Detail, "never spawns") {
-		t.Errorf("detail = %q, want the reason", a.Detail)
-	}
-	b := Asset{Path: "crates/zhend/src/main.rs", Detail: "aws-lc-rs provider"}
-	applyNotSpawned(&b)
-	if b.LinkState != "" || b.Detail != "aws-lc-rs provider" {
-		t.Errorf("a live file changed: %+v", b)
-	}
-}
-
 // TestScanRust_CryptoDeps: a Cargo.toml naming a symmetric, KDF, hash or
 // key-agreement crate from the fixed table gives one row per crate (D-34).
 func TestScanRust_CryptoDeps(t *testing.T) {
@@ -167,26 +149,5 @@ func TestScanRust_CryptoDeps(t *testing.T) {
 	}
 	if got := at(assets, manifest, 0, kindRustCryptoDep); len(got) != len(tests) {
 		t.Errorf("%d crypto rows in %s, want %d (serde and the dev-dependency argon2 give none)", len(got), manifest, len(tests))
-	}
-}
-
-// TestScanRust_CryptoDepIsNotMarkedNotSpawned: zhend's "QUIC server never
-// spawns" note is about its TLS rows; a crypto crate line in the same
-// manifest must not inherit it.
-func TestScanRust_CryptoDepIsNotMarkedNotSpawned(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, root, "crates/zhend/Cargo.toml", "[package]\nname = \"zhend\"\nversion = \"0.1.0\"\n\n[dependencies]\nblake3 = \"1\"\n")
-	writeFile(t, root, "crates/zhend/src/main.rs", "fn main() {}\n")
-	tr, err := dirTree(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	assets, err := scanRust(tr)
-	if err != nil {
-		t.Fatal(err)
-	}
-	a := one(t, assets, "crates/zhend/Cargo.toml", 6, kindRustCryptoDep)
-	if a.LinkState != linkEnabled || strings.Contains(a.Detail, "QUIC") {
-		t.Errorf("blake3 in zhend: link=%q detail=%q", a.LinkState, a.Detail)
 	}
 }

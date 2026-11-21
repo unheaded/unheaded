@@ -299,3 +299,12 @@ unit tests describes code that is no longer in the tree: zhend does not
 encrypt fragment payloads. The ML-DSA-65 peer signatures
 (`crypto/sign.rs`) and the QUIC transport are unchanged. The text above is
 left as written.
+
+**Update 2026-11-21.** The QUIC transport (`crates/zhend/src/api/quic.rs`) was
+never spawned by the daemon and left the tree with the Monad bridge, the
+topology observer and the strata snapshot history; they are archived in
+`unheaded-zhend-subsystems` (decision pack 2026-11-18, row 36; ADR-152). Item
+13 above and every statement about TLS, QUIC, rustls or quinn describe code
+that is no longer in the tree: zhend has no transport encryption, its gRPC is
+plaintext on loopback, and gossip is UDP with ML-DSA-65 peer admission. The
+text above is left as written.

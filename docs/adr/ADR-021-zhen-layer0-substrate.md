@@ -6,6 +6,8 @@
 **Deciders:** Captain, Architect, Micromanager, Scientist  
 **Skills Consulted:** Architect, Scientist, Lore, Busboy, Developer
 
+> **Note (2026-11-21).** Four parts of the implementation below were written and never spawned by the daemon: the QUIC server (`api/quic.rs`), the Monad bridge (`monad/`), the topology observer (`li/topology.rs`) and the strata snapshot history (`li/strata.rs`). They were moved out of `crates/zhend` and are archived with their history in `unheaded-zhend-subsystems` (decision pack 2026-11-18, row 36). `quinn` and `rustls` left the crate with them. zhend keeps its single-node gRPC path and gossip. ADR-152 (parked) records how one comes back. The text below is as it was written.
+
 ---
 
 ## Context

@@ -97,7 +97,7 @@ halves wait on Stevie's escalations.
 - **Service identity and auth (ADR-103, S-IRON-GATE)**: Ed25519 service tokens (EdDSA, 5-minute, per-target audience), one key per service (`unheaded-keygen`), `trust.d` binding each identity to its public key, per-service caller allowlists (403), `uhk_` API keys (hashed; memory, file or Well store), OIDC user tokens verified by JWKS, built-in issuer `unheaded-auth` (port 19020), dashboard and kanban as BFFs with HttpOnly session cookies. All 13 first-party services run with auth on in compose and units; Wotan verifies tokens and auto-approves verified identities, not display names. HS256 is test-only.
 - **Internal TLS (ADR-105, FND-017)**: with `UNHEADED_TLS_ENABLED=true` every listener and first-party link is TLS 1.3 with hybrid ML-KEM (`X25519MLKEM768`), no plaintext fallback; dev CA and per-service certificates from `scripts/gen-dev-certs.sh`.
 - **Signed topics**: ML-DSA-65 signatures required on `config.`, `drift.`, `audit.`, `alerts.critical.`, `system.health.consensus.`, `system.health.remediate.`; producers sign or refuse.
-- **Post-quantum work (S-QUANTUM-ARMOR, ADR-105)**: hybrid key exchange profiles in `pkg/tls/pq.go`, rustls on aws-lc-rs for the WAF and zhend, a CycloneDX 1.6 crypto inventory (`compliance/crypto/cbom.cdx.json`) with gates, `yggdrasil-evidence` (ML-DSA-65 evidence seals); SLH-DSA (FIPS 205) via cloudflare/circl.
+- **Post-quantum work (S-QUANTUM-ARMOR, ADR-105)**: hybrid key exchange profiles in `pkg/tls/pq.go`, rustls on aws-lc-rs for the WAF and zhend's QUIC server (both removed since, see Removed), a CycloneDX 1.6 crypto inventory (`compliance/crypto/cbom.cdx.json`) with gates, `yggdrasil-evidence` (ML-DSA-65 evidence seals); SLH-DSA (FIPS 205) via cloudflare/circl.
 - **Deploy and chaos (S-REAL-STEEL, ADR-107)**: Cuirass drives LXD over HTTPS with a restricted client certificate; Sword (19011) runs rolling, blue-green, canary and recreate with canary analysis and automatic rollback; Yaldabaoth chaos engine in `cmd/chaos-controller` (19012) inside an allowlist, three abort paths and a revert journal. First game day: a degraded canary rolled itself back in 62.4 s.
 - **Health and alerting**: Akira (19100) health consensus per ADR-029, exec checks (cert expiry), signed consensus and remediation topics; Heimdall drift monitor unit; alert rules each with a runbook URL; a dead-man heartbeat.
 - **The Well**: PostgreSQL 16 on west, three databases with least-privilege and NOLOGIN owner roles, TLS 1.3 only, migrations through `cmd/well-migrate` with a ledger, nightly backups with restore drills and an offsite copy on east, a retention job (`well-retention`).
@@ -118,6 +118,7 @@ halves wait on Stevie's escalations.
 
 - The mTLS service-mesh package `pkg/transport/mtls` and the uncalled transport `Connect()` cascade (2026-10-26); 108 unreached packages (ADR-090).
 - Suricata IDS (2026-10-22).
+- zhend's QUIC server, Monad bridge, topology observer and strata snapshot history (2026-11-21): written, never spawned; archived with their history in `unheaded-zhend-subsystems` (ADR-152). `--quic-addr` and `quic_addr` are gone; quinn, rustls and aws-lc-rs left zhend.
 
 ### Not yet
 

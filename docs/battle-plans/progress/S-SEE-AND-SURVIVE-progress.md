@@ -294,3 +294,18 @@ The other rows Step 334 names, read 20:39Z. A row is not closed without its dril
 | Not done | never rebooted; `west-hold.conf` untouched; nothing pushed; east not touched; no secret printed |
 
 Commits of block D, all unsigned (`--no-gpg-sign`), none pushed: `e9b430ae` (Steps 247-270), `9af6d36d` (Steps 271-292), `f7f61066` (Steps 297-310), and the one that carries this section (Steps 313-334).
+
+## Phase 16, 2026-11-21: the latency buckets are live (Steps 335-348, carried by plan 2's deploy)
+
+The run order folds this phase's build and recreate into S-WASTE-OUT Steps 327-355 (block E): the record of the deploy is in `S-WASTE-OUT-progress.md`, "2026-11-21: block E". This entry is the phase's own readings.
+
+| Step | Result |
+|---|---|
+| 335, 341 | The planned stop was plan 2's (`all`, opened 17:46:52Z, ended 17:56:34Z) |
+| 336-339 | Done by plan 2 Steps 327-354: wotan, dashboard-backend, kanban-app, logstore-writer, auth, timeguru on the new build, all healthy; the five role services and cuirass are gone, not rebuilt. Rollback tags are `:pre-s-waste-out` |
+| 340 | kev-poller and chaos-controller: new binaries at `231c7f34`, both `active` (plan 2 Step 346; old ones in `/var/backups/s-waste-out/`). **wiki-server not rebuilt:** plan 3 Step 256 does it; until then it reports on the old buckets |
+| 342 | Read 18:53Z, an hour after the rollout (17:51Z), one-hour windows, `afters-1h.txt` in plan 2's scratch directory |
+| 343 | **SSV-15 after.** West's services (instances on west only): p50 and p99 in seconds: wotan 0.00018 / 0.0016, dashboard 0.00060 / 0.0015, kanban 0.000076 / 0.00098, timeguru 0.000074 / 0.00082, kev-poller 0.00030 / 0.00078, alert-mailer 0.00033 / 0.054. None is 0.0025 / 0.00495 but wiki-server (old binary, above). Wotan's p50 is under 0.0005 and 0.62 of its mean (0.00028). Bucket series: 514 (1,056 before), of which 60 are east's kev-poller on the old buckets. **Read across both hosts, as Step 13 is written, kev-poller shows 0.0025 / 0.00495: that is east's old binary in the same `service` label, not west's** |
+| 344 | `ContainerStopped` firing: 0 |
+| 346 | The tags stay until plan 2 Step 408 |
+| 348 | **PHASE 16 EXIT GATE: passed** for every service plan 2 rebuilt. Open: wiki-server on west (plan 3 Step 256) and every east binary (plan 6). Phase 17 may start 2026-11-22 17:51Z (24 h after the rollout) |

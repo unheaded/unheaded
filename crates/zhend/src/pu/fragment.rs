@@ -95,7 +95,8 @@ pub struct Fragment {
 
     /// Number of hops this fragment has traveled via gossip (Qi).
     /// Incremented at each peer. Not a TTL — fragments never die.
-    /// Used for Li (topology observation) only.
+    /// Written by gossip; nothing in this crate reads it since the Li
+    /// topology observer was archived (ADR-152).
     pub hop_count: u32,
 
     /// Optional sealed (PQ-encrypted) payload envelope.

@@ -54,7 +54,6 @@ const (
 	linkEnabled       = "enabled"
 	linkDisabled      = "disabled-by-config"
 	linkUnusedFeature = "unused-feature"
-	linkNotSpawned    = "not-spawned" // compiled, but the binary never starts it
 )
 
 // owner values.
