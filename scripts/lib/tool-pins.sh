@@ -10,6 +10,11 @@
 # A bump changes VERSION and SHA256 together. Take the sha256 from the
 # project's own release (GitHub's asset digest, or the published .sha256sum
 # cross-checked against the release notes), never from a mirror.
+#
+# Not here: the two archives scripts/install-prerequisites.sh puts on a host
+# (the Go release of go.mod's toolchain line, node_exporter). Their versions
+# and sha256s are at the top of that script, so an operator can replace them
+# from the environment; the same rule applies to a bump.
 # shellcheck disable=SC2034  # read by the scripts that source this
 
 OXLINT_VERSION="1.93.0"
