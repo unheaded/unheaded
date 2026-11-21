@@ -63,6 +63,16 @@ A secret manager that hands out its files through a symlinked directory (`/run/s
 
 `cmd/ebpf-loader` holds the programs' link handles until it is told to stop. SIGINT, SIGTERM and SIGHUP all run the same cleanup: the handles are dropped, which detaches the programs, and the `--pid-file` is removed. Before 2026-11-21 only SIGINT did, so a unit stopped by systemd (SIGTERM) skipped the cleanup and left its PID file. SIGKILL still skips it.
 
+### `ebpf-loader` and pins left by an earlier load
+
+Pins outlive the loader: stopping it detaches the programs and leaves the pin files. None of these objects' maps is pinned by name, so the next load makes new maps, and a pin still there names a map no program writes. For `shield-ebpf` and `hop-ebpf` the loader refuses that before it parses, loads or attaches anything (since 2026-11-21 for Shield, where it used to log `already pinned` and go on):
+
+- anything already in `<pin base>/shield-ebpf/` or `<pin base>/hop-ebpf/` (the pin base is `--map-pin-path`, or `/sys/fs/bpf/unheaded` with `--pin-maps`);
+- a `<pin base>/trace_events` link that points anywhere but `<pin base>/shield-ebpf/ANAMNESIS`;
+- a map that cannot be pinned, or a link that cannot be made, after the load.
+
+The message names the pin. The loader never removes pins itself, because another loader may be running on them. Before a start, and in any deploy step that carries this loader to a host for the first time: check that no loader is running, then `rm -r` the program's pin directory (`ls /sys/fs/bpf/unheaded/shield-ebpf` shows whether there is anything to remove). No unit runs `ebpf-loader` today; it is a tool.
+
 ## Not tracing ourselves
 
 Two loops of the tracer watching its own output, both cut:
