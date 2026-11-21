@@ -19,6 +19,8 @@ const defaultHopPinDir = "/sys/fs/bpf/unheaded/hop-ebpf"
 // hopMap is what `hop rules apply` needs from a pinned map.
 type hopMap interface {
 	Update(key, value []byte) error
+	Lookup(key []byte) ([]byte, error)
+	Iterate(fn func(key, value []byte) error) error
 	Close() error
 }
 
@@ -31,24 +33,50 @@ var openHopMap = func(path string) (hopMap, error) {
 	return ebpf.OpenPinnedMapNamed(path, filepath.Base(path))
 }
 
-// pinnedWriter is a hoprules.MapWriter over the pins in dir. A map is opened
-// the first time it is written; Close releases them all.
+// pinnedWriter is a hoprules.MapWriter and MapReader over the pins in dir. A
+// map is opened the first time it is used; Close releases them all.
 type pinnedWriter struct {
 	dir  string
 	maps map[string]hopMap
 }
 
+func (w *pinnedWriter) open(mapName string) (hopMap, error) {
+	if m, ok := w.maps[mapName]; ok {
+		return m, nil
+	}
+	m, err := openHopMap(filepath.Join(w.dir, mapName))
+	if err != nil {
+		return nil, err
+	}
+	w.maps[mapName] = m
+	return m, nil
+}
+
 // Update implements hoprules.MapWriter.
 func (w *pinnedWriter) Update(mapName string, key, value []byte) error {
-	m, ok := w.maps[mapName]
-	if !ok {
-		var err error
-		if m, err = openHopMap(filepath.Join(w.dir, mapName)); err != nil {
-			return err
-		}
-		w.maps[mapName] = m
+	m, err := w.open(mapName)
+	if err != nil {
+		return err
 	}
 	return m.Update(key, value)
+}
+
+// Lookup implements hoprules.MapReader.
+func (w *pinnedWriter) Lookup(mapName string, key []byte) ([]byte, error) {
+	m, err := w.open(mapName)
+	if err != nil {
+		return nil, err
+	}
+	return m.Lookup(key)
+}
+
+// Iterate implements hoprules.MapReader.
+func (w *pinnedWriter) Iterate(mapName string, fn func(key, value []byte) error) error {
+	m, err := w.open(mapName)
+	if err != nil {
+		return err
+	}
+	return m.Iterate(fn)
 }
 
 // Close releases every map opened.
@@ -116,16 +144,24 @@ func newHopModeCommand() *Command {
 // the maps pinned under --pin-dir. Entries are added or replaced, never
 // removed. CONFIG key 4 stays as it is, so rules written while it is 0 do
 // nothing. Needs CAP_BPF.
+//
+// Before anything is written the file is held to FND-035's check: a
+// require_hmac or require_retry validator needs a live flow-0 entry, in the
+// file or already in the maps, because every Shield-born packet is flow 0
+// (hoprules.CheckFlowZero). --allow-no-flow0 skips it, for a ring that carries
+// no Shield-born packets.
 func newHopRulesApplyCommand() *Command {
 	var file, pinDir string
+	var allowNoFlowZero bool
 	flags := flag.NewFlagSet("apply", flag.ContinueOnError)
 	flags.StringVar(&file, "file", "", "Rules file (YAML; see pkg/hoprules)")
 	flags.StringVar(&pinDir, "pin-dir", defaultHopPinDir, "Directory holding hop-ebpf's pinned maps")
+	flags.BoolVar(&allowNoFlowZero, "allow-no-flow0", false, "Apply a require_hmac or require_retry validator with no live flow-0 entry (it fails every Shield-born packet; FND-035)")
 
 	return &Command{
 		Name:  "apply",
 		Short: "Add or replace the entries in a rules file",
-		Usage: "unheaded hop rules apply --file <rules.yaml> [--pin-dir <dir>]",
+		Usage: "unheaded hop rules apply --file <rules.yaml> [--pin-dir <dir>] [--allow-no-flow0]",
 		Flags: flags,
 		RunFunc: func(ctx *Context, args []string) error {
 			if len(args) > 0 {
@@ -142,9 +178,21 @@ func newHopRulesApplyCommand() *Command {
 			if err != nil {
 				return err
 			}
+			clock := func() time.Duration { return now }
 			w := &pinnedWriter{dir: pinDir, maps: make(map[string]hopMap)}
 			defer w.Close()
-			done, err := hoprules.Apply(w, f, func() time.Duration { return now })
+			if allowNoFlowZero {
+				ctx.Output.WriteWarning("flow-0 check skipped (--allow-no-flow0): a require_hmac or require_retry validator in %s may fail every Shield-born packet", file)
+			} else {
+				notes, err := hoprules.CheckFlowZero(f, w, clock)
+				if err != nil {
+					return fmt.Errorf("%s: %w; or pass --allow-no-flow0 if that namespace carries no Shield-born packets", file, err)
+				}
+				for _, n := range notes {
+					ctx.Output.WriteWarning("%s", n)
+				}
+			}
+			done, err := hoprules.Apply(w, f, clock)
 			if err != nil {
 				return fmt.Errorf("%w (already written: %s)", err, hopApplied(done))
 			}

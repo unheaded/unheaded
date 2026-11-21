@@ -38,6 +38,10 @@ The CLI writes hop-ebpf's check maps, pinned under `/sys/fs/bpf/unheaded/hop-ebp
 | `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Entries are never removed. The check mode stays as it is, so rules written while it is off do nothing. |
 | `unheaded hop mode <off\|observe\|enforce>` | Sets the check mode (CONFIG key 4). `enforce` is refused until `hoprules.EnforceBlockers` is empty (today FND-031, FND-033, FND-035), and the packaged object runs enforce as observe anyway (ADR-125). |
 
+#### Flow 0 (FND-035)
+
+Shield leaves both service ids at 0, so every Shield-born packet is flow 0 (and ring 1). A validator with `require_hmac` or `require_retry` therefore fails all of them unless flow 0 has a live entry, and an enforcing hop would drop them. `hop rules apply` refuses such a file before it writes anything: each `require_hmac` validator needs an `hmac_keys` entry with `flow: 0` on its namespace, and each `require_retry` validator a `retry` entry with `flow: 0`, either in the file or already in the maps and not expired. The refusal names every validator at fault. If the entry that satisfies the check has a `ttl`, the command prints a warning: nothing renews it, and when it lapses the same packets fail. `--allow-no-flow0` skips the check, for a ring that carries no Shield-born packets; the command says on stderr that it was skipped.
+
 #### What `hop rules apply` accepts
 
 A correctly set up host passes every check below unchanged; anything else is refused before a map is opened, with a message naming the file and the reason.

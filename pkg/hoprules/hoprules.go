@@ -37,7 +37,8 @@
 // leaves both service ids at 0, so every Shield-born packet is flow 0, namespace
 // 1: in enforce mode, a require_hmac or require_retry
 // validator on that namespace drops them all once flow 0's entry is missing or
-// has expired (FND-035).
+// has expired (FND-035). CheckFlowZero refuses a file that leaves that gap,
+// and `unheaded hop rules apply` runs it before any write.
 package hoprules
 
 import (
