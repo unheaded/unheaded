@@ -3,23 +3,13 @@
 /* "bellus — pretty | perennis — everlasting" */
 
 /* ═══════════════════════════════════════════════
-   FONTS — Self-hosted, no Google CDN dependency
+   FONTS — the system's. No font file is shipped and none is loaded, from
+   this origin or any other: a viewer who has JetBrains Mono or Space
+   Grotesk installed sees them, everyone else the fallbacks named in
+   --font-mono and --font-body below. (Two font-face rules here pointed at
+   ../assets/fonts/*.woff2, which were never in the repository; removed
+   2026-11-21.)
    ═══════════════════════════════════════════════ */
-@font-face {
-  font-family: 'JetBrains Mono';
-  src: url('../assets/fonts/JetBrainsMono-Regular.woff2') format('woff2');
-  font-weight: 300 400 700;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'Space Grotesk';
-  src: url('../assets/fonts/SpaceGrotesk-Regular.woff2') format('woff2');
-  font-weight: 300 400 700;
-  font-style: normal;
-  font-display: swap;
-}
 
 /* ═══════════════════════════════════════════════
    COLOR TOKENS — Zero saturation. Medieval dark.
