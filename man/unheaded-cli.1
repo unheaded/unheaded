@@ -1,4 +1,4 @@
-.TH UNHEADED\-CLI 1 "2026-10-29" "unheaded 84b3253f" "Unheaded Kingdom"
+.TH UNHEADED\-CLI 1 "2026-11-21" "unheaded ca14d305" "Unheaded Kingdom"
 .SH NAME
 unheaded\-cli \- THE GAUNTLETS \- Command\-line interface for the Unheaded Kingdom
 .SH SYNOPSIS
@@ -15,6 +15,7 @@ THE GAUNTLETS \- Command\-line interface for the Unheaded Kingdom
   \- Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
   \- Observe: observability backend configuration
   \- API keys: create, list, revoke uhk_ keys for automation (ADR\-103)
+  \- Sessions: list and revoke browser login sessions kept in the Well (ADR\-114)
   \- Hop rules: write hop\-ebpf's validators, keys and retry state (ADR\-125)
 
 Secrets and network commands, and container start/stop/exec and service
@@ -52,6 +53,9 @@ Manage secrets
 .TP
 .B service
 Service health and logs
+.TP
+.B session
+List and revoke browser login sessions kept in the Well
 .TP
 .B status
 Show system status overview

@@ -98,6 +98,7 @@ func NewRootCommand() *Command {
   - Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
   - Observe: observability backend configuration
   - API keys: create, list, revoke uhk_ keys for automation (ADR-103)
+  - Sessions: list and revoke browser login sessions kept in the Well (ADR-114)
   - Hop rules: write hop-ebpf's validators, keys and retry state (ADR-125)
 
 Secrets and network commands, and container start/stop/exec and service
@@ -120,6 +121,7 @@ Use "unheaded <command> --help" for more information about a command.`,
 	root.AddCommand(NewGenerateCommand())
 	root.AddCommand(NewObserveCommand())
 	root.AddCommand(NewAPIKeyCommand())
+	root.AddCommand(NewSessionCommand())
 	root.AddCommand(NewTokenCommand())
 	root.AddCommand(NewHopCommand())
 
