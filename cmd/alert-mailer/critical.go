@@ -77,9 +77,11 @@ type alertSource interface {
 type critPublisher struct {
 	sink          critSink    // nil: no signing key, every publish refused and counted
 	am            alertSource // nil: the memory set is trusted as is (tests)
+	published     *metrics.Counter
 	refused       *metrics.Counter
 	errors        *metrics.Counter
 	rebuildErrors *metrics.Counter
+	firstOK       sync.Once // the first accepted publish is logged
 
 	mu      sync.Mutex
 	active  map[string]critMsg // firing, by fingerprint
@@ -90,11 +92,13 @@ type critPublisher struct {
 func newCritPublisher(sink critSink, reg *metrics.Registry) *critPublisher {
 	p := &critPublisher{
 		sink:          sink,
-		refused:       metrics.NewCounter("alert_mailer_critical_publish_refused_total", "alerts.critical messages not sent because no signing key is set (ALERTS_SIGNING_KEY_FILE)", nil),
+		published:     metrics.NewCounter("alert_mailer_critical_published_total", "alerts.critical messages Wotan accepted, signed: each notification and a snapshot every 5 minutes", nil),
+		refused:       metrics.NewCounter("alert_mailer_critical_publish_refused_total", "alerts.critical messages not sent because no signing key is set or readable (ALERTS_SIGNING_KEY_FILE)", nil),
 		errors:        metrics.NewCounter("alert_mailer_critical_publish_errors_total", "alerts.critical publishes that failed (Wotan down or refused)", nil),
 		rebuildErrors: metrics.NewCounter("alert_mailer_critical_rebuild_errors_total", "Reads of Alertmanager's firing alerts that failed; no snapshot goes out until one succeeds", nil),
 		active:        map[string]critMsg{},
 	}
+	reg.MustRegister(p.published)
 	reg.MustRegister(p.refused)
 	reg.MustRegister(p.errors)
 	reg.MustRegister(p.rebuildErrors)
@@ -233,7 +237,10 @@ func (p *critPublisher) send(payload []byte) {
 	if err := p.sink.Publish(ctx, payload); err != nil {
 		p.errors.Inc()
 		log.Warn().Err(err).Msg("alerts.critical publish failed")
+		return
 	}
+	p.published.Inc()
+	p.firstOK.Do(func() { log.Info().Msg("alerts.critical: first message accepted by Wotan") })
 }
 
 // run publishes a snapshot at once (after reading the set back from
@@ -373,25 +380,32 @@ func alertmanagerFromEnv(getenv func(string) string) (*alertmanagerSource, error
 // missing ALERTS_SIGNING_KEY_FILE leaves the sink nil (refused, counted);
 // a bad one is an error, with the publisher still returned so the mail
 // path runs.
+//
+// The link is pkg/wotan-client's, from the process environment: the
+// service key is AUTH_KEY_FILE (identity alert-mailer), TLS and its CA are
+// UNHEADED_TLS_ENABLED and UNHEADED_TLS_CA_CERT, and WOTAN_TLS_SERVER_NAME
+// names the certificate when WOTAN_ADDR is an address it does not carry.
+// Those three touch the Wotan client only: this binary's listeners are
+// plain net/http (TestListenersDoNotReadTheTLSVariable).
 func critFromEnv(getenv func(string) string, reg *metrics.Registry) (*critPublisher, error) {
 	addr := strings.TrimSpace(getenv("WOTAN_ADDR"))
 	if addr == "" {
 		return nil, nil
 	}
+	grpcAddr := transport.WotanGRPCAddr(addr, strings.TrimSpace(getenv("WOTAN_GRPC_ADDR")))
 	wotanClient.InitServiceIdentity("alert-mailer") // ADR-103 §6
-	c, err := transport.NewWotanClient(transport.Config{
-		WotanHTTPAddr: addr,
-		WotanGRPCAddr: transport.WotanGRPCAddr(addr, getenv("WOTAN_GRPC_ADDR")),
-	})
+	c, err := transport.NewWotanClient(transport.Config{WotanHTTPAddr: addr, WotanGRPCAddr: grpcAddr})
 	if err != nil {
 		return nil, fmt.Errorf("wotan client: %w", err)
 	}
 	am, err := alertmanagerFromEnv(getenv)
 	if err != nil {
+		_ = c.Close()
 		return nil, err
 	}
 	keyPath := strings.TrimSpace(getenv("ALERTS_SIGNING_KEY_FILE"))
 	if keyPath == "" {
+		_ = c.Close() // nothing is published without a key
 		log.Warn().Msg("ALERTS_SIGNING_KEY_FILE is not set: alerts.critical is refused, never sent unsigned")
 		p := newCritPublisher(nil, reg)
 		p.am = am
@@ -399,10 +413,14 @@ func critFromEnv(getenv func(string) string, reg *metrics.Registry) (*critPublis
 	}
 	signer, err := wotansig.LoadSignerFile(keyPath)
 	if err != nil {
+		_ = c.Close()
 		p := newCritPublisher(nil, reg)
 		p.am = am
 		return p, fmt.Errorf("ALERTS_SIGNING_KEY_FILE: %w", err)
 	}
+	log.Info().Str("wotan", addr).Str("wotan_grpc", grpcAddr).
+		Bool("service_key", wotanClient.ServiceIdentity() != nil).
+		Msg("alerts.critical: publishing signed, as alert-mailer")
 	p := newCritPublisher(&wotanCritSink{c: c, signer: signer}, reg)
 	p.am = am
 	return p, nil

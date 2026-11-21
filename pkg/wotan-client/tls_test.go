@@ -49,6 +49,7 @@ func tlsEnv(t *testing.T) *tls.Config {
 	t.Setenv("UNHEADED_TLS_CERT", "")
 	t.Setenv("UNHEADED_TLS_KEY_FILE", "")
 	t.Setenv("UNHEADED_GRPC_TLS", "")
+	t.Setenv(EnvTLSServerName, "")
 	srvCfg, err := pqtls.NewServerTLSConfig(pqtls.ServerConfig{CertPEM: sc.CertPEM, KeyPEM: sc.KeyPEM})
 	if err != nil {
 		t.Fatal(err)

@@ -198,15 +198,20 @@ func NewTopicStreamClient(grpcAddr string, opts ...TopicStreamOption) (*TopicStr
 	// Dial gRPC: WithTLS's credentials, else the environment's (TLS when
 	// UNHEADED_TLS_ENABLED=true, never a silent plaintext fallback).
 	creds := c.tlsCreds
+	var serverName []grpc.DialOption
 	if creds == nil {
 		var err error
 		if creds, err = grpcCredentials(c.tokenOpts); err != nil {
 			return nil, err
 		}
+		// WOTAN_TLS_SERVER_NAME goes with the environment's credentials;
+		// a caller that hands in its own (WithTLS) names the server there.
+		serverName = grpcServerNameOption(creds)
 	}
 
-	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds),
-		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds), grpcAddr)))
+	dial := append([]grpc.DialOption{grpc.WithTransportCredentials(creds),
+		grpc.WithPerRPCCredentials(newTokenAuth(c.tokenOpts, isPlaintext(creds), grpcAddr))}, serverName...)
+	conn, err := grpc.NewClient(grpcAddr, dial...)
 	if err != nil {
 		return nil, fmt.Errorf("dial gRPC server %s: %w", grpcAddr, err)
 	}

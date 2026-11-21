@@ -6,10 +6,12 @@ package wotanClient
 import (
 	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
 	pqtls "unheaded/pkg/tls"
@@ -25,14 +27,65 @@ import (
 // (pkg/tls.PlaintextGRPCCredentials logs that once) and sends its service
 // token only to loopback. UNHEADED_GRPC_TLS=1 is the older gRPC-only switch
 // (system roots) and still works when UNHEADED_TLS_ENABLED is unset.
+//
+// WOTAN_TLS_SERVER_NAME (EnvTLSServerName) is for a client that reaches
+// Wotan at an address its certificate does not name, such as the host's
+// overlay address from another compose project (alert-mailer): the
+// certificate is then verified against that name instead of the dialled
+// host, on the gRPC and the HTTP side. Nothing else changes: the chain must
+// still end at the trusted CA and the certificate must carry the name.
+
+// EnvTLSServerName is the environment variable holding the name a Wotan
+// client verifies the server certificate against, when that is not the
+// host it dials. Empty or unset: the dialled host.
+const EnvTLSServerName = "WOTAN_TLS_SERVER_NAME"
+
+// tlsServerName returns EnvTLSServerName's value, "" when it is not set.
+// A value that cannot be a certificate name (a port, a scheme, a path, a
+// wildcard, brackets) is an error for the constructor: it is never dropped
+// in favour of the dialled host.
+func tlsServerName() (string, error) {
+	name := strings.TrimSpace(os.Getenv(EnvTLSServerName))
+	if name == "" {
+		return "", nil
+	}
+	if net.ParseIP(name) == nil && !validDNSName(name) {
+		return "", fmt.Errorf("wotan client TLS: %s=%q: want a host name or an IP address, without port, scheme or brackets", EnvTLSServerName, name)
+	}
+	return name, nil
+}
+
+// validDNSName reports whether s is a host name as a certificate carries
+// one: labels of letters, digits and inner hyphens, 253 bytes at most.
+func validDNSName(s string) bool {
+	if s == "" || len(s) > 253 {
+		return false
+	}
+	for _, label := range strings.Split(s, ".") {
+		if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+			return false
+		}
+		for _, r := range label {
+			if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '-' {
+				return false
+			}
+		}
+	}
+	return true
+}
 
 // errInsecureUnderTLS: WithInsecureTransport on a service told to use TLS.
 var errInsecureUnderTLS = errors.New("wotan client: WithInsecureTransport refused: UNHEADED_TLS_ENABLED=true")
 
 // grpcCredentials picks the gRPC transport credentials for a client built
-// with opts.
+// with opts. A malformed WOTAN_TLS_SERVER_NAME is an error here, so every
+// constructor refuses it; the name itself is applied by
+// grpcServerNameOption.
 func grpcCredentials(opts []ClientOption) (credentials.TransportCredentials, error) {
 	o := collectOptions(opts)
+	if _, err := tlsServerName(); err != nil {
+		return nil, err
+	}
 	if o.insecureOK {
 		if pqtls.Enabled() {
 			return nil, errInsecureUnderTLS
@@ -52,6 +105,23 @@ func grpcCredentials(opts []ClientOption) (credentials.TransportCredentials, err
 	return pqtls.PlaintextGRPCCredentials("wotan-client")
 }
 
+// grpcServerNameOption is the dial option that makes a gRPC client built
+// from the environment's credentials (grpcCredentials) verify Wotan's
+// certificate against WOTAN_TLS_SERVER_NAME: gRPC's TLS handshake takes the
+// server name from the channel's authority, so the name is set there
+// (grpc.WithAuthority). An IPv6 address goes in brackets, as an authority
+// writes one. Nothing for a plaintext link or when the variable is unset.
+func grpcServerNameOption(creds credentials.TransportCredentials) []grpc.DialOption {
+	name, err := tlsServerName()
+	if err != nil || name == "" || isPlaintext(creds) {
+		return nil
+	}
+	if ip := net.ParseIP(name); ip != nil && ip.To4() == nil {
+		name = "[" + name + "]"
+	}
+	return []grpc.DialOption{grpc.WithAuthority(name)}
+}
+
 // httpBase returns the REST base URL (".../api/v1") for addr and the
 // transport to reach it: https and the deployment CA when
 // UNHEADED_TLS_ENABLED=true, else plain http and the default transport
@@ -60,6 +130,10 @@ func grpcCredentials(opts []ClientOption) (credentials.TransportCredentials, err
 // "http://"+WOTAN_ADDR), never the other way round.
 func httpBase(addr string, opts []ClientOption) (string, http.RoundTripper, error) {
 	o := collectOptions(opts)
+	name, err := tlsServerName()
+	if err != nil {
+		return "", nil, err
+	}
 	tlsOn := pqtls.Enabled()
 	if o.insecureOK && tlsOn {
 		return "", nil, errInsecureUnderTLS
@@ -81,7 +155,16 @@ func httpBase(addr string, opts []ClientOption) (string, http.RoundTripper, erro
 	}
 	if !tlsOn {
 		// An https:// address without UNHEADED_TLS_ENABLED: system roots.
-		return base + "/api/v1", nil, nil
+		if name == "" {
+			return base + "/api/v1", nil, nil
+		}
+		// With a server name the transport needs a TLS config of its own:
+		// the one the gRPC side uses with system roots (TLS 1.3, Strict).
+		tr.TLSClientConfig = TLSConfig()
+		tr.TLSClientConfig.ServerName = name
+		return base + "/api/v1", tr, nil
 	}
+	// "" leaves the name to net/http: the dialled host.
+	tr.TLSClientConfig.ServerName = name
 	return base + "/api/v1", tr, nil
 }
