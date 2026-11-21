@@ -149,9 +149,67 @@ The line at the top of this file ("G-EW: closed", 2026-11-15) and the "unanswere
 | 20:00 | 252 | pass: `true 30s`; `[('zhen', 3)]`; `modules` and `schedules`; `zhen-agentd` targets `1`. Also read: 26 groups, 156 rules (153 before); 17 targets, 17 up; 537 samples of `up{job="prometheus"}` over 3 h (the data volume kept). Planned stop ended 20:00:36Z. Step 253 not needed |
 | 20:00 to 20:02 | 254 | `docker compose up -d --no-deps victoria` printed `Container unheaded-victoria Running`: no recreate (see "Deviations" 3). After 90 s: `['up']` |
 | 20:02 | 255 | pass: `['up']`; `count(up)` 21 before and 21 after (20 before the fragments were published at 19:58:59Z; the 21st is `zhen-agentd`) |
+| 20:04 to 20:06 | 256 | image built first (`docker compose build dashboard-backend`, 2 min 12 s, `0391ae5690b4`), then the wiki server (`nice go build -ldflags "-X unheaded/pkg/cmdline.Version=10e0dc95"`); planned stop opened 20:06:32Z (15m, scope all); dashboard-backend recreated 20:06:37Z, healthy 10 s later; the wiki server's binary installed and the unit restarted 20:06:49Z, `active`, `wiki-server (unheaded) 10e0dc95`, its three listeners up (see "Deviations" 4) |
+| 20:07 | 257 | pass: `unheaded_dashboard_health_targets{module=""} 9` and `{module="zhen"} 2`; `zhenai` in the dashboard's `nav.js` `1`; in the wiki server's (https, `/etc/unheaded/tls/ca.pem`) `1`. Both `/health` 200. Planned stop ended 20:07:25Z |
+| 20:07 | 258 | `Result=success`; the textfile's three series, run and success both `1795291648` (20:07:28Z) |
+| 20:07 | 259 | pass: `Result=success`, `unheaded_schedule_last_exit_code{schedule="service-health-sweep"} 0`. The journal shows 7 `[OK]` lines and no `RESULT` line (see "Follow-ups" 1); the step's command run by hand with the unit's two variables: `RESULT: 9/9 healthy, 0 unhealthy`, exit 0 |
+| 20:07 | 260 | the guard ran at 19:58:54Z and 20:03:55Z; next 20:08:55Z |
+| 20:07 | 261 | pass: `unheaded_module_listener_public_total{module="zhen"} 0`; no per-listener line. Listeners read the same minute: `127.0.0.1:20103`, `127.0.0.1:20110`, `127.0.0.1:20111`, `127.0.0.1:20112`, `[fd00:dead:beef::1]:20111` |
+| 20:07 | 262 | pass: both drop-ins installed, `daemon-reload`; `UNHEADED_MODULE_BIND_ALLOW=fd00:dead:beef::1/128` on both units. Nothing restarted |
+| 20:07 | 263 | pass: `test-zhen-switch.sh --expect on --wait 90` exit 0: C1 to C9, C11, C12 `PASS`, C10 `SKIP`; `RESULT on: pass, ELAPSED=0` |
+| 20:09 | 264 | this record committed on develop |
 
 ### Deviations
 
 1. **Step 243 made nine accounts, not four.** West's `/etc/sysusers.d/unheaded.conf` was the file of 2026-11-10. The repository's file, installed as the step says, also names five accounts west did not have: `unheaded-zhen-app` (16764), `unheaded-llama` (16792, and it joins the device groups `render` and `video`), `unheaded-aide` (962, a system id systemd chose), `unheaded-compliance-seal` (16765), `unheaded-vor-refresh` (16758). All are nologin accounts with no unit installed on west by this block. A dry run before the step showed these nine and nothing else. The five role accounts the new file no longer names (architect, captain, micromanager, monad, sophia) still exist on west: `systemd-sysusers` never removes an account. The old file is in `RB`.
 2. **Step 247, the `zhen-agentd` unit: a difference that is not drift.** Against `7be626d4` the host's file lacks `After=docker.service wg-quick@wg0.service` and `StartLimitIntervalSec=0`, and has `RestartSec=5s` for `10s`. Its blob (`280ac317`) is exactly `deploy/systemd/zhen-agentd.service` at `bd91cb84` (2026-11-07), the version before `a3bca221` (S-ZHEN-FRONT Steps 100-103, 2026-11-15), which was never installed on west. The host holds no change the repository lacks, so there was nothing to carry into the repository and no commit; the repository's file went on. What changed on west with it: ordering after dockerd and wg0, `RestartSec` 10 s, a start limit (the unit's 90 in 30 min, over which west's drop-in `10-start-limit.conf` of plan 1 sets 180 in 2 h), `PartOf=` and `WantedBy=` the target. `ExecStart` and `EnvironmentFile=-/etc/zhen-agentd.env` are the same, so the running binary of 2026-11-12 starts under the new unit.
 3. **Step 254 recreated nothing.** VictoriaMetrics was recreated at 19:20:46Z today by plan 2 Phase 21 from the same compose file, so it already had the module mount and `-promscrape.configCheckInterval=30s`; it took up the `zhen-agentd` job by itself within a minute of Step 248. A compose dry run said `Running` before the step, so no planned stop was opened for it; the step's command and its 90 s wait were run as written.
+4. **Step 256, order and what the two builds carry.** The step's one line was run as its parts with both builds first (one at a time), so that the planned stop covered only the recreate and the restart (17 s between them). The wiki server is stamped with `git describe` of the tree it was built from, as plan 2 Step 332 stamps host binaries; the image keeps the Dockerfile's default `dev`, as every image of today's deploy does. Both are built from develop as it is now, which is 75 commits past the deploy's tree (`231c7f34`; one of the 75 is this block's first record): beside this plan's code the new dashboard-backend and wiki server carry the server-side sessions code (off: nothing sets `AUTH_SESSION_STORE`), the login budgets of pack row 28 (2 per user and 6 per client address at each front; the old builds had 2 and 9) and `WOTAN_TLS_SERVER_NAME` (unset). kanban-app is still the build of 17:42Z. Neither new binary asks for a migration that is pending (dashboard-backend and the wiki server do not call `RequireMigrations`).
+
+### What was replaced, and where the old copy is
+
+| Replaced | Old copy |
+|---|---|
+| `/etc/systemd/system/zhen-agentd.service`, `unheaded-zhen-ui-front.service`, `unheaded-vor.service` | `/var/backups/zhen-switch-2026-11-21/` |
+| `/etc/sysusers.d/unheaded.conf` | the same directory, `unheaded.conf` |
+| `/usr/local/bin/wiki-server` (was `57708656`, 2026-11-11) | the same directory, `wiki-server` |
+| image `unheaded-dev-dashboard-backend` (was `f42fb5d0911e`, 17:42Z today) | tag `unheaded-dashboard:pre-zhen-switch`; today's `:pre-s-waste-out` tags are untouched |
+| container `unheaded-prometheus` (created 2026-11-10) | same image digest and data volume; nothing to keep |
+| not replaced in 8A, copied for 8B | `zhen-agentd`, `zhen-ui-front`, `db-backup.sh` in the same directory; tag `unheaded-kanban:pre-zhen-switch` (`ee5826ac30a3`, the running image) |
+
+New on west, nothing before them: `/etc/tmpfiles.d/unheaded-modules.conf`; `/usr/local/lib/unheaded/{lib/module_binds.py, modules/, schedules/, monitoring/platform-schedule.sh, monitoring/module-listener-guard.sh}`; `/etc/unheaded/health-sweep.targets`; eight unit files (`unheaded-health-sweep.{service,timer}`, `unheaded-ioc-audit.{service,timer}`, `unheaded-module-guard.{service,timer}`, `unheaded-zhen.target`, `unheaded-zhen-module.service`); the two `bind-allow.conf` drop-ins; four ACL entries on `/var/lib/unheaded/textfile`. Undoing the switch's wiring is Appendix A procedure 2 with `RB=/var/backups/zhen-switch-2026-11-21`.
+
+### The state west is left in (20:08Z)
+
+- **Containers:** the same 17, all healthy (coredns and vector have no health check). Prometheus up since 19:59:20Z, dashboard-backend since 20:06:37Z; no other container was touched. alert-mailer untouched, `mode: dry-run`.
+- **The switch:** `unheaded-zhen.target` enabled and active; in it `unheaded-zhen-module.service` (active, exited), `zhen-agentd` (running since 17:56:42Z, the binary of 2026-11-12) and `unheaded-zhen-ui-front` (running since 01:44:01Z). Zhen is on as found. `unheaded-vor` was not restarted; `unheaded-wiki-server` runs `10e0dc95` since 20:06:49Z.
+- **Timers enabled:** `unheaded-health-sweep.timer` (next 2026-11-22 00:13Z), `unheaded-module-guard.timer` (every 5 min). **Installed and disabled:** `unheaded-ioc-audit.timer` (Step 308, pack row 7).
+- **Monitoring:** Prometheus 26 groups, 156 rules, 17 targets up; it re-reads its config and the module files every 30 s. VictoriaMetrics `count(up)` 21. Group `zhen` and job `zhen-agentd` are loaded in both only while the switch is on.
+- **Marks and silences:** none (`maintenance.sh --list` empty, 0 active silences, `planned_stop.prom` holds no series).
+- **Alerts:** no alert began to fire in the block. Firing before and after: `ErrorBudgetBurn` for `well-backups` and `store-backups` (the two tickets), `LogSilence`, `HostTemperatureNearCritical`, `AlertPipelineHeartbeat`, the two compliance rules.
+- **Migrations:** none applied; 051 to 056 pending as before.
+- **Repository:** develop, two commits by this block (`10e0dc95` and the one that holds this section), signed, not pushed. `demos/doom/` left untracked as found.
+
+### Readings for the findings' "after" column (Phase 9 writes them)
+
+| Finding | Reading in this block |
+|---|---|
+| Z2 | Step 257: module targets 2, platform targets 9, dashboard `/health` `healthy` |
+| Z3, Z13 | Steps 258-259: the platform's sweep ran from its own unit, 9 of 9, exit 0; timer enabled |
+| Z4 | Step 252: group `zhen` (3 rules) and the scrape target in Prometheus come from `/run/unheaded/modules`; Step 255 the same for VictoriaMetrics |
+| Z6 | Step 261: `unheaded_module_listener_public_total{module="zhen"} 0` |
+| Z7 | the installed `unheaded-vor.service` says "vor sheet and corpus server" |
+
+### For Stevie (block F)
+
+1. **Nine accounts were made, five beyond this plan's four** (Deviations 1). The one to look at: `unheaded-llama` now exists and is a member of `render` and `video`, although `unheaded-llama.service` is not installed on west. It is what the repository's sysusers file says; removing it again is `userdel unheaded-llama`.
+2. **`zhen-agentd` now has a start limit on west** (Deviations 2): the installed unit was the version of 2026-11-07, so the "keeps retrying while the Well is late" change of 2026-11-15 and the SS3 ruling of 2026-11-17 (no exception for zhen-agentd) both reach west today.
+3. **The dashboard and the wiki server now run with the login budgets of pack row 28** (2 per user, 6 per client address); kanban-app and `zhen-ui-front` keep the old ones until they are rebuilt (8B rebuilds the front). Until then the four fronts' sums are not the 9 and 23 the row intends.
+
+### Follow-ups found outside the block (named, not fixed)
+
+1. **The sweep's journal shows only the first ten lines of a step.** `scripts/run-runbook.py` prints `out.split('\n')[:10]`: three header lines and seven targets. West has nine targets, so a `[FAIL]` for `kanban-app` or `wiki-server` and the `RESULT` line never reach the journal; the exit code and the three series are right (the step ends on `[ "$UNHEALTHY" -eq 0 ]`), and `[FAIL] exit code 1` is still printed. Step 259's `grep -E 'RESULT|FAIL'` therefore prints nothing on a pass. Owner: this plan's Phase 9 or plan 1 (print the whole output of a scheduled run, or the failing lines).
+2. `ContainerCPUThrottled` is pending since 20:00:16Z for `system.slice/unheaded-host-state.service` (plan 1's host-state textfile unit; urgency none). Not caused by anything installed here; the pending clock started with the new Prometheus container's first evaluation.
+3. **For plan 2's W-12 reading at 20:51Z:** `prometheus_tsdb_head_series` was 5,087 at 19:57Z, before the recreate, and 5,336 at 20:08Z. Prometheus now also scrapes `zhen-agentd` (66 series) and carries the churn of a restart; the 3 h figure is not comparable with the 1 h figure (4,621) without that.
+4. The five role accounts (architect, captain, micromanager, monad, sophia) still exist on west with no line in the sysusers file; plan 2 Phase 23's host items are the place to remove them.
+5. Step 302 of Phase 9 starts the sweep again; with follow-up 1 open it should be read by `Result=` and the textfile (as it is written), not by the journal's `RESULT` line.
