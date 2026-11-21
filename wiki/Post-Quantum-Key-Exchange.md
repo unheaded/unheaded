@@ -9,14 +9,13 @@ Every TLS link we own negotiates a hybrid ML-KEM group (`X25519MLKEM768`), so tr
 | Strict | `pqtls.ApplyStrict(&tls.Config{...})` | `X25519MLKEM768`, `SecP256r1MLKEM768`, `SecP384r1MLKEM1024`, TLS 1.3 | both ends are Unheaded Go binaries | refused |
 | Preferred | `pqtls.ApplyPreferred(&tls.Config{...})` | Go default (hybrids first), TLS 1.3 | third-party clients connect (browsers, curl, VictoriaMetrics) | falls back to X25519 |
 
-A Preferred listener guarantees a hybrid only to a client that offers one. Rust: rustls on `aws_lc_rs::default_provider()` (hybrid first), never the `ring` provider.
+A Preferred listener guarantees a hybrid only to a client that offers one. Rust: no first-party Rust code serves TLS today. A new Rust TLS site uses rustls on `aws_lc_rs::default_provider()` (hybrid first), never the `ring` provider; aws-lc-rs left the build with zhend's QUIC server and comes back only with Stevie's yes (ADR-004, ADR-152).
 
 | Surface | Profile |
 |---|---|
 | Wotan gRPC, wotan-client | Strict |
 | `pkg/transport/mtls` | Strict |
 | Wotan HTTP and `/metrics`, dashboard | Preferred |
-| zhend QUIC (`crates/zhend`), compiled and never spawned | Preferred (rustls, aws-lc-rs) |
 | SMTP relays, CISA KEV, Splunk HEC, LB health checks to user backends | TLS 1.2 floor: the far end chooses |
 
 ## Adding a TLS site

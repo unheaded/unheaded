@@ -7,7 +7,9 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 **Status:** notification drafted 2026-10-27, corrected 2026-11-10 after the
 skill review below, brought in line with the tree 2026-11-18 after two unused
-constructions were deleted (update below), **not sent** (escalation E11 of
+constructions were deleted (update below) and again 2026-11-21 after zhend's
+never-spawned QUIC server left the tree (second update below; the email text
+was not touched), **not sent** (escalation E11 of
 `docs/battle-plans/S-CLEAN-SLATE-battle-plan.md`). Stevie sends it from his own
 address; the sent date is recorded below.
 
@@ -16,7 +18,7 @@ address; the sent date is recorded below.
 | Notification sent | not yet |
 | Sent by | (Stevie Bellis, from his own address) |
 | Reviewed by (Barrister) | 2026-11-10, skill pass, not a lawyer; note in this file |
-| Email text | final 2026-11-18, after the deletion; no person has checked it |
+| Email text | final 2026-11-18, after the deletion; no person has checked it. Since 2026-11-21 it names one library, aws-lc-rs, that only the history uses (second update below): Stevie's call before sending |
 
 ## What this repository publishes
 
@@ -25,9 +27,11 @@ encryption, which makes it encryption software under ECCN 5D002 of the U.S.
 Export Administration Regulations (EAR):
 
 - TLS 1.3 with hybrid post-quantum key exchange (X25519 + ML-KEM-768,
-  FIPS 203): Go `crypto/tls` profiles in `pkg/tls/`, and rustls on the
-  aws-lc-rs provider in `crates/zhend/`. `cmd/ebpf-collector` reaches rustls
-  (ring provider) through its HTTP client.
+  FIPS 203): Go `crypto/tls` profiles in `pkg/tls/`. `cmd/ebpf-collector`
+  reaches rustls (ring provider) through its HTTP client. Until 2026-11-21
+  `crates/zhend/` also held a QUIC server on rustls with the aws-lc-rs
+  provider; nothing ever started it, and it is in the public history at the
+  same URL (second update below).
 - ML-DSA-65 (FIPS 204) signatures: Wotan topic signing, Gungnir sealed
   payloads, evidence seals, via `github.com/cloudflare/circl`; zhend peer
   identity via the `pqcrypto-mldsa` crate (`crates/zhend/src/crypto/sign.rs`).
@@ -47,8 +51,8 @@ Export Administration Regulations (EAR):
 The full, machine-checked list is the crypto inventory
 `compliance/crypto/cbom.cdx.json` (`cmd/crypto-inventory`). The algorithms
 come from published libraries (Go `crypto/*` and `golang.org/x/crypto`,
-`cloudflare/circl`, rustls with aws-lc-rs or ring, the `pqcrypto` crates),
-except the SHA-256 above, a published algorithm implemented in the tree; no
+`cloudflare/circl`, rustls with ring (and, in the history, with aws-lc-rs),
+the `pqcrypto` crates), except the SHA-256 above, a published algorithm implemented in the tree; no
 cipher of the project's own design is known in the tree. The Monad `ENCRYPT`
 flag marks a payload carried over TLS and is not a cipher. The classification
 of every construction, row by row, is
@@ -158,6 +162,33 @@ is the record.
 5. **The email text** changed in three places: the cryptography lines add
    the key schedule and the SHA-256 sentence, the library list adds ring and
    the pqcrypto crates, and the contact line no longer holds a placeholder.
+
+## Update, 2026-11-21 (after zhend's QUIC server left; not legal advice)
+
+Written by an AI agent; no person and no lawyer has checked it.
+
+Decision pack of 2026-11-18, row 36: four zhend subsystems that nothing
+spawned leave the repository for a sibling archive. One of them is
+cryptographic: the QUIC server (`crates/zhend/src/api/quic.rs`, row 28 of the
+audit), TLS 1.3 through quinn and rustls on the aws-lc-rs provider. The audit's
+"Update 2026-11-21" section is the record.
+
+1. **Gone from the tree.** The QUIC server and its dependencies quinn, rustls
+   and aws-lc-rs in `crates/zhend`. It was standard TLS from published
+   libraries (the audit classed row 28 as standard), so nothing that bears on
+   the "non-standard cryptography" question left or arrived. It remains in the
+   public git history at the same URL.
+2. **The list above** now says so. No Rust code in the tree serves TLS;
+   `cmd/ebpf-collector` still reaches rustls with ring as a client.
+3. **A second archive.** The code sits, with its history, in a local
+   repository `unheaded-zhend-subsystems` that has no remote. If it is ever
+   published it is a separate URL, like item 8 of the review note: it calls
+   rustls and implements no cryptography of its own.
+4. **The email text is not changed.** It says "rustls with aws-lc-rs or
+   ring". aws-lc-rs is no longer used by the tree, only by its history, which
+   the URL also serves. Whether to strike "aws-lc-rs or" before sending is
+   Stevie's; the copy left outside the repository on 2026-11-18 is the same
+   text as below.
 
 ## The email (final text, 2026-11-18; Stevie sends)
 
