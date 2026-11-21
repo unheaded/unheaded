@@ -358,6 +358,12 @@ func TestAllowHS256ForTests_OnlyCalledFromTests(t *testing.T) {
 			case ".git", "node_modules", "vendor", "target", ".agent-scratch", ".claude":
 				return filepath.SkipDir
 			}
+			// A host's dev certificates and keys: no Go source, and each
+			// service's directory is readable by that service alone.
+			switch p {
+			case filepath.Join(root, "configs", "certs"), filepath.Join(root, "configs", "keys"), filepath.Join(root, "configs", "trust.d"):
+				return filepath.SkipDir
+			}
 			return nil
 		}
 		if !strings.HasSuffix(p, ".go") || strings.HasSuffix(p, "_test.go") {

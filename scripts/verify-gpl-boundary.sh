@@ -34,7 +34,10 @@ is_first_party_cargo() {
 # OWN crates as copyleft. That is the project license working as intended, not
 # third-party contamination — the dependency scan below must skip them.
 FIRST_PARTY_CRATES="$(
-    find "${REPO_ROOT}" -name 'Cargo.toml' -not -path '*/target/*' -not -path "${REPO_ROOT}/.claude/*" -print0 \
+    # Pruned, not filtered: .claude holds agent worktrees, and a host's dev keys
+    # and certificates (configs/keys, configs/certs/dev/<service>) are readable
+    # by their service alone, so find exits non-zero there and the step fails.
+    find "${REPO_ROOT}" \( -path "${REPO_ROOT}/.claude" -o -path "${REPO_ROOT}/configs/keys" -o -path "${REPO_ROOT}/configs/certs" \) -prune -o -name 'Cargo.toml' -not -path '*/target/*' -print0 \
     | xargs -0 -n1 awk '
         /^\[package\]/ { in_pkg = 1; next }
         /^\[/          { in_pkg = 0 }
@@ -144,7 +147,7 @@ while IFS= read -r -d '' f; do
             *)             OTHER_COUNT=$((OTHER_COUNT + 1)) ;;
         esac
     fi
-done < <(find "${REPO_ROOT}" -name '*.go' -not -path '*/vendor/*' -not -path "${REPO_ROOT}/.claude/*" -print0)
+done < <(find "${REPO_ROOT}" \( -path "${REPO_ROOT}/.claude" -o -path "${REPO_ROOT}/configs/keys" -o -path "${REPO_ROOT}/configs/certs" \) -prune -o -name '*.go' -not -path '*/vendor/*' -print0)
 
 {
     echo "Total Go files scanned: ${TOTAL_FILES}"
@@ -283,7 +286,7 @@ while IFS= read -r -d '' cargo_toml; do
             esac
         done < <(cd "${CARGO_DIR}" && cargo license -d 2>/dev/null || true)
     fi
-done < <(find "${REPO_ROOT}" -name 'Cargo.toml' -not -path '*/target/*' -not -path "${REPO_ROOT}/.claude/*" -print0)
+done < <(find "${REPO_ROOT}" \( -path "${REPO_ROOT}/.claude" -o -path "${REPO_ROOT}/configs/keys" -o -path "${REPO_ROOT}/configs/certs" \) -prune -o -name 'Cargo.toml' -not -path '*/target/*' -print0)
 
 if [ "${FIRST_PARTY_GPL_COUNT}" -gt 0 ]; then
     echo "INFO: ${FIRST_PARTY_GPL_COUNT} first-party Cargo manifests are GPL-licensed (intentional, project license)" >> "${REPORT}"
