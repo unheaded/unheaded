@@ -45,6 +45,7 @@ ps() {
 cat >"$T/bin/docker" <<FAKE
 #!/usr/bin/env bash
 [[ -n "\${FAKE_DOCKER_FAIL:-}" ]] && exit 1
+[[ -n "\${FAKE_DOCKER_HANG:-}" ]] && sleep 30
 [[ "\$1" == ps ]] || exit 1
 p=""
 for a in "\$@"; do
@@ -114,9 +115,22 @@ FAKE_DOCKER_FAIL=1 record >/dev/null
 check "5 no stamp: previous unclean" test "$(last '[.previous, .shutdown_at] | @tsv')" = "unclean	0"
 check "5 Docker not answering: stack unknown, the boot still recorded" test "$(last '[.boot_id, .stack] | @tsv')" = "$BOOT_D	unknown"
 
-# 6. The unit stopped by hand (the system is not shutting down): no stamp.
+# 6. The unit stopped by hand (systemd says the system is up): no stamp.
 run shutdown "$T/state" >/dev/null
 check "6 a stop that is not a shutdown writes no stamp" test ! -e "$STAMP"
+echo degraded >"$T/system-state"
+run shutdown "$T/state" >/dev/null
+check "6 nor on a host with a failed unit (degraded)" test ! -e "$STAMP"
+# systemd not answering is taken as a shutdown: the unit is stopped by
+# systemd at every shutdown and by hand almost never, and a false "unclean"
+# after every reboot would be the worse error.
+: >"$T/system-state"
+run shutdown "$T/state" >/dev/null
+check "6 no answer from systemd: stamped" bash -c "grep -qE '^$BOOT_D [0-9]+\$' '$STAMP'"
+# The unit started again in the same boot: that stamp was not a shutdown.
+echo running >"$T/system-state"
+FAKE_DOCKER_FAIL=1 record >/dev/null
+check "6 a start in the same boot removes the stamp and adds no record" bash -c "[[ ! -e '$STAMP' ]] && [[ \$(tail -n 1 '$H' | jq -r .boot_id) == $BOOT_D ]] && [[ \$(wc -l <'$H') -eq 4 ]]"
 
 # 7. A stamp of some other boot than the last one on record is not this
 # shutdown's: unclean.
@@ -154,10 +168,13 @@ boot "$BOOT_D" 1763740000
 FAKE_DOCKER_FAIL=1 record >/dev/null
 check "8 stack unknown: no stack_up line" bash -c "! grep -q '^unheaded_host_boot_stack_up' '$F'"
 
-# 9. The history is bounded.
+# 9. The history is bounded; a Docker that hangs costs the stack's state,
+# not the record.
 before="$(lines)"
 boot "$BOOT_A" 1763750000
-BOOT_EVENT_KEEP=3 record >/dev/null
+t0="$(date +%s)"
+FAKE_DOCKER_HANG=1 BOOT_EVENT_DOCKER_WAIT=1 BOOT_EVENT_KEEP=3 record >/dev/null
+check "9 a hanging Docker: recorded within its wait, stack unknown" bash -c "(( \$(date +%s) - $t0 < 10 )) && [[ $(last .stack) == unknown ]]"
 check "9 BOOT_EVENT_KEEP bounds the history, newest last" bash -c "[[ $before -gt 3 && \$(wc -l <'$H') -eq 3 ]] && [[ $(last .boot_id) == $BOOT_A ]]"
 
 # 10. Bad settings and a bad boot id are refused; nothing is written.
@@ -169,6 +186,8 @@ st=0; BOOT_EVENT_HOST='we st' record >/dev/null 2>&1 || st=$?
 check "10 a bad host name exits 2" test "$st" -eq 2
 st=0; BOOT_EVENT_KEEP=0 record >/dev/null 2>&1 || st=$?
 check "10 a bad keep count exits 2" test "$st" -eq 2
+st=0; BOOT_EVENT_DOCKER_WAIT=600 record >/dev/null 2>&1 || st=$?
+check "10 a Docker wait past the unit's start timeout exits 2" test "$st" -eq 2
 boot 'not-a-boot-id"; rm' 1763760000
 st=0; record >/dev/null 2>&1 || st=$?
 check "10 a boot id that is not one exits non-zero" test "$st" -ne 0

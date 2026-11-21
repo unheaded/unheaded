@@ -34,11 +34,12 @@
 #   stack_running, stack_total, stack_projects
 #
 # shutdown writes <state dir>/clean-shutdown ("<boot id> <Unix time>") when
-# systemd says the system is stopping, and nothing when the unit is stopped
-# by hand. record reads the stamp and removes it: a boot that finds no stamp
-# for the last recorded boot followed an unclean end. The stamp is written
-# when this unit is stopped, early in the shutdown: a shutdown that hangs
-# after that point still reads clean.
+# systemd says the system is stopping or does not answer, and nothing when
+# systemd says the system is up (the unit stopped by hand). record reads the
+# stamp and removes it: a boot that finds no stamp for the last recorded
+# boot followed an unclean end. The stamp is written when this unit is
+# stopped, early in the shutdown: a shutdown that hangs after that point
+# still reads clean.
 #
 # Settings (environment; the unit reads /etc/unheaded/host-settings.env,
 # wiki/Host-Settings.md):
@@ -51,6 +52,9 @@
 #                              (default "volume-init clickhouse-schema", as
 #                              HOST_STATE_ONESHOT of host-state-textfile.sh)
 #   BOOT_EVENT_KEEP            boots kept in the history (default 32, 1..500)
+#   BOOT_EVENT_DOCKER_WAIT     seconds Docker gets to answer, per project
+#                              (default 20, 1..50; the unit's start timeout
+#                              is 60 s); past it the stack is "unknown"
 #   BOOT_EVENT_PROC            where /proc is (default /proc; the test's fake)
 #
 # Writes (host is added by huginn):
@@ -111,10 +115,11 @@ write_textfile() {
 
 # stack_state: prints "<state> <running> <total>" for the stack's projects.
 stack_state() {
-    local projects="$1" oneshot="$2" p out running=0 total=0 svc state
+    local projects="$1" oneshot="$2" wait="$3" p out running=0 total=0 svc state
     command -v docker >/dev/null || { echo "unknown 0 0"; return 0; }
     for p in $projects; do
-        out="$(docker ps -a --filter "label=com.docker.compose.project=${p}" \
+        # Bounded: a Docker that hangs must not cost the record of the boot.
+        out="$(timeout "$wait" docker ps -a --filter "label=com.docker.compose.project=${p}" \
             --format '{{.Label "com.docker.compose.service"}} {{.State}}' 2>/dev/null)" || { echo "unknown 0 0"; return 0; }
         while read -r svc state; do
             [[ -n "$svc" ]] || continue
@@ -134,11 +139,13 @@ stack_state() {
 
 record() {
     local state="$1" textfile="$2"
-    local host projects oneshot keep
+    local host projects oneshot keep wait
     host="${BOOT_EVENT_HOST:-$(hostname -s)}"
     projects="${BOOT_EVENT_STACK_PROJECTS:-unheaded-dev}"
     oneshot="${BOOT_EVENT_ONESHOT:-volume-init clickhouse-schema}"
     keep="${BOOT_EVENT_KEEP:-32}"
+    wait="${BOOT_EVENT_DOCKER_WAIT:-20}"
+    [[ "$wait" =~ ^[0-9]{1,2}$ ]] && ((10#$wait >= 1 && 10#$wait <= 50)) || bad "BOOT_EVENT_DOCKER_WAIT '$wait': want 1..50 (seconds)"
     [[ "$host" =~ ^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$ ]] || bad "BOOT_EVENT_HOST '$host': want a host name"
     [[ "$projects" =~ ^[a-z0-9][a-z0-9\ _.-]*$ ]] || bad "BOOT_EVENT_STACK_PROJECTS '$projects' has characters outside [a-z0-9 _.-]"
     [[ "$oneshot" =~ ^[a-z0-9\ _.-]*$ ]] || bad "BOOT_EVENT_ONESHOT '$oneshot' has characters outside [a-z0-9 _.-]"
@@ -162,6 +169,8 @@ record() {
         last_id="$(jq -r '.boot_id // empty' <<<"$last" 2>/dev/null)" || last_id=""
     fi
     if [[ "$last_id" == "$boot_id" ]]; then
+        # A stamp found now was a stop of the unit, not a shutdown.
+        rm -f "$stamp"
         write_textfile "$textfile" "$last"
         echo "boot-event: boot ${boot_id} is already recorded"
         return 0
@@ -188,7 +197,7 @@ record() {
     rm -f "$stamp"
 
     local stack running total
-    read -r stack running total <<<"$(stack_state "$projects" "$oneshot")"
+    read -r stack running total <<<"$(stack_state "$projects" "$oneshot" "$wait")"
 
     local rec tmp
     rec="$(jq -c -n --arg boot_id "$boot_id" --argjson booted_at "$booted" --argjson recorded_at "$now" \
@@ -216,13 +225,19 @@ record() {
 shutdown() {
     local state="$1" sys boot_id tmp
     [[ -d "$state" ]] || { echo "boot-event: $state is not a directory" >&2; exit 1; }
-    # "stopping" only while systemd shuts the system down; is-system-running
-    # exits non-zero for every state but running.
-    sys="$(systemctl is-system-running 2>/dev/null || true)"
-    if [[ "$sys" != stopping ]]; then
-        echo "boot-event: the system is not shutting down (${sys:-no answer}): no stamp"
+    # "stopping" while systemd shuts the system down (it goes before
+    # "degraded"); is-system-running exits non-zero for every state but
+    # running. A state that says the system is up means the unit was stopped
+    # by hand: no stamp. No answer (systemd busy in a shutdown) is taken as a
+    # shutdown, because a stop by hand is rare and a false "unclean" after
+    # every reboot would be the worse error.
+    sys="$(timeout 5 systemctl is-system-running 2>/dev/null || true)"
+    case "$sys" in
+    running | degraded | starting | initializing | maintenance)
+        echo "boot-event: the system is not shutting down (${sys}): no stamp"
         return 0
-    fi
+        ;;
+    esac
     boot_id="$(this_boot_id)"
     tmp="$(mktemp "${state}/.clean-shutdown.XXXXXX")"
     printf '%s %s\n' "$boot_id" "$(date +%s)" >"$tmp"
