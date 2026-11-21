@@ -16,26 +16,26 @@
 
 ## Status Summary
 
-Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked). 2026-11-15: ADR-108 and ADR-110 Proposed → Accepted, ADR-103 Proposed → Implemented (rows had not followed the files; S-RESIDUE). 2026-11-15: ADR-053 Pipe Dream → Active (its file since 2026-10-23) and ADR-69420 Deferred → Accepted with Phase 1 deferred (its file's status line); Active had no row here and has one now. 2026-11-15: ADR-145 and ADR-146 added, Proposed (parked; ADR-135's F7 and F8, S-STAGE-2C). 2026-11-15: ADR-147 added, Proposed (parked; Stevie's pitch of that day). 2026-11-15: ADR-148 added, Proposed (parked). 2026-11-18: ADR-151 added, Proposed (parked; Stevie's word at S-E1-LIVE Step 284); the Proposed count goes up by one for it. ADR-149 and ADR-150 were added on 2026-11-16 and 2026-11-17 with no note here, so the counts below want a recount. 2026-11-18: recounted over all 148 rows, which takes in ADR-149 and ADR-150; ADR-093, 106, 120, 124, 125, 127 and 135 moved Proposed → Accepted and ADR-103 Implemented → Accepted (Stevie, `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5; ADR-135 for what is built and on, with D21's flip and D17 part 2 still open). 2026-11-18, later: ADR-150 and ADR-151 moved Proposed → Accepted (the same pack, round 6, rows 21 to 23; neither is built), so Accepted is 76 and Proposed 36; ADR-035 amended, ADR-144 and ADR-148 still parked, ADR-149 annotated, ADR-135's D21 flip ruled (round 7, row 25): no count moves for those. 2026-11-21: ADR-152 added, Proposed (parked; the same pack, row 36), so Proposed is 37).
+Counted from the Full Index by the first word of each status (2026-10-26; ADR-090 moved Proposed → Accepted since the 10-23 count. 2026-10-28: ADR-109 added, Accepted except D6; ADR-110 added, Proposed. 2026-11-05: recounted through ADR-134, ignoring case and trailing punctuation; ADR-061's "Research / Pipe Dream" counts under PoC / Research. Implemented, Partially implemented, Shipped, Withdrawn and Brainstorm had no row here, so the table could not sum to the Total; each has one now. 2026-11-05: ADR-135 added, Proposed. 2026-11-09: recounted through ADR-138 (136-138 Proposed); ADR-035 back to Accepted per DP-214. 2026-11-10: ADR-138 moved Proposed → Accepted, Stevie's answer #32. 2026-11-11: ADR-117 moved Proposed → Accepted, Stevie's word of that day. 2026-11-11: recounted, 135 rows before ADR-139: Superseded / Deprecated is 9, not 8 (ADR-012b's "deprecated" had no count), so the Total was one short; ADR-139 added, Proposed (parked). 2026-11-11: ADR-140 added, Proposed (parked). 2026-11-12: ADR-141 added, Proposed (parked). 2026-11-12: ADR-142 and ADR-143 added, Proposed (parked); ADR-140 gained a dated section, status unchanged. 2026-11-12: ADR-144 added, Proposed (parked). 2026-11-15: ADR-108 and ADR-110 Proposed → Accepted, ADR-103 Proposed → Implemented (rows had not followed the files; S-RESIDUE). 2026-11-15: ADR-053 Pipe Dream → Active (its file since 2026-10-23) and ADR-69420 Deferred → Accepted with Phase 1 deferred (its file's status line); Active had no row here and has one now. 2026-11-15: ADR-145 and ADR-146 added, Proposed (parked; ADR-135's F7 and F8, S-STAGE-2C). 2026-11-15: ADR-147 added, Proposed (parked; Stevie's pitch of that day). 2026-11-15: ADR-148 added, Proposed (parked). 2026-11-18: ADR-151 added, Proposed (parked; Stevie's word at S-E1-LIVE Step 284); the Proposed count goes up by one for it. ADR-149 and ADR-150 were added on 2026-11-16 and 2026-11-17 with no note here, so the counts below want a recount. 2026-11-18: recounted over all 148 rows, which takes in ADR-149 and ADR-150; ADR-093, 106, 120, 124, 125, 127 and 135 moved Proposed → Accepted and ADR-103 Implemented → Accepted (Stevie, `docs/battle-plans/DECISION-PACK-2026-11-18.md` round 5; ADR-135 for what is built and on, with D21's flip and D17 part 2 still open). 2026-11-18, later: ADR-150 and ADR-151 moved Proposed → Accepted (the same pack, round 6, rows 21 to 23; neither is built), so Accepted is 76 and Proposed 36; ADR-035 amended, ADR-144 and ADR-148 still parked, ADR-149 annotated, ADR-135's D21 flip ruled (round 7, row 25): no count moves for those. 2026-11-21: ADR-152 added, Proposed (parked; the same pack, row 36), so Proposed is 37). 2026-11-21, later: ADR-037 moved Planned → Superseded (in part, by ADR-106 and ADR-149; decision pack 2026-11-18, row 41), so Planned is 9 and Superseded / Deprecated 10; the Total had stayed at 148 when ADR-152's row was added and is 149, the sum of the rows below. ADR-117 gained a dated status line the same day (applied to west): no count moves for it.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 76 |
 | Proposed | 37 |
-| Planned | 10 |
+| Planned | 9 |
 | In Progress | 1 |
 | Deferred | 2 |
 | Pipe Dream | 4 |
 | Active | 1 |
 | PoC / Research | 2 |
-| Superseded / Deprecated | 9 |
+| Superseded / Deprecated | 10 |
 | Acknowledged | 1 |
 | Implemented | 2 |
 | Partially implemented | 1 |
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **148** |
+| **Total** | **149** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -101,7 +101,7 @@ Counted from the Full Index by the first word of each status (2026-10-26; ADR-09
 | [034](ADR-034-grpc-mtls-default-transport.md) | gRPC mTLS Default Transport | Accepted | 2026-04-02 |
 | [035](ADR-035-wotan-active-passive-redundancy.md) | Wotan Active-Passive Redundancy (WAL replication, Akira failover; PostgreSQL persistence withdrawn 2026-11-09) | **Accepted** (reinstated by DP-214, 2026-11-03; amended 2026-11-18: on the two-host pair a bus per host, nothing replicated, ADR-150 choice 6) | 2026-04-05 |
 | [036](ADR-036-claude-distillation-training.md) | Claude Distillation Training Data | **Withdrawn** | 2026-04-05 |
-| [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | Planned | 2026-04-05 |
+| [037](ADR-037-zhenai-unified-champion.md) | Zhenai Unified Champion (The Armor) | **Superseded** in part by ADR-106 and ADR-149 (2026-11-21); the rest is parked under ADR-112, never started as written | 2026-04-05 |
 | [038](ADR-038-kanban-git-audit-trail.md) | Kanban GUID → Git Commit Audit | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
 | [69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) | BGP Sleipnir + Unheaded OS | **Accepted**; Phase 1 deferred to end of Age 2 (Q4 2026) | 2026-03-18 |
 | [039](ADR-039-cs-precision-reference-service.md) | CS Precision Reference Service | In Progress | 2026-04-05 |

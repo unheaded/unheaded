@@ -10,24 +10,26 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 
 2026-11-21: row for ADR-152 added (Proposed, parked: zhend's four unspawned subsystems are archived in `unheaded-zhend-subsystems`; the same pack, row 36). 149 rows; Proposed goes from 36 to 37.
 
+2026-11-21, later: ADR-037 Planned → Superseded in part (by ADR-106 and ADR-149; the same pack, row 41), so Planned is 9 and Superseded / Deprecated 10. The Total below had stayed at 148 when ADR-152's row was added; it is 149. ADR-117's row says it is applied to west; no count moves for it.
+
 | Status | Count |
 |--------|-------|
 | Accepted | 76 |
 | Proposed | 37 |
-| Planned | 10 |
+| Planned | 9 |
 | In Progress | 1 |
 | Deferred | 2 |
 | Pipe Dream | 4 |
 | Active | 1 |
 | PoC / Research | 2 |
-| Superseded / Deprecated | 9 |
+| Superseded / Deprecated | 10 |
 | Acknowledged | 1 |
 | Implemented | 2 |
 | Partially implemented | 1 |
 | Shipped | 1 |
 | Withdrawn | 1 |
 | Brainstorm | 1 |
-| **Total** | **148** |
+| **Total** | **149** |
 
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
@@ -68,7 +70,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [034](../docs/adr/ADR-034-grpc-mtls-default-transport.md) | [gRPC mTLS Default Transport](ADR-034-gRPC-mTLS-Default-Transport) | Accepted | 2026-04-02 |
 | [035](../docs/adr/ADR-035-wotan-active-passive-redundancy.md) | [Wotan Active-Passive Redundancy](ADR-035-Wotan-Active-Passive-Redundancy) | **Accepted** (reinstated by DP-214, 2026-11-03; PostgreSQL persistence withdrawn 2026-11-09; amended 2026-11-18: on the two-host pair a bus per host, nothing replicated, ADR-150 choice 6) | 2026-04-05 |
 | [036](../docs/adr/ADR-036-claude-distillation-training.md) | [Claude Distillation Training Data](ADR-036-Claude-Distillation-Training) | **Withdrawn** | 2026-04-05 |
-| [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | Planned | 2026-04-05 |
+| [037](../docs/adr/ADR-037-zhenai-unified-champion.md) | [Zhenai Unified Champion (The Armor)](ADR-037-Zhenai-Unified-Champion) | **Superseded** in part by ADR-106 and ADR-149 (2026-11-21); the rest is parked under ADR-112, never started as written | 2026-04-05 |
 | [038](../docs/adr/ADR-038-kanban-git-audit-trail.md) | [Kanban GUID → Git Commit Audit](ADR-038-Kanban-Git-Audit-Trail) | **Accepted (dormant 2026-10-27)** | 2026-04-05 |
 | [69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md) | [BGP Sleipnir + Unheaded OS](ADR-69420-Kingdom-BGP-and-Unheaded-OS) | **Accepted**; Phase 1 deferred to end of Age 2 (Q4 2026) | 2026-03-18 |
 | [039](../docs/adr/ADR-039-cs-precision-reference-service.md) | [CS Precision Reference Service](ADR-039-CS-Precision-Reference-Service) | In Progress | 2026-04-05 |
