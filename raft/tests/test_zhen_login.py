@@ -639,7 +639,7 @@ def test_a_viewer_cannot_redeem(client, world):
 
 
 def test_the_page_offers_login_and_redeems_through_this_origin():
-    page = (RAFT / 'static' / 'index.html').read_text()
+    page = (RAFT / 'pages' / 'chat.html').read_text() + (RAFT / 'static' / 'chat.js').read_text()
     assert "'/auth/login'" in page
     assert "'/auth/logout'" in page
     assert "'/api/v1/agent/confirm'" in page

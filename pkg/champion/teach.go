@@ -138,13 +138,27 @@ func teachCheck(args map[string]any) (string, string, error) {
 // overrides. From U+E0000 up lie the tag block's unassigned points, the
 // supplementary variation selectors and the private planes; Co is the
 // private area of the first plane.
+//
+// Invisible is not one general category (decision pack 2026-11-18 row 41,
+// M-218.6). Unicode's Other_Default_Ignorable_Code_Point lists what is
+// drawn as nothing by default outside Cf: the four Hangul fillers (Lo:
+// U+115F, U+1160, U+3164, U+FFA0), the combining grapheme joiner and the
+// Khmer inherent vowels (Mn), and reserved points (U+2065, U+FFF0 to
+// U+FFF8). U+2800, the Braille pattern with no dot, is a symbol (So) that
+// draws nothing and is in no such list. Not refused: the variation
+// selectors U+FE00 to U+FE0F, which ordinary emoji carry.
 func teachBadTextRune(r rune) bool {
 	switch r {
 	case '\n', '\r', '\t':
 		return false
+	case brailleBlank:
+		return true
 	}
-	return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Co) || r >= 0xE0000
+	return unicode.IsControl(r) || unicode.In(r, unicode.Cf, unicode.Co, unicode.Other_Default_Ignorable_Code_Point) || r >= 0xE0000
 }
+
+// brailleBlank is U+2800 BRAILLE PATTERN BLANK.
+const brailleBlank = '⠀'
 
 // teachFold maps Unicode spaces to a plain one and fullwidth ASCII to
 // ASCII, for the secret check only; the stored text keeps its bytes.

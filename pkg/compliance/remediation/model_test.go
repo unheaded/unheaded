@@ -337,6 +337,106 @@ func TestKmodCISCarriesFND011Stopgap(t *testing.T) {
 	}
 }
 
+// settingLines are the lines of a rendered file that set something: not
+// blank and not a comment.
+func settingLines(content string) []string {
+	var out []string
+	for _, line := range strings.Split(content, "\n") {
+		if s := strings.TrimSpace(line); s != "" && !strings.HasPrefix(s, "#") {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// DP-09 (Stevie 2026-11-03): west's journal is capped at 4G/500M, east stays
+// at 1G/200M. journald-caps-west is in the `all` profile ("every fix in the
+// model"), so a run of that profile on east must not write west's caps there
+// (decision pack 2026-11-18 row 41, M-215.1). West's file is byte for byte
+// what is installed on west since 2026-11-04, so the guard needs no re-apply.
+func TestJournaldCapsWestSetsNothingOnEast(t *testing.T) {
+	m := repoModel(t)
+	var fa *FileAction
+	for i := range m.Fixes {
+		if m.Fixes[i].ID != "journald-caps-west" {
+			continue
+		}
+		for _, a := range m.Fixes[i].Actions {
+			if a.File != nil && a.File.Path == "/etc/systemd/journald.conf.d/61-unheaded-west.conf" {
+				fa = a.File
+			}
+		}
+	}
+	if fa == nil {
+		t.Fatal("journald-caps-west has no /etc/systemd/journald.conf.d/61-unheaded-west.conf action")
+	}
+	west, err := fa.Render("west", Facts{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const installed = "# DP-09: west's caps; overrides 60-unheaded.conf (last value wins).\n[Journal]\nSystemMaxUse=4G\nRuntimeMaxUse=500M\n"
+	if west != installed {
+		t.Errorf("west's file changed:\n got %q\nwant %q", west, installed)
+	}
+	east, err := fa.Render("east", Facts{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := settingLines(east); len(got) != 0 {
+		t.Errorf("on east the file sets %q; east keeps 60-unheaded.conf's 1G/200M (DP-09)", got)
+	}
+	if !strings.Contains(east, "#") {
+		t.Errorf("on east the file does not say why it is empty: %q", east)
+	}
+}
+
+// A fix named for one host sets nothing on another: every file it writes
+// there holds comments only. `all: true` hands every fix to every host.
+func TestHostNamedFixesSetNothingElsewhere(t *testing.T) {
+	m := repoModel(t)
+	named := 0
+	for _, f := range m.Fixes {
+		for _, own := range KnownHosts {
+			if !strings.HasSuffix(f.ID, "-"+own) {
+				continue
+			}
+			named++
+			for _, a := range f.Actions {
+				if a.File == nil {
+					if a.Run == "" {
+						t.Errorf("fix %s: an action that is not a file or a run has no host guard this test can read", f.ID)
+					}
+					continue
+				}
+				for _, other := range KnownHosts {
+					if other == own {
+						continue
+					}
+					got, err := a.File.Render(other, Facts{}, nil)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if set := settingLines(got); len(set) != 0 {
+						t.Errorf("fix %s writes %q to %s on %s", f.ID, set, a.File.Path, other)
+					}
+				}
+			}
+		}
+	}
+	if named == 0 {
+		t.Fatal("no fix is named for a host: journald-caps-west left the model, or this test no longer reads it")
+	}
+}
+
+func TestSettingLines(t *testing.T) {
+	if got := settingLines("# a\n\n  # b\n[Journal]\nSystemMaxUse=4G\n"); len(got) != 2 || got[0] != "[Journal]" || got[1] != "SystemMaxUse=4G" {
+		t.Errorf("settingLines = %q", got)
+	}
+	if got := settingLines("# only\n\n"); len(got) != 0 {
+		t.Errorf("settingLines of comments = %q", got)
+	}
+}
+
 // A new optional field must not change the hash of a fix that does not use
 // it: every journal entry already written records the old hash.
 func TestNewFieldsKeepOldFixHashes(t *testing.T) {

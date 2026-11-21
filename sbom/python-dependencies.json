@@ -5,24 +5,22 @@
   "name": "unheaded-python-dependencies",
   "documentNamespace": "https://github.com/unheaded/unheaded/sbom/python",
   "creationInfo": {
-    "created": "2026-11-07T00:00:00Z",
+    "created": "2026-11-21T00:00:00Z",
     "creators": [
       "Tool: python-dist-info-reader",
       "Organization: Unheaded"
     ]
   },
   "summary": {
-    "totalPackages": 240,
+    "totalPackages": 176,
     "licenseSummary": {
-      "MIT": 49,
-      "MIT License": 37,
-      "Apache-2.0": 24,
-      "BSD-3-Clause": 24,
-      "Apache Software License": 19,
-      "BSD License": 18,
+      "MIT": 38,
+      "MIT License": 25,
+      "BSD-3-Clause": 22,
+      "Apache Software License": 17,
+      "Apache-2.0": 13,
+      "BSD License": 13,
       "Other/Proprietary License": 13,
-      "Unknown": 11,
-      "Apache Software License AND BSD License": 2,
       "Apache-2.0 OR BSD-2-Clause": 2,
       "BSD-2-Clause": 2,
       "GPL-3.0-or-later": 2,
@@ -31,39 +29,30 @@
       "Python Software Foundation License": 2,
       "Apache 2.0 License": 1,
       "Apache License 2.0": 1,
+      "Apache Software License AND BSD License": 1,
       "Apache Software License AND MIT License": 1,
-      "Apache-2": 1,
-      "Apache-2.0 AND BSD-3-Clause AND MIT": 1,
-      "Apache-2.0 AND CC-BY-4.0 AND LicenseRef-scancode-other-permissive AND LicenseRef-scancode-other-copyleft": 1,
       "Apache-2.0 AND CNRI-Python": 1,
       "Apache-2.0 AND MIT": 1,
       "Apache-2.0 OR BSD-3-Clause": 1,
       "Apache-2.0 OR MIT": 1,
-      "Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+)": 1,
-      "BSD": 1,
       "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0": 1,
-      "BSD-3-Clause and Public-Domain": 1,
       "GNU Affero General Public License v3 or later (AGPLv3+)": 1,
-      "GNU Lesser General Public License v2 or later (LGPLv2+)": 1,
-      "GNU Lesser General Public License v3 or later (LGPLv3+)": 1,
       "GNU Library or Lesser General Public License (LGPL)": 1,
-      "GPL-3.0-or-later OR MIT": 1,
       "LicenseRef-NVIDIA-Proprietary": 1,
       "LicenseRef-NVIDIA-SOFTWARE-LICENSE": 1,
       "MIT AND BSD-3-Clause": 1,
-      "MIT License AND Mozilla Public License 2.0 (MPL 2.0)": 1,
       "MIT-0": 1,
       "MPL-2.0 AND (Apache-2.0 OR MIT)": 1,
       "MPL-2.0 AND MIT": 1,
       "NVIDIA Proprietary Software": 1,
       "PSF-2.0": 1,
+      "Unknown": 1,
       "apache-2.0 AND bsd-simplified": 1,
       "apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original)": 1,
       "apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause": 1
     },
     "manifests": [
       ".github/ci-python/requirements.txt",
-      "notebooks/requirements.txt",
       "raft/requirements.txt"
     ],
     "venvRead": true
@@ -122,7 +111,7 @@
     },
     {
       "package": "ansible-core",
-      "version": "2.21.5",
+      "version": "2.22.0",
       "license": "GPL-3.0-or-later",
       "licenseFilesName": [
         "AGPL",
@@ -168,43 +157,11 @@
       ]
     },
     {
-      "package": "banal",
-      "version": "1.0.6",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "bandit",
       "version": "1.9.4",
       "license": "Apache-2.0",
       "found_in": [
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "beartype",
-      "version": "0.22.9",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "beautifulsoup4",
-      "version": "4.14.3",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "binaryornot",
-      "version": "0.6.0",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -258,20 +215,6 @@
       ]
     },
     {
-      "package": "chardet",
-      "version": "5.2.0",
-      "license": "GNU Lesser General Public License v2 or later (LGPLv2+)",
-      "licenseFilesName": [
-        "GPL",
-        "GPL-2.0",
-        "LGPL",
-        "LGPL-2.1"
-      ],
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "charset-normalizer",
       "version": "3.4.5",
       "license": "MIT",
@@ -291,30 +234,6 @@
       "package": "click",
       "version": "8.3.1",
       "license": "BSD-3-Clause",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "colorama",
-      "version": "0.4.6",
-      "license": "BSD License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "commoncode",
-      "version": "32.4.2",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "container-inspector",
-      "version": "33.1.0",
-      "license": "Apache-2.0",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -356,28 +275,12 @@
       ]
     },
     {
-      "package": "cyseq",
-      "version": "0.1.2",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "datasets",
       "version": "5.0.1",
       "license": "Apache Software License",
       "found_in": [
         "sbom/python-pip-freeze.txt",
         "raft/requirements.txt"
-      ]
-    },
-    {
-      "package": "debian_inspector",
-      "version": "31.1.1",
-      "license": "Apache-2.0 AND BSD-3-Clause AND MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -405,33 +308,9 @@
       ]
     },
     {
-      "package": "dockerfile-parse",
-      "version": "2.0.1",
-      "license": "BSD License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "docstring_parser",
       "version": "0.17.0",
       "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "dparse2",
-      "version": "0.7.0",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "extractcode",
-      "version": "31.0.0",
-      "license": "Apache-2.0",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -475,28 +354,12 @@
       ]
     },
     {
-      "package": "fasteners",
-      "version": "0.20",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "filelock",
       "version": "4.2.1",
       "license": "MIT",
       "found_in": [
         "sbom/python-pip-freeze.txt",
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "fingerprints",
-      "version": "1.2.3",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -533,28 +396,6 @@
       ]
     },
     {
-      "package": "ftfy",
-      "version": "6.3.1",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "gemfileparser2",
-      "version": "0.9.4",
-      "license": "GPL-3.0-or-later OR MIT",
-      "licenseFilesName": [
-        "AGPL",
-        "GPL",
-        "GPL-3.0",
-        "LGPL"
-      ],
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "git-filter-repo",
       "version": "2.47.0",
       "license": "MIT License",
@@ -579,14 +420,6 @@
       "package": "hf-xet",
       "version": "1.4.2",
       "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "html5lib",
-      "version": "1.1",
-      "license": "MIT License",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -633,14 +466,6 @@
       ]
     },
     {
-      "package": "importlib_metadata",
-      "version": "9.0.0",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "iniconfig",
       "version": "2.3.0",
       "license": "MIT",
@@ -657,38 +482,9 @@
       ]
     },
     {
-      "package": "intbitset",
-      "version": "4.1.0",
-      "license": "GNU Lesser General Public License v3 or later (LGPLv3+)",
-      "licenseFilesName": [
-        "GPL",
-        "LGPL",
-        "LGPL-3.0"
-      ],
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "itsdangerous",
       "version": "2.2.0",
       "license": "BSD License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "jaraco.functools",
-      "version": "4.4.0",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "javaproperties",
-      "version": "0.8.2",
-      "license": "MIT License",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -750,32 +546,6 @@
       "found_in": [
         "sbom/python-pip-freeze.txt",
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "jsonstreams",
-      "version": "0.6.0",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "jupyter",
-      "version": ">=1.0.0",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
-      "package": "jupyterlab",
-      "version": ">=4.0.0",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
       ]
     },
     {
@@ -861,14 +631,6 @@
       ]
     },
     {
-      "package": "lxml",
-      "version": "6.1.3",
-      "license": "BSD-3-Clause",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "markdown-it-py",
       "version": "4.0.0",
       "license": "MIT License",
@@ -901,15 +663,6 @@
       ]
     },
     {
-      "package": "matplotlib",
-      "version": ">=3.8.0",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
       "package": "mcp",
       "version": "1.30.0",
       "license": "MIT License",
@@ -924,14 +677,6 @@
       "found_in": [
         "sbom/python-pip-freeze.txt",
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "more-itertools",
-      "version": "11.0.1",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -967,34 +712,9 @@
       ]
     },
     {
-      "package": "multiregex",
-      "version": "2.0.3",
-      "license": "BSD-3-Clause",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "nbformat",
-      "version": ">=5.9.0",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
       "package": "networkx",
       "version": "3.6.1",
       "license": "BSD-3-Clause",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "normality",
-      "version": "2.6.1",
-      "license": "MIT License",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -1012,15 +732,6 @@
       "found_in": [
         "sbom/python-pip-freeze.txt",
         "raft/requirements.txt"
-      ]
-    },
-    {
-      "package": "numpy",
-      "version": ">=1.26.0",
-      "license": "Unknown",
-      "licenseNotRead": "no exact pin; the venvs read hold 2.4.3",
-      "found_in": [
-        "notebooks/requirements.txt"
       ]
     },
     {
@@ -1232,14 +943,6 @@
       ]
     },
     {
-      "package": "packvers",
-      "version": "21.5",
-      "license": "Apache Software License AND BSD License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "pandas",
       "version": "3.0.1",
       "license": "BSD License",
@@ -1251,44 +954,11 @@
       ]
     },
     {
-      "package": "pandas",
-      "version": ">=2.1.0",
-      "license": "Unknown",
-      "licenseNotRead": "no exact pin; the venvs read hold 3.0.1",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
-      "package": "parameter-expansion-patched",
-      "version": "0.3.1",
-      "license": "Apache Software License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "pathspec",
       "version": "1.1.1",
       "license": "Mozilla Public License 2.0 (MPL 2.0)",
       "found_in": [
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "pdfminer.six",
-      "version": "20260107",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "pefile",
-      "version": "2024.8.26",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -1337,28 +1007,11 @@
       ]
     },
     {
-      "package": "pkginfo2",
-      "version": "30.1.0",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "platformdirs",
       "version": "4.13.0",
       "license": "MIT",
       "found_in": [
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "plotly",
-      "version": ">=5.18.0",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
       ]
     },
     {
@@ -1378,31 +1031,6 @@
       ]
     },
     {
-      "package": "plugincode",
-      "version": "32.0.0",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "ply",
-      "version": "3.11",
-      "license": "BSD",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "prometheus-api-client",
-      "version": ">=0.5.4",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
       "package": "propcache",
       "version": "0.4.1",
       "license": "Apache Software License",
@@ -1419,15 +1047,6 @@
       ]
     },
     {
-      "package": "psutil",
-      "version": ">=5.9.0",
-      "license": "Unknown",
-      "licenseNotRead": "no exact pin; the venvs read hold 7.2.2",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
       "package": "psycopg2-binary",
       "version": "2.9.11",
       "license": "GNU Library or Lesser General Public License (LGPL)",
@@ -1440,27 +1059,11 @@
       ]
     },
     {
-      "package": "publicsuffix2",
-      "version": "2.20191221",
-      "license": "MIT License AND Mozilla Public License 2.0 (MPL 2.0)",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "py-serializable",
       "version": "2.1.0",
       "license": "Apache Software License",
       "found_in": [
         ".github/ci-python/requirements.txt"
-      ]
-    },
-    {
-      "package": "pyahocorasick",
-      "version": "2.3.0",
-      "license": "BSD-3-Clause and Public-Domain",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -1515,14 +1118,6 @@
       ]
     },
     {
-      "package": "pygmars",
-      "version": "1.0.0",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "Pygments",
       "version": "2.21.0",
       "license": "BSD-2-Clause",
@@ -1536,14 +1131,6 @@
       "package": "PyJWT",
       "version": "2.15.1",
       "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "pymaven-patch",
-      "version": "0.3.2",
-      "license": "Apache-2",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -1613,14 +1200,6 @@
         "sbom/python-pip-freeze.txt",
         ".github/ci-python/requirements.txt",
         "raft/requirements.txt"
-      ]
-    },
-    {
-      "package": "rdflib",
-      "version": "7.6.0",
-      "license": "BSD License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
       ]
     },
     {
@@ -1700,8 +1279,9 @@
     },
     {
       "package": "ruff",
-      "version": "0.17.3",
-      "license": "MIT",
+      "version": "0.17.4",
+      "license": "Unknown",
+      "licenseNotRead": "the venvs read hold 0.17.3, not this version",
       "found_in": [
         ".github/ci-python/requirements.txt"
       ]
@@ -1710,26 +1290,6 @@
       "package": "safetensors",
       "version": "0.8.0",
       "license": "Apache Software License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "saneyaml",
-      "version": "0.6.1",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "scancode-toolkit",
-      "version": "32.5.0",
-      "license": "Apache-2.0 AND CC-BY-4.0 AND LicenseRef-scancode-other-permissive AND LicenseRef-scancode-other-copyleft",
-      "licenseFilesName": [
-        "GPL",
-        "LGPL"
-      ],
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -1764,32 +1324,6 @@
         "GPL-3.0",
         "LGPL"
       ],
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "scipy",
-      "version": ">=1.11.0",
-      "license": "Unknown",
-      "licenseNotRead": "no exact pin; the venvs read hold 1.17.1",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
-      "package": "seaborn",
-      "version": ">=0.13.0",
-      "license": "Unknown",
-      "licenseNotRead": "not installed in a venv read",
-      "found_in": [
-        "notebooks/requirements.txt"
-      ]
-    },
-    {
-      "package": "semantic-version",
-      "version": "2.10.0",
-      "license": "BSD License",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -1849,22 +1383,6 @@
       ]
     },
     {
-      "package": "soupsieve",
-      "version": "2.10",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "spdx-tools",
-      "version": "0.8.2",
-      "license": "Apache Software License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "sse-starlette",
       "version": "3.3.4",
       "license": "BSD-3-Clause",
@@ -1905,17 +1423,6 @@
       ]
     },
     {
-      "package": "text-unidecode",
-      "version": "1.3",
-      "license": "Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+)",
-      "licenseFilesName": [
-        "GPL"
-      ],
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "threadpoolctl",
       "version": "3.6.0",
       "license": "BSD License",
@@ -1927,14 +1434,6 @@
       "package": "tokenizers",
       "version": "0.23.2",
       "license": "Apache Software License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "toml",
-      "version": "0.10.2",
-      "license": "MIT License",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -2008,14 +1507,6 @@
       ]
     },
     {
-      "package": "typecode",
-      "version": "30.2.0",
-      "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "typecode-libmagic",
       "version": "5.39.210531",
       "license": "apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original)",
@@ -2039,21 +1530,12 @@
         "GPL"
       ],
       "found_in": [
-        "sbom/python-pip-freeze.txt",
-        ".github/ci-python/requirements.txt"
+        "sbom/python-pip-freeze.txt"
       ]
     },
     {
       "package": "typing-inspection",
       "version": "0.4.2",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "uritools",
-      "version": "6.0.1",
       "license": "MIT",
       "found_in": [
         "sbom/python-pip-freeze.txt"
@@ -2069,14 +1551,6 @@
       ]
     },
     {
-      "package": "urlpy",
-      "version": "0.5",
-      "license": "MIT License",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "uuid_utils",
       "version": "0.14.1",
       "license": "BSD-3-Clause",
@@ -2088,22 +1562,6 @@
       "package": "uvicorn",
       "version": "0.42.0",
       "license": "BSD-3-Clause",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "wcwidth",
-      "version": "0.6.0",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "webencodings",
-      "version": "0.5.1",
-      "license": "BSD License",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]
@@ -2138,14 +1596,6 @@
       ]
     },
     {
-      "package": "xmltodict",
-      "version": "1.0.4",
-      "license": "MIT",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
       "package": "xxhash",
       "version": "3.6.0",
       "license": "BSD License",
@@ -2171,14 +1621,6 @@
       "package": "yarl",
       "version": "1.25.1",
       "license": "Apache-2.0",
-      "found_in": [
-        "sbom/python-pip-freeze.txt"
-      ]
-    },
-    {
-      "package": "zipp",
-      "version": "3.23.0",
-      "license": "MIT",
       "found_in": [
         "sbom/python-pip-freeze.txt"
       ]

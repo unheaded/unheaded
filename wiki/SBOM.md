@@ -17,6 +17,8 @@ There is no npm in the repo: the front ends are vanilla JS (ADR-006) and JS lint
 
 ScanCode is not in `~/.venv/zhen`: it was removed on 2026-11-18 with the 52 packages only it needed, which took `soupsieve` and its three advisories out of the freeze. A full licence scan, when one is wanted, runs from a throwaway venv of its own, made for the scan and deleted after. The last scan's output is `docs/legal/scancode-full.json` (2026-04-04).
 
+The notebooks under `notebooks/` carry no requirements file since 2026-11-21 (FND-040, decision pack 2026-11-18 row 41): nothing in the stack or CI runs them, and a lock would have put 114 packages into the dependency baseline. They run from a throwaway environment of the reader's own (`notebooks/README.md`); the tracked requirements files are `.github/ci-python/requirements.txt` and `raft/requirements.txt`, both fully pinned and audited by `scripts/check-python-audit.sh`.
+
 The March 2026 audit counted 553 dependencies; that number included npm packages since removed and is not regenerated.
 
 ## GPL Boundary

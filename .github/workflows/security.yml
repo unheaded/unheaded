@@ -189,6 +189,16 @@ jobs:
       - name: The publish gate refuses each form it names
         run: ./scripts/test-check-compose-publish-bind.sh
 
+      # gitleaks goes by the value's shape, and a short lab password has none:
+      # one sat in tomb/dark-mirror until 2026-11-21. This goes by the key's
+      # name, in every compose file, tomb/ included. Provoked red by writing
+      # Grafana's admin password into docker-compose.yml.
+      - name: No compose file holds a credential
+        run: ./scripts/check-compose-secrets.sh
+
+      - name: The compose secrets gate refuses each form it names
+        run: ./scripts/test-check-compose-secrets.sh
+
       # A scrape at host.docker.internal needs a publish on docker0's gateway:
       # loopback is refused there, and nothing but missing series shows it.
       # Provoked red by dropping wotan's gateway publish.

@@ -2,7 +2,8 @@
 /* Copyright (c) 2026 Stevie Bellis. */
 
 /* The source viewer (/view/source). Palette and fonts are the chat page's
-   (static/index.html :root). Prose is laid out the way GitHub shows a
+   (static/chat.css :root); the fonts are the system's, none is loaded. Prose
+   is laid out the way GitHub shows a
    Markdown file: one readable column, ruled h1/h2, bordered tables, boxed
    code. Class names starting md- come from raft/zhen_markdown.py. */
 
@@ -25,8 +26,8 @@
     --green: #4a7a4a;
     --red: #7a3a3a;
     --purple: #8a6aaa;
-    --font-mono: 'JetBrains Mono', 'Space Grotesk', 'Fira Code', monospace;
-    --font-heading: 'Space Grotesk', 'JetBrains Mono', system-ui, -apple-system, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', 'Courier New', Courier, monospace;
+    --font-heading: 'Space Grotesk', system-ui, -apple-system, sans-serif;
     --zoom: 1;
     --bar-h: 58px;
 }

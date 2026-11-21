@@ -58,7 +58,8 @@ var moveoutGone = []struct {
 	{"cmd/dashboard-backend/static/logs.html", `:16666|>Doom<`},
 	{"cmd/dashboard-backend/static/compliance.html", `:16666|>Doom<`},
 	{"cmd/kanban-app/static/index.html", `:16666|>Doom<`},
-	{"raft/static/index.html", `:16666|>Doom<`},
+	{"raft/pages/chat.html", `:16666|>Doom<`},
+	{"raft/static/chat.js", `:16666|>Doom<`},
 	{"raft/DEMO_CHECKLIST.md", `# 4\. Verify\n` + "```"},
 	{"raft/DEMO_CHECKLIST.md", `All 10 tests`},
 	{"raft/DEMO_CHECKLIST.md", `04_integration_tests`},
@@ -295,7 +296,7 @@ func demoChecklistFaults(checklist, app, start, page string) []string {
 
 func TestDemoChecklistChecksWhatTheStackServes(t *testing.T) {
 	faults := demoChecklistFaults(moveoutRepoFile(t, "raft/DEMO_CHECKLIST.md"), moveoutRepoFile(t, "raft/zhen_app.py"),
-		moveoutRepoFile(t, "raft/start-zhen.sh"), moveoutRepoFile(t, "raft/static/index.html"))
+		moveoutRepoFile(t, "raft/start-zhen.sh"), moveoutRepoFile(t, "raft/pages/chat.html"))
 	for _, fault := range faults {
 		t.Error(fault)
 	}

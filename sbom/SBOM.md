@@ -1,6 +1,6 @@
 # Unheaded Software Bill of Materials (SBOM)
 
-**Generated:** 2026-11-09
+**Generated:** 2026-11-21
 **Format:** summary of SPDX-2.3 compatible files
 **Main License:** GPL-3.0-or-later
 
@@ -12,17 +12,17 @@ outside these lists are in `THIRD_PARTY.md`.
 | Ecosystem | Total | Direct | Licenses not read | Detail file |
 |-----------|-------|--------|-------------------|-------------|
 | Go | 168 | 17 | 32 | `sbom/go-dependencies.json` |
-| Rust | 352 external, 39 workspace | | 0 | `sbom/rust-dependencies.json` |
-| Python | 240 | | 11 | `sbom/python-dependencies.json`, from `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, and the manifests below |
+| Rust | 317 external, 40 workspace | | 0 | `sbom/rust-dependencies.json` |
+| Python | 176 | | 1 | `sbom/python-dependencies.json`, from `sbom/python-pip-freeze.txt`, a `pip freeze` of the Zhen venv, and the manifests below |
 | JavaScript | 4 | | 4 | `sbom/javascript-dependencies.json`, CDN-loaded files; nothing is installed |
 
 Go modules read: `unheaded`, `unheaded/tools/gosec`.
 
-Python manifests read: `.github/ci-python/requirements.txt`, `notebooks/requirements.txt`, `raft/requirements.txt`.
+Python manifests read: `.github/ci-python/requirements.txt`, `raft/requirements.txt`.
 
-Rust lock files read: `cmd/ebpf-collector/Cargo.lock`, `cmd/ebpf-collector/ebpf-programs/Cargo.lock`, `cmd/ebpf-load-check/Cargo.lock`, `cmd/ebpf-loader/Cargo.lock`, `cmd/upc-bootctl/Cargo.lock`, `crates/heimdall-bpf/Cargo.lock`, `crates/lich-fuzz/Cargo.lock`, `crates/monad-mbc/Cargo.lock`, `crates/monad-mbc/fuzz/Cargo.lock`, `crates/svc-token/Cargo.lock`, `crates/upc-api/Cargo.lock`, `crates/upc-api/fuzz/Cargo.lock`, `crates/upc-bootstub/Cargo.lock`, `crates/upc-cartridge/Cargo.lock`, `crates/xv6-mbc/Cargo.lock`, `crates/zhend/Cargo.lock`, `ebpf/Cargo.lock`, `tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock`.
+Rust lock files read: `cmd/ebpf-collector/Cargo.lock`, `cmd/ebpf-collector/ebpf-programs/Cargo.lock`, `cmd/ebpf-load-check/Cargo.lock`, `cmd/ebpf-loader/Cargo.lock`, `cmd/upc-bootctl/Cargo.lock`, `crates/heimdall-bpf/Cargo.lock`, `crates/lich-fuzz/Cargo.lock`, `crates/monad-mbc/Cargo.lock`, `crates/monad-mbc/fuzz/Cargo.lock`, `crates/objtrust/Cargo.lock`, `crates/svc-token/Cargo.lock`, `crates/upc-api/Cargo.lock`, `crates/upc-api/fuzz/Cargo.lock`, `crates/upc-bootstub/Cargo.lock`, `crates/upc-cartridge/Cargo.lock`, `crates/xv6-mbc/Cargo.lock`, `crates/zhend/Cargo.lock`, `ebpf/Cargo.lock`, `tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness/Cargo.lock`.
 
-Rust workspace crates: `anomaly-ebpf`, `canary-ebpf`, `cartridge-ebpf`, `collector`, `compliance-ebpf`, `ebpf-common`, `ebpf-load-check`, `ebpf-loader`, `ebpf-programs`, `failover-ebpf`, `firewall-ebpf`, `flow-tracker`, `heimdall-bpf`, `hop-ebpf`, `latency-probe`, `lich-fuzz`, `lich015-diff-harness`, `maglev-ebpf`, `monad-common`, `monad-cpu-ebpf`, `monad-mbc`, `monad-mbc-fuzz`, `nfv-ebpf`, `packet-marker`, `pqc-common`, `qos-ebpf`, `shield-ebpf`, `syscall-tracer`, `unheaded-common`, `unheaded-svc-token`, `upc-api`, `upc-api-fuzz`, `upc-bootctl`, `upc-bootstub`, `upc-cartridge`, `version-ebpf`, `xv6-mbc`, `yaldabaoth-ebpf`, `zhend`.
+Rust workspace crates: `anomaly-ebpf`, `canary-ebpf`, `cartridge-ebpf`, `collector`, `compliance-ebpf`, `ebpf-common`, `ebpf-load-check`, `ebpf-loader`, `ebpf-programs`, `failover-ebpf`, `firewall-ebpf`, `flow-tracker`, `heimdall-bpf`, `hop-ebpf`, `latency-probe`, `lich-fuzz`, `lich015-diff-harness`, `maglev-ebpf`, `monad-common`, `monad-cpu-ebpf`, `monad-mbc`, `monad-mbc-fuzz`, `nfv-ebpf`, `packet-marker`, `pqc-common`, `qos-ebpf`, `shield-ebpf`, `syscall-tracer`, `unheaded-common`, `unheaded-objtrust`, `unheaded-svc-token`, `upc-api`, `upc-api-fuzz`, `upc-bootctl`, `upc-bootstub`, `upc-cartridge`, `version-ebpf`, `xv6-mbc`, `yaldabaoth-ebpf`, `zhend`.
 
 ## Go licenses
 
@@ -55,7 +55,7 @@ means the files name each of these; they may be alternatives.
 | github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause |
 | github.com/lib/pq | v1.12.3 | MIT |
 | github.com/rs/zerolog | v1.35.1 | MIT |
-| github.com/yuin/goldmark | v1.8.6 | MIT |
+| github.com/yuin/goldmark | v1.8.7 | MIT |
 | golang.org/x/crypto | v0.58.1-0.20261009181718-2f1f834330b2 | BSD-3-Clause |
 | golang.org/x/sys | v0.49.0 | BSD-3-Clause |
 | golang.org/x/text | v0.43.0 | BSD-3-Clause |
@@ -72,22 +72,21 @@ bundles are not read.
 
 | License | Count |
 |---------|-------|
-| MIT OR Apache-2.0 | 193 |
-| MIT | 61 |
-| Apache-2.0 OR MIT | 23 |
-| MIT/Apache-2.0 | 18 |
+| MIT OR Apache-2.0 | 173 |
+| MIT | 59 |
+| Apache-2.0 OR MIT | 19 |
+| MIT/Apache-2.0 | 17 |
 | Apache-2.0 | 9 |
 | Unlicense OR MIT | 7 |
 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | 5 |
-| BSD-3-Clause | 4 |
 | Apache-2.0/MIT | 3 |
-| Zlib | 3 |
 | BSD-2-Clause OR Apache-2.0 OR MIT | 2 |
+| BSD-3-Clause | 2 |
 | CC0-1.0 OR MIT-0 OR Apache-2.0 | 2 |
 | ISC | 2 |
 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | 2 |
 | Unlicense/MIT | 2 |
-| Zlib OR Apache-2.0 OR MIT | 2 |
+| Zlib | 2 |
 | (MIT OR Apache-2.0) AND NCSA | 1 |
 | (MIT OR Apache-2.0) AND Unicode-3.0 | 1 |
 | 0BSD OR MIT OR Apache-2.0 | 1 |
@@ -96,12 +95,9 @@ bundles are not read.
 | Apache-2.0 OR ISC OR MIT | 1 |
 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception | 1 |
 | CDLA-Permissive-2.0 | 1 |
-| ISC AND (Apache-2.0 OR ISC) | 1 |
-| ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0) | 1 |
 | MIT AND BSD-3-Clause | 1 |
-| MIT OR Apache-2.0 OR BSD-1-Clause | 1 |
-| MIT OR Apache-2.0 OR Zlib | 1 |
 | MIT OR Zlib OR Apache-2.0 | 1 |
+| Zlib OR Apache-2.0 OR MIT | 1 |
 
 ## Python licenses
 
@@ -115,15 +111,13 @@ file may only quote such a license, or cover one bundled binary.
 
 | License | Count |
 |---------|-------|
-| MIT | 49 |
-| MIT License | 37 |
-| Apache-2.0 | 24 |
-| BSD-3-Clause | 24 |
-| Apache Software License | 19 |
-| BSD License | 18 |
+| MIT | 38 |
+| MIT License | 25 |
+| BSD-3-Clause | 22 |
+| Apache Software License | 17 |
+| Apache-2.0 | 13 |
+| BSD License | 13 |
 | Other/Proprietary License | 13 |
-| Unknown | 11 |
-| Apache Software License AND BSD License | 2 |
 | Apache-2.0 OR BSD-2-Clause | 2 |
 | BSD-2-Clause | 2 |
 | GPL-3.0-or-later | 2 |
@@ -132,32 +126,24 @@ file may only quote such a license, or cover one bundled binary.
 | Python Software Foundation License | 2 |
 | Apache 2.0 License | 1 |
 | Apache License 2.0 | 1 |
+| Apache Software License AND BSD License | 1 |
 | Apache Software License AND MIT License | 1 |
-| Apache-2 | 1 |
-| Apache-2.0 AND BSD-3-Clause AND MIT | 1 |
-| Apache-2.0 AND CC-BY-4.0 AND LicenseRef-scancode-other-permissive AND LicenseRef-scancode-other-copyleft | 1 |
 | Apache-2.0 AND CNRI-Python | 1 |
 | Apache-2.0 AND MIT | 1 |
 | Apache-2.0 OR BSD-3-Clause | 1 |
 | Apache-2.0 OR MIT | 1 |
-| Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+) | 1 |
-| BSD | 1 |
 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 | 1 |
-| BSD-3-Clause and Public-Domain | 1 |
 | GNU Affero General Public License v3 or later (AGPLv3+) | 1 |
-| GNU Lesser General Public License v2 or later (LGPLv2+) | 1 |
-| GNU Lesser General Public License v3 or later (LGPLv3+) | 1 |
 | GNU Library or Lesser General Public License (LGPL) | 1 |
-| GPL-3.0-or-later OR MIT | 1 |
 | LicenseRef-NVIDIA-Proprietary | 1 |
 | LicenseRef-NVIDIA-SOFTWARE-LICENSE | 1 |
 | MIT AND BSD-3-Clause | 1 |
-| MIT License AND Mozilla Public License 2.0 (MPL 2.0) | 1 |
 | MIT-0 | 1 |
 | MPL-2.0 AND (Apache-2.0 OR MIT) | 1 |
 | MPL-2.0 AND MIT | 1 |
 | NVIDIA Proprietary Software | 1 |
 | PSF-2.0 | 1 |
+| Unknown | 1 |
 | apache-2.0 AND bsd-simplified | 1 |
 | apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original) | 1 |
 | apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause | 1 |
@@ -166,7 +152,7 @@ file may only quote such a license, or cover one bundled binary.
 
 | Library | Version | Integrity hash | Loaded by |
 |---------|---------|----------------|-----------|
-| fonts.googleapis.com | none | no | `raft/static/index.html`, `skills/marshal-eval-review.html` |
+| fonts.googleapis.com | none | no | `skills/marshal-eval-review.html` |
 | xlsx | 0.20.3 | yes | `skills/marshal-eval-review.html` |
 | xterm | 5.3.0 | yes | `dashboard/upc-console.html` |
 | xterm-addon-fit | 0.8.0 | yes | `dashboard/upc-console.html` |
@@ -207,17 +193,7 @@ file may only quote such a license, or cover one bundled binary.
 | Go | google.golang.org/genproto/googleapis/api | v0.0.0-20260706201446-f0a921348800 | no source in the module cache; compiled into no package here |
 | Go | gotest.tools/v3 | v3.5.0 | no source in the module cache; compiled into no package here |
 | Go | modernc.org/memory | v1.12.1 | LICENSE-LOGO not recognised |
-| Python | jupyter | >=1.0.0 | not installed in a venv read |
-| Python | jupyterlab | >=4.0.0 | not installed in a venv read |
-| Python | matplotlib | >=3.8.0 | not installed in a venv read |
-| Python | nbformat | >=5.9.0 | not installed in a venv read |
-| Python | numpy | >=1.26.0 | no exact pin; the venvs read hold 2.4.3 |
-| Python | pandas | >=2.1.0 | no exact pin; the venvs read hold 3.0.1 |
-| Python | plotly | >=5.18.0 | not installed in a venv read |
-| Python | prometheus-api-client | >=0.5.4 | not installed in a venv read |
-| Python | psutil | >=5.9.0 | no exact pin; the venvs read hold 7.2.2 |
-| Python | scipy | >=1.11.0 | no exact pin; the venvs read hold 1.17.1 |
-| Python | seaborn | >=0.13.0 | not installed in a venv read |
+| Python | ruff | 0.17.4 | the venvs read hold 0.17.3, not this version |
 | JavaScript | fonts.googleapis.com |  | loaded from a CDN, no copy on this host |
 | JavaScript | xlsx | 0.20.3 | loaded from a CDN, no copy on this host |
 | JavaScript | xterm | 5.3.0 | loaded from a CDN, no copy on this host |
@@ -225,7 +201,7 @@ file may only quote such a license, or cover one bundled binary.
 
 ## GPL boundary
 
-REVIEW: Stevie ruled 2026-11-06: GPL-family CI tools are fine because they do not ship, and NVIDIA's proprietary wheels stay out of anything shipped. A package below that ships, or that is new since that ruling, is still for a person to rule on. Licenses that name the GPL family: r-efi 5.3.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), r-efi 6.0.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), ansible-core 2.21.5 (GPL-3.0-or-later), chardet 5.2.0 (GNU Lesser General Public License v2 or later (LGPLv2+)), extractcode-7z 16.5.210531 (apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause), gemfileparser2 0.9.4 (GPL-3.0-or-later OR MIT), intbitset 4.1.0 (GNU Lesser General Public License v3 or later (LGPLv3+)), psycopg2-binary 2.9.11 (GNU Library or Lesser General Public License (LGPL)), text-unidecode 1.3 (Artistic License AND GNU General Public License (GPL) AND GNU General Public License v2 or later (GPLv2+)), typecode-libmagic 5.39.210531 (apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original)), wikiextractor 3.0.6 (GNU Affero General Public License v3 or later (AGPLv3+)), yamllint 1.38.0 (GPL-3.0-or-later). Named in a package's own license files, not its license field: aiohappyeyeballs 2.6.1 (GPL), cyclonedx-python-lib 11.12.0 (GPL), extractcode-libarchive 3.5.1.210531 (GPL, GPL-2.0, GPL-3.0, LGPL, LGPL-2.1), git-filter-repo 2.47.0 (GPL, GPL-2.0, LGPL), numpy 2.4.3 (AGPL, GPL, GPL-3.0, LGPL), nvidia-cublas-cu12 12.8.4.1 (GPL, LGPL), nvidia-cuda-cupti-cu12 12.8.90 (GPL, LGPL), nvidia-cuda-nvrtc-cu12 12.8.93 (GPL, LGPL), nvidia-cuda-runtime-cu12 12.8.90 (GPL, LGPL), nvidia-cufft-cu12 11.3.3.83 (GPL, LGPL), nvidia-cufile-cu12 1.13.1.3 (GPL, LGPL), nvidia-curand-cu12 10.3.9.90 (GPL, LGPL), nvidia-cusolver-cu12 11.7.3.90 (GPL, LGPL), nvidia-cusparse-cu12 12.5.8.93 (GPL, LGPL), nvidia-nvjitlink-cu12 12.8.93 (GPL, LGPL), nvidia-nvshmem-cu12 3.4.5 (GPL, LGPL), nvidia-nvtx-cu12 12.8.90 (GPL), pandas 3.0.1 (GPL), pip 26.2.1 (GPL), pyarrow 23.0.1 (GPL), scancode-toolkit 32.5.0 (GPL, LGPL), scikit-learn 1.8.0 (GPL, GPL-3.0), scipy 1.17.1 (AGPL, GPL, GPL-3.0, LGPL), setuptools 84.1.0 (GPL, LGPL, LGPL-3.0), torch 2.10.0 (AGPL, GPL, GPL-2.0, GPL-3.0, LGPL, LGPL-2.1, LGPL-3.0), typing_extensions 4.16.0 (GPL). Proprietary licenses: cuda-bindings 12.9.4 (LicenseRef-NVIDIA-SOFTWARE-LICENSE), nvidia-cublas-cu12 12.8.4.1 (Other/Proprietary License), nvidia-cuda-cupti-cu12 12.8.90 (Other/Proprietary License), nvidia-cuda-nvrtc-cu12 12.8.93 (Other/Proprietary License), nvidia-cuda-runtime-cu12 12.8.90 (Other/Proprietary License), nvidia-cudnn-cu12 9.10.2.21 (Other/Proprietary License), nvidia-cufft-cu12 11.3.3.83 (Other/Proprietary License), nvidia-cufile-cu12 1.13.1.3 (Other/Proprietary License), nvidia-curand-cu12 10.3.9.90 (Other/Proprietary License), nvidia-cusolver-cu12 11.7.3.90 (Other/Proprietary License), nvidia-cusparse-cu12 12.5.8.93 (Other/Proprietary License), nvidia-cusparselt-cu12 0.7.1 (NVIDIA Proprietary Software), nvidia-nccl-cu12 2.27.5 (Other/Proprietary License), nvidia-nvjitlink-cu12 12.8.93 (Other/Proprietary License), nvidia-nvshmem-cu12 3.4.5 (LicenseRef-NVIDIA-Proprietary), nvidia-nvtx-cu12 12.8.90 (Other/Proprietary License). 32 of 168 Go modules, 0 of 352 Rust crates, 11 of 240 Python packages and 4 of 4 JavaScript files are not read.
+REVIEW: Stevie ruled 2026-11-06: GPL-family CI tools are fine because they do not ship, and NVIDIA's proprietary wheels stay out of anything shipped. A package below that ships, or that is new since that ruling, is still for a person to rule on. Licenses that name the GPL family: r-efi 5.3.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), r-efi 6.0.0 (MIT OR Apache-2.0 OR LGPL-2.1-or-later), ansible-core 2.22.0 (GPL-3.0-or-later), extractcode-7z 16.5.210531 (apache-2.0 AND lgpl-2.1 and unrar and brian-gladman-3-clause), psycopg2-binary 2.9.11 (GNU Library or Lesser General Public License (LGPL)), typecode-libmagic 5.39.210531 (apache-2.0 AND bsd-simplified-darwin AND (bsd-simplified AND public-domain AND bsd-new AND isc AND (bsd-new OR gpl-1.0-plus) AND bsd-original)), wikiextractor 3.0.6 (GNU Affero General Public License v3 or later (AGPLv3+)), yamllint 1.38.0 (GPL-3.0-or-later). Named in a package's own license files, not its license field: aiohappyeyeballs 2.6.1 (GPL), cyclonedx-python-lib 11.12.0 (GPL), extractcode-libarchive 3.5.1.210531 (GPL, GPL-2.0, GPL-3.0, LGPL, LGPL-2.1), git-filter-repo 2.47.0 (GPL, GPL-2.0, LGPL), numpy 2.4.3 (AGPL, GPL, GPL-3.0, LGPL), nvidia-cublas-cu12 12.8.4.1 (GPL, LGPL), nvidia-cuda-cupti-cu12 12.8.90 (GPL, LGPL), nvidia-cuda-nvrtc-cu12 12.8.93 (GPL, LGPL), nvidia-cuda-runtime-cu12 12.8.90 (GPL, LGPL), nvidia-cufft-cu12 11.3.3.83 (GPL, LGPL), nvidia-cufile-cu12 1.13.1.3 (GPL, LGPL), nvidia-curand-cu12 10.3.9.90 (GPL, LGPL), nvidia-cusolver-cu12 11.7.3.90 (GPL, LGPL), nvidia-cusparse-cu12 12.5.8.93 (GPL, LGPL), nvidia-nvjitlink-cu12 12.8.93 (GPL, LGPL), nvidia-nvshmem-cu12 3.4.5 (GPL, LGPL), nvidia-nvtx-cu12 12.8.90 (GPL), pandas 3.0.1 (GPL), pip 26.2.1 (GPL), pyarrow 23.0.1 (GPL), scikit-learn 1.8.0 (GPL, GPL-3.0), scipy 1.17.1 (AGPL, GPL, GPL-3.0, LGPL), setuptools 84.1.0 (GPL, LGPL, LGPL-3.0), torch 2.10.0 (AGPL, GPL, GPL-2.0, GPL-3.0, LGPL, LGPL-2.1, LGPL-3.0), typing_extensions 4.16.0 (GPL). Proprietary licenses: cuda-bindings 12.9.4 (LicenseRef-NVIDIA-SOFTWARE-LICENSE), nvidia-cublas-cu12 12.8.4.1 (Other/Proprietary License), nvidia-cuda-cupti-cu12 12.8.90 (Other/Proprietary License), nvidia-cuda-nvrtc-cu12 12.8.93 (Other/Proprietary License), nvidia-cuda-runtime-cu12 12.8.90 (Other/Proprietary License), nvidia-cudnn-cu12 9.10.2.21 (Other/Proprietary License), nvidia-cufft-cu12 11.3.3.83 (Other/Proprietary License), nvidia-cufile-cu12 1.13.1.3 (Other/Proprietary License), nvidia-curand-cu12 10.3.9.90 (Other/Proprietary License), nvidia-cusolver-cu12 11.7.3.90 (Other/Proprietary License), nvidia-cusparse-cu12 12.5.8.93 (Other/Proprietary License), nvidia-cusparselt-cu12 0.7.1 (NVIDIA Proprietary Software), nvidia-nccl-cu12 2.27.5 (Other/Proprietary License), nvidia-nvjitlink-cu12 12.8.93 (Other/Proprietary License), nvidia-nvshmem-cu12 3.4.5 (LicenseRef-NVIDIA-Proprietary), nvidia-nvtx-cu12 12.8.90 (Other/Proprietary License). 32 of 168 Go modules, 0 of 317 Rust crates, 1 of 176 Python packages and 4 of 4 JavaScript files are not read.
 
 This report reads licenses. It does not rule on whether they fit with
 GPL-3.0-or-later. "Name the GPL family" includes a crate offering the LGPL as

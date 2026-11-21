@@ -82,6 +82,11 @@ const (
 	// own copy never passes (untrustedHeader).
 	clientAddrHeader = "X-Unheaded-Client-Addr"
 
+	// navPolicy is the Content-Security-Policy on the menu script, the one
+	// browser-facing response the front writes itself: nothing is allowed
+	// if it is ever opened as a document. The app sets the pages' policy.
+	navPolicy = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+
 	// upstreamHost fills the URL the transport needs; the dialer ignores it
 	// and the app never sees it (Host is the client's).
 	upstreamHost = "zhen-ui.invalid"
@@ -447,6 +452,13 @@ func (f *front) handler() http.Handler {
 	// no copy, and the page loads it from this origin like every other app.
 	served := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/auth/nav.js" && (r.Method == http.MethodGet || r.Method == http.MethodHead) {
+			// The app sends its own headers with everything it serves
+			// (raft/zhen_app.py _security_headers). This is the one response
+			// the front writes for a browser: a script the page's policy
+			// lets run, so it must be taken as a script and nothing else.
+			h := w.Header()
+			h.Set("X-Content-Type-Options", "nosniff")
+			h.Set("Content-Security-Policy", navPolicy)
 			bff.ServeNavJS(w, r)
 			return
 		}

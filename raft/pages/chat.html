@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Copyright (c) 2026 Stevie Bellis. -->
+<!-- The chat page (/). A constant page: nothing from the request is written
+     into it. It shows model output and retrieved text, so the route sends a
+     Content-Security-Policy that allows no inline script, style or handler
+     and nothing from another host; this file has none. Its script is
+     static/chat.js and its styles static/chat.css. Fonts are the system's:
+     no font is loaded. raft/tests/test_zhen_page_policy.py holds it to that. -->
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="referrer" content="no-referrer">
+    <title>Zhenai — Unheaded Kingdom Champion</title>
+    <link rel="stylesheet" href="/static/chat.css">
+    <link rel="stylesheet" href="/api/v1/highlight.css">
+</head>
+<body>
+    <div class="drop-overlay" id="drop-overlay"><span>DROP FILE</span></div>
+    <input type="file" id="file-input" accept=".txt,.md,.py,.js,.go,.rs,.toml,.yaml,.yml,.json,.sh,.html,.css,.sql,.c,.h,.cpp,.java,.ts,.tsx,.jsx,.rb,.php,.lua,.nix,.conf,.cfg,.ini,.xml,.csv,.log" />
+
+    <header>
+        <div class="logo">
+            <h1>Zhenai</h1>
+            <div>
+                <div class="sub">Unheaded Champion</div>
+            </div>
+        </div>
+        <nav class="kingdom-nav" data-kingdom-nav="zhenai" data-kingdom-nav-class=""></nav><!-- Dashboard, Grafana, Kanban, Wiki: /auth/nav.js, served by zhen-ui-front (pkg/bff) -->
+        <div class="header-right">
+            <div class="stats" id="model-info"></div>
+            <div class="status-dot" id="status-dot"></div>
+            <div class="status-text" id="status-text">Connecting...</div>
+        </div>
+    </header>
+
+    <main>
+        <div class="chat-panel">
+            <div class="tab-bar">
+                <button id="tab-chat" class="active" data-tab="chat">Chat</button>
+                <button id="tab-dashboard" data-tab="dashboard">Dashboard</button>
+                <button id="tab-search" data-tab="search">Search</button>
+                <button id="tab-history" data-tab="history">History</button>
+            </div>
+            <div id="chat-view">
+                <div class="messages" id="messages"></div>
+                <div class="suggestions" id="suggestions">
+                    <button data-ask="What is Unheaded?">What is Unheaded?</button>
+                    <button data-ask="What are the 6 architectural layers?">Architecture layers</button>
+                    <button data-ask="How does eBPF tracing work?">eBPF tracing</button>
+                    <button data-ask="What is the Wotan message bus?">Wotan</button>
+                    <button data-ask="How does the Monad wire format work?">Monad protocol</button>
+                    <button data-ask="What is the Meta Moment?">Meta Moment</button>
+                    <button data-ask="What port does each service use?">Port allocation</button>
+                    <button data-ask="How does service discovery work?">Service discovery</button>
+                </div>
+            </div>
+            <div id="search-view" hidden>
+                <div class="search-results" id="search-results">
+                    <div class="search-empty">Enter a query to search the codebase.</div>
+                </div>
+            </div>
+            <div id="history-view" hidden>
+                <div class="history-bar">
+                    <input type="text" id="history-search" placeholder="Search conversations...">
+                    <button id="history-go" class="history-go">Search</button>
+                    <button id="history-all" class="history-all">All</button>
+                </div>
+                <div class="history-list" id="history-list"></div>
+            </div>
+
+            <!-- Operator Dashboard (Stage 3) — live system state, audit feed,
+                 kanban summary, recent runbook outputs. Read-only.   -->
+            <div id="dashboard-view" hidden>
+                <div class="dash-toolbar">
+                    <button id="dash-refresh">↻ Refresh</button>
+                    <span id="dash-updated" class="dash-meta">never refreshed</span>
+                    <label class="dash-meta dash-autorefresh">
+                        <input type="checkbox" id="dash-autorefresh" checked> auto-refresh (10s)
+                    </label>
+                </div>
+
+                <div class="dash-grid">
+                    <!-- System state — backend health snapshot -->
+                    <div class="dash-card">
+                        <h3>System state</h3>
+                        <div id="dash-system" class="dash-system-grid"></div>
+                    </div>
+
+                    <!-- Kanban summary -->
+                    <div class="dash-card">
+                        <h3>Kanban — <span class="dash-meta-inline" id="dash-kanban-total">…</span></h3>
+                        <div id="dash-kanban" class="dash-kanban-grid"></div>
+                        <div class="dash-meta">
+                            <a href="http://localhost:20001" target="_blank" rel="noopener">Open Kanban →</a>
+                        </div>
+                    </div>
+
+                    <!-- Recent audit -->
+                    <div class="dash-card dash-card-wide">
+                        <h3>Audit feed — recent zhen_actions</h3>
+                        <div id="dash-audit" class="dash-audit-list"></div>
+                    </div>
+
+                    <!-- Recent runbooks -->
+                    <div class="dash-card dash-card-wide">
+                        <h3>Recent runbook executions</h3>
+                        <div id="dash-runbooks" class="dash-runbook-list"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- File upload indicator -->
+            <div class="file-upload-area" id="file-upload-area">
+                <div class="file-info">
+                    Attached: <span class="file-name" id="file-name"></span>
+                    <span id="file-size"></span>
+                </div>
+                <button class="remove-file" id="remove-file">Remove</button>
+            </div>
+            <div class="input-bar">
+                <button class="upload-btn" id="upload-btn" title="Upload file">+</button>
+                <input type="text" id="q" placeholder="Ask Zhen about Unheaded — drag a file in, or click + to attach" autocomplete="off" />
+                <button id="btn">Ask</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div>
+                <h3>System</h3>
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <div class="val" id="stat-vectors">—</div>
+                        <div class="label">Sheets</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-chunks">—</div>
+                        <div class="label">Cats</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-queries">0</div>
+                        <div class="label">Queries</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="val" id="stat-avg-time">—</div>
+                        <div class="label">Avg (s)</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Model selector (ADR-060) — kills+respawns llama-server.
+                 45 s – 3 min latency depending on which model you pick.
+                 Goes through Champion's gate via /api/v1/models/switch
+                 which proxies to zhen-agentd /api/v1/tool/exec with the
+                 direct-user trust label. -->
+            <div>
+                <h3>Model</h3>
+                <div class="model-switcher">
+                    <select id="model-select" disabled
+                            title="swap which model llama-server is serving">
+                        <option value="">loading…</option>
+                    </select>
+                    <div id="model-swap-status" class="model-status"></div>
+                </div>
+            </div>
+
+            <!-- Operator actions sidebar (Stage 4) — always-visible
+                 direct-action buttons. Same Champion-gated path the chat
+                 inline buttons use; these surface common ops up front. -->
+            <div>
+                <h3>Operator</h3>
+                <div class="op-actions">
+                    <button class="op-btn op-runbook" data-op="health-sweep">
+                        ▶ Health sweep (gated)
+                    </button>
+                    <button class="op-btn" data-op="recent-audit">
+                        ⌗ Recent audit (10)
+                    </button>
+                    <button class="op-btn" data-op="recent-runbooks">
+                        ⏵ Recent runbook outputs
+                    </button>
+                    <button class="op-btn" data-op="search-conversations">
+                        🔎 Search prior conversations
+                    </button>
+                    <button class="op-btn" data-op="refresh-stats">
+                        ↻ Refresh stats
+                    </button>
+                    <a class="op-btn op-link" href="http://localhost:20001" target="_blank" rel="noopener">
+                        ⊞ Open Kanban UI ↗
+                    </a>
+                    <a class="op-btn op-link" href="http://localhost:20002/wiki/Home" target="_blank" rel="noopener">
+                        ⊞ Open Wiki ↗
+                    </a>
+                    <a class="op-btn op-link" href="http://localhost:20000" target="_blank" rel="noopener">
+                        ⊞ Open Dashboard ↗
+                    </a>
+                </div>
+                <div id="op-result" class="op-result"></div>
+            </div>
+
+            <div>
+                <h3>Recent Queries</h3>
+                <div class="history-list" id="history"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="login-panel" class="login-panel" hidden>
+        <form id="login-form" class="login-box" autocomplete="on">
+            <div class="login-brand" aria-hidden="true">ZHENAI</div>
+            <div class="login-title">Log in to Zhen</div>
+            <label>Username <input id="login-user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+            <label>Password <input id="login-password" name="password" type="password" autocomplete="current-password" required></label>
+            <button type="submit" id="login-submit">Log in</button>
+            <div id="login-error" class="login-error" role="alert"></div>
+        </form>
+    </div>
+    <div id="login-who" class="login-who" hidden>
+        <span id="login-who-name"></span> <button type="button" id="login-logout">Log out</button>
+    </div>
+
+<script src="/auth/nav.js"></script>
+<script src="/static/chat.js"></script>
+</body>
+</html>

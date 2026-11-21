@@ -41,7 +41,7 @@ local model serving infrastructure.
 | `cmd/zhen-agentd` | long-running daemon with `/api/v1/tool/exec` Champion gate |
 | `cmd/shield` | WAF for the daemon (defense-in-depth) |
 | `raft/zhen_app.py` | Flask web UI (sidebar dropdown, chat, runbook execute) |
-| `raft/static/index.html` | the operator-facing chat surface |
+| `raft/pages/chat.html`, `raft/static/chat.js`, `raft/static/chat.css` | the operator-facing chat surface |
 | `runbooks/` | 31 operational runbooks (infra/network/security/data/observe/doom/deploy) |
 | `pkg/champion/` | the gate that protects every mutating action — 3 rules + audit + snapshot |
 | `vor` | retrieval substrate (cs serve from `bellistech/vor`) — 1847+ sheets |

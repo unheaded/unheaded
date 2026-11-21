@@ -225,6 +225,105 @@ func TestTeach_InvisibleRunesRefused(t *testing.T) {
 	}
 }
 
+// Invariant 10, wider (decision pack 2026-11-18 row 41, M-218.6): a character
+// no approver can see is refused whatever its general category. Before, the
+// check stopped at Cf, private use and U+E0000 up, so the Hangul fillers (Lo)
+// and the blank Braille pattern (So) passed.
+func TestTeach_InvisibleRunesRefusedByCategory(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		r        rune
+		category string
+		newHere  bool // false: refused before this change too
+	}{
+		// The five the record names.
+		{"hangul choseong filler", 0x115F, "Lo", true},
+		{"hangul jungseong filler", 0x1160, "Lo", true},
+		{"hangul filler", 0x3164, "Lo", true},
+		{"halfwidth hangul filler", 0xFFA0, "Lo", true},
+		{"braille pattern blank", 0x2800, "So", true},
+		// The rest of Unicode's Other_Default_Ignorable_Code_Point: drawn as
+		// nothing by default, like the fillers.
+		{"combining grapheme joiner", 0x034F, "Mn", true},
+		{"khmer vowel inherent aq", 0x17B4, "Mn", true},
+		{"khmer vowel inherent aa", 0x17B5, "Mn", true},
+		{"unassigned, default ignorable U+2065", 0x2065, "Cn", true},
+		{"unassigned, default ignorable U+FFF0", 0xFFF0, "Cn", true},
+		{"unassigned, default ignorable U+FFF8", 0xFFF8, "Cn", true},
+		// What was refused already stays refused.
+		{"zero width space", 0x200B, "Cf", false},
+		{"word joiner", 0x2060, "Cf", false},
+		{"arabic letter mark", 0x061C, "Cf", false},
+		{"mongolian vowel separator", 0x180E, "Cf", false},
+		{"left-to-right isolate", 0x2066, "Cf", false},
+		{"interlinear annotation anchor", 0xFFF9, "Cf", false},
+		{"private use, first plane", 0xE000, "Co", false},
+		{"private use, end of the first-plane area", 0xF8FF, "Co", false},
+		{"language tag", 0xE0001, "Cf", false},
+		{"unassigned in the tag block", 0xE0002, "Cn", false},
+		{"variation selector 17", 0xE0100, "Mn", false},
+		{"private plane 15", 0xF0000, "Co", false},
+		{"last private point", 0x10FFFD, "Co", false},
+		{"escape", 0x1B, "Cc", false},
+		{"next line (C1)", 0x85, "Cc", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if !teachBadTextRune(tc.r) {
+				t.Errorf("teachBadTextRune(%U) (%s) = false", tc.r, tc.category)
+			}
+			s := string(tc.r)
+			for where, args := range map[string]map[string]any{
+				"title":         teachArgs("no"+s+"te", "body"),
+				"text":          teachArgs("note", "bo"+s+"dy"),
+				"text, alone":   teachArgs("note", s),
+				"text, leading": teachArgs("note", s+"body"),
+			} {
+				if _, _, err := teachCheck(args); err == nil {
+					t.Errorf("accepted %U (%s) in the %s", tc.r, tc.category, where)
+				} else if strings.ContainsRune(err.Error(), tc.r) {
+					t.Errorf("the error repeats the character: %q", err)
+				}
+			}
+		})
+	}
+}
+
+// The wider refusal takes nothing visible with it: the neighbours of each
+// refused character, and ordinary text in several scripts, still pass.
+func TestTeach_VisibleTextStillAccepted(t *testing.T) {
+	for name, text := range map[string]string{
+		"ascii":                        "restart vor after a corpus change; see wiki/Zhen-AI.md",
+		"tabs and line ends":           "a\tb\r\nc\n",
+		"accented latin":               "café, naïve, Ångström, Čapek",
+		"combining accent":             "é and ä",
+		"hangul syllables":             "한국어 텍스트",
+		"hangul choseong (visible)":    "가",
+		"hangul jungseong after 1160":  "ᅡ",
+		"hangul compatibility jamo":    "ㄱㅣ ㅥ",
+		"halfwidth hangul letter":      "ﾡ",
+		"braille pattern dots-1":       "⠁⣿",
+		"cjk":                          "日本語のメモ 中文说明",
+		"arabic and hebrew":            "ملاحظة הערה",
+		"khmer letters":                "ខ្មែរ",
+		"no-break and ideographic sp.": "a b　c",
+		"punctuation and symbols":      "→ ✓ § ± “quoted” — 50 %",
+		"emoji":                        "done 🎉 ⚠ 🙂",
+		"emoji with a selector":        "⚠️",
+		"replacement character":        "a�b",
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, _, err := teachCheck(teachArgs("note", text)); err != nil {
+				t.Errorf("refused %+q: %v", text, err)
+			}
+			for _, r := range text {
+				if teachBadTextRune(r) {
+					t.Errorf("teachBadTextRune(%U) = true", r)
+				}
+			}
+		})
+	}
+}
+
 func TestTeach_RefusedShapes(t *testing.T) {
 	for name, args := range map[string]map[string]any{
 		"title over cap":    teachArgs(strings.Repeat("a", MaxTeachTitleBytes+1), "body"),

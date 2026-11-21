@@ -42,7 +42,7 @@ _FILENAME_PREFIXES = ('file:', 'download:')
 
 
 class ZhenStyle(Style):
-    """The page's dark palette (raft/static/index.html :root), lifted for
+    """The page's dark palette (raft/static/chat.css :root), lifted for
     contrast on the code background."""
     background_color = 'transparent'
     styles: ClassVar[dict] = {

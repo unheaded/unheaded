@@ -5,8 +5,9 @@
 # ci-python-lock.sh [DIR] — resolve DIR/requirements.in (default
 # .github/ci-python) into DIR/requirements.txt: every package, transitive
 # ones included, at an exact version with its sha256s, for `pip install
-# --require-hashes --no-deps --only-binary=:all:`. Also used for
-# notebooks/ (S-TRUE-WIRE Step 374).
+# --require-hashes --no-deps --only-binary=:all:`. DIR was added for
+# notebooks/ (S-TRUE-WIRE Step 374), whose requirement files left the
+# tree on 2026-11-21 (FND-040); .github/ci-python is the one caller.
 #
 # Resolution runs uv inside a throwaway container with only that
 # directory mounted, never on the host (no package code runs here, ADR-006's

@@ -1,7 +1,7 @@
 # Third-Party Dependencies and GPL Boundary
 
 **Project:** Unheaded Kingdom
-**Last updated:** 2026-11-09 (tables matched to `sbom/`, licenses as read by `scripts/generate-sbom.sh`)
+**Last updated:** 2026-11-21 (tables matched to `sbom/`, licenses as read by `scripts/generate-sbom.sh`)
 **Main license:** GPL-3.0-or-later (see `/LICENSE`)
 **Canonical third-party inventory location:** This file
 
@@ -105,7 +105,7 @@ Direct modules, from `go.mod`. Every indirect module, with its license as read, 
 | github.com/gorilla/websocket | v1.5.3 | BSD-2-Clause | WebSocket protocol support |
 | github.com/lib/pq | v1.12.3 | MIT | The Well (PostgreSQL) client |
 | github.com/rs/zerolog | v1.35.1 | MIT | Structured JSON logging |
-| github.com/yuin/goldmark | v1.8.6 | MIT | Markdown parsing and rendering |
+| github.com/yuin/goldmark | v1.8.7 | MIT | Markdown parsing and rendering |
 | golang.org/x/crypto | v0.58.1-0.20261009181718-2f1f834330b2 | BSD-3-Clause | Cryptographic utilities (mTLS, hashing) |
 | golang.org/x/sys | v0.49.0 | BSD-3-Clause | System-level operations (uname, signals) |
 | golang.org/x/text | v0.43.0 | BSD-3-Clause | Text processing and Unicode support |
@@ -169,9 +169,11 @@ dependencies of those pages even though nothing is installed:
 `sbom/SBOM.md` lists them as not read. Each carries a Subresource Integrity hash — see the note in
 `dashboard/upc-console.html` for how to recompute one when bumping a version.
 
-Google Fonts stylesheets are also loaded by `raft/static/index.html` and
-`skills/marshal-eval-review.html`. They carry no SRI because Google serves
-different CSS per user-agent, so the response is not stable for a given URL.
+A Google Fonts stylesheet is also loaded by `skills/marshal-eval-review.html`.
+It carries no SRI because Google serves different CSS per user-agent, so the
+response is not stable for a given URL. The Zhen pages (`raft/pages/`) loaded
+one until 2026-11-21; they now use system fonts and load nothing from another
+host (`raft/tests/test_zhen_page_policy.py`).
 
 Configuration and protocol handlers are in `/dashboard/js/` and are GPL-3.0.
 
@@ -270,4 +272,4 @@ grep -rn '<script[^>]*src="https' --include=*.html . | grep -v node_modules
 
 ---
 
-**Last read:** 2026-11-05, by `scripts/generate-sbom.sh`.
+**Last read:** 2026-11-21, by `scripts/generate-sbom.sh`.

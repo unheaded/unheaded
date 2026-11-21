@@ -360,6 +360,9 @@ fixes:
     note: >-
       DP-09, Stevie 2026-11-03: west 4G/500M, east stays at 1G/200M. A second drop-in, because the file journald-caps
       writes is pinned by the parity goldens. journald reads 60- then 61- and the last value wins.
+      2026-11-21 (decision pack 2026-11-18 row 41, M-215.1): the caps are under hosts: [west]. The `all` profile takes
+      every fix, so a run of it on east used to write 4G/500M there; now east gets a file of comments and its
+      60-unheaded.conf holds. West's file is byte for byte what was installed 2026-11-04: no re-apply is needed.
     actions:
       - file:
           path: /etc/systemd/journald.conf.d/61-unheaded-west.conf
@@ -367,9 +370,14 @@ fixes:
           parts:
             - text: |
                 # DP-09: west's caps; overrides 60-unheaded.conf (last value wins).
+            - hosts: [west]
+              text: |
                 [Journal]
                 SystemMaxUse=4G
                 RuntimeMaxUse=500M
+            - hosts: [east]
+              text: |
+                # Not west: nothing is set here, and 60-unheaded.conf's 1G/200M holds.
       - run: "systemctl restart systemd-journald.service"
 
   - id: kmod-usb-storage

@@ -1427,6 +1427,23 @@ provoke_test_compose_publish_bind() {
     grep -q ':?-(\[^}\]\*)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_compose_secrets() {
+    # Contract (M-201.6): no compose file holds a credential. Write Grafana's
+    # admin password into the main file, which is how the one in tomb/ sat.
+    backup "docker-compose.yml"
+    sed -i 's|^\(      GF_SECURITY_ADMIN_PASSWORD: \).*$|\1meta-gate-probe|' "${REPO_ROOT}/docker-compose.yml"
+    grep -q '^      GF_SECURITY_ADMIN_PASSWORD: meta-gate-probe$' "${REPO_ROOT}/docker-compose.yml" || { echo "provocation anchor missing in docker-compose.yml" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_test_compose_secrets() {
+    # Contract (M-201.6): a literal default is a literal. Count ${X:-anything}
+    # as a variable again, so its case sees the gate pass.
+    local f="scripts/check-compose-secrets.sh"
+    backup "${f}"
+    sed -i 's/(?::?\\?\[^}\]\*|:?-)?/(?::?\\?[^}]*|:?-[^}]*)?/' "${REPO_ROOT}/${f}"
+    grep -q ':?-\[^}\]\*)?' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_scrape_publish() {
     # Contract (M11): what Victoria scrapes at the gateway is published there.
     backup "docker-compose.yml"
@@ -1464,6 +1481,8 @@ check-unit-flags|provoke_unit_flags|fast|--config, which wotan does not declare,
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-compose-publish-bind|provoke_compose_publish_bind|fast|victoria's 8428 published with no address
 test-check-compose-publish-bind|provoke_test_compose_publish_bind|fast|the publish gate accepting \${X-127.0.0.1}, whose empty value binds every interface
+check-compose-secrets|provoke_compose_secrets|fast|grafana's admin password written as a literal in docker-compose.yml
+test-check-compose-secrets|provoke_test_compose_secrets|fast|the secrets gate accepting \${X:-admin}, a literal default
 check-scrape-publish|provoke_scrape_publish|fast|wotan's publish on docker0's gateway dropped, so Victoria's scrape is refused
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
