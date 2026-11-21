@@ -14,6 +14,8 @@
 - draft-bellis-unheaded-anamnesis-00 (event records; added 2026-10-27)
 - draft-bellis-unheaded-protocol-overview-00 (reader's map of the suite, Informational; added 2026-10-27)
 
+Text items waiting for a `-02`, and where the `-01` drafts and the code disagree: [SPEC-VS-CODE-AUDIT.md](SPEC-VS-CODE-AUDIT.md), "Update 2026-11-21" (added 2026-11-21).
+
 ---
 
 ## Is There a Fee?

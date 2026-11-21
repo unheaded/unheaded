@@ -2071,3 +2071,100 @@ findings:
       and the probe's own counters. Open until both hosts run the new pair and the verify line holds. West met the
       verify line on 2026-11-15, 6 h after the third deploy (06:38:07 UTC, binary from fc387040): 0.016 core,
       64,812 entries, 0 decode errors, the installed object accepted. East waits on Phase 4B (attended)
+
+  # --- drafts against code (2026-11-18): detail in docs/protocol/SPEC-VS-CODE-AUDIT.md, "Update 2026-11-21" ---
+  - id: FND-045
+    title: >-
+      The PQC verification library still implements the -00 model that the -01 drafts retired: a 12-byte value where
+      the draft carries one 32-bit SigRef, a per-packet replay window, a pseudo-header over fields that change in
+      transit, an optional signature step, no enforced signature age and no removal after key rotation
+    verify: >-
+      rows 1 to 7 of "Update 2026-11-21" in docs/protocol/SPEC-VS-CODE-AUDIT.md each name the commit that closed
+      them: the code and its tests follow pqc-authentication-01 sections 5, 6.1, 7, 8.1, 8.2, 11.2 and 18.2, or the
+      code is deleted
+    severity: low
+    class: app
+    opened: 2026-11-18
+    exposure: >-
+      library code only. NewPQCVerifier has no caller outside tests, shield-ebpf reads no SigRef, and the draft's own
+      implementation status says Phases 1-3 are not implemented, so no running path verifies a PQC signature and
+      none relies on this code. It matters on the day something calls it
+    lockout: none
+    step: 7
+    plan: >-
+      Recorded at Stevie's word (DECISION-PACK-2026-11-18 row 37: the drafts were edited, the code was not, and that
+      is an open finding). Found by the RFC desk on 2026-11-18; code citations read again on 2026-11-21, read and not
+      run. The drafts stand as ruled, so the code follows them or goes. No plan exists for it under the plan freeze
+      (ADR-112). Row 6 needs its number first
+    decision: >-
+      the maximum signature age default: the draft's RECOMMENDED 300 seconds is the analysis's proposal and Stevie has
+      not named it; the code's tier defaults run from 15 minutes to 24 hours
+  - id: FND-046
+    title: >-
+      Shield stamps a new random IPv6 Flow Label on every packet; the -01 drafts say one label per flow, set from a
+      hash of the 5-tuple (ruling 43)
+    verify: >-
+      shield-ebpf derives the Flow Label from the 5-tuple; a Shield test reads the same label on two packets of one
+      flow and different labels on two flows; docs/policy/ebpf-insns-baseline.tsv carries the new verified count
+    severity: low
+    class: app
+    opened: 2026-11-18
+    exposure: >-
+      correctness and observability, no confidentiality impact. The label is the trace correlation id, so the packets
+      of one flow do not share one, and hop-ebpf keys its per-flow counters from it. The drafts sign the label as a
+      per-flow value, and nothing verifies that signature today (FND-045)
+    lockout: none
+    step: 7
+    plan: >-
+      Ruled per flow on 2026-11-10 (docs/protocol/RFC-EDITOR-REQUESTS-WH.md item 9, "a Shield change, after the
+      ruling"); the change has not been made. Row 8 of "Update 2026-11-21" in docs/protocol/SPEC-VS-CODE-AUDIT.md,
+      read again on 2026-11-21. An eBPF change: it needs a root load test and a new instruction baseline, so it is
+      not done unattended
+  - id: FND-047
+    title: >-
+      hop_count runs in opposite directions in the public draft and the code: protocol-foundation-01 sets it to the
+      hop limit at ingress and decrements, the eBPF code sets 0 and increments; which side moves is unruled
+    verify: >-
+      Stevie rules the direction; then protocol-foundation section 5.3 and ebpf/monad-common, hop-ebpf and shield-ebpf
+      say and do the same, and a hop test asserts the value at ingress and after one hop
+    severity: low
+    class: app
+    opened: 2026-11-18
+    exposure: >-
+      interoperability: an implementation written from the public text and this code disagree on the octet at 0x03
+      (64, 63, ... against 0, 1, ...). Only first-party code speaks the format today. The private working copy
+      docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md says increment, as the code does, so the
+      repository holds two texts
+    lockout: none
+    step: 7
+    plan: >-
+      Nothing changes before the ruling: the wire format is frozen and the -01 text was ruled on 2026-11-18. Row 9 of
+      "Update 2026-11-21" in docs/protocol/SPEC-VS-CODE-AUDIT.md lists what each answer touches. Found by the RFC desk
+      on 2026-11-18; read again on 2026-11-21
+    decision: >-
+      needs a ruling: the public text stands and the code counts down from the limit, or the code stands and
+      protocol-foundation section 5.3 says 0 at ingress and incremented in -02
+  - id: FND-048
+    title: >-
+      The Monad checksum covers 20 octets in the public draft and 18 in the code, and the two give different values
+      for the same header; which side moves is unruled
+    verify: >-
+      Stevie rules 18 or 20; then protocol-foundation sections 5.3 and 5.5, MONAD_CRC_DATA_LEN and the two Go
+      constants agree, and the draft carries a test vector that a Rust test and a Go test both check
+    severity: low
+    class: app
+    opened: 2026-11-18
+    exposure: >-
+      interoperability: an implementation written from the public text computes a checksum this code counts as an
+      anomaly. Only first-party code speaks the format today, and all of it computes 18. The spec-vs-code audit asked
+      for the text to say 18 in March (finding 1.2, still open), and the private working copy
+      docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md says 18
+    lockout: none
+    step: 7
+    plan: >-
+      Nothing changes before the ruling: the wire format is frozen and the -01 text was ruled on 2026-11-18. Row 10 of
+      "Update 2026-11-21" in docs/protocol/SPEC-VS-CODE-AUDIT.md lists what each answer touches. Found by the RFC desk
+      on 2026-11-18; read again on 2026-11-21
+    decision: >-
+      needs a ruling: the text says 18 octets (0x00-0x11) in -02 and gains a test vector, or the code moves to 20
+      octets with the checksum field zeroed and every checksum on the wire changes on one day
