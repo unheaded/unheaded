@@ -44,7 +44,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"math"
 	"net/netip"
 	"os"
@@ -71,6 +70,21 @@ var (
 
 	// ErrKeyFileSize is returned for a key_file not KeySize bytes long.
 	ErrKeyFileSize = errors.New("hoprules: key_file size")
+
+	// ErrKeyFileOwner is returned for a key_file owned by neither root nor the
+	// calling user.
+	ErrKeyFileOwner = errors.New("hoprules: key_file owner")
+
+	// ErrKeyFileLinks is returned for a key_file with more than one hard link.
+	ErrKeyFileLinks = errors.New("hoprules: key_file link count")
+
+	// ErrKeyFileSymlink is returned for a key_file that is a symlink or is
+	// reached through one.
+	ErrKeyFileSymlink = errors.New("hoprules: key_file symlink")
+
+	// ErrRulesFileMode is returned for a rules file a group or everyone can
+	// write.
+	ErrRulesFileMode = errors.New("hoprules: rules file mode")
 )
 
 // File is one rules file. Parse fills it, Load reads its keys, Apply writes it.
@@ -158,6 +172,34 @@ func Parse(r io.Reader) (*File, error) {
 	return &f, nil
 }
 
+// ParseFile opens the rules file at path and parses it as Parse does. The file
+// names the key files and says what a hop checks, so one that its group or
+// everyone can write is refused before a byte of it is used: the mode is read
+// from the open file. Its owner is not checked: whoever runs the command
+// chose the file.
+func ParseFile(path string) (*File, error) {
+	fh, err := os.Open(path) // #nosec G304 -- the operator's --file; refused below if group- or world-writable
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = fh.Close() }()
+	st, err := fh.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("hoprules: %s is not a regular file", path)
+	}
+	if perm := st.Mode().Perm(); perm&0o022 != 0 {
+		return nil, fmt.Errorf("%w: %s is %04o, group- or world-writable; chmod go-w", ErrRulesFileMode, path, perm)
+	}
+	f, err := Parse(fh)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", path, err)
+	}
+	return f, nil
+}
+
 // validate refuses what would be written wrongly or lost. Two entries with
 // one map key would leave the first silently overwritten. It runs in Apply as
 // well, for a File built without Parse.
@@ -231,24 +273,22 @@ func (f *File) Load() error {
 	return nil
 }
 
-// readKey reads a key_file. Lstat refuses a symlink, whose target's mode the
-// open would otherwise vouch for; the mode and size are then read from the
-// open file, so what is checked is what is read.
+// geteuid is the calling user; tests replace it.
+var geteuid = os.Geteuid
+
+// keyOwnerOK says whether a key file owned by owner may be read by a process
+// running as euid: root's file, or the caller's own.
+func keyOwnerOK(owner uint32, euid int) bool {
+	return owner == 0 || int64(owner) == int64(euid)
+}
+
+// readKey reads a key_file. The open refuses a symlink at the file or above
+// it (openKeyFile); the type, owner, link count, mode and size are then read
+// from the open file, so what is checked is what is read. A correct key file
+// is a regular file of KeySize bytes, mode 0400 or 0600, owned by root or by
+// the calling user, with one link, named by its real path.
 func readKey(path string) (func() [KeySize]byte, error) {
-	link, err := os.Lstat(path)
-	if err != nil {
-		// Nothing is at path, so it may be a pasted key and not a path: base64
-		// can start with a slash, and validate only refuses a relative one.
-		var pe *fs.PathError
-		if errors.As(err, &pe) {
-			err = pe.Err
-		}
-		return nil, fmt.Errorf("key_file: %w", err)
-	}
-	if !link.Mode().IsRegular() {
-		return nil, fmt.Errorf("%s is not a regular file", path)
-	}
-	fh, err := os.Open(path) // #nosec G304 -- the operator's key_file; refused below unless 0400 or 0600
+	fh, err := openKeyFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -257,8 +297,11 @@ func readKey(path string) (func() [KeySize]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !os.SameFile(link, st) {
-		return nil, fmt.Errorf("%s changed while being opened", path)
+	if !st.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s is not a regular file", path)
+	}
+	if err := keyFileTrust(st, path); err != nil {
+		return nil, err
 	}
 	if perm := st.Mode().Perm(); perm != 0o400 && perm != 0o600 {
 		return nil, fmt.Errorf("%w: %s is %04o, want 0400 or 0600", ErrKeyFileMode, path, perm)

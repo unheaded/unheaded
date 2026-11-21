@@ -110,14 +110,19 @@ func TestHopRulesApply_Refuses(t *testing.T) {
 	if err := os.WriteFile(bad, []byte("nonsense: 1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	loose := rulesFile(t)
+	if err := os.Chmod(loose, 0o664); err != nil {
+		t.Fatal(err)
+	}
 	cases := map[string]struct {
 		args []string
 		want string
 	}{
-		"no file":      {nil, "--file"},
-		"missing file": {[]string{"--file", bad + ".gone"}, "no such file"},
-		"stray arg":    {[]string{"--file", bad, "extra"}, "unexpected argument"},
-		"bad rules":    {[]string{"--file", bad}, "nonsense"},
+		"group-writable": {[]string{"--file", loose}, "group- or world-writable"},
+		"no file":        {nil, "--file"},
+		"missing file":   {[]string{"--file", bad + ".gone"}, "no such file"},
+		"stray arg":      {[]string{"--file", bad, "extra"}, "unexpected argument"},
+		"bad rules":      {[]string{"--file", bad}, "nonsense"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

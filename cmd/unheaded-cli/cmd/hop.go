@@ -6,7 +6,6 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -150,16 +149,12 @@ func newHopRulesApplyCommand() *Command {
 	}
 }
 
-// loadHopRules parses path and reads the key files it names.
+// loadHopRules parses path, which hoprules refuses if its group or everyone
+// can write it, and reads the key files it names.
 func loadHopRules(path string) (*hoprules.File, error) {
-	fh, err := os.Open(path) // #nosec G304 -- the operator's --file
+	f, err := hoprules.ParseFile(path)
 	if err != nil {
 		return nil, err
-	}
-	defer func() { _ = fh.Close() }()
-	f, err := hoprules.Parse(fh)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	if err := f.Load(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)

@@ -38,6 +38,17 @@ The CLI writes hop-ebpf's check maps, pinned under `/sys/fs/bpf/unheaded/hop-ebp
 | `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Entries are never removed. The check mode stays as it is, so rules written while it is off do nothing. |
 | `unheaded hop mode <off\|observe\|enforce>` | Sets the check mode (CONFIG key 4). `enforce` is refused until `hoprules.EnforceBlockers` is empty (today FND-031, FND-033, FND-035), and the packaged object runs enforce as observe anyway (ADR-125). |
 
+#### What `hop rules apply` accepts
+
+A correctly set up host passes every check below unchanged; anything else is refused before a map is opened, with a message naming the file and the reason.
+
+| File | Correct | Refused |
+|------|---------|---------|
+| Rules file (`--file`) | A regular file that its group and everyone else cannot write (`0600`, `0640`, `0644`). | Group- or world-writable (`chmod go-w` fixes it); not a regular file. |
+| Key file (`key_file:`) | A regular file of exactly 32 bytes, mode `0400` or `0600`, owned by root or by the user running the command, with one hard link, named by its real absolute path. | Any other mode or size; another user's file; a second hard link; a symlink at the file or at any directory above it (name the real path instead: on Linux the open uses `openat2` with `RESOLVE_NO_SYMLINKS`). |
+
+A secret manager that hands out its files through a symlinked directory (`/run/secrets` under some of them) needs the directory's real path in `key_file`.
+
 ### `ebpf-loader` and signals
 
 `cmd/ebpf-loader` holds the programs' link handles until it is told to stop. SIGINT, SIGTERM and SIGHUP all run the same cleanup: the handles are dropped, which detaches the programs, and the `--pid-file` is removed. Before 2026-11-21 only SIGINT did, so a unit stopped by systemd (SIGTERM) skipped the cleanup and left its PID file. SIGKILL still skips it.
