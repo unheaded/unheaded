@@ -11,7 +11,6 @@ import (
 	"go/token"
 	"io/fs"
 	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -41,25 +40,21 @@ type Front struct {
 func GoFronts(root string) ([]Front, error) {
 	byName := map[string]*Front{}
 	fset := token.NewFileSet()
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	tree := os.DirFS(root)
+	err := fs.WalkDir(tree, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, rerr := filepath.Rel(root, path)
-		if rerr != nil {
-			return rerr
-		}
-		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
 			if skipDir(rel, d.Name()) {
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
 		if !strings.HasSuffix(rel, ".go") || strings.HasSuffix(rel, "_test.go") {
 			return nil
 		}
-		src, rerr := os.ReadFile(path) // #nosec G304,G122 -- a source file of the tree under test
+		src, rerr := fs.ReadFile(tree, rel)
 		if rerr != nil {
 			return rerr
 		}

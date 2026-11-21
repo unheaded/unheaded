@@ -265,15 +265,7 @@ func (b *BFF) loginServerSide(w http.ResponseWriter, r *http.Request, id *auth.I
 	}
 	// No Max-Age and no Expires: the server ends the session, and the
 	// browser is not asked to keep the id past its own session.
-	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
-	http.SetCookie(w, &http.Cookie{
-		Name:     b.cfg.CookieName,
-		Value:    sid,
-		Path:     "/",
-		HttpOnly: true,
-		Secure:   !b.cfg.DevPlaintext,
-		SameSite: http.SameSiteStrictMode,
-	})
+	b.setSessionCookie(w, sid, 0)
 	log.Info().Str("service", b.cfg.ServiceName).Str("user", s.Subject).Strs("roles", s.Roles).Str("source", client).
 		Str("session", s.ID()).Msg("bff: login")
 	writeJSON(w, http.StatusOK, serverMeBody(s))

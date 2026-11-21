@@ -531,18 +531,26 @@ func (b *BFF) login(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "sessions_unavailable"})
 		return
 	}
+	b.setSessionCookie(w, sid, int(life/time.Second))
+	log.Info().Str("service", b.cfg.ServiceName).Str("user", id.Subject).Strs("roles", id.Roles).Str("source", client).Msg("bff: login")
+	writeJSON(w, http.StatusOK, meBody(id.Subject, id.Roles, expires))
+}
+
+// setSessionCookie is the one place the session cookie is written: at a
+// login in either mode, and to clear it at logout (value "", maxAge -1).
+// maxAge 0 leaves Max-Age out, so the browser keeps the cookie for its own
+// session only. Every attribute but Secure is fixed.
+func (b *BFF) setSessionCookie(w http.ResponseWriter, value string, maxAge int) {
 	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
 	http.SetCookie(w, &http.Cookie{
 		Name:     b.cfg.CookieName,
-		Value:    sid,
+		Value:    value,
 		Path:     "/",
-		MaxAge:   int(life / time.Second),
+		MaxAge:   maxAge,
 		HttpOnly: true,
 		Secure:   !b.cfg.DevPlaintext,
 		SameSite: http.SameSiteStrictMode,
 	})
-	log.Info().Str("service", b.cfg.ServiceName).Str("user", id.Subject).Strs("roles", id.Roles).Str("source", client).Msg("bff: login")
-	writeJSON(w, http.StatusOK, meBody(id.Subject, id.Roles, expires))
 }
 
 func meBody(sub string, roles []string, exp time.Time) map[string]any {
@@ -700,11 +708,7 @@ func (b *BFF) logout(w http.ResponseWriter, r *http.Request) {
 		_ = b.store.Delete(r.Context(), key)
 		log.Info().Str("service", b.cfg.ServiceName).Str("user", s.Subject).Msg("bff: logout")
 	}
-	// #nosec G124 -- HttpOnly and SameSite=Strict always; Secure unless AUTH_BFF_DEV_PLAINTEXT, the documented mode for a stack without TLS (ADR-103)
-	http.SetCookie(w, &http.Cookie{
-		Name: b.cfg.CookieName, Value: "", Path: "/", MaxAge: -1,
-		HttpOnly: true, Secure: !b.cfg.DevPlaintext, SameSite: http.SameSiteStrictMode,
-	})
+	b.setSessionCookie(w, "", -1)
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusNoContent)
 }

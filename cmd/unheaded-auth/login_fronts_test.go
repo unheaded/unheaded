@@ -5,12 +5,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
-	"path/filepath"
+	"path"
 	"regexp"
 	"sort"
 	"strconv"
@@ -70,9 +71,13 @@ var notFronts = map[string]string{
 // must start a counted Go front.
 var unitBinary = regexp.MustCompile(`(?m)^ExecStart=\S*/([a-z0-9-]+)(\s|$)`)
 
+// repo is the repository as a file system: every file these tests read is
+// named from its root.
+var repo = os.DirFS(repoRoot)
+
 func foreignBudget(t *testing.T, f foreignFront, name string) int {
 	t.Helper()
-	raw, err := os.ReadFile(filepath.Join(repoRoot, f.source))
+	raw, err := fs.ReadFile(repo, f.source)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,33 +162,28 @@ func TestLoginFronts_EveryForeignReaderOfTheIssuerKeyIsAccountedFor(t *testing.T
 	known := map[string]bool{}
 	for _, f := range foreignFronts {
 		known[f.source] = true
-		if _, err := os.Stat(filepath.Join(repoRoot, f.source)); err != nil {
+		if _, err := fs.Stat(repo, f.source); err != nil {
 			t.Errorf("%s: its source %s is gone; take it out of foreignFronts and the sum", f.name, f.source)
 		}
 	}
 	source := map[string]bool{".py": true, ".sh": true, ".rs": true, ".js": true, ".mjs": true, ".ts": true, ".rb": true, ".pl": true, ".php": true, ".lua": true, ".c": true}
-	err := filepath.WalkDir(repoRoot, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(repo, ".", func(rel string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, rerr := filepath.Rel(repoRoot, path)
-		if rerr != nil {
-			return rerr
-		}
-		rel = filepath.ToSlash(rel)
 		if d.IsDir() {
 			switch name := d.Name(); {
 			case name == "node_modules", name == "target", name == "__pycache__", name == "venv", name == "docs", name == "wiki":
-				return filepath.SkipDir
+				return fs.SkipDir
 			case rel != "." && strings.HasPrefix(name, "."):
-				return filepath.SkipDir
+				return fs.SkipDir
 			}
 			return nil
 		}
-		if !source[filepath.Ext(rel)] || !d.Type().IsRegular() {
+		if !source[path.Ext(rel)] || !d.Type().IsRegular() {
 			return nil
 		}
-		raw, rerr := os.ReadFile(path) // #nosec G304,G122 -- a source file of this repository
+		raw, rerr := fs.ReadFile(repo, rel)
 		if rerr != nil {
 			return rerr
 		}
@@ -212,16 +212,16 @@ func TestLoginFronts_ShippedConfigurationRunsOnlyCountedFronts(t *testing.T) {
 	for _, f := range foreignFronts {
 		foreignUnit[f.unit] = false
 	}
-	units, err := filepath.Glob(filepath.Join(repoRoot, "deploy/systemd/*.service"))
+	units, err := fs.Glob(repo, "deploy/systemd/*.service")
 	if err != nil || len(units) == 0 {
 		t.Fatalf("no units found: %v", err)
 	}
 	for _, u := range units {
-		raw, err := os.ReadFile(u) // #nosec G304 -- a path from the Glob above
+		raw, err := fs.ReadFile(repo, u)
 		if err != nil {
 			t.Fatal(err)
 		}
-		base := filepath.Base(u)
+		base := path.Base(u)
 		for _, key := range []string{bff.EnvClientUserLoginFailures, bff.EnvClientLoginFailures} {
 			if bytes.Contains(raw, []byte("Environment="+key+"=")) {
 				t.Errorf("%s sets %s: the sum is taken over the defaults, so a shipped unit must not move one", base, key)
@@ -245,7 +245,7 @@ func TestLoginFronts_ShippedConfigurationRunsOnlyCountedFronts(t *testing.T) {
 		}
 	}
 
-	compose, err := os.ReadFile(filepath.Join(repoRoot, "docker-compose.yml"))
+	compose, err := fs.ReadFile(repo, "docker-compose.yml")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -393,7 +393,12 @@ func issuerLogin(t *testing.T, issuerURL, user, password string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp, err := http.Post(issuerURL+"/login", "application/json", bytes.NewReader(body)) // #nosec G107 -- the test's own issuer on loopback
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, issuerURL+"/login", bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

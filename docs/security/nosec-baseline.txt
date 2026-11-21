@@ -80,7 +80,6 @@ cmd/trace-collector-go/main.go 1
 cmd/trace-collector-go/packet_event.go 1
 cmd/trace-collector-go/self_filter.go 1
 cmd/unheaded-aide/main.go 1
-cmd/unheaded-auth/bff_lockout_test.go 1
 cmd/unheaded-auth/issuer.go 1
 cmd/unheaded-auth/issuer_test.go 3
 cmd/unheaded-auth/tty_linux.go 1
@@ -155,7 +154,7 @@ pkg/baremetal/image/image.go 5
 pkg/baremetal/image/nixos.go 9
 pkg/baremetal/pxe/tftp.go 3
 pkg/benchmark/benchmark.go 1
-pkg/bff/bff.go 5
+pkg/bff/bff.go 4
 pkg/cartridge/cartridge.go 2
 pkg/cartridge/cartridge_test.go 1
 pkg/cartridge/differential_linux_test.go 4
