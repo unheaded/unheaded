@@ -47,6 +47,8 @@ A correctly set up host passes every check below unchanged; anything else is ref
 | Rules file (`--file`) | A regular file that its group and everyone else cannot write (`0600`, `0640`, `0644`). | Group- or world-writable (`chmod go-w` fixes it); not a regular file. |
 | Key file (`key_file:`) | A regular file of exactly 32 bytes, mode `0400` or `0600`, owned by root or by the user running the command, with one hard link, named by its real absolute path. | Any other mode or size; another user's file; a second hard link; a symlink at the file or at any directory above it (name the real path instead: on Linux the open uses `openat2` with `RESOLVE_NO_SYMLINKS`). |
 
+| Pin (`--pin-dir`/`<MAP>`), for `hop rules apply` and `hop mode` | The pin and the directory holding it are real files owned by root (or by the user running the command), closed to group and world writes, as `ebpf-loader --pin-maps` leaves them (`0755` directory, `0600` pins); and the kernel's own name for the map behind the pin is the pin's file name (`HOP_VALIDATORS`, `HMAC_KEYS`, `RETRY_TOKENS`, `CONFIG`). | A symlink at the pin or its directory; another user's pin or directory; a group- or world-writable one; a map the kernel knows under another name (a stale or wrong pin of the same sizes), with both names in the message. Directories above the pin directory are not checked. |
+
 A secret manager that hands out its files through a symlinked directory (`/run/secrets` under some of them) needs the directory's real path in `key_file`.
 
 ### `ebpf-loader` and signals

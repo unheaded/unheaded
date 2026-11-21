@@ -22,9 +22,13 @@ type hopMap interface {
 	Close() error
 }
 
-// openHopMap opens one pinned map. Tests replace it.
+// openHopMap opens one pinned map, whose file name is the map's name. The pin
+// and its directory must be root's or the caller's and closed to group and
+// world, and the kernel's name for the map must be the file's: key material
+// and rules go into whatever the pin names (pkg/ebpf.OpenPinnedMapNamed).
+// Tests replace it.
 var openHopMap = func(path string) (hopMap, error) {
-	return ebpf.OpenPinnedMap(path)
+	return ebpf.OpenPinnedMapNamed(path, filepath.Base(path))
 }
 
 // pinnedWriter is a hoprules.MapWriter over the pins in dir. A map is opened
