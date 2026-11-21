@@ -129,7 +129,7 @@ def test_csrf_get_is_never_blocked(client):
 
 
 def test_csrf_page_sends_header_on_same_origin_posts():
-    html = (RAFT / 'static' / 'index.html').read_text()
+    html = (RAFT / 'static' / 'chat.js').read_text()
     assert 'X-Zhen-CSRF' in html
     assert 'zhen_csrf' in html
 
@@ -148,7 +148,7 @@ def test_page_refetches_stats_after_login():
     """D-03: stats need a login, and were fetched once at page load, so the
     sidebar showed `?` after logging in. One refreshStats(), called at load
     and from the login handler; before login it says so instead of `?`."""
-    html = (RAFT / 'static' / 'index.html').read_text()
+    html = (RAFT / 'static' / 'chat.js').read_text()
     stats_fetch = "fetch(API + '/api/v1/stats')"
     assert stats_fetch in _js_function(html, 'refreshStats')
     # The health check and the welcome go through refreshStats; neither keeps
@@ -169,7 +169,7 @@ def test_page_refetches_stats_after_login():
 def test_page_keeps_the_question_when_the_session_has_ended():
     """D-03: a 401 on the chat send opens the login panel (the fetch wrapper),
     puts the question back in the box, and sends nothing again by itself."""
-    html = (RAFT / 'static' / 'index.html').read_text()
+    html = (RAFT / 'static' / 'chat.js').read_text()
     ask = _js_function(html, 'ask')
     i = ask.index('r.status === 401')
     branch = ask[i:ask.index('}', ask.index('return;', i))]
@@ -258,7 +258,7 @@ def test_agentd_kanban_create_without_a_login_is_refused(client):
 
 
 def test_agentd_page_no_longer_posts_to_the_daemon_directly():
-    html = (RAFT / 'static' / 'index.html').read_text()
+    html = (RAFT / 'pages' / 'chat.html').read_text() + (RAFT / 'static' / 'chat.js').read_text()
     assert ':20111/api/v1/tool/exec' not in html
 
 

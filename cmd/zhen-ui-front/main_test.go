@@ -73,6 +73,10 @@ func socketDir(t *testing.T) string {
 	return dir
 }
 
+// appPolicy stands for the policy the app sends with a page (raft/zhen_app.py
+// _PAGE_CSP; raft/tests/test_zhen_page_policy.py holds its content).
+const appPolicy = "default-src 'none'; script-src 'self'; style-src 'self'; frame-ancestors 'none'"
+
 func startApp(t *testing.T, mode os.FileMode) *fakeApp {
 	t.Helper()
 	a := &fakeApp{socket: filepath.Join(socketDir(t), "app.sock")}
@@ -98,6 +102,8 @@ func startApp(t *testing.T, mode os.FileMode) *fakeApp {
 		a.mu.Unlock()
 		w.Header().Set("Server", "Werkzeug/0 Python/0")
 		w.Header().Set("Set-Cookie", "sid=1; Path=/; HttpOnly")
+		w.Header().Set("Content-Security-Policy", appPolicy)
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusTeapot)
 		_ = json.NewEncoder(w).Encode(s)
@@ -455,6 +461,52 @@ func TestProxyPassesTheRequest(t *testing.T) {
 	} {
 		if v := got.Header.Get(h); v != want {
 			t.Errorf("%s %q, want %q", h, v, want)
+		}
+	}
+}
+
+// The page's Content-Security-Policy is the app's and must reach the browser
+// as the app sent it: one copy, unchanged (two copies would be intersected by
+// the browser, and a dropped one leaves the chat page with none). The one
+// response the front writes itself, the menu script, is a script the page's
+// policy lets run, so it says what it is and carries the closed policy.
+func TestPagePolicyReachesTheBrowser(t *testing.T) {
+	app := startApp(t, 0o600)
+	f := startFront(t, app.socket, nil)
+
+	resp, err := f.client().Get("https://" + f.addr + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if got := resp.Header.Values("Content-Security-Policy"); len(got) != 1 || got[0] != appPolicy {
+		t.Errorf("the app's policy arrived as %q, want one copy of %q", got, appPolicy)
+	}
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options %q from the app, want nosniff", got)
+	}
+
+	resp, err = f.client().Get("https://" + f.addr + "/auth/nav.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "text/javascript") {
+		t.Fatalf("GET /auth/nav.js = %d %q", resp.StatusCode, resp.Header.Get("Content-Type"))
+	}
+	if app.count() != 1 {
+		t.Errorf("the app saw %d requests, want 1: the menu script is the front's own", app.count())
+	}
+	if got := resp.Header.Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Errorf("X-Content-Type-Options %q on the menu script, want nosniff", got)
+	}
+	csp := resp.Header.Get("Content-Security-Policy")
+	if !strings.Contains(csp, "default-src 'none'") || !strings.Contains(csp, "frame-ancestors 'none'") {
+		t.Errorf("the menu script's policy is %q, want the closed one", csp)
+	}
+	for _, word := range []string{"unsafe", "http", "*"} {
+		if strings.Contains(csp, word) {
+			t.Errorf("the menu script's policy %q holds %q", csp, word)
 		}
 	}
 }

@@ -2712,20 +2712,48 @@ def view_source():
         return jsonify({'error': f'vor search failed: {exc}'}), 500
 
 
-# The viewer shows text that can come from an `external` source. The renderer
-# emits a fixed set of tags and the page checks them again; this policy is the
-# third layer: no inline script or style, nothing loaded but this origin's own
-# files and the chat page's two font hosts, no framing.
-_SOURCE_VIEW_CSP = (
-    "default-src 'none'; script-src 'self'; "
-    "style-src 'self' https://fonts.googleapis.com; "
-    "font-src 'self' https://fonts.gstatic.com; "
+# The two pages show text that can come from a model or an `external` source.
+# The viewer's renderer emits a fixed set of tags and its page checks them
+# again; the chat page escapes what it shows. This policy is the layer under
+# both: no inline script, style or handler, nothing loaded but this origin's
+# own scripts and stylesheets, no image, no font (the pages use the system's),
+# no form target (the login form is sent by script), no framing. It names no
+# other host. raft/tests/test_zhen_page_policy.py holds the pages to it.
+_PAGE_CSP = (
+    "default-src 'none'; script-src 'self'; style-src 'self'; "
     "connect-src 'self'; img-src 'none'; base-uri 'none'; "
     "form-action 'none'; frame-ancestors 'none'"
 )
+# Every other response (JSON, a stylesheet, a script, an error): nothing is
+# allowed if a browser is ever made to render it as a document.
+_CLOSED_CSP = "default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 
-_SOURCE_VIEW_PAGE = (Path(__file__).resolve().parent / 'pages' / 'source-view.html').read_bytes()
+@app.after_request
+def _security_headers(resp):
+    """The headers every response carries; a page sets its own policy first.
+
+    nosniff matters for /static: the pages' policy lets the browser run this
+    origin's scripts, and it must refuse a file that is not served as one."""
+    resp.headers.setdefault('Content-Security-Policy', _CLOSED_CSP)
+    resp.headers.setdefault('X-Content-Type-Options', 'nosniff')
+    resp.headers.setdefault('Referrer-Policy', 'no-referrer')
+    resp.headers.setdefault('X-Frame-Options', 'DENY')
+    return resp
+
+
+def _page_response(page):
+    """A constant page with the pages' policy. Pages live in pages/, outside
+    static/, so they are only ever served through here, with these headers."""
+    resp = app.response_class(page, mimetype='text/html')
+    resp.headers['Content-Security-Policy'] = _PAGE_CSP
+    resp.headers['Cache-Control'] = 'no-cache'
+    return resp
+
+
+_PAGES_DIR = Path(__file__).resolve().parent / 'pages'
+_SOURCE_VIEW_PAGE = (_PAGES_DIR / 'source-view.html').read_bytes()
+_CHAT_PAGE = (_PAGES_DIR / 'chat.html').read_bytes()
 
 
 @app.route('/view/source')
@@ -2736,13 +2764,7 @@ def source_viewer_page():
     written into it, so there is nothing to reflect. Its script reads ?id= or
     ?path= and asks /api/v1/source. The file is kept out of static/ so the
     page is only ever served here, with these headers."""
-    resp = app.response_class(_SOURCE_VIEW_PAGE, mimetype='text/html')
-    resp.headers['Content-Security-Policy'] = _SOURCE_VIEW_CSP
-    resp.headers['X-Content-Type-Options'] = 'nosniff'
-    resp.headers['Referrer-Policy'] = 'no-referrer'
-    resp.headers['X-Frame-Options'] = 'DENY'
-    resp.headers['Cache-Control'] = 'no-cache'
-    return resp
+    return _page_response(_SOURCE_VIEW_PAGE)
 
 
 @app.route('/api/v1/highlight', methods=['POST'])
@@ -2773,7 +2795,10 @@ def highlight_css():
 
 @app.route('/')
 def index():
-    return _with_csrf_cookie(app.send_static_file('index.html'))
+    """The chat page: a constant page (pages/chat.html), like the viewer.
+    Nothing from the request is written into it; its script and styles are
+    static/chat.js and static/chat.css."""
+    return _with_csrf_cookie(_page_response(_CHAT_PAGE))
 
 
 @app.route('/api/v1/kanban/create', methods=['POST'])

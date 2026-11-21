@@ -277,9 +277,6 @@
     }
 
     // ── wiring ──────────────────────────────────────────────────────────
-    var fonts = $('sv-fonts');
-    if (fonts) { fonts.media = 'all'; }
-
     var saved = ZOOM_STEPS.indexOf(parseFloat(recall(ZOOM_KEY)));
     if (saved >= 0) { zoomIndex = saved; }
     applyZoom();

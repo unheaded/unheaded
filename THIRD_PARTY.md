@@ -169,9 +169,11 @@ dependencies of those pages even though nothing is installed:
 `sbom/SBOM.md` lists them as not read. Each carries a Subresource Integrity hash — see the note in
 `dashboard/upc-console.html` for how to recompute one when bumping a version.
 
-Google Fonts stylesheets are also loaded by `raft/static/index.html` and
-`skills/marshal-eval-review.html`. They carry no SRI because Google serves
-different CSS per user-agent, so the response is not stable for a given URL.
+A Google Fonts stylesheet is also loaded by `skills/marshal-eval-review.html`.
+It carries no SRI because Google serves different CSS per user-agent, so the
+response is not stable for a given URL. The Zhen pages (`raft/pages/`) loaded
+one until 2026-11-21; they now use system fonts and load nothing from another
+host (`raft/tests/test_zhen_page_policy.py`).
 
 Configuration and protocol handlers are in `/dashboard/js/` and are GPL-3.0.
 
