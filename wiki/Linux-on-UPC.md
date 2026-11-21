@@ -165,7 +165,7 @@ Since 2026-07-20 the UPC crates have only taken dependency, clippy and loader-ha
 
 ### EVOLUTION-1 Stage 2: hardening, then rungs 3 to 6 (S-STAGE-2C, 2026-11-15; rungs 5 and 6 on 2026-11-21)
 
-Branches `sprint/s-stage-2c` and, for the rungs 5 and 6 flip, `sprint/upc-rung56`. Design record: ADR-135 D16 to D21 (Accepted 2026-11-18 for what is built and on; D17's atomics translation stays open, Stevie's choice; D21's flip of `UPC_RUNG56` was ruled the same day, decision pack row 25: on, the goldens comparing the user-mode trace only; switched on 2026-11-21). Ledger: [`references/s-stage-2c-log.md`](../references/s-stage-2c-log.md).
+Branches `sprint/s-stage-2c` and, for the rungs 5 and 6 flip, `sprint/upc-rung56`. Design record: ADR-135 D16 to D21 (Accepted 2026-11-18 for what is built and on; D17's atomics translation landed 2026-11-21; D21's flip of `UPC_RUNG56` was ruled the same day, decision pack row 25: on, the goldens comparing the user-mode trace only; switched on 2026-11-21). Ledger: [`references/s-stage-2c-log.md`](../references/s-stage-2c-log.md).
 
 | Const | State | What it does |
 |---|---|---|
@@ -174,8 +174,9 @@ Branches `sprint/s-stage-2c` and, for the rungs 5 and 6 flip, `sprint/upc-rung56
 | `UPC_RUNG3` | on | `write` to the console is answered by the owned kernel (`consolewrite`, at most 4096 bytes a call) |
 | `UPC_RUNG4` | on | `read` from the console is answered by the owned kernel: a cooked line, no echo; BPF offers one keyboard byte per trap |
 | `UPC_RUNG56` | on since 2026-11-21 | open, fstat, dup, close and file read/write are answered by the owned kernel, whose fd table is the only one; a fd is the lowest free number (not 16 and up); the kernel gives the first image fds 0 to 2 on the console; `fs_walk`, `FD_TABLE` and `FD_INODE_MAP` are out of the ascend object |
+| `UPC_ATOMIC_TRANSLATE` | on since 2026-11-21 | XCHG, CAS, LR_W and SC_W reach memory through `translate_address`, as LD and ST do: at U-mode they stay inside the caller's mapping (ADR-135 D17 part 2). `upc-bootctl`'s scan still refuses any image that holds one |
 
-- Verified instructions: ascend 532,152 (883,522 before rungs 5 and 6 went on, 889,941 before the sprint), Doom 758,199.
+- Verified instructions: ascend 553,534 (532,152 at the rungs 5 and 6 flip, before the atomics translation; 883,522 before the flip; 889,941 before the sprint), Doom 758,199.
 - What the goldens compare. The twelve golden boots live in `~/tmp/golden` (the eight corpus commands, `nosuch`, `multi`, `blank`, `uinit_echo`); each is the boot's TTY line plus `forks`, `waitpid` and `tty_r`. Every TTY holds the first 100 PCs after init first reaches U-mode, printed by the Phase 1.4 tracer. With `UPC_RUNG56` on the tracer prints and counts U-mode PCs only, so the goldens hold the user-mode trace: they were not recaptured for the flip (12 of 12 SAME), and a change on the kernel side of a trap no longer shows in them. Kernel-side changes are judged by the probes below. To compare by hand: the `sweep12` function in the VARIABLES block of `docs/battle-plans/S-STAGE-2C-battle-plan.md`.
 - Slot 0's first page. The kernel refuses init's first page to every copy except one: under `UPC_RUNG56` `copyinstr` reads a path string from it, from 0x200 (past BootParams) up, so init's own `open("console")` is answered. A `write` from that page and a `read` into it still answer -1 (`rwprobe`).
 - Rollback of rungs 5 and 6: `const UPC_RUNG56` in `ebpf/monad-cpu-ebpf/src/main.rs` and `#define UPC_RUNG56` in `crates/xv6-mbc/adapters/upc_slots.h`, both off (a parity test keeps them equal), then rebuild the kernel, the userland and the object. The tracer test and the first-page read are dead with the const off; the off object verifies at 883,522.
@@ -184,7 +185,7 @@ Branches `sprint/s-stage-2c` and, for the rungs 5 and 6 flip, `sprint/upc-rung56
 - exec'd images start with `.bss` zeroed: the `.data` sidecar carries it (`rv32i-to-mbc --with-bss`).
 - ush has a `cd` builtin. exec is still a BPF lookup of loader-resident programs.
 - Cost of rung 4: a read blocked at the prompt retries through the kernel every tick, so a boot that ends at the prompt runs about ten times the MBC instructions (`ls`: 6.27 M to 63.3 M) and about a fifth longer on the wall.
-- Not landed: atomics through `translate_address` and the fork slot-scan skip (verifier budget; numbers in the ledger); rung 7.
+- Not landed: the fork slot-scan skip (numbers in the ledger); rung 7.
 
 Probes in the harness (`scripts/upc-regression.sh`), each run as the userland: `hostile_reply`, `hostile_pgd`, `hostile_path`, `hostile_ptr`, `hostile_fork`, `hostile_block`, `hostile_atomic` (through the scan's dry runs), `bssprobe`, `conprobe`, `crprobe`, `fdprobe`, `rmprobe`, `lnprobe`, `sleepprobe`, `bigprobe`, `rwprobe` (7 checks; runs with `UPC_RUNG56` on), and the rung 0 asserter.
 

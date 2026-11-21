@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-11-21T21:07:01.958707Z
+last_updated: 2026-11-21T21:11:00.440585Z
 status: alpha
 phases:
   - id: phase-0
@@ -86,7 +86,7 @@ phases:
       - phase-3-item-09a4df99
       - phase-3-item-cc9f68f7
       - phase-3-item-be0e6d89
-      - phase-3-item-506e3910
+      - phase-3-item-f9006792
       - phase-3-item-020526f9
       - phase-3-item-ef2bf6a0
       - phase-3-item-5d165ac5
@@ -443,11 +443,11 @@ milestones:
     status: completed
     progress: 100
     description: '**S-STAGE-2C (2026-11-15, `sprint/s-stage-2c`).** UPC hardening, then EVOLUTION-1 Stage 2 rungs 3 and 4. On: ADR-109 D6 (a U-mode page-walk miss goes nowhere), MRET and SRET refused at priv 3, bounded open and exec paths, block syscalls 200/201 refused to U-mode, fork keyed on BPF''s own mark, console write and console read in the owned kernel (`UPC_RUNG3`, `UPC_RUNG4`), `cd` in ush. bootctl refuses at load: an untranslated or privileged opcode in a user image, the eight non-return ones in the kernel or bootstub, a bad `.data` sidecar or one whose records leave the image''s window; exec''d images start with `.bss` zeroed. Ascend 889,941 → 883,522 verified instructions, Doom 758,199. Rungs 5+6 (`UPC_RUNG56`: open, fstat, dup, close, file read/write in the kernel) are built, independently reviewed and wired, and off: on they verify at 529,305, but the goldens'' 100-PC trace moves, so the flip is Stevie''s choice (2026-11-18: ruled on, the goldens comparing the user-mode trace only; switched on 2026-11-21, the next entry). Three independent reviews found what the lane had not: block syscalls reachable from U-mode with physical addresses (booted red, fixed), unbounded sidecar addresses (fixed), five design gaps in rungs 5+6 (fixed before any code). Not done: atomics through `translate_address` and the fork slot-scan skip (verifier budget), rung 7. Plan `docs/battle-plans/S-STAGE-2C-battle-plan.md`, ledger `references/s-stage-2c-log.md`.'
-  - id: phase-3-item-506e3910
+  - id: phase-3-item-f9006792
     name: UPC rungs 5 and 6 on
     status: completed
     progress: 100
-    description: '**UPC rungs 5 and 6 on (2026-11-21, `sprint/upc-rung56`).** Decision pack 2026-11-18, row 25: `UPC_RUNG56` is on. Every open, read, write, fstat, dup and close of the UPC''s xv6 is answered by the owned kernel, whose fd table is the only one; BPF''s file reader (`fs_walk`, `FD_TABLE`, `FD_INODE_MAP`) is out of the ascend object. The Phase 1.4 PC tracer prints U-mode PCs only, so the twelve goldens hold the user-mode trace and were not recaptured (12 of 12 SAME); kernel-side changes are judged by the probes. The kernel''s `copyinstr` reads a path string from slot 0''s first page, so init''s own `open("console")` is answered. Ascend 883,522 → 532,152 verified instructions, Doom 758,199. Rung 7 is not started. Ledger `references/s-stage-2c-log.md`, record `docs/battle-plans/progress/S-STAGE-2C-progress.md` (sections of this date).'
+    description: '**UPC rungs 5 and 6 on (2026-11-21, `sprint/upc-rung56`).** Decision pack 2026-11-18, row 25: `UPC_RUNG56` is on. Every open, read, write, fstat, dup and close of the UPC''s xv6 is answered by the owned kernel, whose fd table is the only one; BPF''s file reader (`fs_walk`, `FD_TABLE`, `FD_INODE_MAP`) is out of the ascend object. The Phase 1.4 PC tracer prints U-mode PCs only, so the twelve goldens hold the user-mode trace and were not recaptured (12 of 12 SAME); kernel-side changes are judged by the probes. The kernel''s `copyinstr` reads a path string from slot 0''s first page, so init''s own `open("console")` is answered. Ascend 883,522 → 532,152 verified instructions at the flip, Doom 758,199. With the freed budget XCHG, CAS, LR_W and SC_W go through `translate_address` in the ascend object (ADR-135 D17 part 2): 553,534. Rung 7 is not started. Ledger `references/s-stage-2c-log.md`, record `docs/battle-plans/progress/S-STAGE-2C-progress.md` (sections of this date).'
   - id: phase-3-item-020526f9
     name: Resolved since this list was written:* Captain Track call
     status: completed

@@ -23,6 +23,7 @@ Plan: docs/battle-plans/S-STAGE-2C-battle-plan.md
 | security pass fixes (bootctl, kernel `consolewrite`, probes) | 883522 | 883522 | +0 | 37514 | review3-after |
 | develop merged in; close | 883522 | 883522 | +0 | 37514 | close2 |
 | 2026-11-21: rungs 5+6 on (const, define, U-mode tracer, slot 0 path read) | 883522 | 532152 | -351370 | 388884 | rung56-after |
+| 2026-11-21: atomics through `translate_address` (`UPC_ATOMIC_TRANSLATE`) | 532152 | 553534 | +21382 | 367502 | atomics-after |
 
 ## Before (Phase 0, 2026-11-15)
 
@@ -511,4 +512,24 @@ The goldens are the files they were (`~/tmp/golden`, last written 2026-11-15 for
 The first-page read hands the kernel nothing init could not pass it from its stack: init reads those bytes in U-mode through its identity map. Slot 0's literal limit (open call 6) is answered for path strings only; a `write` of a first-page literal by init still answers -1, so probes keep their tokens in `.data`.
 
 Closed by the flip, as D21 said: T-F3 (a file opened `O_RDWR` is written by the kernel: `RW: write-lands`), R-P1 (BPF's 16-byte chunk past a short read: the BPF file read is out of the object, and `rmprobe`'s note reads `RM: read-past-end=0`, where it read 12 on 2026-11-15), D10's stale offset between parent and child (by the design: one `struct file` shared through `filedup`; no probe line of its own).
+
+## Atomics through translate_address (2026-11-21, lane `upc-rung56`)
+
+Plan Steps 78 to 81, `[STUCK]` on 2026-11-15 on the verifier budget, run on the rungs 5+6 object (`offv` 532,152). ADR-135 D17 part 2, the decided design as written: one translation per opcode.
+
+- **How a patched image is booted now.** The opcode scan refuses it, at the path check and again on the loaded words. A throwaway bootctl was built from the tree with `opscan::scan_user_image` returning at once, into `~/.cache/unheaded-lanes/upc-rung56/bc-noscan`; the two source files were restored before anything else ran (`git status` clean). For each boot the throwaway binary stood at the worktree's bootctl path and the stock one was copied back after (`cmp` equal). Nothing of it is committed.
+- **Images.** `scripts/upc-mbc-patch-opcode.py` on `hostile_atomic.mbc`, marker `0x1D000400` mask `0xFF00FFFF`: word 16 `0x30DD0000` → `0x3DDD0000` (`XCHG`), and a second copy → `0x49DD0000` (`LR_W`, which has `LD`'s operand shape). Each with the stock `.rv2mbc`, its sha256 and `.data`.
+- **Red, on the 532,152 object:** both copies print `HA: xchg-translated=no`, `HA: done`. A child's atomic at VA 0x800400 read the ramdisk's superblock word.
+- **The change:** `atomic_addr()` (`translate_address` under `cfg!(feature = "ascend-linux") && UPC_ATOMIC_TRANSLATE`) in the `XCHG`, `CAS`, `LR_W` and `SC_W` arms; the reservation keeps the virtual address. Count **553,534**, delta **+21,382** (it measured +20,993 on the 895,768 object). `BUDGET-OK 553534 (headroom 346466, ladder net 367502)`.
+- **Green:** both copies print `HA: xchg-translated=yes`, `HA: done`.
+- **Mutant** (the translation taken out of the `XCHG` arm only): 548,430; the `XCHG` copy prints `=no`, the `LR_W` copy `=yes`. Restored: 553,534.
+- **Const off** (`UPC_ATOMIC_TRANSLATE` false): 532,152, the earlier object exactly. Back on: 553,534.
+- **Not booted:** `CAS` (fixed registers r0, r1, r2) and `SC_W` (a store): no compiled probe has their shape, so no one-word patch makes one. They are the same one-line change; read, not run.
+- The stock bootctl still refuses the patched copy: `UserImageOpcode: hostile_atomic_x: word 16 (0x3DDD0000) is XCHG (opcode 0x3D)`.
+- Not built: the single shared arm (+16,855 on 2026-11-15) and the linear-map form (+3,263). The decided design fits as written with 346,466 to spare.
+- Gate `atomics-after`: `same=12 diff=0 rc=0 doom=1 ascend=553534`; harness ALL GREEN, 63 PASS lines; the two opcode scan lines PASS; `Doom verifier: verified 758199 insns`. `check-ebpf-loads.sh` 41 programs pass; `check-ebpf-insns.sh` PASS, baseline rewritten by `--update` (the ascend row only moved).
+
+| Landed change | What a hostile caller can try | What bounds it | Proof | Harness line |
+|---|---|---|---|---|
+| Atomics translate (D17 part 2) | an image that did not come from the translator, holding `XCHG`, `CAS`, `LR_W` or `SC_W` with an address outside its slice | first the load-time scan (the boot is refused); then `translate_address`: at U-mode the access stays in the caller's mapping, a miss reads 0 and drops the store | the two patched boots above, on a scan-less bootctl; not repeatable from a stock tree, by design | `opcode scan refuses a user image with XCHG (hatch or not) and one with MRET/SRET` (the scan; the translation has no harness line) |
 

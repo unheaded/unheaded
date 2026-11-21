@@ -270,6 +270,25 @@ fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
 /// frees the instructions. Off, the object is the pde-keyed one exactly.
 const UPC_FORK_MARK: bool = true;
 
+/// ADR-135 D17 part 2 (R-S4): XCHG, CAS, LR_W and SC_W reach memory through
+/// translate_address in the ascend object, as LD and ST do, so at U-mode they
+/// stay inside the caller's mapping and a miss resolves where a D6 miss does.
+/// The Doom object keeps flat addressing and its count. The translator emits
+/// none of the four and upc-bootctl refuses an image that holds one, so this
+/// is the second control, not the first. It did not fit until rungs 5+6 freed
+/// the instructions (+20,993 measured on 2026-11-15 against 4,232 of headroom).
+/// Rollback = this const off: the object is the earlier one exactly.
+const UPC_ATOMIC_TRANSLATE: bool = true;
+
+#[inline(always)]
+fn atomic_addr(cpu: &MbcCpuState, vaddr: u32) -> u32 {
+    if cfg!(feature = "ascend-linux") && UPC_ATOMIC_TRANSLATE {
+        translate_address(cpu, vaddr)
+    } else {
+        vaddr
+    }
+}
+
 /// Whether the BPF timer fires and switches processes: the Doom object only.
 /// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
 /// its cursor in a2 and one reservation mark per slot, and relies on nothing
@@ -1443,7 +1462,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::XCHG {
             // Atomic exchange: tmp=dst, dst=RAM[src+imm], RAM[src+imm]=tmp
             let addr = cpu.regs[s].wrapping_add(simm as u32);
-            let word_addr = addr >> 2;
+            let word_addr = atomic_addr(cpu, addr) >> 2;
             let old = mem_read_word(word_addr);
             mem_write_word(word_addr, cpu.regs[d]);
             cpu.regs[d] = old;
@@ -1452,7 +1471,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let addr = cpu.regs[1];
             let expected = cpu.regs[0];
             let desired = cpu.regs[2];
-            let word_addr = addr >> 2;
+            let word_addr = atomic_addr(cpu, addr) >> 2;
             let old = mem_read_word(word_addr);
             if old == expected {
                 mem_write_word(word_addr, desired);
@@ -1572,9 +1591,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 break;
             }
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
-            // Load-Reserved Word: rd = RAM[rs1]; reserve rs1.
+            // Load-Reserved Word: rd = RAM[rs1]; reserve rs1. The reservation
+            // keeps the virtual address; the access is translated (ADR-135 D17).
             let addr = cpu.regs[s];
-            let word_addr = addr >> 2;
+            let word_addr = atomic_addr(cpu, addr) >> 2;
             cpu.regs[d] = mem_read_word(word_addr);
             cpu.reservation_address = addr;
         } else if cfg!(feature = "ascend-linux") && opc == op::SC_W {
@@ -1582,7 +1602,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // RAM[rs1] = rs2 (value reg = imm[3:0]); rd = 0 success / 1 failure.
             let addr = cpu.regs[s];
             let value_reg = (imm & 0xF) as usize;
-            let word_addr = addr >> 2;
+            let word_addr = atomic_addr(cpu, addr) >> 2;
             if cpu.reservation_address == addr {
                 mem_write_word(word_addr, cpu.regs[value_reg]);
                 cpu.regs[d] = 0;
