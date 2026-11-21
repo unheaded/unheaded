@@ -171,13 +171,19 @@ func (f *memFront) Touch(_ context.Context, keyHash string, now, expires time.Ti
 	f.m.mu.Lock()
 	defer f.m.mu.Unlock()
 	s, ok := f.m.m[keyHash]
-	if !ok || s.Front != f.front || !s.Live(now) || now.Before(s.LastUsedAt) {
+	if !ok || s.Front != f.front || !s.Live(now) {
 		return false, nil
 	}
 	if expires.After(s.AbsoluteExpiresAt) {
 		expires = s.AbsoluteExpiresAt
 	}
-	s.LastUsedAt, s.ExpiresAt = now, expires
+	// Forward only: a use recorded late does not undo a later one.
+	if now.After(s.LastUsedAt) {
+		s.LastUsedAt = now
+	}
+	if expires.After(s.ExpiresAt) {
+		s.ExpiresAt = expires
+	}
 	f.m.m[keyHash] = s
 	return true, nil
 }

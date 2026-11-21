@@ -186,9 +186,11 @@ type Store interface {
 	// Get returns the session under keyHash, live or ended: the caller
 	// judges. False when the front has none.
 	Get(ctx context.Context, keyHash string) (Session, bool, error)
-	// Touch records a use at now: last-used becomes now and the idle
-	// expiry becomes expires, held to the session's maximum age. It
-	// changes only a session live at now and reports whether it did.
+	// Touch records a use at now on a session live at now, and reports
+	// whether there was one: false means the session has ended or never
+	// was. Last-used and the idle expiry only move forward (expires is
+	// held to the maximum age), so of two uses recorded out of order the
+	// later one stands and both report true.
 	Touch(ctx context.Context, keyHash string, now, expires time.Time) (bool, error)
 	// Revoke ends the session under keyHash at now. Revoking twice, or
 	// revoking nothing, is no error.

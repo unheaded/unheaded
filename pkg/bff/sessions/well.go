@@ -161,10 +161,14 @@ func (w *wellStore) Touch(ctx context.Context, keyHash string, now, expires time
 	if !ValidKeyHash(keyHash) {
 		return false, nil
 	}
+	// No condition on last_used_at: two requests may write out of order,
+	// and the one that lands second must still match the row, or a live
+	// session would look ended. GREATEST keeps both columns moving forward.
 	n, err := execCount(ctx, w.db,
-		`UPDATE `+ownView+` SET last_used_at = $3::timestamptz, expires_at = LEAST($4::timestamptz, absolute_expires_at)
+		`UPDATE `+ownView+` SET last_used_at = GREATEST(last_used_at, $3::timestamptz),
+		        expires_at = GREATEST(expires_at, LEAST($4::timestamptz, absolute_expires_at))
 		 WHERE id_hash = $1::text AND front = $2::text AND revoked_at IS NULL
-		   AND expires_at > $3::timestamptz AND absolute_expires_at > $3::timestamptz AND last_used_at <= $3::timestamptz`,
+		   AND expires_at > $3::timestamptz AND absolute_expires_at > $3::timestamptz`,
 		keyHash, w.front, now.UTC(), expires.UTC())
 	if err != nil {
 		return false, fmt.Errorf("sessions: touch: %w", err)

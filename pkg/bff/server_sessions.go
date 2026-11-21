@@ -319,9 +319,17 @@ func (b *BFF) serverSession(r *http.Request) (sessions.Session, error) {
 			// Revoked or run out between the read and the write.
 			return none("session ended")
 		default:
-			s.LastUsedAt = now
-			if s.ExpiresAt = now.Add(b.sess.idle); s.ExpiresAt.After(s.AbsoluteExpiresAt) {
-				s.ExpiresAt = s.AbsoluteExpiresAt
+			// Forward only, as the store keeps it: another request may
+			// have recorded a later use already.
+			if now.After(s.LastUsedAt) {
+				s.LastUsedAt = now
+			}
+			exp := now.Add(b.sess.idle)
+			if exp.After(s.AbsoluteExpiresAt) {
+				exp = s.AbsoluteExpiresAt
+			}
+			if exp.After(s.ExpiresAt) {
+				s.ExpiresAt = exp
 			}
 		}
 	}

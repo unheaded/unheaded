@@ -695,6 +695,82 @@ func TestServerSession_ASessionThatEndsBetweenReadAndWriteIsRefused(t *testing.T
 	}
 }
 
+// Parallel requests on a session whose use is due to be recorded: every
+// one of them is served. (The second write to land used to match no row,
+// and its request was answered 401 on a live session.)
+func TestServerSession_ParallelRequestsAtTheTouchBoundaryAreAllServed(t *testing.T) {
+	mem := sessions.NewMem()
+	rec := &recording{Store: mem.Front(svc)}
+	a := newApp(t, func(c *bff.Config) { c.SessionStore = bff.SessionStoreWell; c.Sessions = rec })
+	c := a.login("dev", "operator")
+	for round := 0; round < 20; round++ {
+		a.clk.Advance(2 * time.Minute) // a write is due
+		var wg sync.WaitGroup
+		codes := make([]int, 8)
+		for i := range codes {
+			wg.Add(1)
+			go func(i int) {
+				defer wg.Done()
+				codes[i] = a.get(c)
+			}(i)
+		}
+		wg.Wait()
+		for i, code := range codes {
+			if code != http.StatusOK {
+				t.Fatalf("round %d, request %d of 8 in parallel: %d, want 200 for a live session", round, i, code)
+			}
+		}
+	}
+	if rec.touches.Load() < 20 {
+		t.Fatalf("%d writes over 20 rounds: the rounds did not reach the write", rec.touches.Load())
+	}
+}
+
+// lateWriter makes every second Touch carry a time eight seconds in the
+// past: the write of a request that read its clock first and reached the
+// store last, after another request's later write.
+type lateWriter struct {
+	sessions.Store
+	n atomic.Int64
+}
+
+func (l *lateWriter) Touch(ctx context.Context, k string, now, exp time.Time) (bool, error) {
+	if l.n.Add(1)%2 == 0 {
+		now, exp = now.Add(-8*time.Second), exp.Add(-8*time.Second)
+	}
+	return l.Store.Touch(ctx, k, now, exp)
+}
+
+// The regression: a write that lands second, carrying a time before the one
+// already recorded, used to match no row and end the request with 401.
+func TestServerSession_AWriteThatLandsSecondDoesNotEndTheSession(t *testing.T) {
+	lw := &lateWriter{Store: sessions.NewMem().Front(svc)}
+	a := newApp(t, func(c *bff.Config) {
+		c.SessionStore = bff.SessionStoreWell
+		c.Sessions = lw
+		c.SessionIdle, c.SessionMaxAge = time.Minute, time.Hour // a use is recorded every 6 s
+	})
+	c := a.login("dev", "operator")
+	a.clk.Advance(10 * time.Second)
+	if code := a.get(c); code != http.StatusOK { // records a use at +10 s
+		t.Fatalf("first write: %d", code)
+	}
+	a.clk.Advance(7 * time.Second)
+	// Due again at +17 s; this write reaches the store stamped +9 s,
+	// before the +10 s already on record.
+	if code := a.get(c); code != http.StatusOK {
+		t.Fatalf("a write carrying an earlier time than the record's: %d, want 200 for a live session", code)
+	}
+	if lw.n.Load() != 2 {
+		t.Fatalf("%d writes, want 2: the late write was not exercised", lw.n.Load())
+	}
+	// The record was not moved back: the session still ends 60 s after +10 s.
+	a.clk.Advance(52 * time.Second) // +69 s
+	if code := a.get(c); code != http.StatusOK {
+		t.Fatalf("at +69 s, inside the minute after the +10 s use: %d", code)
+	}
+}
+
 // ---- bounds ----
 
 func TestServerSession_FullStoreRefusesLogin(t *testing.T) {

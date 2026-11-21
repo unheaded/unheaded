@@ -154,6 +154,44 @@ func storeSuite(t *testing.T, fresh func(t *testing.T) world) {
 		}
 	})
 
+	// Two requests on one session race to record their use. Whichever
+	// write lands second carries the earlier time. It must still find the
+	// session live: "not touched" means ended, and a live session is not.
+	t.Run("touches that arrive out of order both find the session live", func(t *testing.T) {
+		w := fresh(t)
+		s := sess(w.frontA, 1, t0)
+		mustCreate(t, w.a, s)
+		later, earlier := t0.Add(2*time.Minute), t0.Add(2*time.Minute-time.Second)
+		if ok, err := w.a.Touch(ctx, s.KeyHash, later, later.Add(30*time.Minute)); !ok || err != nil {
+			t.Fatalf("first write: %v %v", ok, err)
+		}
+		if ok, err := w.a.Touch(ctx, s.KeyHash, earlier, earlier.Add(30*time.Minute)); !ok || err != nil {
+			t.Fatalf("the write that landed second, with the earlier time: %v %v, want the session found live", ok, err)
+		}
+		got, _, _ := w.a.Get(ctx, s.KeyHash)
+		if !got.LastUsedAt.Equal(later) || !got.ExpiresAt.Equal(later.Add(30*time.Minute)) {
+			t.Fatalf("the late write moved the record backwards: last used %v, expires %v", got.LastUsedAt, got.ExpiresAt)
+		}
+		// The same instant twice is no different.
+		if ok, _ := w.a.Touch(ctx, s.KeyHash, later, later.Add(30*time.Minute)); !ok {
+			t.Fatal("a second write at the same instant found no session")
+		}
+		// An out-of-order write still cannot revive what has ended, nor
+		// pass the maximum age.
+		gone := t0.Add(40 * time.Minute)
+		if ok, _ := w.a.Touch(ctx, s.KeyHash, gone, gone.Add(30*time.Minute)); ok {
+			t.Fatal("a write after the idle expiry found the session live")
+		}
+		r := sess(w.frontA, 2, t0)
+		mustCreate(t, w.a, r)
+		if err := w.a.Revoke(ctx, r.KeyHash, later); err != nil {
+			t.Fatal(err)
+		}
+		if ok, _ := w.a.Touch(ctx, r.KeyHash, earlier, earlier.Add(30*time.Minute)); ok {
+			t.Fatal("a write carrying a time before the revocation revived the session")
+		}
+	})
+
 	t.Run("revoke is once and for all", func(t *testing.T) {
 		w := fresh(t)
 		s := sess(w.frontA, 1, t0)
