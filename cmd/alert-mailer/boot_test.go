@@ -370,6 +370,17 @@ func TestBootRecordsAreChecked(t *testing.T) {
 	if len(bt.f.sent) != 1 || !strings.HasPrefix(bt.f.sent[0].Body, want) {
 		t.Fatalf("want %q, got %+v", want, bt.f.sent)
 	}
+	// A symlink in the mounted directory that leads out of it is not followed.
+	bt = newBootTest(t, "send")
+	outside := filepath.Join(t.TempDir(), "elsewhere.jsonl")
+	bt.write(t, outside, good)
+	if err := os.Symlink(outside, bt.events); err != nil {
+		t.Fatal(err)
+	}
+	bt.at(t, digestAt)
+	if len(bt.f.sent) != 0 {
+		t.Fatalf("a record was read through a symlink out of its directory: %q", bt.f.sent[0].Subject)
+	}
 	// A file past the size bound is not read at all.
 	bt = newBootTest(t, "send")
 	bt.write(t, bt.events, good, strings.Repeat("x", bootFileMax))

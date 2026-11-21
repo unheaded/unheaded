@@ -40,6 +40,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -109,9 +110,16 @@ func bootFilesFromEnv(s *Settings, getenv func(string) string) {
 	s.HostStateFile = getenv("HOST_STATE_FILE")
 }
 
-// readBounded reads path, refusing a file over limit bytes.
+// readBounded reads path, refusing a file over limit bytes. The file is
+// opened inside its directory (os.Root): a symlink planted in the mounted
+// directory cannot lead the read anywhere else.
 func readBounded(path string, limit int64) ([]byte, error) {
-	f, err := os.Open(path) // #nosec G304 -- operator-supplied path (BOOT_EVENTS_FILE, HOST_STATE_FILE), read-only mount
+	dir, err := os.OpenRoot(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = dir.Close() }()
+	f, err := dir.Open(filepath.Base(path))
 	if err != nil {
 		return nil, err
 	}
