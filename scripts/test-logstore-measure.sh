@@ -48,6 +48,8 @@ vector_buffer_send_duration_seconds_bucket{component_id="clickhouse",le="1"} 498
 vector_buffer_send_duration_seconds_bucket{component_id="clickhouse",le="10"} 500
 vector_buffer_send_duration_seconds_count{component_id="clickhouse"} 500
 vector_component_discarded_events_total{component_id="well_logs",intentional="false"} 7
+vector_buffer_discarded_events_total{component_id="well_logs",intentional="true",stage="0"} 4100
+vector_buffer_discarded_events_total{component_id="other_sink",intentional="true",stage="0"} 9
 PROM
 
 # --- the stubs ----------------------------------------------------------------
@@ -95,6 +97,7 @@ case "$url" in
 	case "$query" in
 	*vector_buffer_send_duration_seconds_count*) v="$(mode VM_SENDS 2.4)" ;;
 	*vector_component_discarded_events_total*) v="$(mode VM_DROPPED 263)" ;;
+	*vector_buffer_discarded_events_total*) v="$(mode VM_BUFFER_DROPPED 5000)" ;;
 	*) v=empty ;;
 	esac
 	if [[ "$v" == empty ]]; then
@@ -258,6 +261,7 @@ WEEK1=(ch_rows_yesterday pg_rows_yesterday ch_rows_7d pg_rows_7d ch_bytes ch_row
 	vector_record_buffer_events vector_record_buffer_bytes vector_record_sends_over_1s_total vector_well_dropped_total)
 NEW=(ch_q1_last_hour_runs pg_q1_last_hour_runs ch_q2_text_24h_runs pg_q2_text_24h_runs ch_q3_units_7d_runs pg_q3_units_7d_runs
 	well_probe_first_p50_ms well_probe_first_p95_ms vector_record_sends_over_1s_24h vector_well_dropped_24h
+	vector_well_buffer_dropped_total vector_well_buffer_dropped_24h
 	ch_started_unix pg_started_unix vector_started_unix writer_started_unix host_boot_unix io_some_avg300)
 
 # --- 1. all good --------------------------------------------------------------
@@ -272,9 +276,11 @@ check "1 twenty runs: p50 is the 10th, p95 the 19th (ClickHouse, s to ms)" test 
 check "1 the run counts are RUNS" test "$(val ch_q2_text_24h_runs) $(val pg_q3_units_7d_runs)" = "20 20"
 check "1 sends over 1 s since Vector's start" test "$(val vector_record_sends_over_1s_total)" = 2
 check "1 sends over 1 s in 24 h, rounded" test "$(val vector_record_sends_over_1s_24h)" = 2
-check "1 rows dropped in 24 h" test "$(val vector_well_dropped_24h)" = 263
+check "1 rows dropped in 24 h: given up by the sink, turned away by its buffer" test "$(val vector_well_dropped_24h) $(val vector_well_buffer_dropped_24h)" = "263 5000"
+check "1 rows dropped since Vector's start, the Well sink only" test "$(val vector_well_dropped_total) $(val vector_well_buffer_dropped_total)" = "7 4100"
 check "1 the 24 h sends query names the record sink and the window" asked 'increase(vector_buffer_send_duration_seconds_count{component_id="clickhouse"}[24h])'
 check "1 the 24 h drops query names the Well sink and the window" asked 'increase(vector_component_discarded_events_total{component_id="well_logs"}[24h])'
+check "1 the 24 h buffer drops query names the Well sink and the window" asked 'increase(vector_buffer_discarded_events_total{component_id="well_logs"}[24h])'
 check "1 start times as Unix seconds" test "$(val ch_started_unix) $(val pg_started_unix) $(val vector_started_unix) $(val writer_started_unix)" = \
 	"$(unix_of 2026-11-20T17:50:01Z) $(unix_of 2026-11-20T17:50:02Z) $(unix_of 2026-11-20T17:50:03Z) $(unix_of 2026-11-20T17:50:04Z)"
 check "1 the boot time and the I/O pressure" test "$(val host_boot_unix) $(val io_some_avg300)" = "1795225392 6.07"
@@ -320,13 +326,13 @@ check "3 the same on the ClickHouse side" test "$(val ch_q2_text_24h_runs) $(val
 
 # --- 5. VictoriaMetrics -------------------------------------------------------
 run RUNS=5 -- VICTORIA=down
-check "5 unreachable: both 24 h metrics are NA" test "$(val vector_record_sends_over_1s_24h) $(val vector_well_dropped_24h)" = "NA NA"
-check "5 the raw counters are numbers" all_numbers vector_record_buffer_events vector_record_buffer_bytes vector_record_sends_over_1s_total vector_well_dropped_total
+check "5 unreachable: the three 24 h metrics are NA" test "$(val vector_record_sends_over_1s_24h) $(val vector_well_dropped_24h) $(val vector_well_buffer_dropped_24h)" = "NA NA NA"
+check "5 the raw counters are numbers" all_numbers vector_record_buffer_events vector_record_buffer_bytes vector_record_sends_over_1s_total vector_well_dropped_total vector_well_buffer_dropped_total
 check "5 exit 1" test "$RC" -eq 1
-run RUNS=5 -- VM_DROPPED=empty
-check "5 no drop series while Vector's others answer: 0, exit 0" test "$(val vector_well_dropped_24h) $(val vector_record_sends_over_1s_24h) $RC" = "0 2 0"
-run RUNS=5 -- VM_DROPPED=empty VM_SENDS=empty
-check "5 no Vector series at all: NA, never a zero" test "$(val vector_well_dropped_24h) $(val vector_record_sends_over_1s_24h) $RC" = "NA NA 1"
+run RUNS=5 -- VM_DROPPED=empty VM_BUFFER_DROPPED=empty
+check "5 no drop series while Vector's others answer: 0, exit 0" test "$(val vector_well_dropped_24h) $(val vector_well_buffer_dropped_24h) $(val vector_record_sends_over_1s_24h) $RC" = "0 0 2 0"
+run RUNS=5 -- VM_DROPPED=empty VM_BUFFER_DROPPED=empty VM_SENDS=empty
+check "5 no Vector series at all: NA, never a zero" test "$(val vector_well_dropped_24h) $(val vector_well_buffer_dropped_24h) $(val vector_record_sends_over_1s_24h) $RC" = "NA NA NA 1"
 
 # --- 7. the writer stopped (the baseline) --------------------------------------
 run RUNS=5 -- WRITER_RUNNING=false

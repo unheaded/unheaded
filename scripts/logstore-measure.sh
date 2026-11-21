@@ -43,12 +43,17 @@
 #                                  mean a day is the difference of two readings)
 #   backup_seconds, backup_bytes   the last nightly backup set
 #   vector_record_buffer_*, vector_record_sends_over_1s_total,
-#   vector_well_dropped_total      from Vector's own page: the record sink's
+#   vector_well_dropped_total, vector_well_buffer_dropped_total
+#                                  from Vector's own page: the record sink's
 #                                  buffer depth and its sends over 1 s (a
-#                                  stall), and rows dropped at the Well sink.
-#                                  Cumulative since Vector's last start.
-#   vector_record_sends_over_1s_24h, vector_well_dropped_24h
-#                                  the same two as increase(...[24h]) from
+#                                  stall); rows the Well sink gave up on
+#                                  (component_discarded, week 1's count) and
+#                                  rows its full buffer turned away
+#                                  (buffer_discarded: what a stopped writer
+#                                  causes). Cumulative since Vector's last
+#                                  start.
+#   vector_record_sends_over_1s_24h, vector_well_dropped_24h,
+#   vector_well_buffer_dropped_24h the same three as increase(...[24h]) from
 #                                  VictoriaMetrics, which a Vector restart
 #                                  does not reset
 #   ch_started_unix, pg_started_unix, vector_started_unix, writer_started_unix
@@ -268,14 +273,19 @@ if [[ -n "$metrics" ]]; then
 	all="$(series vector_buffer_send_duration_seconds_count clickhouse "")"
 	fast="$(series vector_buffer_send_duration_seconds_bucket clickhouse 'le="1"')"
 	if [[ "$all" =~ ^[0-9]+$ && "$fast" =~ ^[0-9]+$ ]]; then put vector_record_sends_over_1s_total "$((all - fast))"; else put vector_record_sends_over_1s_total NA; fi
-	# No series yet means nothing was dropped since Vector started.
+	# No series yet means nothing was dropped since Vector started. Two
+	# counters: rows the sink itself gave up on (a request the writer
+	# refused for good), and rows that never entered its buffer because it
+	# was full (when_full: drop_newest; what a stopped writer causes).
 	dropped="$(series vector_component_discarded_events_total well_logs "")"
 	put vector_well_dropped_total "${dropped:-0}"
+	dropped="$(series vector_buffer_discarded_events_total well_logs "")"
+	put vector_well_buffer_dropped_total "${dropped:-0}"
 else
-	for m in vector_record_buffer_events vector_record_buffer_bytes vector_record_sends_over_1s_total vector_well_dropped_total; do put "$m" NA; done
+	for m in vector_record_buffer_events vector_record_buffer_bytes vector_record_sends_over_1s_total vector_well_dropped_total vector_well_buffer_dropped_total; do put "$m" NA; done
 fi
 
-# The same two counts over 24 hours, from VictoriaMetrics (it scrapes Vector
+# The same counts over 24 hours, from VictoriaMetrics (it scrapes Vector
 # every 15 s, config/victoria/scrape.yml): Vector's own counters start again
 # at every Vector start, these do not.
 vm() { # one instant query: the first value, rounded; nothing for an empty answer; status 1 when there was no answer
@@ -296,15 +306,17 @@ except (ValueError, KeyError, IndexError, TypeError, OverflowError):
 }
 sends="$(vm 'sum(increase(vector_buffer_send_duration_seconds_count{component_id="clickhouse"}[24h])) - sum(increase(vector_buffer_send_duration_seconds_bucket{component_id="clickhouse",le="1"}[24h]))')" || sends=""
 put vector_record_sends_over_1s_24h "$sends"
-if dropped="$(vm 'sum(increase(vector_component_discarded_events_total{component_id="well_logs"}[24h]))')"; then
-	# An empty answer means no drop in 24 h, but only while VictoriaMetrics
-	# holds Vector's series at all: the sends above answered. Otherwise the
-	# series is missing, not zero.
-	[[ -n "$dropped" || -z "$sends" ]] || dropped=0
-else
-	dropped=""
-fi
-put vector_well_dropped_24h "$dropped"
+# A count Vector makes only on the first drop. An empty answer means no drop
+# in 24 h, but only while VictoriaMetrics holds Vector's series at all: the
+# sends above answered. Otherwise the series is missing, not zero.
+vm_drops() { # query
+	local v
+	v="$(vm "$1")" || return 0
+	[[ -n "$v" || -z "$sends" ]] || v=0
+	printf '%s\n' "$v"
+}
+put vector_well_dropped_24h "$(vm_drops 'sum(increase(vector_component_discarded_events_total{component_id="well_logs"}[24h]))')"
+put vector_well_buffer_dropped_24h "$(vm_drops 'sum(increase(vector_buffer_discarded_events_total{component_id="well_logs"}[24h]))')"
 
 # What restarted: a start time that differs between two readings is a restart
 # between them.
