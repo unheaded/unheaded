@@ -41,6 +41,7 @@ Plans 6 to 11 are forged when the plan before them closes, from what it measured
 - What counts as load on orb (decision 23).
 - Whether a tenant may share the GPU (decision 13).
 - Every number for the shares between the stack, tenants and login sessions (decision 13): an output of plan 8.
+- Added 2026-11-21 (decision pack 2026-11-18, row 41, M-178.1): ADR-144's item 3 (a target footprint for a small adopter host) and item 6 (a per-component CPU and memory budget gate, checked after a soak) are outputs of plan 8's baseline, the same way the shares above are. ADR-147's "To settle" item 1 placed item 3 in this series without naming a plan. Plan 8 proposes the figures from what it measures; the target number itself is Stevie's (ADR-144: "Stevie sets it"). ADR-144 stays parked (pack row 26). No plan of its own (ADR-112).
 
 ## Rules every plan and every agent follows
 
