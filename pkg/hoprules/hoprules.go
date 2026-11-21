@@ -27,6 +27,8 @@
 // Key bytes come only from key_file, never from the rules file, and appear in
 // no error and no log. hop-ebpf reads a key's presence and expiry, not the
 // key: this proves nothing about where a packet came from (ADR-125, FND-031).
+// So the key file is read and checked, and its bytes go no further: the
+// HMAC_KEYS entry is written with a zero key field until a tag exists.
 //
 // Writing rules does not turn them on: CONFIG key 4 does. SetMode is the one
 // writer in the tree, and it refuses enforce until EnforceBlockers is empty.
@@ -398,7 +400,12 @@ func encode(f *File, now uint32, done *Applied) ([]entry, error) {
 			return nil, fmt.Errorf("hoprules: hmac_keys[%d]: %w", i, err)
 		}
 		key := bpfschema.HMACKeyKey{FlowID: h.Flow, Namespace: uint16(h.Namespace)}
-		value := bpfschema.HMACKeyValue{Key: h.key(), CreatedAt: now, ExpiresAt: expires}
+		// The key field stays zero. hop-ebpf reads an entry's presence and
+		// expiry and never its key (v0x01 carries no tag; ADR-125), so the
+		// bytes would sit in kernel memory, readable through the pin, for
+		// nothing. The file is still read and held to readKey's checks, so a
+		// host is ready the day a tag exists (FND-031) and the bytes return.
+		value := bpfschema.HMACKeyValue{CreatedAt: now, ExpiresAt: expires}
 		if err := add(bpfschema.MapHMACKeys, key, value, &done.HMACKeys); err != nil {
 			return nil, err
 		}

@@ -57,7 +57,9 @@ type HMACKeyKey struct {
 }
 
 // HMACKeyValue stores the HMAC-SHA256 key material: hop-ebpf's HmacKeyEntry.
-// Size: 40 bytes.
+// Size: 40 bytes. pkg/hoprules, the one writer, leaves Key zero: hop-ebpf
+// reads presence and expiry only, so no key byte enters the map until a tag
+// exists (FND-031).
 type HMACKeyValue struct {
 	Key       [32]byte // HMAC-SHA256 key (256 bits).
 	CreatedAt uint32   // CLOCK_BOOTTIME seconds.

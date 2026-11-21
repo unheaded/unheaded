@@ -49,6 +49,8 @@ A correctly set up host passes every check below unchanged; anything else is ref
 
 | Pin (`--pin-dir`/`<MAP>`), for `hop rules apply` and `hop mode` | The pin and the directory holding it are real files owned by root (or by the user running the command), closed to group and world writes, as `ebpf-loader --pin-maps` leaves them (`0755` directory, `0600` pins); and the kernel's own name for the map behind the pin is the pin's file name (`HOP_VALIDATORS`, `HMAC_KEYS`, `RETRY_TOKENS`, `CONFIG`). | A symlink at the pin or its directory; another user's pin or directory; a group- or world-writable one; a map the kernel knows under another name (a stale or wrong pin of the same sizes), with both names in the message. Directories above the pin directory are not checked. |
 
+The key file is read and checked, and its bytes go no further: the `HMAC_KEYS` entry is written with a zero key field (2026-11-21). hop-ebpf reads an entry's presence and expiry, never the key, because v0x01 carries no tag to verify (ADR-125, FND-031), so `bpftool map dump` on the pin shows no key material. The bytes return to the map the day a tag exists.
+
 A secret manager that hands out its files through a symlinked directory (`/run/secrets` under some of them) needs the directory's real path in `key_file`.
 
 ### `ebpf-loader` and signals
