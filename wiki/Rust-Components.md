@@ -34,7 +34,7 @@ Every program is loaded through the kernel verifier in CI (`cmd/ebpf-load-check`
 | `xv6-mbc` | The UPC kernel and userland (Unheaded-authored since Phase 2.4) ([[Linux-on-UPC]]) |
 | `heimdall-bpf` | kprobe scaffold for Mímir's Law ([[Mimirs-Law]]) |
 | `lich-fuzz` | The Lich: fuzzing for the protocol and eBPF programs ([[LICH-Campaigns]]) |
-| `zhend` | Zhen Layer 0: single-node gRPC store; gossip and QUIC written, never spawned (DP-209) |
+| `zhend` | Zhen Layer 0: single-node gRPC store (DP-209) with UDP gossip. Its QUIC server, Monad bridge, topology observer and strata snapshot history were never spawned and were archived in `unheaded-zhend-subsystems` on 2026-11-21 (ADR-152) |
 
 ## Rust binaries under `cmd/`
 

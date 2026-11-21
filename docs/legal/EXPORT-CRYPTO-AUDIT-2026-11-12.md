@@ -493,3 +493,52 @@ same day: its list no longer names an age-style format, and it now names the
 ML-KEM key schedule of row 23 and the SHA-256 of row 5, which the paragraph
 "Against the notice as drafted" said were missing. The notification is still
 not sent; sending it is Stevie's.
+
+## Update 2026-11-21
+
+Added after the audit; nothing above this heading was changed. Decision pack
+of 2026-11-18, row 36: zhend's four subsystems that nothing spawned (the QUIC
+server, the Monad bridge, the topology observer, the strata snapshot history)
+leave the repository for a sibling archive with their history. Like the audit,
+this section is the work of an AI agent, is not legal advice, and draws no
+conclusion about what the regulation requires.
+
+**Left the tree.** Row 28, zhend QUIC transport
+(`crates/zhend/src/api/quic.rs`, with `tests/phase8_quic.rs`): QUIC with
+TLS 1.3 through quinn and rustls on aws-lc-rs, and an Ed25519 key from
+aws-lc-rs for a self-signed certificate. The table classed it S (standard,
+from published libraries). `main.rs` never started it: the line was
+`// TODO: spawn QUIC server`. The other three subsystems hold no
+cryptography; the Monad bridge used BLAKE3 only in its tests.
+
+**Still in the tree.** Row 31 (ML-DSA-65 peer signatures,
+`crates/zhend/src/crypto/sign.rs`) and row 32 (BLAKE3 fragment ids) are
+unchanged. zhend now has no transport encryption: gRPC is plaintext on
+loopback and gossip is UDP.
+
+**Dependencies.** `quinn`, `rustls`, `aws-lc-rs` and `serde_json` left
+`crates/zhend/Cargo.toml`, and 24 packages left `crates/zhend/Cargo.lock`
+with none added or changed. Across all lock files 16 crate names are gone
+from the build (`docs/policy/dependency-baseline.txt`, 518 to 502 packages),
+`aws-lc-rs`, `aws-lc-sys`, `quinn`, `quinn-proto` and `quinn-udp` among them,
+and the Rust component count fell from 334 to 317
+(`docs/policy/sbom-count-baseline.txt`). Of the crates the 2026-11-18 update
+listed for zhend's lock file, it keeps pqcrypto-mldsa and blake3. rustls
+stays in the tree through `cmd/ebpf-collector`'s lock file (its HTTP client),
+ring there and in `crates/svc-token`; aws-lc-rs is in no lock file.
+
+**Crypto inventory.** `compliance/crypto/cbom.cdx.json` was regenerated: 109
+components before, 105 after. Gone: zhend's `rust-lock` entry, its
+`rust-tls-dep` entry and the two `rust-provider` entries of `quic.rs`. Nothing
+added. The inventory tool lost its `not-spawned` link state, which only those
+rows carried.
+
+**Where the code is.** In the public history of this repository up to
+`231c7f344492d649a52660007396fa0a1b147abf`, and in a local repository
+`unheaded-zhend-subsystems` that has no remote
+(`docs/adr/ADR-152-zhend-archived-subsystems.md`).
+
+**The notice.** `docs/compliance/export-control-notice.md` gained an "Update,
+2026-11-21": its list no longer says rustls on aws-lc-rs is in `crates/zhend/`.
+Its email text was not changed and still names aws-lc-rs; whether to strike it
+is Stevie's. The notification is still not sent.

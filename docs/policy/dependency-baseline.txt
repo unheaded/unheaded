@@ -21,8 +21,6 @@ cargo async-stream-impl
 cargo async-trait
 cargo atomic-waker
 cargo autocfg
-cargo aws-lc-rs
-cargo aws-lc-sys
 cargo axum
 cargo axum-core
 cargo aya
@@ -62,7 +60,6 @@ cargo clap
 cargo clap_builder
 cargo clap_derive
 cargo clap_lex
-cargo cmake
 cargo colorchoice
 cargo constant_time_eq
 cargo core-error
@@ -90,7 +87,6 @@ cargo env_filter
 cargo env_logger
 cargo equivalent
 cargo errno
-cargo fastbloom
 cargo fastrand
 cargo find-msvc-tools
 cargo fixedbitset
@@ -98,7 +94,6 @@ cargo flate2
 cargo fnv
 cargo foldhash
 cargo fs2
-cargo fs_extra
 cargo futures-channel
 cargo futures-core
 cargo futures-sink
@@ -139,11 +134,9 @@ cargo js-sys
 cargo lazy_static
 cargo libc
 cargo libfuzzer-sys
-cargo libm
 cargo linux-raw-sys
 cargo lock_api
 cargo log
-cargo lru-slab
 cargo matchers
 cargo matchit
 cargo memchr
@@ -168,7 +161,6 @@ cargo petgraph
 cargo pin-project
 cargo pin-project-internal
 cargo pin-project-lite
-cargo pkg-config
 cargo plain
 cargo plotters
 cargo plotters-backend
@@ -189,15 +181,11 @@ cargo prost-build
 cargo prost-derive
 cargo prost-types
 cargo quick-error
-cargo quinn
-cargo quinn-proto
-cargo quinn-udp
 cargo quote
 cargo r-efi
 cargo rand
 cargo rand_chacha
 cargo rand_core
-cargo rand_pcg
 cargo rand_xorshift
 cargo rayon
 cargo rayon-core
@@ -206,7 +194,6 @@ cargo regex
 cargo regex-automata
 cargo regex-syntax
 cargo ring
-cargo rustc-hash
 cargo rustix
 cargo rustls
 cargo rustls-pki-types
@@ -227,7 +214,6 @@ cargo sharded-slab
 cargo shlex
 cargo signal-hook-registry
 cargo simd-adler32
-cargo siphasher
 cargo slab
 cargo sled
 cargo smallvec
@@ -241,7 +227,6 @@ cargo thiserror
 cargo thiserror-impl
 cargo thread_local
 cargo tinytemplate
-cargo tinyvec
 cargo tokio
 cargo tokio-macros
 cargo tokio-stream
@@ -283,7 +268,6 @@ cargo wasm-bindgen-macro
 cargo wasm-bindgen-macro-support
 cargo wasm-bindgen-shared
 cargo web-sys
-cargo web-time
 cargo webpki-roots
 cargo winapi
 cargo winapi-i686-pc-windows-gnu

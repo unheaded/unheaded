@@ -131,7 +131,7 @@ The crates the eBPF components, zhend and the MBC translator are built on, with 
 | serde | 1.0.229 | MIT OR Apache-2.0 | Serialization framework |
 | serde_json | 1.0.154 | MIT OR Apache-2.0 | JSON for serde |
 | clap | 4.6.7 | MIT OR Apache-2.0 | Command-line argument parsing |
-| rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT | Pure-Rust TLS for zhend |
+| rustls | 0.23.46 | Apache-2.0 OR ISC OR MIT | Pure-Rust TLS under `ureq`, the HTTP client of `cmd/ebpf-collector` (zhend's QUIC server, its other user, was archived 2026-11-21, ADR-152) |
 | goblin | 0.8.2 | MIT | ELF parser for monad-mbc RV32I translator |
 | nix | 0.31.3 | MIT | Unix API bindings for BPF operations |
 | thiserror | 1.0.69 | MIT OR Apache-2.0 | Error handling derives |

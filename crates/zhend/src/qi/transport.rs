@@ -2,11 +2,9 @@
 // Copyright (c) 2024-2026 Stevie Bellis.
 //! Transport layer for Qi gossip.
 //!
-//! Two modes:
-//! 1. Piggybacked — fragments ride existing Monad HbH options (zero extra traffic)
-//! 2. Standalone — UDP datagrams when Monad transport unavailable
-//!
-//! Piggybacked mode is preferred. Wu Wei — knowledge flows without forcing.
+//! One mode: UDP datagrams. The piggybacked mode (fragments riding Monad
+//! Hop-by-Hop options) was never implemented; its option codec is archived
+//! with the Monad bridge in `unheaded-zhend-subsystems` (ADR-152).
 
 use crate::{ZhenError, ZhenResult};
 use std::net::SocketAddr;
@@ -16,7 +14,7 @@ use tokio::net::UdpSocket;
 /// 64KB minus IP/UDP headers, rounded down for safety.
 pub const MAX_MSG_SIZE: usize = 65_000;
 
-/// UDP transport for standalone gossip when Monad transport is unavailable.
+/// UDP transport for gossip.
 pub struct UdpTransport {
     socket: UdpSocket,
     local_addr: SocketAddr,

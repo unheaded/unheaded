@@ -16,26 +16,27 @@
 //! | Wu Wei (無為) | No-index design — knowledge surfaces through non-action |
 //! | De (德) | Relevance gravity — context attracts |
 //! | Jing (經) | Deep strata — ancient knowledge |
-//! | Li (理) | Emergent structure — pattern in the wood grain |
 //!
 //! ## Architecture
 //!
 //! ```text
-//! ┌─────────────────────────────────────────┐
-//! │              zhend daemon               │
-//! ├──────┬──────┬──────┬──────┬──────┬──────┤
-//! │  pu  │  qi  │  de  │  li  │ jing │ api  │
-//! │ frag │ goss │ rel  │ topo │ deep │ grpc │
-//! │ store│ prop │ emb  │ obs  │ arch │ quic │
-//! ├──────┴──────┴──────┴──────┴──────┴──────┤
-//! │         crypto (PQ signatures)           │
-//! │          ML-DSA-65 | zeroize            │
-//! ├─────────────────────────────────────────┤
-//! │              monad bridge               │
-//! ├─────────────────────────────────────────┤
-//! │        IPv6 HbH / Monad transport       │
-//! └─────────────────────────────────────────┘
+//! ┌──────────────────────────────────────────────┐
+//! │                 zhend daemon                 │
+//! ├─────────┬─────────┬─────────┬────────┬───────┤
+//! │   pu    │   qi    │   de    │  jing  │  api  │
+//! │  frag   │ gossip  │   rel   │  deep  │ grpc  │
+//! │  store  │  (UDP)  │   emb   │  arch  │       │
+//! ├─────────┴─────────┴─────────┴────────┴───────┤
+//! │            crypto (PQ signatures)            │
+//! │             ML-DSA-65 | zeroize              │
+//! └──────────────────────────────────────────────┘
 //! ```
+//!
+//! The QUIC server (`api::quic`), the Monad bridge (`monad`), the topology
+//! observer and the strata snapshot history (`li`) were written and never
+//! spawned. They left this crate on 2026-11-21 and are archived with their
+//! history in the sibling repository `unheaded-zhend-subsystems`; ADR-152
+//! says how to bring one back.
 //!
 //! GPL-3.0-or-later — The Library cannot be enclosed.
 
@@ -43,8 +44,6 @@ pub mod api;
 pub mod crypto;
 pub mod de;
 pub mod jing;
-pub mod li;
-pub mod monad;
 pub mod pu;
 pub mod qi;
 
@@ -102,9 +101,6 @@ pub struct ZhenConfig {
     /// TLS, so `api::grpc::serve` refuses that unless this is set.
     pub grpc_allow_non_loopback: bool,
 
-    /// QUIC listen address.
-    pub quic_addr: String,
-
     /// Gossip listen address (UDP).
     pub gossip_addr: String,
 
@@ -136,7 +132,6 @@ impl Default for ZhenConfig {
             data_dir: std::path::PathBuf::from("/var/lib/zhend"),
             grpc_addr: "[::1]:7300".into(),
             grpc_allow_non_loopback: false,
-            quic_addr: "[::1]:7301".into(),
             gossip_addr: "[::]:7302".into(),
             seed_peers: vec![],
             l1_to_l2_secs: 3600,      // 1 hour

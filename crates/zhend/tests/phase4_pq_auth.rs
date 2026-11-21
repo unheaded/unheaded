@@ -24,7 +24,6 @@ fn test_config(
     ZhenConfig {
         data_dir: data_dir.to_path_buf(),
         grpc_addr: "[::1]:0".into(),
-        quic_addr: "[::1]:0".into(),
         gossip_addr: format!("127.0.0.1:{}", gossip_port),
         seed_peers: seed_peer.into_iter().collect(),
         gossip_fanout: 10,

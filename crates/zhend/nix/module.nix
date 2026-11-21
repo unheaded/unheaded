@@ -9,7 +9,6 @@
 #     enable = true;
 #     dataDir = "/var/lib/zhend";
 #     grpcAddr = "[::1]:7300";
-#     quicAddr = "[::1]:7301";
 #     gossipAddr = "[::]:7302";
 #     seedPeers = [ "[fd00::2]:7302" "[fd00::3]:7302" ];
 #     embeddingModel = null;  # path to ONNX model, or null
@@ -47,12 +46,6 @@ in
       type = lib.types.bool;
       default = false;
       description = "Serve gRPC off loopback.";
-    };
-
-    quicAddr = lib.mkOption {
-      type = lib.types.str;
-      default = "[::1]:7301";
-      description = "QUIC/HTTP3 listen address (external/edge access).";
     };
 
     gossipAddr = lib.mkOption {
@@ -149,7 +142,6 @@ in
           "${cfg.package}/bin/zhend"
           "--data-dir ${cfg.dataDir}"
           "--grpc-addr '${cfg.grpcAddr}'"
-          "--quic-addr '${cfg.quicAddr}'"
           "--gossip-addr '${cfg.gossipAddr}'"
           "--l1-to-l2-secs ${toString cfg.l1ToL2Secs}"
           "--l2-to-l3-secs ${toString cfg.l2ToL3Secs}"

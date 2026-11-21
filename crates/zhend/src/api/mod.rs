@@ -2,15 +2,15 @@
 // Copyright (c) 2024-2026 Stevie Bellis.
 //! # API — External Interfaces
 //!
-//! Two transports, one truth:
-//! - gRPC (tonic) — internal Kingdom services, streaming, deadlines
-//! - QUIC/HTTP3 (quinn) — external access, connection migration, 0-RTT
+//! One transport: gRPC (tonic), loopback by default, no auth or TLS.
 //!
-//! Both expose the same operations:
+//! Operations:
 //! - Ingest: submit a new Pu fragment
 //! - Surface: request De-ranked fragments for a context
-//! - Status: node health, strata snapshot, gossip stats
+//! - Status: node health, tier counts, gossip stats
 //! - Pilgrimage: initiate deep retrieval from Jing
+//!
+//! The QUIC server that stood beside it was never spawned and is archived in
+//! `unheaded-zhend-subsystems` (ADR-152).
 
 pub mod grpc;
-pub mod quic;

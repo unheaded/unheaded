@@ -161,10 +161,13 @@ recorded today stays confidential if either half holds. Two profiles in
 | Profile | Groups | Used where | A classical-only peer |
 |---|---|---|---|
 | Strict | `X25519MLKEM768`, `SecP256r1MLKEM768`, `SecP384r1MLKEM1024` only | both ends are ours: Wotan gRPC and wotan-client, `pkg/transport/mtls` | handshake fails |
-| Preferred | Go's default (hybrids first, classical fallback) | servers third-party clients reach: Wotan HTTP and `/metrics`, the dashboard, load-balancer frontends, zhend QUIC (never spawned) | gets X25519 |
+| Preferred | Go's default (hybrids first, classical fallback) | servers third-party clients reach: Wotan HTTP and `/metrics`, the dashboard, load-balancer frontends | gets X25519 |
 
-Rust TLS (zhend QUIC, compiled and never spawned) uses rustls on the `aws-lc-rs` provider, which
-offers `X25519MLKEM768` first; the `ring` provider (no ML-KEM) is gone.
+No first-party Rust code serves TLS. The one Rust TLS server, zhend's QUIC
+(rustls on the `aws-lc-rs` provider, never spawned), was archived on 2026-11-21
+(ADR-152). `cmd/ebpf-collector`'s lock file still carries rustls with the `ring`
+provider, under its outbound HTTP client (the `rust-lock` row of the crypto
+inventory).
 Third-party outbound clients (SMTP relays, the CISA KEV feed, Splunk HEC,
 load-balancer health checks to user backends) keep a TLS 1.2 floor: their
 servers choose, and a modern one negotiates the hybrid. The load balancer's

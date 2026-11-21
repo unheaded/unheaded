@@ -8,6 +8,8 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Date:** 2026-11-04
 **Related:** DP-412, DP-606, DP-209, foundation-06 "IPv6 Hop-by-Hop Option Type", `docs/protocol/RFC-EDITOR-REQUESTS-WH.md` item 5.
 
+> **Note (2026-11-21).** `crates/zhend/src/monad/hbh.rs` is no longer in this repository: the Monad bridge and its option codec were archived in `unheaded-zhend-subsystems` (decision pack 2026-11-18, row 36; ADR-152). The registry below is unchanged, and the row for Zhen's option stays reserved. "One constant in `hbh.rs`" under Consequences now applies to the archived file, on the day the bridge comes back.
+
 ## The pitch (decision pack, DP-412)
 
 > Private HbH option registry in an ADR now, IANA with the resubmission.
