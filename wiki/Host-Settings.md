@@ -104,6 +104,19 @@ Every value is a variable at the top of the script; one given in the environment
 | `NODE_EXPORTER_BASE_URL`, `NODE_EXPORTER_BIN`, `NODE_EXPORTER_UNIT`, `NODE_EXPORTER_USER`, `SYSUSERS_TARGET` | the project's GitHub releases, `/usr/local/bin/node_exporter`, `/etc/systemd/system/node-exporter.service`, `node-exporter`, `/etc/sysusers.d/unheaded.conf` | the unit is installed and not started; the account comes from `deploy/sysusers.d/unheaded.conf`, which makes every service account in it |
 | `SYSCTL_SOURCE`, `SYSCTL_TARGET` | `deploy/sysctl.d/99-unheaded-<host>.conf`, `/etc/sysctl.d/99-unheaded.conf` | part `sysctl` (West's files, above) |
 
+## The resolver's blocklists (Pi-hole)
+
+West resolves through a Pi-hole in the LXD instance `pihole` (10.10.20.252, [[ADR-022-Pihole-Docker-to-LXD]]). Its blocklists are host data, not repository files:
+
+| List | Since | Entries |
+|---|---|---|
+| StevenBlack `hosts` | before 2026-11 | 77,310 |
+| HaGeZi Multi Normal (`adblock/multi.txt`) | 2026-11-21 22:52Z | 195,083 |
+
+A list is added with `scripts/pihole-add-list.sh <url> "<comment>"`, started detached (`setsid nohup ... &`), because the shell that starts it resolves through the same Pi-hole. The script copies `gravity.db`, adds the list, runs gravity, and puts everything back by itself if a name on its `MUST` list stops resolving, if a name used in the last 7 days that matches `CRITICAL` is newly blocked, or if the list loads nothing. Its settings (`PIHOLE_INSTANCE`, `PIHOLE_IP`, `LXC`, `PIHOLE_LIST_STATE`, `MUST`, `CRITICAL`, `TELEMETRY_OK`) are variables with defaults at the top of the file. Each run leaves a directory under `~/.local/state/unheaded/pihole-lists/` with the blocked share of the day before the change, the names in use and the ones the new list blocks.
+
+Two things learned on 2026-11-21: the Pi-hole refuses a client everything for at least ten seconds once it passes 1,000 queries a minute (`dns.rateLimit`), so a check that asks about every used name must be spaced; and a blocklist blocks telemetry hosts under domains that matter (`collector.github.com`), which is what it is for.
+
 ## A second host
 
 1. Copy `deploy/host-settings/west.tsv` to `<host>.tsv` and keep only the rows the host has.
