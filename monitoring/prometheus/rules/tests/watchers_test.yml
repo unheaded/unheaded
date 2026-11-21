@@ -95,3 +95,24 @@ tests:
               summary: "Prometheus (localhost:9090) cannot reach Alertmanager"
               description: "Notifications fail or no Alertmanager is discovered: firing alerts go nowhere. The mailer's pipeline mail follows after 20 minutes."
               runbook_url: "runbooks/observe/monitoring-path.yaml"
+
+  # VictoriaMetrics drops rows at its series limit from 10m on: quiet while the
+  # counter is flat, firing once the increase has held 5m, for either limit.
+  - interval: 1m
+    input_series:
+      - series: 'vm_hourly_series_limit_rows_dropped_total{job="victoria",instance="[fd00:dead:beef::1]:8428"}'
+        values: '0x10 5+5x20'
+      - series: 'vm_daily_series_limit_rows_dropped_total{job="victoria",instance="[fd00:dead:beef::1]:8428"}'
+        values: '0x40'
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: VictoriaMetricsSeriesLimitReached
+        exp_alerts: []
+      - eval_time: 18m
+        alertname: VictoriaMetricsSeriesLimitReached
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: victoria, instance: "[fd00:dead:beef::1]:8428"}
+            exp_annotations:
+              summary: "VictoriaMetrics ([fd00:dead:beef::1]:8428) is dropping rows at its series limit"
+              description: "New series arrived past the hourly or daily limit and their rows were dropped. Find the label that grew (vm_hourly_series_limit_current_series against vm_hourly_series_limit_max_series), fix its producer or raise the limit."
+              runbook_url: "runbooks/observe/monitoring-path.yaml"

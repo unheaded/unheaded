@@ -322,6 +322,11 @@ services:
       # Without this every overlay target in scrape.yml fails to connect
       # (proved in a throwaway container, 2026-11-11: 12 of 27 up without, 21 with).
       - "-enableTCP6"
+      # 16,971 active and ~5,700 new a day on 2026-11-15: a label explosion is
+      # refused and counted, not an OOM (ADR-147, Erda F12;
+      # VictoriaMetricsSeriesLimitReached in rules/watchers.yml).
+      - "-storage.maxHourlySeries=100000"
+      - "-storage.maxDailySeries=300000"
       # Admin endpoints need the key volume-init made (writes, queries and
       # /metrics stay open: huginn and the scrapers use them).
       - "-deleteAuthKey=file:///victoria-auth/admin.key"
