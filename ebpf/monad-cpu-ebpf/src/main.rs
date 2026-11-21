@@ -538,7 +538,13 @@ const UPC_RUNG4: bool = true;
 // fs_walk. The kernel follows by `#define UPC_RUNG56` in upc_slots.h, which must
 // equal this const (cmd/upc-bootctl/tests/parity_slot_tables.rs). Needs the fd,
 // chdir and pipe rungs and rungs 3 and 4. Rollback = this const and that define off.
-const UPC_RUNG56: bool = false;
+//
+// On since 2026-11-21 (decision pack 2026-11-18, row 25: on, the goldens comparing
+// the user-mode trace only). Two things go with the const and are dead without it:
+// the Phase 1.4 PC tracer prints and counts U-mode PCs only (the dispatch loop,
+// below), and the kernel's copyinstr reads slot 0's first page past BootParams
+// (upc_slot0_str_ok in upc_slots.c), so init's own open("console") is answered.
+const UPC_RUNG56: bool = true;
 // With rung 3 or 4 off a console write or read would fall into a BPF arm that asks
 // FD_TABLE what the fd is, and under UPC_RUNG56 nothing fills that table.
 const _: () = assert!(
@@ -881,9 +887,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // Phase 1.4 PC tracer (forkret-bisect). When armed, emit current PC
         // as 4 hex chars to TTY and decrement countdown. Armed by RET-fix path.
+        // ADR-135 D21, ruled 2026-11-18 (decision pack row 25): under UPC_RUNG56
+        // only a U-mode PC is printed or counted. Init's first open is its 21st
+        // instruction and is the kernel's now; with kernel PCs in the window every
+        // golden's first 100 PCs moved. The goldens hold the user-mode trace, so a
+        // change on the kernel side of a trap no longer shows in them.
         if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
             let n = unsafe { *p };
-            if n > 0 {
+            if n > 0 && !(cfg!(feature = "ascend-linux") && UPC_RUNG56 && cpu.priv_level != 3) {
                 let hex = b"0123456789ABCDEF";
                 let v = cpu.pc;
                 mem_write_byte(0xC001, hex[((v >> 12) & 0xF) as usize]);

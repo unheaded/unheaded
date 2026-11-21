@@ -36,7 +36,7 @@
 // equal `const UPC_RUNG56` in ebpf/monad-cpu-ebpf/src/main.rs; the parity test
 // cmd/upc-bootctl/tests/parity_slot_tables.rs reads both lines. A header, not a
 // compiler flag, so make rebuilds what includes it.
-#define UPC_RUNG56              0
+#define UPC_RUNG56              1
 #if UPC_RUNG56
 #define UPC_KFD_BASE            0  // ADR-135 D21: a kernel fd is the ofile index
 #else
@@ -51,6 +51,11 @@
 // the first (refused already, D6) and below the TTY registers, and the stack that
 // uexec.c gives it (sp = 0x500000 - 16, one MiB of room).
 #define UPC_INIT_IMAGE_LO       0x00001000
+// ADR-135 D21 as ruled 2026-11-18 (decision pack row 25): under UPC_RUNG56 a path
+// string, and nothing else, may be read from slot 0's first page from here up.
+// BootParams ends at 0x200 (256 bytes at 0x100); user.ld puts .rodata after .text,
+// so init's "console" literal sits above it. See upc_slot0_str_ok().
+#define UPC_INIT_STR_LO         0x00000200
 #define UPC_INIT_IMAGE_HI       0x0000C000
 #define UPC_INIT_STACK_LO       0x00400000
 #define UPC_INIT_STACK_HI       0x00500000
@@ -88,6 +93,7 @@ void upc_retry(void);
 int  upc_retry_pending(void);
 uint64 upc_pause(int n);
 uint64 upc_user_pa(uint64 va);
+int  upc_slot0_str_ok(uint64 va);
 int  upc_kbd_take(void);
 void upc_cwd_mark(struct proc *p, int off_root);
 

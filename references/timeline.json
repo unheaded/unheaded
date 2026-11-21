@@ -1,6 +1,6 @@
 {
   "version": "1.0.0",
-  "last_updated": "2026-11-18T16:14:12.313747Z",
+  "last_updated": "2026-11-21T21:07:01.958707Z",
   "status": "alpha",
   "phases": [
     {
@@ -93,7 +93,8 @@
         "phase-3-item-633999f3",
         "phase-3-item-09a4df99",
         "phase-3-item-cc9f68f7",
-        "phase-3-item-88e92ebb",
+        "phase-3-item-be0e6d89",
+        "phase-3-item-506e3910",
         "phase-3-item-020526f9",
         "phase-3-item-ef2bf6a0",
         "phase-3-item-5d165ac5",
@@ -586,11 +587,18 @@
       "description": "**S-WATCH-TRUE (2026-11-15, `develop`).** Backlog sweep rows D-13 to D-18 and FND-044: scrape jobs, alerts and panels for things that do not run, and the trace collector's core. The trace collector: `LATENCY_MAP` is an LRU hash and a refused insert is counted; both map readers read in batches and pass over an entry that has not changed; an object whose map layout the binary cannot decode is refused before load. Measured on west: from 0.93 core and about 108,000 `bpf()` calls a second with no latency event published, to 0.016 core and 14 calls a second six hours after the restart, latency published. One row of the pass bar is not met: CPU grew 2.15 times between the first hour and the sixth (bar 1.5) while the maps filled (2026-11-18: accepted as bounded by Stevie; 0.026 core at 41.9 h against a bar of 0.05). Also: the sword and heimdall scrape jobs removed; `ZhenSchedulerStalled` split by reason; `unheaded-baseline` writes its textfile, so the compliance dashboard has data; eight load-balancer images pinned and the digest gate reads their file; `lxd/telemetry` deleted; `WotanTopicPermissionRefused` with a `caller` label and a draft runbook; Vector counts account changes, sudo commands, crontab edits and kernel events, and the IOC audit reads them. Found on the way: the flow reader announced every dead flow as new and expired on every poll (7,281 pairs a second); a journald line from a short-lived process carries no `_EXE`; `TraceCollectorHighLatency` rests on a histogram nothing feeds (open). Not done: east (Phase 4B, attended), the Loki pull in `scripts/bootstrap-llm-lab.sh`. Plan `docs/battle-plans/S-WATCH-TRUE-battle-plan.md`, record `docs/battle-plans/progress/S-WATCH-TRUE-progress.md`."
     },
     {
-      "id": "phase-3-item-88e92ebb",
+      "id": "phase-3-item-be0e6d89",
       "name": "S-STAGE-2C",
       "status": "completed",
       "progress": 100,
-      "description": "**S-STAGE-2C (2026-11-15, `sprint/s-stage-2c`).** UPC hardening, then EVOLUTION-1 Stage 2 rungs 3 and 4. On: ADR-109 D6 (a U-mode page-walk miss goes nowhere), MRET and SRET refused at priv 3, bounded open and exec paths, block syscalls 200/201 refused to U-mode, fork keyed on BPF's own mark, console write and console read in the owned kernel (`UPC_RUNG3`, `UPC_RUNG4`), `cd` in ush. bootctl refuses at load: an untranslated or privileged opcode in a user image, the eight non-return ones in the kernel or bootstub, a bad `.data` sidecar or one whose records leave the image's window; exec'd images start with `.bss` zeroed. Ascend 889,941 → 883,522 verified instructions, Doom 758,199. Rungs 5+6 (`UPC_RUNG56`: open, fstat, dup, close, file read/write in the kernel) are built, independently reviewed and wired, and off: on they verify at 529,305, but the goldens' 100-PC trace moves, so the flip is Stevie's choice (2026-11-18: ruled on, the goldens comparing the user-mode trace only; ruled, not yet switched on). Three independent reviews found what the lane had not: block syscalls reachable from U-mode with physical addresses (booted red, fixed), unbounded sidecar addresses (fixed), five design gaps in rungs 5+6 (fixed before any code). Not done: atomics through `translate_address` and the fork slot-scan skip (verifier budget), rung 7. Plan `docs/battle-plans/S-STAGE-2C-battle-plan.md`, ledger `references/s-stage-2c-log.md`."
+      "description": "**S-STAGE-2C (2026-11-15, `sprint/s-stage-2c`).** UPC hardening, then EVOLUTION-1 Stage 2 rungs 3 and 4. On: ADR-109 D6 (a U-mode page-walk miss goes nowhere), MRET and SRET refused at priv 3, bounded open and exec paths, block syscalls 200/201 refused to U-mode, fork keyed on BPF's own mark, console write and console read in the owned kernel (`UPC_RUNG3`, `UPC_RUNG4`), `cd` in ush. bootctl refuses at load: an untranslated or privileged opcode in a user image, the eight non-return ones in the kernel or bootstub, a bad `.data` sidecar or one whose records leave the image's window; exec'd images start with `.bss` zeroed. Ascend 889,941 → 883,522 verified instructions, Doom 758,199. Rungs 5+6 (`UPC_RUNG56`: open, fstat, dup, close, file read/write in the kernel) are built, independently reviewed and wired, and off: on they verify at 529,305, but the goldens' 100-PC trace moves, so the flip is Stevie's choice (2026-11-18: ruled on, the goldens comparing the user-mode trace only; switched on 2026-11-21, the next entry). Three independent reviews found what the lane had not: block syscalls reachable from U-mode with physical addresses (booted red, fixed), unbounded sidecar addresses (fixed), five design gaps in rungs 5+6 (fixed before any code). Not done: atomics through `translate_address` and the fork slot-scan skip (verifier budget), rung 7. Plan `docs/battle-plans/S-STAGE-2C-battle-plan.md`, ledger `references/s-stage-2c-log.md`."
+    },
+    {
+      "id": "phase-3-item-506e3910",
+      "name": "UPC rungs 5 and 6 on",
+      "status": "completed",
+      "progress": 100,
+      "description": "**UPC rungs 5 and 6 on (2026-11-21, `sprint/upc-rung56`).** Decision pack 2026-11-18, row 25: `UPC_RUNG56` is on. Every open, read, write, fstat, dup and close of the UPC's xv6 is answered by the owned kernel, whose fd table is the only one; BPF's file reader (`fs_walk`, `FD_TABLE`, `FD_INODE_MAP`) is out of the ascend object. The Phase 1.4 PC tracer prints U-mode PCs only, so the twelve goldens hold the user-mode trace and were not recaptured (12 of 12 SAME); kernel-side changes are judged by the probes. The kernel's `copyinstr` reads a path string from slot 0's first page, so init's own `open(\"console\")` is answered. Ascend 883,522 → 532,152 verified instructions, Doom 758,199. Rung 7 is not started. Ledger `references/s-stage-2c-log.md`, record `docs/battle-plans/progress/S-STAGE-2C-progress.md` (sections of this date)."
     },
     {
       "id": "phase-3-item-020526f9",
