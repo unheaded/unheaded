@@ -253,6 +253,7 @@ Stevie's bar is "set up carefully. Ensure no spam or useless disk io is being us
   go test -count=1 ./pkg/compliance/crosswalk/ 2>&1 | tail -1; go run ./cmd/compliance-evidence findings | grep -c 'remove from the register'
   ```
 - [ ] **Step 32** [V] ~1m: `0` (DE2 answered yes). Write the E-04 outcome line in `$PROG`.
+  - 2026-11-21 (decision pack 2026-11-18, row 41, M-192.1): read the target here, and wherever this plan says "an empty remove list" (the target at the top, the definition of done, Step 258), as "empty except FND-038", so the count is `1` while that entry stands. FND-038 carries a `resolved:` block, so the report lists it under "remove from the register", but `pkg/compliance/crosswalk/register_text_test.go` (`TestRegister_FND038CanBeMetAndKeepsAttestation`) requires the entry and the entry's own `decision:` reads "closing this entry is Stevie's word". The entry and its test stay together; removing a high finding is not row 41's to do. The question was raised in the progress file's "For Stevie". Undo: strike this note.
 - [ ] **Step 33** [C] ~1m: Commit `compliance/findings/register.yaml $PROG`. The body lists each removed source with its observation time.
 
 ### E-03: FND-009
