@@ -974,8 +974,8 @@ func TestServerSession_WellUnreachableStartsClosed(t *testing.T) {
 	is := bfftest.NewIssuer(t, "unheaded", svc)
 	t.Setenv("AUTH_SESSION_WELL_PASSWORD", "not-a-real-password")
 	t.Setenv("WELL_HOST", "127.0.0.1")
-	t.Setenv("WELL_PORT", "1") // nothing listens on port 1
-	t.Setenv("WELL_SSLMODE", "disable")
+	t.Setenv("WELL_PORT", "1")                       // nothing listens on port 1
+	t.Setenv("AUTH_SESSION_WELL_SSLMODE", "disable") // this host only
 	b, err := bff.New(bff.Config{ServiceName: svc, IssuerURL: is.URL, SessionStore: bff.SessionStoreWell})
 	if err != nil {
 		t.Fatalf("a Well that is down stopped the front from starting: %v", err)

@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -237,7 +239,7 @@ func TestOpenWell_AWellThatIsNotListeningIsWaitedFor(t *testing.T) {
 	t.Setenv("AUTH_SESSION_WELL_PASSWORD", "not-a-real-password")
 	t.Setenv("WELL_HOST", "127.0.0.1")
 	t.Setenv("WELL_PORT", port)
-	t.Setenv("WELL_SSLMODE", "disable")
+	t.Setenv("AUTH_SESSION_WELL_SSLMODE", "disable") // this host only
 	st, err := OpenWell(context.Background(), "front-a")
 	if err != nil {
 		t.Fatalf("a Well that is down stopped the start: %v", err)
@@ -249,4 +251,48 @@ func TestOpenWell_AWellThatIsNotListeningIsWaitedFor(t *testing.T) {
 	if _, err := st.Create(context.Background(), sess("front-a", 1, t0), CreateLimits{MaxLive: 10}); !errors.Is(err, ErrUnavailable) {
 		t.Fatalf("create with no Well: %v", err)
 	}
+}
+
+// The Well's answer decides who is logged in, so the Well is verified: an
+// unverified connection to another host stops the front from starting, the
+// service's own WELL_SSLMODE notwithstanding. Nothing is dialled first.
+func TestOpenWell_RefusesAnUnverifiedWellOnAnotherHost(t *testing.T) {
+	t.Setenv("AUTH_SESSION_WELL_PASSWORD", "not-a-real-password")
+	t.Setenv("WELL_HOST", "postgres.invalid")
+	t.Setenv("WELL_PORT", "5432")
+	t.Setenv("WELL_SSLROOTCERT", "")
+	t.Setenv("AUTH_SESSION_WELL_DEV_UNVERIFIED", "")
+	for name, mode := range map[string]string{"require": "require", "disable": "disable", "prefer": "prefer"} {
+		t.Setenv("AUTH_SESSION_WELL_SSLMODE", mode)
+		st, err := OpenWell(context.Background(), "front-a")
+		if err == nil {
+			st.Close()
+			t.Errorf("%s: a front started against a Well it would not verify", name)
+			continue
+		}
+		if !errors.Is(err, database.ErrWeakTLS) || !strings.Contains(err.Error(), "AUTH_SESSION_WELL_SSLMODE") {
+			t.Errorf("%s: %v, want ErrWeakTLS naming AUTH_SESSION_WELL_SSLMODE", name, err)
+		}
+	}
+	// The service's own sslmode does not stand in for the store's.
+	t.Setenv("AUTH_SESSION_WELL_SSLMODE", "x")
+	if err := os.Unsetenv("AUTH_SESSION_WELL_SSLMODE"); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("WELL_SSLMODE", "require")
+	if st, err := OpenWell(context.Background(), "front-a"); err == nil {
+		st.Close()
+		t.Error("the default (verify-full) started with no CA to verify against")
+	} else if !errors.Is(err, database.ErrMissingCA) {
+		t.Errorf("default mode without a CA: %v, want ErrMissingCA", err)
+	}
+	// The development key admits require, and says what it is for; the
+	// front then starts and waits for a Well that is not there.
+	t.Setenv("AUTH_SESSION_WELL_SSLMODE", "require")
+	t.Setenv("AUTH_SESSION_WELL_DEV_UNVERIFIED", "true")
+	st, err := OpenWell(context.Background(), "front-a")
+	if err != nil {
+		t.Fatalf("with AUTH_SESSION_WELL_DEV_UNVERIFIED=true: %v", err)
+	}
+	st.Close()
 }

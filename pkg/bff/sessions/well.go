@@ -8,10 +8,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/lib/pq"
+	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/database"
 )
@@ -272,6 +274,12 @@ func (w *wellStore) Sweep(ctx context.Context, endedBefore time.Time, limit int)
 
 func (w *wellStore) Close() error { return w.db.Close() }
 
+// EnvWellDevUnverified is the key that, set to "true", lets a front's session store connect
+// to a Well on another host with sslmode require, that is, without checking
+// the Well's certificate. For a development stack with no CA. It logs a
+// warning at every start.
+const EnvWellDevUnverified = "AUTH_SESSION_WELL_DEV_UNVERIFIED"
+
 // WellStoreConns is the size of a front's connection pool to the Well. Each
 // request with a session cookie is one short read; a pool of two keeps one
 // slow answer from holding up the rest. The role's connection limit
@@ -280,9 +288,20 @@ const WellStoreConns = 2
 
 // connectWellStore opens the Well as front's role and returns its Store.
 func connectWellStore(ctx context.Context, front string) (Store, error) {
-	db, err := database.Connect(ctx, database.BFFSessionConfig(WellRole(front)))
+	cfg := database.BFFSessionConfig(WellRole(front))
+	if cfg.Password == "" {
+		return nil, fmt.Errorf("sessions: the Well, as %s (set AUTH_SESSION_WELL_PASSWORD): %w", WellRole(front), database.ErrMissingCredentials)
+	}
+	// What the Well answers here is the authentication decision, so the
+	// Well's certificate is checked: verify-full unless told otherwise, and
+	// never an unverified connection to another host outside a development
+	// stack that says so.
+	if err := database.CheckVerifiedTLS(cfg, os.Getenv(EnvWellDevUnverified) == "true"); err != nil {
+		return nil, fmt.Errorf("sessions: the Well, as %s: %w (set AUTH_SESSION_WELL_SSLMODE=verify-full with WELL_SSLROOTCERT; %s=true admits require for a development stack)", WellRole(front), err, EnvWellDevUnverified)
+	}
+	db, err := database.Connect(ctx, cfg)
 	if err != nil {
-		return nil, fmt.Errorf("sessions: the Well, as %s (set AUTH_SESSION_WELL_PASSWORD): %w", WellRole(front), err)
+		return nil, fmt.Errorf("sessions: the Well, as %s (AUTH_SESSION_WELL_PASSWORD, AUTH_SESSION_WELL_SSLMODE, WELL_SSLROOTCERT): %w", WellRole(front), err)
 	}
 	db.SetMaxOpenConns(WellStoreConns)
 	db.SetMaxIdleConns(WellStoreConns)
@@ -330,6 +349,10 @@ func refusedByWell(err error) bool {
 func OpenWell(ctx context.Context, front string) (Store, error) {
 	if !ValidFront(front) {
 		return nil, fmt.Errorf("%w: front %q cannot keep sessions in the Well (want [a-z0-9][a-z0-9-]*, at most 59 characters, no underscore)", ErrInvalid, front)
+	}
+	if os.Getenv(EnvWellDevUnverified) == "true" {
+		log.Warn().Str("service", front).
+			Msgf("sessions: %s=true: the Well's certificate may go unchecked; whoever answers at its address decides who is logged in (development only)", EnvWellDevUnverified)
 	}
 	return newGate(ctx, front, func(c context.Context) (Store, error) { return connectWellStore(c, front) },
 		refusedByWell, time.Second, 30*time.Second)

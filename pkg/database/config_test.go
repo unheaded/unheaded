@@ -88,19 +88,65 @@ func TestBFFSessionConfig_OwnCredentials(t *testing.T) {
 	t.Setenv("WELL_DB", "unheaded_ops")
 	t.Setenv("AUTH_WELL_PASSWORD", "auth-pw")
 	t.Setenv("WELL_HOST", "10.10.10.5")
-	t.Setenv("WELL_SSLMODE", "verify-full")
+	// The service's own sslmode is the compose default, "require". The
+	// session store does not inherit it: what the Well answers here decides
+	// who is logged in, so the Well is verified unless told otherwise.
+	t.Setenv("WELL_SSLMODE", "require")
+	t.Setenv("WELL_SSLROOTCERT", "/etc/unheaded/well-tls/ca.crt")
+	t.Setenv("AUTH_SESSION_WELL_SSLMODE", "x")
+	unsetenv(t, "AUTH_SESSION_WELL_SSLMODE")
 	c := BFFSessionConfig("bff_kanban_app")
 	if c.User != "bff_kanban_app" || c.Password != "" || c.DBName != "unheaded_app" {
 		t.Errorf("took another login's settings: user %q, password set %v, database %q", c.User, c.Password != "", c.DBName)
 	}
-	if c.Host != "10.10.10.5" || c.SSLMode != "verify-full" || c.Port != "5432" {
-		t.Errorf("not the same Well: host %q sslmode %q port %q", c.Host, c.SSLMode, c.Port)
+	if c.Host != "10.10.10.5" || c.Port != "5432" || c.SSLRootCert != "/etc/unheaded/well-tls/ca.crt" {
+		t.Errorf("not the same Well: host %q port %q CA %q", c.Host, c.Port, c.SSLRootCert)
+	}
+	if c.SSLMode != "verify-full" {
+		t.Errorf("sslmode %q: the session store must default to verify-full whatever WELL_SSLMODE says", c.SSLMode)
+	}
+	t.Setenv("AUTH_SESSION_WELL_SSLMODE", "verify-ca")
+	if got := BFFSessionConfig("bff_kanban_app").SSLMode; got != "verify-ca" {
+		t.Errorf("AUTH_SESSION_WELL_SSLMODE not read: %q", got)
 	}
 	t.Setenv("AUTH_SESSION_WELL_PASSWORD", "session-pw")
 	t.Setenv("AUTH_SESSION_WELL_DB", "unheaded_app_test")
 	c = BFFSessionConfig("bff_kanban_app")
 	if c.Password != "session-pw" || c.DBName != "unheaded_app_test" {
 		t.Errorf("AUTH_SESSION_WELL_* not read: password set %v, database %q", c.Password != "", c.DBName)
+	}
+}
+
+// The session store's Well must be one whose certificate is checked: an
+// unverified connection is for this host alone, or for a development stack
+// that says so.
+func TestCheckVerifiedTLS(t *testing.T) {
+	for name, tc := range map[string]struct {
+		host, mode string
+		allow      bool
+		ok         bool
+	}{
+		"verify-full to another host":            {"postgres", "verify-full", false, true},
+		"verify-ca to another host":              {"10.10.10.5", "verify-ca", false, true},
+		"require to another host":                {"postgres", "require", false, false},
+		"require to another host, dev key":       {"postgres", "require", true, true},
+		"require to loopback":                    {"127.0.0.1", "require", false, true},
+		"require to localhost":                   {"localhost", "require", false, true},
+		"require to a socket directory":          {"/var/run/postgresql", "require", false, true},
+		"disable to loopback":                    {"::1", "disable", false, true},
+		"disable to another host":                {"postgres", "disable", false, false},
+		"disable to another host, even with key": {"postgres", "disable", true, false},
+		"prefer anywhere":                        {"127.0.0.1", "prefer", true, false},
+		"allow anywhere":                         {"postgres", "allow", true, false},
+		"no mode at all":                         {"postgres", "", false, false},
+	} {
+		err := CheckVerifiedTLS(Config{Host: tc.host, SSLMode: tc.mode}, tc.allow)
+		if (err == nil) != tc.ok {
+			t.Errorf("%s: err = %v, want ok = %v", name, err, tc.ok)
+		}
+		if err != nil && !errors.Is(err, ErrWeakTLS) {
+			t.Errorf("%s: %v is not ErrWeakTLS", name, err)
+		}
 	}
 }
 

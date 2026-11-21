@@ -165,8 +165,16 @@ func AppAuthConfig() Config {
 // role the sessions of the front it is named after, so another user would
 // see none. The password is AUTH_SESSION_WELL_PASSWORD and the database
 // AUTH_SESSION_WELL_DB, never the service's WELL_USER/WELL_PASSWORD/WELL_DB
-// (app_kanban, ops_writer) nor the API-key store's AUTH_WELL_*. Host, port,
-// sslmode and CA are the same Well's. There is no default password.
+// (app_kanban, ops_writer) nor the API-key store's AUTH_WELL_*. Host, port
+// and CA (WELL_SSLROOTCERT) are the same Well's. There is no default
+// password.
+//
+// The sslmode is the store's own, AUTH_SESSION_WELL_SSLMODE, default
+// verify-full. It is not the service's WELL_SSLMODE: every shipped service
+// is given "require" unless its operator says otherwise, and require
+// encrypts without checking who answers. What this store is told decides
+// who is logged in, so a server that merely answers is not good enough
+// (CheckVerifiedTLS).
 func BFFSessionConfig(role string) Config {
 	return Config{
 		Host:        getEnv("WELL_HOST", "localhost"),
@@ -174,9 +182,32 @@ func BFFSessionConfig(role string) Config {
 		User:        role,
 		Password:    os.Getenv("AUTH_SESSION_WELL_PASSWORD"),
 		DBName:      getEnv("AUTH_SESSION_WELL_DB", "unheaded_app"),
-		SSLMode:     getEnv("WELL_SSLMODE", "require"),
+		SSLMode:     getEnv("AUTH_SESSION_WELL_SSLMODE", "verify-full"),
 		SSLRootCert: os.Getenv("WELL_SSLROOTCERT"),
 	}
+}
+
+// CheckVerifiedTLS refuses a config whose connection would not verify the
+// server's certificate: only verify-full and verify-ca do. require, which
+// encrypts to whoever answers, and disable pass for this host alone (a
+// loopback address, localhost, a socket directory), where there is no
+// network to stand in the middle of. allowUnverified admits require to
+// another host, for a development stack with no CA to check against; it
+// never admits disable, allow or prefer. The error wraps ErrWeakTLS.
+func CheckVerifiedTLS(c Config, allowUnverified bool) error {
+	switch c.SSLMode {
+	case "verify-full", "verify-ca":
+		return nil
+	case "require":
+		if allowUnverified || isLocalHost(c.Host) {
+			return nil
+		}
+	case "disable":
+		if isLocalHost(c.Host) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: sslmode %q for host %q does not verify the server", ErrWeakTLS, c.SSLMode, c.Host)
 }
 
 // LogWriterConfig returns the database config for cmd/logstore-writer: the
