@@ -1,9 +1,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Prometheus node_exporter (third-party, /usr/local/bin/node_exporter from the
-# upstream release tarball; scripts/bootstrap-llm-lab.sh installs it).
-# Install (account first: deploy/sysusers.d/unheaded.conf):
+# upstream release tarball). scripts/install-prerequisites.sh --with
+# node-exporter installs the binary (sha256 checked; it refuses without one),
+# the account and this unit, and starts nothing. By hand (account first:
+# deploy/sysusers.d/unheaded.conf):
 #   sudo cp deploy/systemd/node-exporter.service /etc/systemd/system/
-#   sudo systemctl daemon-reload && sudo systemctl enable --now node-exporter
+#   sudo systemctl daemon-reload
+# Then, either way:
+#   sudo systemctl enable --now node-exporter
 #
 # Its own account, not `nobody`: a shared account lets any service running as
 # it read and rewrite the others' state.

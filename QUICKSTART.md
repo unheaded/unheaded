@@ -7,27 +7,35 @@
 
 ## Prerequisites
 
-### Full Lab Server Setup (Fresh Ubuntu 25.x)
+### Fresh Ubuntu Host (24.04 or later)
 
-If starting from a bare Ubuntu install, run the bootstrap script first — it installs **everything** (16 phases: drivers, toolchains, containers, eBPF, monitoring, LLM inference):
+On a bare Ubuntu install, the prerequisites script installs what sections 1 to 10 need: the build packages, Docker Engine with the compose plugin, the Go release `go.mod` names and `rustup`. Look first, then install:
 
 ```bash
-sudo ./scripts/bootstrap-llm-lab.sh        # installs all prerequisites + more
-sudo reboot                                 # AMD GPU driver needs reboot
+./scripts/install-prerequisites.sh --dry-run   # prints each step, changes nothing
+sudo ./scripts/install-prerequisites.sh        # installs; starts no part of the stack; no reboot
 ```
 
+It takes packages from Ubuntu's own repositories, checks the sha256 of what it downloads, and leaves alone anything already on the host that differs (reported as `kept`). The only thing running afterwards that was not before is the Docker daemon, which Ubuntu's package starts. A second run changes nothing. It prints the two steps that belong to your own user: `rustup default stable` (cargo, for `make build`) and a new login shell so `go` is on `PATH`. Docker needs root: prefix the `docker compose` commands below with `sudo` (the script adds nobody to the `docker` group, which is root-equivalent).
+
+Optional parts, off unless asked for: `--with ebpf` (bpftool), `--with node-exporter` (the host metrics exporter and its unit, not started), `--with sysctl` (this host's file from `deploy/sysctl.d/`). `--help` lists every part and every value that can be changed. It does not install GPU drivers, LXD, Nix or the tools in the last two tables below.
+
 ### Minimum Requirements (Dev Only)
+
+The script above installs every row but Claude Code. By hand:
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
 | Go | 1.26+ (go.mod toolchain go1.27.4) | [go.dev/dl](https://go.dev/dl/) | `go version` |
-| Rust | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | `rustc --version` |
-| Docker + Compose | 24+ | [docs.docker.com](https://docs.docker.com/engine/install/) | `docker compose version` |
+| Rust | stable (`make build`); nightly with `rust-src` (`make ebpf`) | `apt install rustup`, then `rustup default stable` | `rustc --version` |
+| Docker + Compose | 24+ | `apt install docker.io docker-compose-v2 docker-buildx`, or [docs.docker.com](https://docs.docker.com/engine/install/) | `docker compose version` |
 | Claude Code | latest | `curl -fsSL https://claude.ai/install.sh \| bash` (native installer; no Node or npm, ADR-006) | `claude --version` |
-| curl | any | pre-installed | `curl --version` |
-| Git + LFS | any | `apt install git git-lfs` | `git --version` |
+| curl, make, gcc, python3, jq | any | `apt install curl make gcc libc6-dev python3 jq` | `curl --version` |
+| Git | any | `apt install git` | `git --version` |
 
 ### Additional Tools (eBPF / Production)
+
+Not installed by the script, except bpftool (`--with ebpf`). The eBPF programs are Rust (Aya): building them needs the nightly toolchain and `bpf-linker`, as your own user: `rustup toolchain install nightly --component rust-src && cargo install bpf-linker@0.10.2 --locked`.
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
@@ -39,6 +47,8 @@ sudo reboot                                 # AMD GPU driver needs reboot
 | LXD/Incus | latest | `snap install lxd` | `lxd --version` |
 
 ### LLM Lab Server Tools (GPU Inference)
+
+Not installed by the script and not needed for sections 1 to 10.
 
 | Tool | Purpose | Install | Check |
 |------|---------|---------|-------|
@@ -375,14 +385,11 @@ Default ports — "The Doom Range" (16666-26666):
 LXD deployment — **requires a Linux host**.
 
 ```bash
-# Option A: Full LLM lab server bootstrap (Ubuntu 25.x, AMD GPU, everything)
-sudo ./scripts/bootstrap-llm-lab.sh
-sudo reboot
-
-# Option B: Minimal host setup (LXD, Nix, networking only)
+# 1. Toolchains and Docker (Prerequisites, above), then the host setup for
+#    LXD (LXD, Nix, networking, service accounts)
+sudo ./scripts/install-prerequisites.sh
 sudo ./scripts/setup-host.sh
 
-# Then for both options:
 # 2. (Optional) Build the NixOS container images (nixosConfigurations in
 #    nix/flake.nix). deploy-alpha.sh below does not use them.
 make containers
