@@ -145,8 +145,46 @@ West was powered off and on (down from about 01:20Z, up 06:04Z). The old stack w
 - `pg_stat_statements` is read in database `postgres` (Step 309's note); the statement counts since the restart are what the view holds.
 - Steps 310, 312, 314 and the one-day windows of Step 311 (inserts, merges, `sdb` a day) were read at 00:39Z and stand (the integration record, 2026-11-18): a one-day window read today would span 15 hours with the stack stopped.
 
+### 2026-11-21: block E, Phases 18 and 19 (tag, build, deploy on west)
+
+Run unattended under DECISION-PACK-2026-11-18 rows 1, 2, 39 and 53. West had been powered off since 2026-11-19 00:44Z and booted 2026-11-21 about 01:44Z with every container stopped. develop `231c7f34` (pushed), tree clean.
+
+**Departure from the steps as written, and why.** The steps assume the old stack is running. It was not, so the old application containers were never started: only the stores and the monitoring containers were started with `docker start` (Postgres, ClickHouse, VictoriaMetrics, CoreDNS, Traefik, Prometheus, Alertmanager, Grafana at 17:45:28Z; Vector at 17:51Z), and the new images went up on them. No old client met the new Wotan, and the five role containers never ran again. `ps-before.txt` is the 22 containers that were running at the stop of 2026-11-19 00:43Z. The new trace collector was installed before Wotan was up (it waits and retries).
+
+| Time (UTC) | Step | Result |
+|---|---|---|
+| 17:38:12 | 327, 328 | 15 images tagged `:pre-s-waste-out` from `docker ps -a` (nothing ran): the 14 `unheaded-dev-*` and `unheaded/alert-mailer` (the step's pattern misses that name) |
+| 17:38 | 329 | `/var/backups/s-waste-out/`: trace-collector-go, chaos-controller, kev-poller, packet-marker, flow-tracker |
+| 17:38:23 to 17:44:10 | 330, 331 | Both builds exit 0, no `ERROR` (`COMPOSE_PARALLEL_LIMIT=3`). Image ids: wotan `671f2990b4e8`, timeguru `3e77a3e17ced`, akira `ad4546b58b40`, dashboard-backend `f42fb5d0911e`, kanban-app `ee5826ac30a3`, auth `26520abca8fe`, logstore-writer `630836ae2a12`, sword `3127338a3418`, cuirass `c21e678614a2`, alert-mailer `d721b806139e` (a cache hit on the build of 2026-11-18) |
+| 17:39 | 332 | Three host binaries at `231c7f34`; sha256 starts: trace-collector-go `2d6635f7108646ea`, chaos-controller `7b2bbf467a52859e`, kev-poller `cecfbcdca1d7a6ea`. No unit sets `WOTAN_GRPC_ADDR` |
+| 17:40 | 333, 334 | `cargo build --offline --locked`; packet-marker `12a84efc…`, flow-tracker `d12767f7…`, byte-identical to the objects block B's `ebpf-loads` gate passed on 2026-11-18; both built-object tests pass |
+| 17:46:52 | 339 | Planned stop `all`, 60 m, with its two silences |
+| 17:47 | 340 | `[well] app_timeguru: password set from APP_TIMEGURU_PASSWORD`; one role. Run under `sudo bash -c` (the secrets file is root-only); no value printed |
+| 17:47:05 to 17:48:20 | 341 | Dry run: `pending (1) through 050`, three left for a later batch. Apply: set `/srv/backups/unheaded-well/pre-050/pre-batch-20261121T174705Z` (146M), `050_app_timeline_milestones.sql` applied 17:48:19Z, `done through 050; 3 later file(s) left pending`. A prebuilt `well-migrate` was passed as `WELL_MIGRATE_BIN` |
+| 17:48:25 | 342 | The ledger row and the nine columns, as expected |
+| 17:48:36 | 343, 344 | Collector `active`; packet_marker (XDP) and flow_tracker (TC) attached; `FLOW_STATE` is `lru_hash`; no `FLOW_EVENTS`; the insert-failure gauge is present. Its only errors were publishes refused by a Wotan that was not up yet; none after 17:49:23Z |
+| 17:49:07 | 346, 347 | chaos-controller and kev-poller `active`; no `ErrNoStreamTransport` |
+| 17:49 | 349, 350 | The six containers removed; the three volumes were empty (0 entries each) and are removed; `cuirass-state` kept. `compose config --services`: 16, none of the five. The override has no Wotan mount yet (the host file of Step 317 is not made) |
+| 17:49:23 | 351, 352 | Wotan `(healthy)` in 7 s; no error or refusal in its log |
+| 17:49:50 | 353, 354 | akira, auth, dashboard, logstore-writer healthy. **timeguru exited (1):** "the Well lacks timeguru's migration (db/migrations/050)", cause `permission denied for table well_schema_migrations`. See the finding below. Fixed 17:50:40Z; timeguru and kanban healthy 17:50:42Z. sword not started (it was not running before) |
+| 17:51:25 | 355 | alert-mailer recreated (`mode: dry-run`; its first line: outcome `dry-run`, subject `[digest] 9 open`; nothing sent); HUP to Prometheus and VictoriaMetrics; Vector started |
+| 17:53:49 | 356 | Prometheus: 16 targets, none down. VictoriaMetrics: 18 targets, none down, none of the five jobs. Gone against `ps-before.txt`: exactly the six. New: alert-mailer |
+| 17:54:01 to 17:55:52 | pack row 39 | The four security bumps, one at a time: CoreDNS 1.14.7 (answers over UDP and TCP), Traefik v3.7.19 (healthy; `/dashboard/` 200 through it; both routers and both backends `UP`), Grafana 11.5.10 (healthy), Alertmanager v0.34.2 (`ready`; the silences survived). `scripts/check-image-drift.sh`: PASS, 14 containers on their pinned image |
+| 17:56:34 | 356 | `maintenance.sh --end`: the mark and both silences ended |
+| 17:56 to 17:58 | | `unheaded-well-backup.service` run by hand (the power-down had skipped three nights): success; `unheaded-well-offsite.service` copied `2026-11-21/well-175635Z` to east. `zhen-agentd` started (it had hit its start limit at boot with the Well down) |
+
+**Finding W-E1, fixed live, repository fix to follow: `app_timeguru` could not read the migration ledger.** timeguru's start check (`database.RequireMigrations`, Phase 16) reads `well_schema_migrations`; `LEDGER.sql` revokes that table from PUBLIC and only 038 grants it, to `app_kanban`. Migration 050 grants the new table and not the ledger, and no test connects as `app_timeguru` and runs the check, so block B could not see it. Live fix (Appendix A procedure 3, the service's own fix): `GRANT SELECT ON well_schema_migrations TO app_timeguru` in `unheaded_app`, as the superuser, 17:50:40Z; undo with the matching `REVOKE` (timeguru then refuses to start). The repository gets the same statement as a numbered migration after 053 and a case in `scripts/well/test-migrate.sh`; until that file is applied on west the grant has no ledger row.
+
+**Seen, not this plan's:**
+- `VectorSinkDroppingEvents` (`well_logs`) fires: Vector is sending the journal it missed while stopped and logstore-writer refuses above 6,000 rows a minute (`reason: rate`). ClickHouse takes every line. It ends when Vector has caught up.
+- `http://…:21080/kanban/` answers 404 from kanban-app itself (it serves `/`, and the route does not strip the prefix). The router and backend are `UP`. Not caused by the Traefik bump.
+- `SSHLoginNewSource`: `govan` from 192.168.69.149, a LAN address not seen in 30 days, 17:52Z (urgency none).
+
+**PHASE 18 EXIT GATE: passed. PHASE 19 EXIT GATE: passed.** Every changed container is healthy and every changed unit active; the six are gone; nothing was rolled back. Deploy time for the afters: **Step 355 at 17:51:25Z** (1 h reading from 18:51Z; 24 h reading 2026-11-22 17:51Z). The mailer stays in dry-run (pack row 53).
+
 ## Handoffs
 
+- **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z.
 - **Plan 7 (S-TENANT-DOOR), Cuirass:** start it with `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml --profile lxd up -d cuirass`. `CUIRASS_ENFORCE` and `CUIRASS_PRUNE` stay unset until a tenant exists. The volume `cuirass-state` holds a stale desired state (three `steel-echo-v2-*` containers) to clear before the first enforce. Sword's window needs `--profile deploy --profile lxd`.
 - **Plan 6 (S-EAST-PAIR), Cuirass on east:** `LXD_BACKEND` has no default any more (Phase 5). East's `unheaded-daemon` host unit sets none in the repository; a new binary there refuses to start until its environment names `https`, `unix` or `mock`. `scripts/install-chaos-west.sh` still points chaos-controller at `http://127.0.0.1:19006` (unchanged: it is the client's address for when Cuirass runs).
 - **Plan 6 (S-EAST-PAIR), east's eBPF objects (Phase 15):** east runs the 2026-10-18 `packet-marker` and `flow-tracker` (its `FLOW_STATE` is full); install this pair with east's collector in Evening 10B. Run `sudo scripts/check-ebpf-loads.sh` and the instruction ratchet on west first (Steps 273-277, not run in the lane).
