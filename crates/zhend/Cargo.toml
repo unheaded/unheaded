@@ -19,7 +19,6 @@ sled = "0.34"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
-serde_json = "1"
 bincode = { version = "2", features = ["serde"] }
 
 # Async runtime
@@ -30,16 +29,10 @@ tonic = "0.12"
 prost = "0.13"
 tokio-stream = "0.1"
 
-# QUIC / HTTP3
-# TLS on the aws-lc-rs provider (ADR-105): it negotiates the hybrid
-# X25519MLKEM768 group, which ring cannot. ring is not compiled at all:
-# quinn's default rustls-ring and platform-verifier features are off
-# (no code path uses the platform verifier).
-quinn = { version = "0.11", default-features = false, features = ["log", "runtime-tokio", "rustls-aws-lc-rs", "bloom"] }
-rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "prefer-post-quantum", "std", "logging"] }
-# Ed25519 key for the self-signed QUIC certificate (src/api/quic.rs);
-# already in the graph as rustls' provider, so not a new package.
-aws-lc-rs = { version = "1", default-features = false, features = ["aws-lc-sys", "prebuilt-nasm"] }
+# 2026-11-21: the QUIC server, the Monad bridge, the topology observer and the
+# strata snapshot history were never spawned and are archived in
+# unheaded-zhend-subsystems (ADR-152). quinn, rustls, aws-lc-rs and serde_json
+# went with them.
 
 # Observability
 tracing = "0.1"

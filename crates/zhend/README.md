@@ -12,7 +12,7 @@ Zhen (真, "truth/genuine") is a gossip-propagated, index-free, associative
 knowledge system that sits beneath the Unheaded Protocol stack. It stores
 content-addressed fragments that:
 
-- **Propagate via gossip** — riding existing Monad packet traffic
+- **Propagate via gossip** — over UDP between peers
 - **Surface through relevance** — not query, not index, but contextual attraction
 - **Never die** — fragments migrate to deeper strata but are never deleted
 - **Cannot be seized** — no root, no index, no single point of exfiltration
@@ -20,21 +20,24 @@ content-addressed fragments that:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────┐
-│              zhend daemon               │
-├──────┬──────┬──────┬──────┬──────┬──────┤
-│  pu  │  qi  │  de  │  li  │ jing │ api  │
-│ frag │ goss │ rel  │ topo │ deep │ grpc │
-│ store│ prop │ emb  │ obs  │ arch │ quic │
-├──────┴──────┴──────┴──────┴──────┴──────┤
-│         crypto (PQ signatures)          │
-│          ML-DSA-65 | zeroize            │
-├─────────────────────────────────────────┤
-│              monad bridge               │
-├─────────────────────────────────────────┤
-│        IPv6 HbH / Monad transport       │
-└─────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│                 zhend daemon                 │
+├─────────┬─────────┬─────────┬────────┬───────┤
+│   pu    │   qi    │   de    │  jing  │  api  │
+│  frag   │ gossip  │   rel   │  deep  │ grpc  │
+│  store  │  (UDP)  │   emb   │  arch  │       │
+├─────────┴─────────┴─────────┴────────┴───────┤
+│            crypto (PQ signatures)            │
+│             ML-DSA-65 | zeroize              │
+└──────────────────────────────────────────────┘
 ```
+
+Four subsystems were written and never spawned by the daemon: the QUIC server
+(`api/quic.rs`), the Monad bridge (`monad/`), the topology observer
+(`li/topology.rs`) and the strata snapshot history (`li/strata.rs`). They left
+this crate on 2026-11-21 and are archived with their history in the sibling
+repository `unheaded-zhend-subsystems`. `docs/adr/ADR-152-zhend-archived-subsystems.md`
+at the repo root says how to bring one back.
 
 ### Module Breakdown
 
@@ -53,20 +56,13 @@ zhend/src/
 │   ├── embedder.rs  — Embedding generation (ONNX-ready, stub for now)
 │   ├── similarity.rs — Cosine similarity ranking
 │   └── context.rs   — Context window management
-├── li/          # Li (理) — Emergent structure observation (Pattern)
-│   ├── strata.rs    — Strata snapshot history, geological trends
-│   └── topology.rs  — Network topology observation
 ├── jing/        # Jing (經) — Deep archive (the Classics)
 │   ├── archive.rs   — Append-only L3 cold storage
 │   └── pilgrimage.rs — Deep retrieval with progress streaming
 ├── crypto/      # Post-Quantum signatures
 │   └── sign.rs      — ML-DSA-65 signatures, PeerIdentity
 ├── api/         # External interfaces
-│   ├── grpc.rs      — tonic gRPC service (Ingest, Surface, Status, Pilgrimage)
-│   └── quic.rs      — quinn QUIC server with custom wire protocol
-├── monad/       # Monad transport bridge
-│   ├── bridge.rs    — Monad packet integration
-│   └── hbh.rs       — IPv6 Hop-by-Hop option encode/decode
+│   └── grpc.rs      — tonic gRPC service (Ingest, Surface, Status, Pilgrimage)
 ├── lib.rs       — Crate root, ZhenConfig, ZhenError
 ├── main.rs      — Daemon binary, CLI, subsystem orchestration
 └── proto/       — Protobuf service definitions (zhen.v1)
@@ -117,8 +113,11 @@ What zhend uses:
 | Operation | Algorithm | Standard |
 |---|---|---|
 | Digital signatures (peer identity) | ML-DSA-65 (Dilithium) | FIPS 204 |
-| Transport key exchange (QUIC, rustls) | TLS 1.3, X25519MLKEM768 first | FIPS 203, RFC 8446 |
 | Content addressing | BLAKE3 (256-bit, quantum-safe) | -- |
+
+zhend has no transport encryption: gRPC is plaintext on loopback and gossip is
+UDP. The QUIC server and its TLS 1.3 on rustls left with the archive of
+2026-11-21 (ADR-152).
 
 Classical-only asymmetric crypto is **forbidden** for any operation protecting
 data with lifetime > 1 year. The `pq` feature is enabled by default.
@@ -145,7 +144,6 @@ encapsulation (`crypto/kem.rs`) and the AES-256-GCM sealed fragment envelope
 | Wu Wei  | 無為    | No-index design -- non-action |
 | De      | 德      | Relevance gravity -- context attracts |
 | Jing    | 經      | Deep strata -- ancient knowledge |
-| Li      | 理      | Emergent structure -- pattern in wood grain |
 
 ## Quick Start
 
@@ -163,7 +161,6 @@ cargo build --release --no-default-features
 ./target/release/zhend \
   --data-dir /tmp/zhend \
   --grpc-addr [::1]:7300 \
-  --quic-addr [::1]:7301 \
   --gossip-addr [::]:7302 \
   --seed-peer [::1]:7302 \
   --gossip-fanout 3 \
@@ -210,16 +207,6 @@ grpcurl -plaintext -d '{
 grpcurl -plaintext [::1]:7300 zhen.v1.Zhen/Status
 ```
 
-**QUIC wire protocol (programmatic):**
-
-```
-Request:  [op: u8][payload_len: u32 BE][payload: bytes]
-Response: [status: u8][payload_len: u32 BE][payload: bytes]
-
-Op codes: 1=Ingest, 2=Surface, 3=Status
-Status:   0=OK, 1=Bad Request, 2=Internal Error
-```
-
 **Multi-node gossip cluster:**
 
 ```bash
@@ -247,7 +234,6 @@ services.zhend = {
   enable = true;
   dataDir = "/var/lib/zhend";
   grpcAddr = "[::1]:7300";
-  quicAddr = "[::1]:7301";
   gossipAddr = "[::]:7302";
   seedPeers = [ "[fd00::2]:7302" "[fd00::3]:7302" ];
   embeddingModel = null;      # path to ONNX model, or null
@@ -274,7 +260,6 @@ for a TOML configuration template.
 | data_dir | `--data-dir` | `/var/lib/zhend` | Storage directory for all tiers |
 | grpc_addr | `--grpc-addr` | `[::1]:7300` | gRPC listen address; off loopback needs `--grpc-allow-non-loopback` (no auth or TLS) |
 | grpc_allow_non_loopback | `--grpc-allow-non-loopback` | `false` | Serve gRPC off loopback |
-| quic_addr | `--quic-addr` | `[::1]:7301` | QUIC listen address |
 | gossip_addr | `--gossip-addr` | `[::]:7302` | UDP gossip listen address |
 | seed_peers | `--seed-peer` | `[]` | Seed peers for mesh join (repeatable) |
 | l1_to_l2_secs | `--l1-to-l2-secs` | `3600` | L1 to L2 sedimentation threshold |
@@ -286,7 +271,8 @@ for a TOML configuration template.
 
 ## Status
 
-**OPERATIONAL** -- 139+ tests passing, 10 of 14 development phases complete:
+Single-node gRPC store with UDP gossip. `cargo test --locked` runs 106 tests
+(2026-11-21). Phases of the original plan, as they stand:
 
 - Phase 0: Scaffold and build system
 - Phase 1: Core storage (Pu) -- L1/L2/L3 tiered store, BLAKE3 content addressing
@@ -294,15 +280,16 @@ for a TOML configuration template.
 - Phase 3: Gossip engine (Qi) -- SWIM-variant gossip, peer management, message protocol
 - Phase 4: Relevance engine (De) -- embedding, cosine similarity ranking
 - Phase 5: Deep archive (Jing) -- L3 cold storage, pilgrimage retrieval
-- Phase 6: Structure observation (Li) -- strata snapshots, geological trends
-- Phase 8: API layer -- gRPC (tonic) + QUIC (quinn) servers
+- Phase 6: Structure observation (Li) -- written, never spawned; archived 2026-11-21 (ADR-152)
+- Phase 8: API layer -- gRPC (tonic). The QUIC (quinn) server was written, never spawned; archived 2026-11-21 (ADR-152)
 - Phase 9: Post-quantum crypto -- ML-DSA-65 peer signatures (the hybrid KEM and sealed envelopes were deleted 2026-11-18: no callers)
 - Phase 10: PQ gossip integration -- authenticated peer admission control
 - Phase 11: Security review -- `deny(unsafe_code)`, input validation audit, SECURITY.md
 - Phase 12: NixOS module verification -- hardening flags, config field coverage
 - Phase 13: Documentation -- architecture docs, usage examples
 
-Remaining: Phase 7 (Monad bridge integration), Phase 14 (performance benchmarking).
+Not done: Phase 7 (Monad bridge integration; the bridge code that existed had no
+packet source and is in the same archive), Phase 14 (performance benchmarking).
 
 ## Dependencies
 

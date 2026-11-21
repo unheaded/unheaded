@@ -3,8 +3,7 @@
 //! Context vector construction for De ranking.
 //!
 //! A context vector represents "what is relevant right now." It can be
-//! built from text queries, Monad flow metadata, or accumulated over
-//! a rolling window of activity.
+//! built from a text query or from raw bytes.
 //!
 //! The context vector is the lens through which De evaluates fragments.
 //! High cosine similarity between context and fragment = fragment surfaces.

@@ -21,7 +21,6 @@ use clap::Parser;
 use std::sync::Arc;
 use tokio::sync::mpsc;
 use zhend::de::embedder::Embedder;
-use zhend::li::strata::StrataHistory;
 use zhend::pu::TieredStore;
 use zhend::qi::GossipEngine;
 use zhend::ZhenConfig;
@@ -43,10 +42,6 @@ struct Cli {
     /// Serve gRPC off loopback. It has no auth or TLS; refused without this.
     #[arg(long)]
     grpc_allow_non_loopback: bool,
-
-    /// QUIC listen address.
-    #[arg(long, default_value = "[::1]:7301")]
-    quic_addr: String,
 
     /// Gossip listen address (UDP).
     #[arg(long, default_value = "[::]:7302")]
@@ -95,7 +90,6 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!(
         data_dir = %cli.data_dir,
         grpc_addr = %cli.grpc_addr,
-        quic_addr = %cli.quic_addr,
         gossip_addr = %cli.gossip_addr,
         seed_peers = ?cli.seed_peers,
         "真 zhend starting — the library that cannot burn"
@@ -106,7 +100,6 @@ async fn main() -> anyhow::Result<()> {
         data_dir: cli.data_dir.into(),
         grpc_addr: cli.grpc_addr,
         grpc_allow_non_loopback: cli.grpc_allow_non_loopback,
-        quic_addr: cli.quic_addr,
         gossip_addr: cli.gossip_addr,
         seed_peers: cli.seed_peers,
         l1_to_l2_secs: cli.l1_to_l2_secs,
@@ -131,9 +124,6 @@ async fn main() -> anyhow::Result<()> {
     } else {
         tracing::warn!("de embedder not configured — running without De (relevance). fragments will lack embeddings.");
     }
-
-    // Initialize strata history for Li observation.
-    let _strata_history = StrataHistory::new(1440); // ~24h at 1/min
 
     // Shutdown channels.
     let (gossip_tx, gossip_rx) = mpsc::channel(1);
@@ -219,11 +209,6 @@ async fn main() -> anyhow::Result<()> {
             tracing::error!(error = %e, "gRPC server failed");
         }
     });
-
-    // TODO: spawn QUIC server
-    // TODO: spawn Monad bridge listener
-    // TODO: spawn Li topology observer
-    // TODO: spawn strata snapshot collector
 
     // Wait for shutdown signal.
     tracing::info!("真 zhend ready — knowledge flows through non-action");

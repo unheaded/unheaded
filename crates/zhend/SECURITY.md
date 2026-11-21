@@ -21,8 +21,14 @@ Peer identity uses post-quantum signatures. Classical-only asymmetric crypto is
 | Operation | Algorithm | Standard | Module |
 |---|---|---|---|
 | Digital signatures | ML-DSA-65 (Dilithium) | FIPS 204 | `crypto::sign` |
-| Transport key exchange | TLS 1.3, X25519MLKEM768 first (rustls, aws-lc-rs) | FIPS 203, RFC 8446 | `api::quic` |
 | Content addressing | BLAKE3 (256-bit) | — | `pu::fragment` |
+
+zhend has no transport encryption. gRPC is plaintext and refuses a bind off
+loopback unless `--grpc-allow-non-loopback` is given; gossip is UDP, with
+ML-DSA-65 peer admission. The QUIC server, the only TLS in the crate (rustls on
+aws-lc-rs), was never spawned and left on 2026-11-21 with the Monad bridge, the
+topology observer and the strata snapshot history; they are archived in
+`unheaded-zhend-subsystems` (ADR-152).
 
 Fragment payloads are not encrypted by zhend. The hybrid ML-KEM-768 + X25519 key
 encapsulation (`crypto::kem`) and the AES-256-GCM sealed fragment envelope
@@ -43,15 +49,11 @@ All network-facing inputs are treated as hostile:
   before deserialization. Empty messages rejected. Digest and want batch counts capped
   at `MAX_DIGESTS_PER_BATCH` (1,500). Fragment batch bytes capped at
   `MAX_FRAGMENT_BATCH_BYTES` (60,000).
-- **QUIC transport** (`api::quic`): Payload size capped at 16 MB before allocation.
-  Op codes validated. Empty ingest payloads rejected.
 - **gRPC service** (`api::grpc`): Empty payloads rejected with `INVALID_ARGUMENT`.
   Fragment IDs validated for correct length (32 bytes) before use.
 - **UDP transport** (`qi::transport`): Outbound messages checked against `MAX_MSG_SIZE`.
 - **Fragment codec** (`pu::codec`): All decoded fragments verified via BLAKE3 integrity
   check. Tampered payloads rejected.
-- **HbH option parsing** (`monad::hbh`): Buffer length validated before all field reads.
-  Option type and data length cross-checked.
 - **PQ crypto** (`crypto::sign`): Key and signature lengths validated before
   cryptographic operations.
 
@@ -85,8 +87,8 @@ zhend is designed to operate in adversarial network environments:
 
 1. **Network adversary**: All gossip peers are untrusted. Messages are authenticated
    via PQ signatures. Fragment integrity is verified via BLAKE3.
-2. **Quantum adversary**: Peer signatures are ML-DSA-65, and the QUIC transport
-   offers the hybrid X25519MLKEM768 group first.
+2. **Quantum adversary**: Peer signatures are ML-DSA-65. Nothing in zhend
+   encrypts in transit, so there is no key exchange to break.
 3. **Storage adversary**: Fragment IDs are content-addressed (BLAKE3). Tampered storage
    is detected on read. Stored fragments are not encrypted.
 4. **Sybil adversary**: Peer identity is bound to ML-DSA-65 keypairs with self-attestation.
