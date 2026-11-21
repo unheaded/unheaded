@@ -68,6 +68,13 @@ jobs:
       - name: Every listener form is seen
         run: ./scripts/test-check-http-auth.sh
 
+      # S-LOG-WEEK-2 (ADR-147 decision 5): the log store reading with sudo,
+      # docker and curl stubbed. A slow query is a number with its run count,
+      # the Well is probed before the queries load it, and no row text
+      # reaches the readings file.
+      - name: Log store reading (stubs)
+        run: ./scripts/test-logstore-measure.sh
+
   shellcheck:
     name: Shell (shellcheck)
     runs-on: ubuntu-latest

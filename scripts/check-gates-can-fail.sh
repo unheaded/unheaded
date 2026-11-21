@@ -1257,6 +1257,17 @@ provoke_check_perf_regression() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_logstore_measure() {
+    # Contract (S-LOG-WEEK-2, G5): a p50 and a p95 come from five finished runs
+    # or more; fewer is NA and a failed reading. Drop the floor to zero, so a
+    # query that finished twice inside its budget reads as a number.
+    local f="scripts/logstore-measure.sh"
+    backup "${f}"
+    sed -i 's/^MIN_RUNS=5$/MIN_RUNS=0/' "${REPO_ROOT}/${f}"
+    grep -q '^MIN_RUNS=0$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_zhen_mcp() {
     # Contract (S-CHAMPION-HARDENING Step 201): without ZHEN_MCP_ALLOW_WRITE=1
     # the server lists eight read-only tools and file_write is refused. Turn
@@ -1298,6 +1309,17 @@ provoke_well_log_events() {
     backup "${f}"
     sed -i 's/^        GRANT INSERT ON log_events TO log_writer;$/        GRANT INSERT, SELECT ON log_events TO log_writer;/' "${REPO_ROOT}/${f}"
     grep -q '^        GRANT INSERT, SELECT ON log_events TO log_writer;$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_logstore_budget() {
+    # Contract (S-LOG-WEEK-2, G5): the server ends a run that would pass the
+    # reading's time budget. Set no timeout, so the sixth run of five that fit
+    # finishes late and is counted.
+    local f="scripts/logstore-measure.sh"
+    backup "${f}"
+    sed -i "s/'SET statement_timeout = :left_ms;'/'SET statement_timeout = 0;'/" "${REPO_ROOT}/${f}"
+    grep -q "'SET statement_timeout = 0;'" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -1491,10 +1513,12 @@ check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited t
 check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
 nix/yggdrasil/scripts/yggdrasil-verify-anchor|provoke_yggdrasil_anchor|fast|anchor.nix's codename set to a name that is not a Debian release
 test-check-perf-regression|provoke_check_perf_regression|fast|check-perf-regression.sh's p99 allowance widened from 20 % to 800 %, so the fixture's slow run passes
+test-logstore-measure|provoke_logstore_measure|fast|logstore-measure.sh's floor of five finished runs dropped to zero, so two runs inside the budget read as a p95 (stubs; about a minute a run)
 check-zhen-mcp|provoke_zhen_mcp|fast|cmd/zhen-mcp enabling file_write without ZHEN_MCP_ALLOW_WRITE=1 (builds the server; needs go and jq)
 well/test-batch-apply|provoke_well_batch_apply|slow|batch-apply.sh's --from refusal (older file still pending) made unreachable (needs docker)
 well/test-retention|provoke_well_retention|slow|retention_runner granted DELETE on audit_events in 043 (needs docker)
 well/test-log-events|provoke_well_log_events|slow|log_writer granted SELECT on log_events in 048 (needs docker)
+well/test-logstore-budget|provoke_well_logstore_budget|slow|logstore-measure.sh setting no statement_timeout, so a run past the time budget finishes and is counted (needs docker)
 well/test-slo-definitions|provoke_well_slo_definitions|slow|the objective-in-(0,1) CHECK turned into CHECK (true) in 040 (needs docker)
 well/test-deploy-journal|provoke_well_deploy_journal|slow|chaos_journal's UPDATE/DELETE trigger removed from 039 (needs docker)
 well/test-zhen-conversations|provoke_well_zhen_conversations|slow|the web-or-cli CHECK on zhen_conversations.client turned into CHECK (true) in 052 (needs docker)
@@ -1553,6 +1577,7 @@ monitoring/maintenance|creates or ends an Alertmanager silence for planned work 
 monitoring/host-state-textfile|writes container and unit state for node_exporter's textfile collector (unheaded-host-state.timer); no verdict of its own, proven by test-host-state-textfile
 monitoring/planned-stop|marks a container stop as planned so ContainerStopped and the SLOs do not count it; no verdict of its own, proven by test-planned-stop
 monitoring/boot-event|records each boot of the host for the daily digest (unheaded-boot-event.service); no verdict of its own, proven by test-boot-event
+logstore-measure|takes one reading of the two log stores on the host (S-LOG-WEEK-2; the user timer unheaded-logstore-measure); exit 1 is a reading with an NA in it, not a verdict on the tree. Proven by test-logstore-measure (stubs) and well/test-logstore-budget (a throwaway server)
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
 wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 wireguard/psk-gate|forced command for the rotation key on east (DP-05); what it lets through and what it refuses are proven by wireguard/test-rotate-psk
