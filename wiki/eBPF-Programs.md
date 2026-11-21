@@ -38,6 +38,10 @@ The CLI writes hop-ebpf's check maps, pinned under `/sys/fs/bpf/unheaded/hop-ebp
 | `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Entries are never removed. The check mode stays as it is, so rules written while it is off do nothing. |
 | `unheaded hop mode <off\|observe\|enforce>` | Sets the check mode (CONFIG key 4). `enforce` is refused until `hoprules.EnforceBlockers` is empty (today FND-031, FND-033, FND-035), and the packaged object runs enforce as observe anyway (ADR-125). |
 
+### `ebpf-loader` and signals
+
+`cmd/ebpf-loader` holds the programs' link handles until it is told to stop. SIGINT, SIGTERM and SIGHUP all run the same cleanup: the handles are dropped, which detaches the programs, and the `--pid-file` is removed. Before 2026-11-21 only SIGINT did, so a unit stopped by systemd (SIGTERM) skipped the cleanup and left its PID file. SIGKILL still skips it.
+
 ## Not tracing ourselves
 
 Two loops of the tracer watching its own output, both cut:

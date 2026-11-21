@@ -152,12 +152,14 @@ fn main() -> Result<()> {
         );
     }
 
-    // Wait for signal
+    // Wait for SIGINT, SIGTERM or SIGHUP (ctrlc's `termination` feature adds
+    // the last two): systemd stops a unit with SIGTERM, and the cleanup below
+    // has to run for it too.
     let (tx, rx) = std::sync::mpsc::channel::<()>();
     ctrlc::set_handler(move || {
         let _ = tx.send(());
     })
-    .context("Failed to set Ctrl+C handler")?;
+    .context("Failed to set the signal handler")?;
     let _ = rx.recv();
 
     info!("Detaching all programs...");
