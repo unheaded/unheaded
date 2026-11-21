@@ -1557,6 +1557,15 @@ sources:
     canary: "none: excluded"
     owner: architect
     status: "excluded:unit file only; not installed on any host until S-SEE-AND-SURVIVE Phase 14 (HostStateStale watches its output)"
+  - id: unit/unheaded-boot-event
+    host: west
+    kind: journal-unit
+    match: unheaded-boot-event.service
+    retention: operational
+    max_silence: n/a
+    canary: "none: excluded"
+    owner: architect
+    status: "excluded:unit file only; not installed on any host yet (decision pack 2026-11-18 row 22); one line per boot and one per shutdown, so no silence bound fits; its record reaches the daily digest through alert-mailer"
   - id: unit/unheaded-ci-status
     host: west
     kind: journal-unit
