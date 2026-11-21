@@ -33,8 +33,9 @@ func moveoutHitLines(text string, re *regexp.Regexp) []int {
 }
 
 // moveoutGone lists living files that must stop describing what left this
-// repository for unheaded-doom, unheaded-k8s and unheaded-forge. Dated
-// evidence, old plans and ADR history are not listed: they stay as written.
+// repository for unheaded-doom, unheaded-k8s, unheaded-forge and (the zhend
+// rows, ADR-152) unheaded-zhend-subsystems. Dated evidence, old plans and ADR
+// history are not listed: they stay as written.
 var moveoutGone = []struct {
 	file      string
 	forbidden string
@@ -92,6 +93,18 @@ var moveoutGone = []struct {
 	{"wiki/Profiling.md", `(?i)doom`},
 	{"wiki/Architecture.md", "default 16, `crates/doom-runner`\\)"},
 	{"wiki/eBPF-Programs.md", "by `demos/doom/Makefile` into"},
+	{"crates/zhend/src/lib.rs", `(?m)^pub mod (?:li|monad);|quic_addr`},
+	{"crates/zhend/src/api/mod.rs", `(?m)^pub mod quic;`},
+	{"crates/zhend/src/main.rs", `quic_addr|StrataHistory|TODO: spawn`},
+	{"crates/zhend/Cargo.toml", `(?m)^(?:quinn|rustls|aws-lc-rs)\s*=`},
+	{"crates/zhend/config.example.toml", `quic_addr`},
+	{"crates/zhend/nix/module.nix", `(?i)quic`},
+	{"crates/zhend/SECURITY.md", "`api::quic` \\||`monad::hbh`"},
+	{"CLAUDE.md", `are written and never spawned|zhend, compiled and never spawned`},
+	{"SECURITY.md", `zhend QUIC`},
+	{"wiki/Post-Quantum-Key-Exchange.md", `zhend QUIC`},
+	{"wiki/Rust-Components.md", `QUIC written, never spawned`},
+	{"cmd/crypto-inventory/scan_rust.go", `crates/zhend/src/api/quic\.rs`},
 }
 
 func TestMoveOutResidueStaysGone(t *testing.T) {
