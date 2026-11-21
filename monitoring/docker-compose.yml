@@ -163,6 +163,10 @@ services:
   # It stays on loopback until HEARTBEAT_LISTEN=192.168.13.2 publishes it on
   # the P2P link; set that only while the link is configured at boot, since
   # docker will not start a container whose published address is missing.
+  #
+  # alerts.critical on Wotan (ADR-147 Phase 8): off unless
+  # ALERT_MAILER_WOTAN_ADDR is set; the keys it needs sit in the same
+  # directory (see environment below).
   alert-mailer:
     build:
       context: ..
@@ -184,15 +188,36 @@ services:
       ALERT_MAIL_TO: ${ALERT_MAIL_TO:-}
       HEARTBEAT_HOSTS: ${HEARTBEAT_HOSTS:-}
       HEARTBEAT_TOKEN_FILE: /run/secrets/alert-mailer/heartbeat-token
-      # alerts.critical on Wotan (ADR-147 Phase 8): off until enrolled. Set
-      # ALERT_MAILER_WOTAN_ADDR=http://[fd00:dead:beef::1]:18000 (gRPC: the
-      # same host on 18001, the overlay bind on wotan), give the container
-      # its service key (AUTH_KEY_FILE, svc_key_alert-mailer) and
-      # ALERTS_SIGNING_KEY_FILE. ALERTS_SIGNING_KEY_FILE is not set here:
-      # without it alerts.critical is refused, never sent unsigned (enrol
-      # per deployment).
+      # alerts.critical on Wotan (ADR-147 Phase 8): off until
+      # monitoring/.env sets ALERT_MAILER_WOTAN_ADDR, the host address Wotan's
+      # HTTP port is published on for this network (the overlay bind on
+      # wotan in docker-compose.yml), e.g. https://[fd00:dead:beef::1]:18000;
+      # gRPC is the same host on 18001 unless ALERT_MAILER_WOTAN_GRPC_ADDR
+      # says otherwise. The steps: wiki/Wotan-Topic-Signing.md.
       WOTAN_ADDR: ${ALERT_MAILER_WOTAN_ADDR:-}
       WOTAN_GRPC_ADDR: ${ALERT_MAILER_WOTAN_GRPC_ADDR:-}
+      # The two keys sit beside smtp-password in ALERT_MAILER_SECRETS_DIR,
+      # each 0400 and owned by uid 16710: alert-mailer.key is the Ed25519
+      # service key of identity alert-mailer (unheaded-keygen; its .pub goes
+      # in Wotan's trust directory), alerts-critical.key the ML-DSA-65 seed
+      # (unheaded-keygen -algo mldsa65; its public half is enrolled under
+      # alerts.critical. in Wotan's topic config). Without the first Wotan
+      # answers 401; without the second alerts.critical is refused, never
+      # sent unsigned. Neither is read while ALERT_MAILER_WOTAN_ADDR is unset.
+      AUTH_KEY_FILE: /run/secrets/alert-mailer/alert-mailer.key
+      ALERTS_SIGNING_KEY_FILE: /run/secrets/alert-mailer/alerts-critical.key
+      # TLS for the Wotan client only (this container's own listeners are
+      # plain HTTP whatever this says: it has no certificate). Wotan's ports
+      # are TLS 1.3 and a plaintext client withholds its token off loopback,
+      # so it is on unless ALERT_MAILER_WOTAN_TLS says otherwise. The CA is
+      # the read-only file mount below (ALERT_MAILER_WOTAN_CA_FILE, default
+      # the dev CA Prometheus also mounts). Wotan's certificate does not
+      # name the host address dialled, so it is verified against
+      # ALERT_MAILER_WOTAN_TLS_SERVER_NAME, a name it does carry (default
+      # wotan, the compose service name every Wotan certificate has).
+      UNHEADED_TLS_ENABLED: ${ALERT_MAILER_WOTAN_TLS:-true}
+      UNHEADED_TLS_CA_CERT: /run/host/tls/wotan-ca.pem
+      WOTAN_TLS_SERVER_NAME: ${ALERT_MAILER_WOTAN_TLS_SERVER_NAME:-wotan}
       # A boot of the host in the digest (cmd/alert-mailer/boot.go, decision
       # pack 2026-11-18 row 22): the record unheaded-boot-event.service keeps
       # and host_state.prom, both read through the two read-only mounts
@@ -210,6 +235,10 @@ services:
       - ${ALERT_MAILER_SECRETS_DIR:-./alert-mailer/no-secrets}:/run/secrets/alert-mailer:ro
       - ${ALERT_MAILER_BOOT_DIR:-./alert-mailer/no-host-files}:/run/host/boot-event:ro
       - ${ALERT_MAILER_TEXTFILE_DIR:-./alert-mailer/no-host-files}:/run/host/textfile:ro
+      # The CA that signed Wotan's certificate (public; UNHEADED_TLS_CA_CERT
+      # above). One file, so a replaced CA is seen after the container is
+      # recreated.
+      - ${ALERT_MAILER_WOTAN_CA_FILE:-../configs/certs/dev/ca.pem}:/run/host/tls/wotan-ca.pem:ro
     networks: [monitoring]
     depends_on:
       volume-init:

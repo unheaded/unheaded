@@ -11,6 +11,8 @@ How [[The Well|The-Well]] is backed up, where every copy lives, and how to resto
 | Offsite copies | east | `/var/backups/unheaded-well-west/sets/` | sda | newest 14 |
 | Legacy DB archive | west | `~/backups/well/2026-10-15/unheaded-legacy-final.dump` | NVMe | kept |
 
+The volume `unheaded-well-data` (a Postgres cluster of March 2026 that nothing mounted, 77M) was deleted on west on 2026-11-21 (ADR-147 decision 24). The Well's only data volume is `unheaded-dev_postgres-data`.
+
 The sets are kept on a different physical disk from the data, so one dead disk cannot take both. The backup unit sets `WELL_BACKUP_OTHER_DISK=1`, and the backup refuses to run if the two ever share a disk.
 
 `LATEST` (world-readable) in each root names the newest set; the sets themselves are root-only (0700/0600).

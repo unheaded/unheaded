@@ -3,11 +3,13 @@
 # Copyright (c) 2024-2026 Stevie Bellis.
 #
 # gen-dev-keys.sh: per-service Ed25519 keys and the dev issuer user for the
-# compose stack (ADR-103, S-IRON-GATE Phases 2 and 4). One key pair per
-# first-party compose service (the services with a `build:`), plus
-# unheaded-cli and unheaded-auth, created with unheaded-keygen:
+# compose stacks (ADR-103, S-IRON-GATE Phases 2 and 4). One key pair per
+# first-party compose service (the services with a `build:`) of
+# docker-compose.yml and monitoring/docker-compose.yml, plus unheaded-cli
+# and unheaded-auth, created with unheaded-keygen:
 #
 #   configs/keys/dev/<identity>.key    private, 0400   (gitignored; never commit)
+#   configs/keys/dev/<identity>/<identity>.key         the monitoring stack's services
 #   configs/trust.d/dev/<identity>.pub public, 0444    (gitignored; per deployment)
 #   configs/auth/dev-users.json        0600, one operator user "dev" (gitignored)
 #
@@ -17,6 +19,15 @@
 # unheaded-keygen -rotate). The dev user's password is random, printed once
 # ("dev password: ...") and written nowhere else; --reset-users makes a new
 # one (the old users file is replaced). Prints the kid table.
+#
+# A service of the monitoring stack (alert-mailer) reads its keys from a
+# secrets directory of its own, one mount, not from a compose secret: its
+# key is made in configs/keys/dev/<identity>/ so that directory can be
+# mounted alone, for alert-mailer with
+# ALERT_MAILER_SECRETS_DIR=../configs/keys/dev/alert-mailer in
+# monitoring/.env. Its public half is in the trust directory like the rest.
+# The script ends by saying what alerts.critical still needs (an ML-DSA-65
+# signing key, enrolled per deployment): it makes no signing key itself.
 #
 # Containers run as their own uid (pkg/uids) and read their key (and the
 # issuer its users file) through bind mounts that keep the host file's
@@ -43,7 +54,7 @@ while [[ $# -gt 0 ]]; do
 	--trust-dir) TRUST_DIR="$2"; shift 2 ;;
 	--users-file) USERS_FILE="$2"; shift 2 ;;
 	--reset-users) RESET_USERS=1; shift ;;
-	-h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+	-h|--help) sed -n '2,42p' "$0"; exit 0 ;;
 	*) echo "gen-dev-keys: unknown argument $1" >&2; exit 2 ;;
 	esac
 done
@@ -73,31 +84,43 @@ else
 	fi
 fi
 
-# identity uid, one per line: first-party compose services, then the two
-# identities that are not (or not only) compose services.
-python3 - docker-compose.yml >"$WORK/ids" <<'PY'
+# "identity uid where", one per line: the main stack's first-party compose
+# services and the two identities that are not (or not only) compose
+# services, where "." (the key is $KEYS_DIR/<identity>.key, a compose
+# secret); then the monitoring stack's, where "own" (the key is
+# $KEYS_DIR/<identity>/<identity>.key, a directory mounted alone).
+python3 - docker-compose.yml monitoring/docker-compose.yml >"$WORK/ids" <<'PY'
 import sys, yaml
 identity = {"cuirass": "unheaded-daemon", "auth": "unheaded-auth"}
-doc = yaml.safe_load(open(sys.argv[1]))
 seen = set()
-for name, svc in sorted(doc["services"].items()):
-    if "build" not in svc:
-        continue
-    ident = identity.get(name, name)
-    uid = str(svc.get("user", "")).split(":")[0] or "-"
+def first_party(path):
+    for name, svc in sorted(yaml.safe_load(open(path))["services"].items()):
+        if "build" in svc:
+            yield identity.get(name, name), str(svc.get("user", "")).split(":")[0] or "-"
+for ident, uid in first_party(sys.argv[1]):
     seen.add(ident)
-    print(ident, uid)
+    print(ident, uid, ".")
 for extra in ("unheaded-cli", "unheaded-auth"):
     if extra not in seen:
-        print(extra, "16735" if extra == "unheaded-auth" else "-")
+        seen.add(extra)
+        print(extra, "16735" if extra == "unheaded-auth" else "-", ".")
+for ident, uid in first_party(sys.argv[2]):
+    if ident not in seen:
+        print(ident, uid, "own")
 PY
 
 printf '%-20s %-16s %s\n' IDENTITY KID OWNER
-while read -r ident uid; do
-	if [[ ! -e "$KEYS_DIR/$ident.key" ]]; then
-		"$KEYGEN" -dir "$KEYS_DIR" -trust-dir "$TRUST_DIR" "$ident" >/dev/null
+MAILER_UID=""
+while read -r ident uid where; do
+	dir="$KEYS_DIR"
+	if [[ "$where" == "own" ]]; then
+		dir="$KEYS_DIR/$ident"
+		[[ "$ident" == "alert-mailer" ]] && MAILER_UID="$uid"
 	fi
-	kid="$("$KEYGEN" -dir "$KEYS_DIR" -trust-dir "$TRUST_DIR" -print-kid "$ident")"
+	if [[ ! -e "$dir/$ident.key" ]]; then
+		"$KEYGEN" -dir "$dir" -trust-dir "$TRUST_DIR" "$ident" >/dev/null
+	fi
+	kid="$("$KEYGEN" -dir "$dir" -trust-dir "$TRUST_DIR" -print-kid "$ident")"
 	owner="$(id -un)"
 	if [[ $IS_ROOT -eq 1 ]]; then
 		# The CLI key belongs to whoever ran sudo; service keys to the
@@ -107,7 +130,7 @@ while read -r ident uid; do
 		else
 			owner="$uid:$uid"
 		fi
-		chown "$owner" "$KEYS_DIR/$ident.key"
+		chown "$owner" "$dir/$ident.key"
 	fi
 	printf '%-20s %-16s %s\n' "$ident" "$kid" "$owner"
 done <"$WORK/ids"
@@ -138,3 +161,17 @@ if [[ $IS_ROOT -eq 1 ]]; then
 	chown "$AUTH_UID:$AUTH_UID" "$USERS_FILE"
 fi
 echo "users: $USERS_FILE ($("$AUTHBIN" user list -users-file "$USERS_FILE" 2>/dev/null | wc -l) user(s); restart or HUP the auth service after a reset)"
+
+# alerts.critical (ADR-147 Phase 8): alert-mailer has its service key now.
+# The signing key is per deployment and its public half is enrolled in a
+# host's copy of Wotan's topic config, never in configs/wotan.yaml, so this
+# only says what is left.
+if [[ -n "$MAILER_UID" ]]; then
+	owner_flag=""
+	[[ "$MAILER_UID" != "-" ]] && owner_flag=" -owner $MAILER_UID"
+	echo "alerts.critical (alert-mailer; off until enrolled, steps in wiki/Wotan-Topic-Signing.md):"
+	echo "  signing key:     sudo bin/release/unheaded-keygen -algo mldsa65 -dir $KEYS_DIR/alert-mailer$owner_flag alerts-critical"
+	echo "                   (prints the public key to enrol under alerts.critical. in the topic config Wotan reads)"
+	echo "  monitoring/.env: ALERT_MAILER_SECRETS_DIR=$(cd "$KEYS_DIR/alert-mailer" && pwd)"
+	echo "                   ALERT_MAILER_WOTAN_ADDR=https://<host address Wotan's 18000 is published on>:18000"
+fi

@@ -88,11 +88,11 @@ func NewGRPCClient(addr string, opts ...ClientOption) (*GRPCClient, error) {
 		return nil, err
 	}
 
-	conn, err := grpc.NewClient(
-		addr,
+	dial := append([]grpc.DialOption{
 		grpc.WithTransportCredentials(creds),
 		grpc.WithPerRPCCredentials(newTokenAuth(opts, isPlaintext(creds), addr)),
-	)
+	}, grpcServerNameOption(creds)...)
+	conn, err := grpc.NewClient(addr, dial...)
 	if err != nil {
 		return nil, fmt.Errorf("dial grpc server: %w", err)
 	}

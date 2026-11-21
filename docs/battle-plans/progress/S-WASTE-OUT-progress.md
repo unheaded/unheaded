@@ -229,9 +229,40 @@ Answered ahead (DECISION-PACK-2026-11-18 row 2): Claude makes the keys on the ho
 - **Not done, on purpose:** alert-mailer's half (its Ed25519 service key, `ALERTS_SIGNING_KEY_FILE`, `ALERT_MAILER_WOTAN_ADDR`). The public half of its signing key is already enrolled, but the monitoring compose file passes the mailer no key and no CA, its Wotan client would dial plaintext, and Wotan's certificate does not name the overlay address the mailer dials. Branch `fix/mailer-wotan-wiring` closes those; the enrolment follows its merge. Until then every tracker reads `alerts.critical` as `unknown` (allows change).
 - **New, because option B forks the file:** `scripts/wotan-host-config.py` renders the host copy from the repository's file plus the keys file and `--check` exits 4 on drift. **After any change to `configs/wotan.yaml` on develop, run it on west and restart Wotan**, or the new permission does not reach the running Wotan. No timer or alert runs the check yet.
 
+### 2026-11-21: Phases 21 and 22, applied (Steps 367-378, 383-391, 394-398)
+
+Run on develop in the main checkout (one executor; `WT` was not used, so the fast-forward steps 367, 375, 384 and 387 had nothing to do). Pack rows 1 and 6.
+
+| Time (UTC) | Step | Result |
+|---|---|---|
+| 19:10 to 19:18 | 368-374 | `batch` on Vector's `clickhouse` sink (100,000 events, 10 MiB, 30 s); `host=west` on `vector_.+` in `scrape.yml`; `-storage.maxHourlySeries=100000`, `-storage.maxDailySeries=300000`; rule `VictoriaMetricsSeriesLimitReached` in `rules/watchers.yml` with a promtool case; keep-list regenerated. `test-vector-config.sh`, `check-prometheus-rules.sh` (rc 0), `check-compose-hardening.sh`, `alert-policy --check`: pass. Commit `805dbdfa`. `scrape.yml` is bind-mounted and VictoriaMetrics re-reads it every 30 s, so the relabel was live a few minutes before Step 376 |
+| 19:20:48 | 376, 377 | Vector restarted, VictoriaMetrics recreated, Prometheus HUP, under a 10 m planned stop. Vector: no error; rows reach ClickHouse; its series carry `host=west`. VictoriaMetrics healthy, both flags in its arguments. Prometheus: 153 rules, the new one `ok` |
+| 19:22 to 19:24 | 384-387 | Postgres `memory: 2G`, `cpus: "1.0"`, `shared_buffers = 512MB`, `effective_cache_size = 1536MB`; `test-config.sh` passes with its expectation moved to 65,536 buffers. Commit `ba9ff2bb` |
+| 19:24:44 | 388, 389 | Postgres recreated under a 10 m planned stop: healthy in 10 s, `show shared_buffers` 512MB, every container of `ps-pg.txt` still running |
+| 19:25 | 391 | zhen-agentd `active`, no database error line; `huginn_pg_up` 1 for the three databases; kanban and timeguru `/health` `well: connected` |
+| 19:26:01 | 394-397 | **W-31 after: the three orphans are gone.** Volume `unheaded-well-data` (77M, newest file 2026-03-19, mounted by no container), volume `unheaded-dev_kanban-data` (48K, only `kanban.db`, 2026-10-28), ClickHouse `system.query_log_0` (127,261 rows, 11.3 MiB), `error_log_0` (954,185 rows, 446 KiB), `query_metric_log_0` (1,266 rows, 434 KiB). Checked after: no such volume, no `kanban-data` volume, no `_0` table. Status: done |
+
+**Open in these phases:** the 24 h afters. Step 379 (W-28, W-29) from 2026-11-22 19:21Z; Step 392 (W-30: Step 313 twice, an hour apart, on a quiet host) from 2026-11-22 19:25Z.
+
+### 2026-11-21: Step 317, the mailer's half: `alerts.critical` is live (W-05)
+
+After `fix/mailer-wotan-wiring` merged (`c21c195c`: the Wotan client takes `WOTAN_TLS_SERVER_NAME`, the monitoring compose file passes the mailer its two keys, the CA and the address from `monitoring/.env`) and `scripts/monitoring/test-alert-path.sh` passed on the merged tree (7 checks).
+
+| Time (UTC) | What | Result |
+|---|---|---|
+| 19:30 | `unheaded-keygen -dir /etc/unheaded/alert-mailer -trust-dir configs/trust.d/dev -owner 16710:16710 alert-mailer` | `alert-mailer.key` (Ed25519, 0400, uid 16710); `alert-mailer.pub` in the trust directory Wotan's container mounts |
+| 19:30 | `alerts-critical.key` moved from `/etc/unheaded/keys/` into `/etc/unheaded/alert-mailer/` (one copy; the mailer's container mounts that directory alone) | 16710:16710, 0400 |
+| 19:30 | `ALERT_MAILER_WOTAN_ADDR=https://[fd00:dead:beef::1]:18000` appended to `/etc/unheaded/monitoring.env` (an address, no secret; the file was not printed) | present once |
+| 19:34:12 | The running image tagged `unheaded/alert-mailer:pre-wotan-wiring`; `compose up -d --build --no-deps alert-mailer` | healthy in 5 s; `mode: dry-run`, `boot_line: true`; "alerts.critical: publishing signed, as alert-mailer"; "first message accepted by Wotan" |
+| 19:36 | Signals | `alert_mailer_critical_published_total` 1, refused 0, errors 0; room `alerts.critical` holds 5.3 KB; `unheaded_critical_alerts_state{state="ok"}` is 1 for akira, dashboard-backend, kanban-app, kev-poller, timeguru and trace-collector (each read `unknown` before); kanban's `/health`: `critical_alerts: {active: 0, state: ok}`. The mailer uses 6.8 MiB of its 64 MiB |
+
+- **W-05: done.** A critical alert now reaches every client on the bus, and Sword and chaos-controller hold while one fires (D2 = B, confirmed in pack row 16).
+- The mailer is still `mode: dry-run`: plan 1 Steps 319-334 switch it to send in the morning window (pack row 53). This build also carries the boot line (pack row 22).
+- Seen: Wotan's trust directory on west (`configs/trust.d/dev`, not tracked) still holds the public keys of architect, captain, micromanager, monad and sophia. None is in `AUTH_ALLOW_CALLERS` or `topics.permissions`, so each would be refused; removing the five files and their private keys in `configs/keys/dev` belongs to this plan's close (Phase 23).
+
 ## Handoffs
 
-- **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z.
+- **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
 - **Plan 7 (S-TENANT-DOOR), Cuirass:** start it with `sudo docker compose -f docker-compose.yml -f docker/compose.cuirass-lxd.yml --profile lxd up -d cuirass`. `CUIRASS_ENFORCE` and `CUIRASS_PRUNE` stay unset until a tenant exists. The volume `cuirass-state` holds a stale desired state (three `steel-echo-v2-*` containers) to clear before the first enforce. Sword's window needs `--profile deploy --profile lxd`.
 - **Plan 6 (S-EAST-PAIR), Cuirass on east:** `LXD_BACKEND` has no default any more (Phase 5). East's `unheaded-daemon` host unit sets none in the repository; a new binary there refuses to start until its environment names `https`, `unix` or `mock`. `scripts/install-chaos-west.sh` still points chaos-controller at `http://127.0.0.1:19006` (unchanged: it is the client's address for when Cuirass runs).
 - **Plan 6 (S-EAST-PAIR), east's eBPF objects (Phase 15):** east runs the 2026-10-18 `packet-marker` and `flow-tracker` (its `FLOW_STATE` is full); install this pair with east's collector in Evening 10B. Run `sudo scripts/check-ebpf-loads.sh` and the instruction ratchet on west first (Steps 273-277, not run in the lane).

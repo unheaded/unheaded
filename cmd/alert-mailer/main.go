@@ -26,6 +26,13 @@
 // digest, with the stack's state from HOST_STATE_FILE (host_state.prom);
 // nothing is mailed for a boot on its own (boot.go).
 //
+// With WOTAN_ADDR set it also publishes each critical alert, and a snapshot
+// of what fires every 5 minutes, on the Wotan topic alerts.critical, signed
+// (critical.go): AUTH_KEY_FILE is its service key (identity alert-mailer),
+// ALERTS_SIGNING_KEY_FILE the ML-DSA-65 seed, and the link to Wotan is TLS
+// from UNHEADED_TLS_ENABLED, UNHEADED_TLS_CA_CERT and WOTAN_TLS_SERVER_NAME.
+// Those are the Wotan client's: the listeners here stay plain HTTP.
+//
 // With HEARTBEAT_HOSTS set it also runs the dead-man's switch on its own
 // listener (-heartbeat-addr, heartbeat.go):
 //
