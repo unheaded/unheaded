@@ -525,6 +525,7 @@ if cfg.ConnStr == "" {
 - `scripts/check-secrets-baseline.sh` ensures `.gitleaksignore` may only
   SHRINK. A new finding cannot be silenced by appending its fingerprint.
 - `trivy --scanners secret` runs alongside it.
+- `scripts/check-compose-secrets.sh` refuses a literal value for a secret-named key in any tracked compose file (2026-11-21): a variable with no literal default, or a file path.
 
 **On the existing baseline (rewritten 2026-11-06):** the repository is public, so
 every value in history counts as burned. The 2026-07-29 decision assumed a
