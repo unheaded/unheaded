@@ -365,6 +365,8 @@ Every row was checked against the tree and the live west. What changed from the 
 **Time**: 20 min plus a 6 h soak.
 **Agent**: Coordinator with Stevie.
 
+**Amended 2026-11-21 (run unattended; record in `$PROG`, "Phase 4B on east, 2026-11-21/22").** Step 111 was answered ahead: DECISION-PACK-2026-11-18 row 5 (yes) and row 26 (the same binary goes to east). Steps 112 and 113 name a pair that west no longer runs: since S-WASTE-OUT's deploy of 2026-11-21 the set is the binary, `packet-marker`, `flow-tracker` and `latency-probe` built from `231c7f34`, with that commit's unit file, and east got that set from west's installed copies. Step 113 ran behind a self-reverting guard (rollback directory `/var/backups/s-watch-true-4b-2026-11-21/` on east, a transient timer exercised once and stopped after west proved east still answered). East's environment file keeps `TRACE_IFACE=lo` and gains `TRACE_METRICS_ADDR` and, while east has no Wotan, `UNHEADED_TLS_ENABLED=false`.
+
 - [ ] **Step 111** [STEVIE] ~1m: "Deploy the trace collector fix on east now?" A no → the steps below are `[BLOCKED]`; FND-044 stays open for east.
 - [ ] **Step 112** [B] ~2m: Copy the pair to east: `scp /tmp/claude-swt/trace-collector-go /home/govan/tmp/unheaded/ebpf/target/load-gate/default/bpfel-unknown-none/release/latency-probe east:/tmp/`
 - [ ] **Step 113** [S][B] ~3m: On east: back up the old pair as Step 87 did, install both as Step 88 did, restart. `TRACE_IFACE=lo` stays in its env file.

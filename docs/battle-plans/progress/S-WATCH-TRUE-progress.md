@@ -113,6 +113,121 @@ The sweep (`docs/sweeps/BACKLOG-SWEEP-2026-11-12.md`) is a dated record and is n
 - **What to read after the restart:** `trace_collector_latency_map_entries` (present; small at first, it climbs toward 65,536 over days and stays there, which is normal for an LRU), `trace_collector_latency_decode_errors_total` (0), `trace_collector_latency_probe_events_total{stat="map_updates"}` rising, `{stat="map_insert_failed"}` 0, `trace_collector_latency_sweep_seconds`, and `rate(process_cpu_seconds_total{job="trace-collector"}[30m])`. `{stat="events_dropped"}` will rise: the `LATENCY_EVENTS` ring has no reader (parked).
 - **No new flag is needed in the unit:** the sweep interval defaults to 2 s.
 
+## Phase 4B on east, 2026-11-21/22
+
+Steps 111 to 118, run unattended. Step 111's yes was given ahead: `docs/battle-plans/DECISION-PACK-2026-11-18.md` row 5 (Claude may change east, everything but the OS upgrade) and row 26 (the same binary goes to east). Executor on west; east over `ssh govan@east` (the link address; the collector's programs attach to `lo`, not to the link or the overlay).
+
+### Before (east, 2026-11-21 20:56Z to 21:00Z, read-only)
+
+| Reading | East |
+|---|---|
+| Host | kernel 6.17.0-41, up 39 d 21 h, load 2.42 / 2.41 / 2.42 |
+| Collector process | started 2026-10-22T18:44:12Z, 0 restarts, RSS 157 MB |
+| CPU, VictoriaMetrics `rate(process_cpu_seconds_total{job="trace-collector",host="east"}[30m])` | **2.18 cores** (1 h rate 2.18; 7-day mean 2.04; 2.20 over 20 s from `/proc`) |
+| `bpf()` calls, 10 s under strace | 335,818 (**33,582 a second** while traced; 4 errors) |
+| `LATENCY_MAP` | hash, key 40 B, value 40 B, 35,216 of 65,536 entries read |
+| `FLOWS` | LRU hash, 65,421 of 65,536 |
+| `FLOW_STATE` | hash, **65,536 of 65,536 (full)** |
+| `FLOW_EVENTS` | present; `FLOW_STATS` sent 2,340, dropped 25,774,085 |
+| Latency published | none: `latency_reader_*` all 0 |
+| Flow reader | `flow_reader_events_total` new and expired 1.63e11 each (the re-announce loop of the old binary) |
+| Binary | `/usr/local/bin/trace-collector-go`, 2026-10-22, sha256 `054d1ff9…`, static, go1.27.3, built from the commit of 2026-10-22T18:43:47Z (`117ada59` on today's develop) |
+| Objects, all 2026-10-20 18:14Z | packet-marker `405c001c…`, flow-tracker `bd62688b…`, latency-probe `0174b1c4…` (40-byte key: the pre-S-WIRE-HONEST probe) |
+| Unit | `/etc/systemd/system/unheaded-trace-collector.service` is the repository's file as of `ec068beb` (2026-10-18), byte for byte: no host drift, only age. No drop-in. No `--metrics-addr`, so the old binary listened on `*:16671` |
+| Environment file | `/etc/unheaded/trace-collector.env`: one variable, `TRACE_IFACE` (the process runs with `--interface lo`) |
+| Wotan | no address in the unit or the environment file, so the default `localhost:18001` / `localhost:18000`. East's `unheaded-wotan.service` is disabled and inactive since 2026-11-10T13:03:55Z; nothing listens on either port. East has no `/etc/unheaded/keys`, `/etc/unheaded/tls` or `/etc/unheaded/trust.d`. The old collector logged one publish failure line per 1,000 failed batches, about 9 lines a minute |
+| Scrape path | west's VictoriaMetrics and Prometheus, job `trace-collector`, target `[fd00:dead:beef::2]:16671`, label `host=east` (`config/victoria/scrape.yml`). East targets scraped: node_exporter, trace-collector, kev-poller, dashboard-backend, unheaded-daemon; all `up` 1. East's huginn is not a scrape target (the `huginn` job has west's address only) |
+
+### Which binary and objects, and why
+
+East got **the set west runs today**: the binary built at plan 2 Step 332 from develop `231c7f34` (`trace-collector-go (unheaded) 231c7f34`, go1.27.4, sha256 `2d6635f7…`), packet-marker `12a84efc…` and flow-tracker `d12767f7…` (the pair that passed the load gate on 2026-11-18), latency-probe `76daef3a…`, and the unit file of the same commit. Nothing was built for this block: the files were copied from west's installed paths (`/usr/local/bin`, `/usr/local/lib/unheaded/ebpf`, root-owned) and their checksums compared with plan 2's record and with the load-gate directory.
+
+- The ruling is "the same binary goes to east" (pack row 26). When it was given, west ran the `fc387040` binary. West has run the `231c7f34` set since 2026-11-21T17:48:36Z, so the same binary is now that one.
+- A collector and objects from different commits must not be mixed: the `231c7f34` collector reads packet-marker's `STATS` key 8 and no `FLOW_EVENTS` counters, so it goes with plan 2's pair and not with east's 2026-10-20 objects.
+- `ebpf/` and `cmd/trace-collector-go/` have not changed between `231c7f34` and develop's head (`4ce0dd7a`). The one change under the collector's imports is `pkg/wotan-client`'s `WOTAN_TLS_SERVER_NAME`, which does nothing unset. So a build from the head would be the same collector with fewer hours on a live host.
+- latency-probe: east's copy was the old 40-byte-key hash, which the new collector refuses to load (on purpose). The object installed is byte-identical to the one west has run since 2026-11-15 (built from `10586d9e`; a rebuild at today's head gives the same bytes).
+- `TestBuiltLatencyProbeSpec`, `TestBuiltPacketMarkerFlowStateIsLRU` and `TestBuiltFlowTrackerHasNoEventsRing` pass on the three staged files.
+- The unit: the new binary needs `--metrics-addr` and `AUTH_ENABLED=true` to answer on the overlay address, which only the newer unit has. East's unit carried no local edit, so the repository's file replaced it whole.
+
+### What the new binary does on a host with no Wotan (checked before and during the deploy)
+
+Checked first without loading anything: the staged binary run as `govan` (no capabilities, all three programs off, a spare loopback port) with the new unit's environment.
+
+| Environment | What it does |
+|---|---|
+| The unit as written (`UNHEADED_TLS_ENABLED=true`, no CA file on east) | Starts and stays up. It builds **no Wotan client** ("traces, log forwarding, discovery and health reports off"). Live for 108 s (21:05:08Z to 21:06:56Z): 3.0 s of CPU, start included (about 0.03 core); no dial; **a debug line in the journal for every dropped batch (421 lines in 106 s, 4 a second), and each dropped batch counted as published** (`trace_publisher_batches_total` and `_events_total` rise, `trace_publisher_errors_total` stays 0) |
+| The same with `UNHEADED_TLS_ENABLED=false` in the environment file | Starts and stays up. The client dials `localhost:18001` and `localhost:18000`, is refused, and every failed batch is counted in `trace_publisher_errors_total{topic}` and logged once per 1,000. It never reaches west's Wotan. **But it feeds itself:** each refused dial is a SYN and a reset on `lo`, the interface it traces, so the next 50 ms flush has a batch again. `traces.packet` and `traces.correlated` fail about 21 times a second each, east makes 49 refused TCP connects a second, and `FLOWS` and `FLOW_STATE` fill with the collector's own dials |
+
+Neither crash-loops and neither touches west. East is left on the second: it counts what it drops, and it adds about 3 journal lines a minute, where the first would add about 340,000 lines a day to a journal that holds 26 days in 1 G. The cost is CPU (below). Both behaviours are defects in the code, not in this deploy: see "Found outside the block".
+
+### Log (UTC, 2026-11-21)
+
+| Time | Step | Result |
+|---|---|---|
+| 20:56 to 21:00 | (before) | The table above. Tools on east: strace, bpftool, perf present; no `go`, no `docker` |
+| 21:00 | 112 | Staged on west in `/home/govan/tmp/wt/S-WATCH-TRUE-4B-scratch/stage/` and copied to east `/tmp/s-watch-true-4b/` (0700): binary, three objects, unit; `sha256sum -c` OK on east. `systemd-analyze verify` on the unit: clean |
+| 21:00 to 21:01 | (rehearsal) | The unprivileged start described above. **Slip:** the first try used port 16699, which is east's Akira; the collector refused to start on the taken port and four read-only GETs went to Akira. Repeated on 16698 |
+| 21:03:46 | 113 (rollback copy) | `/var/backups/s-watch-true-4b-2026-11-21/` on east (root, 0750): `files/` holds the old binary, the three old objects, the old unit and the old environment file; `MANIFEST.sha256`; `unit-show-before.txt` (no drop-in); `revert.sh`. A second copy of the old binary and objects is on west in `/home/govan/tmp/wt/S-WATCH-TRUE-4B-scratch/east-old/` |
+| 21:03:50 | (guard, dry) | `revert.sh --check`: copies match the manifest, six installed files "same", nine commands printed, nothing changed |
+| 21:03:57 to 21:04:40 | (guard, exercised) | The script run for real through a 20 s transient timer (`unheaded-4b-revert-test`), before any change: it restored the six files from the rollback directory and restarted the unit. The old collector came back at 21:04:25Z, `active`, three programs loaded, same checksums. This also showed that the old pair still starts with no Wotan |
+| 21:05:01 | (guard armed) | `sudo systemd-run --unit unheaded-4b-revert --on-active=15min …/revert.sh --run`, due 21:20:02Z |
+| 21:05:08 | 113 | Binary, three objects (root, 0644), unit and environment file installed; `daemon-reload`; restart. Environment file: the old line plus `TRACE_METRICS_ADDR` (loopback and the overlay address, as the unit's own comment says for east) |
+| 21:05:23 | 114 | `active`; packet_marker, flow_tracker, latency_probe loaded = 1; 6 kprobes; `FLOW_STATE`, `FLOWS`, `LATENCY_MAP` all `lru_hash`; no `FLOW_EVENTS`; the insert-failure gauge present; decode errors 0; listening on `127.0.0.1:16671` and `[fd00:dead:beef::2]:16671`. No "NOT loaded", no fatal. **Seen:** the debug line per dropped batch and the false published counts (first row of the table above) |
+| 21:06:56 | 113 (second restart) | `UNHEADED_TLS_ENABLED=false` added to the environment file, with a comment saying why and when to remove it; restart. **The soak clock starts here: 2026-11-21T21:06:56Z** |
+| 21:07:33 | 114 | The same checks, all met; one error line per topic for the first failed batch, then once per 1,000; `trace_publisher_errors_total` rising; no debug lines |
+| 21:07:45 | (proof from west) | A new ssh connection answers; the overlay address and the link address ping, 0 % loss; a direct scrape of `[fd00:dead:beef::2]:16671/metrics` 200; VictoriaMetrics and Prometheus both read `up` 1 for all five east targets, samples 2 to 10 s old; `trace_collector_programs_loaded{host="east"}` 1 three times. On east, loopback `/health` of dashboard-backend, kev-poller, unheaded-daemon and Akira 200 |
+| 21:07:56 | (guard released) | `sudo systemctl stop unheaded-4b-revert.timer`; no `4b-revert` unit left; `revert.log` holds only the exercise of 21:04. The guard never fired |
+| 21:17 to 21:21 | (+10 min reading) | Below |
+
+Step 115 was not needed.
+
+### Readings
+
+| Reading | Before | +10 min (21:17Z to 21:21Z) | 6 h |
+|---|---|---|---|
+| CPU, VictoriaMetrics | 2.18 cores (30 min rate) | **0.109 core** (10 min rate at 21:21Z; 0.11 over 20 s from `/proc`) | pending, due after 2026-11-22T03:07Z |
+| `bpf()` calls, 10 s under strace | 33,582 a second | **7.9 a second** (79 calls; the 18 errors are the ends of batch passes) | |
+| `LATENCY_MAP` | hash, 40-byte key, 35,216 | LRU, 24-byte key, 93 entries | |
+| `FLOWS` / `FLOW_STATE` | 65,421 / 65,536 (full, plain hash) | 17,272 / 34,625, both LRU | |
+| `trace_collector_latency_decode_errors_total` | not counted | 0 | |
+| `map_insert_failed`, `flow_state_insert_failures`, stats read errors | not counted | 0, 0, 0 | |
+| Programs loaded | 3 | 3, the installed latency-probe accepted | |
+| RSS | 157 MB | 31 MB | |
+| Load average (1 min) | 2.42 | 0.40 at 21:17Z, 0.07 at 21:21Z | |
+| Journal, collector | about 9 lines a minute | 92 lines since the start; 40 publish failure lines (once per 1,000), 0 fatal | |
+| Publish failures | counted | counted: 21 a second on `traces.packet` and on `traces.correlated` | |
+
+The bar at 6 h: the plan's Step 117 says east ≤ 0.10 core; FND-044's verify line says under 0.05 on each host, with the map gauge present, decode errors 0 and the installed probe accepted. At +10 min the CPU row is over both, and the cause is the refused-dial loop, not the sweep: the same collector with no Wotan client used about 0.03 core.
+
+### Deviations from the steps as written
+
+- Step 111: answered ahead (pack row 5), not asked.
+- Step 112 copies two files from `/tmp/claude-swt`; this block copied five (binary, three objects, unit), all from west's installed set, for the reasons above.
+- Step 113: the unit file was replaced and the environment file gained two variables (`TRACE_METRICS_ADDR`, `UNHEADED_TLS_ENABLED`); `TRACE_IFACE=lo` stays. The rollback copy is a directory with a manifest and a script, and a self-reverting timer was armed before the first change and exercised once.
+- Two restarts, not one (21:05:08Z and 21:06:56Z); the soak clock is the second.
+- The old collector was restarted once on its own files (21:04:25Z) by the guard's exercise.
+
+### The state east is left in
+
+- `unheaded-trace-collector`: `active` since 2026-11-21T21:06:56Z on the `231c7f34` binary and the three objects named above, `--interface lo`, listening on `127.0.0.1:16671` and `[fd00:dead:beef::2]:16671` (no longer on the link address or the wildcard), `/api/v1/*` refused to everyone (auth on, no trust directory on east), memory ceiling 512M.
+- `/etc/unheaded/trace-collector.env`: `TRACE_IFACE`, `TRACE_METRICS_ADDR`, `UNHEADED_TLS_ENABLED=false`. **The third line is host drift on purpose: remove it when east has its Wotan and the CA again (S-EAST-PAIR).** Left in by mistake, the collector would dial a TLS-only Wotan in plaintext and fail loudly; it sends no token over a plaintext link.
+- New on east from the unit: `/var/log/unheaded/trace-collector/` (empty, the unit's `LogsDirectory`).
+- Rollback: `sudo /var/backups/s-watch-true-4b-2026-11-21/revert.sh --run` on east puts the old binary, objects, unit and environment file back and restarts (`--check` prints what it would do). Nothing else on east was touched.
+- `/tmp/s-watch-true-4b/` on east (a tmpfs, the staged copies) is left until the 6 h reading.
+
+### Found outside the block (nothing changed)
+
+- **The collector on a host with no Wotan, two defects in develop's code.** (1) With no Wotan client, `TracePublisher.sendBatch` returns nil after a debug line, so `Flush` counts the dropped batch as sent: false `trace_publisher_batches_total` and `_events_total`, and a journal line per batch (nothing sets zerolog's level, so debug lines are written). (2) With a client and no Wotan, a failed publish is retried at every 50 ms flush with no backoff, and on a host whose traced interface is `lo` the refused dial is itself traced (the self filter reads established sockets from `/proc/self`, and a refused dial never is one), so the collector keeps itself busy: 0.11 core and 49 refused connects a second on east. East's kernel counts 308 M failed TCP connects since boot, about 90 a second on average, and the old collector had failed 292 M publishes in its 30 days; not traced further. West does not feed itself this way: it traces the bridge and dials Wotan over `lo`.
+- `unheaded-well-offsite-check.service` on east is `failed` since 2026-11-21T06:11:08Z (exit 1). West was powered off for three nights of backups; not looked into.
+- East's journal takes about 871,000 lines a day, 29,479 in one hour from `unheaded-dashboard-backend.service` alone; it holds 26 days in its 1 G.
+- East's Akira listens on `*:16699`.
+- The role units `unheaded-architect`, `-captain`, `-micromanager` still run on east (plan 6's, as `S-WASTE-OUT-progress.md` says).
+
+### For Stevie (Phase 4B)
+
+- **East's collector went from 2.18 cores to 0.11**, and is honest about what it cannot publish. It is not under the 0.05 of FND-044's verify line while east has no Wotan: what is left is the refused-dial loop above. Two ways to end it: fix the publisher (back off after a failed join; count a batch dropped for want of a client as an error and drop the debug line), or give east its Wotan back (S-EAST-PAIR). Until one of them, the other setting (remove `UNHEADED_TLS_ENABLED=false`, restart) gives about 0.03 core at the price of 4 debug lines a second and published counts that are not true.
+- East's collector no longer answers on `192.168.13.1:16671` or the wildcard: loopback and the overlay only, as on west.
+
 ## For Stevie
 
 - **Loki in `scripts/bootstrap-llm-lab.sh` (Step 178, stuck):** the script pulls Loki and writes a Vector config with a `loki` sink. Drop both (Loki left with ADR-117), or leave the script as a record? It also pulls promtail, alertmanager, victoria-metrics, alloy and clickhouse on `:latest`.
