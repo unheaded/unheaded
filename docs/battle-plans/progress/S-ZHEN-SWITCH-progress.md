@@ -112,3 +112,46 @@ Five findings from an independent review of head `3355777e`, each verified befor
 | 6 S-EAST-PAIR | east's Akira gets the new defaults with its next debs |
 | 7 S-TENANT-DOOR | the target's units become an LXD instance |
 | S-ZHEN-FRONT Phases 10-12 | the units they install take this plan's unit files (WantedBy and PartOf the target). Their step "comes back after a boot" now means: `unheaded-zhen.target` is enabled. Opening 20103 on the house LAN needs the LAN address on west's `bind_allow` (Phase 6, D5) |
+
+## Block F, 2026-11-21: Phase 8A on west (Steps 238, 242-264)
+
+Run by one agent on west, unattended (decision pack 2026-11-18 row 1), from develop `1f46c1a7`. Steps 239 to 241 are block C (`eacbd344`, 2026-11-18). Times are UTC.
+
+### Step 238, 19:56Z: G-EW is open
+
+The line at the top of this file ("G-EW: closed", 2026-11-15) and the "unanswered" rows of "Decisions" are of their date. As of 2026-11-21:
+
+| What the gate asks | Evidence read today |
+|---|---|
+| The log store week has ended (Step 18) | `S-E1-LIVE-progress.md`, "Step 284: Stevie's verdict (2026-11-18, about 00:30Z)": "The week is closed. ClickHouse stays."; the entry names itself the record that S-ZHEN-SWITCH Step 238 opens on. Step 18's command today: line 276, "the log store week had ended (Step 284 above, about 00:30Z)" |
+| D1, D3, D4, D5 answered as recommended | `ADR147-LIVE-RUN-ORDER.md`, the rulings table, plan 3 row D1-D5: "Ruled 2026-11-17: yes to all five"; `~/tmp/next.md` (second round of rulings, 2026-11-17): "plan 3 D1 to D5 yes" |
+| D6 (8B only) | 20, local only, adjustable (the same two records; REV-5) |
+| D7 | decision pack 2026-11-18 row 7: `ioc-audit.yaml` approved, Claude seals (Step 308, not in this block; the audit's timer is installed disabled here) |
+| D8 | decision pack 2026-11-18 row 8: on |
+| This plan's container gates | block B, second run, 2026-11-18 13:59Z, 32 of 32 green (`~/tmp/adr147-table/runs/after-week-20261118T135930Z/SUMMARY.txt`: `prometheus-rules` with `module zhen`, `alert-path`, `well-zhen-database`, the four `well-zhen-*`) |
+
+**G-EW open.** 8A may run.
+
+### Steps, in order
+
+| Time (UTC) | Step | Result |
+|---|---|---|
+| 19:56 | 238 | Gate open (table above). develop `1f46c1a7`, clean but for the untracked `demos/doom/`; 17 containers healthy; `zhen-agentd`, `unheaded-zhen-ui-front`, `unheaded-vor`, `unheaded-wiki-server` active; no mark or silence open |
+| 19:57 | 242 | `RB=/var/backups/zhen-switch-2026-11-21` (root, 0750): eight files (`zhen-agentd.service`, `unheaded-zhen-ui-front.service`, `unheaded-vor.service`, `unheaded.conf`, `zhen-agentd`, `zhen-ui-front`, `wiki-server`, `db-backup.sh`); tags `unheaded-dashboard:pre-zhen-switch` (`f42fb5d0911e`) and `unheaded-kanban:pre-zhen-switch` (`ee5826ac30a3`): `2` |
+| 19:57 | 243 | sysusers file installed, `systemd-sysusers` made nine accounts (see "Deviations" 1); tmpfiles line applied; ACL set |
+| 19:58 | 244 | pass: `unheaded-health-sweep:16714`, `unheaded-ioc-audit:16715`, `unheaded-modules:16716`, `unheaded-module-guard:16717`; `/run/unheaded/modules` `unheaded-modules 755` (it was `root 755`: Docker had made it at the deploy of 17:49Z, as the tmpfiles comment warns; the same directory, so the three containers that mount it see the change); ACL count `4` |
+| 19:58 | 245 | installed as written. The guard finds its library at `../lib/module_binds.py` from its own directory: `/usr/local/lib/unheaded/monitoring/` and `/usr/local/lib/unheaded/lib/`, which is where the step puts the pair |
+| 19:58 | 246 | pass: `1`, `1`, `1`; `same` |
+| 19:58 | 247 | comparison with `7be626d4`: `unheaded-zhen-ui-front` and `unheaded-vor` identical; `zhen-agentd` differs (see "Deviations" 2: the host's file is the repository's older version, byte for byte; nothing to carry). Eleven unit files installed, `daemon-reload`, both timers enabled and started; `unheaded-ioc-audit.timer` `disabled`. `unheaded-zhen-app` and `unheaded-llama` are not installed on west: nothing done for them. The guard's timer fired at once (19:58:54Z: `OnBootSec` was long past) |
+| 19:58 | 248 | wired: two units out of `multi-user.target.wants`, three into `unheaded-zhen.target.wants`, the target enabled and started |
+| 19:59 | 249 | pass: `enabled`, `active`; wants `unheaded-zhen-module.service unheaded-zhen-ui-front.service zhen-agentd.service`; `multi-user.target.wants` holds only `unheaded-zhen.target` of the Zhen names; `ActiveEnterTimestamp` unchanged (zhen-agentd 17:56:42Z, the front 01:44:01Z today); `/run/unheaded/modules/zhen`: `dashboard prometheus victoria`; `_prometheus/rules` and `_prometheus/scrape`: `zhen.zhen.yml` each. Step 250 not needed |
+| 19:59 to 20:00 | 251 | planned stop opened (15m, scope all); Prometheus recreated (same image digest; the container before was of 2026-11-10 and had neither the mount nor the flags); after 60 s the flags read `true 30s` |
+| 20:00 | 252 | pass: `true 30s`; `[('zhen', 3)]`; `modules` and `schedules`; `zhen-agentd` targets `1`. Also read: 26 groups, 156 rules (153 before); 17 targets, 17 up; 537 samples of `up{job="prometheus"}` over 3 h (the data volume kept). Planned stop ended 20:00:36Z. Step 253 not needed |
+| 20:00 to 20:02 | 254 | `docker compose up -d --no-deps victoria` printed `Container unheaded-victoria Running`: no recreate (see "Deviations" 3). After 90 s: `['up']` |
+| 20:02 | 255 | pass: `['up']`; `count(up)` 21 before and 21 after (20 before the fragments were published at 19:58:59Z; the 21st is `zhen-agentd`) |
+
+### Deviations
+
+1. **Step 243 made nine accounts, not four.** West's `/etc/sysusers.d/unheaded.conf` was the file of 2026-11-10. The repository's file, installed as the step says, also names five accounts west did not have: `unheaded-zhen-app` (16764), `unheaded-llama` (16792, and it joins the device groups `render` and `video`), `unheaded-aide` (962, a system id systemd chose), `unheaded-compliance-seal` (16765), `unheaded-vor-refresh` (16758). All are nologin accounts with no unit installed on west by this block. A dry run before the step showed these nine and nothing else. The five role accounts the new file no longer names (architect, captain, micromanager, monad, sophia) still exist on west: `systemd-sysusers` never removes an account. The old file is in `RB`.
+2. **Step 247, the `zhen-agentd` unit: a difference that is not drift.** Against `7be626d4` the host's file lacks `After=docker.service wg-quick@wg0.service` and `StartLimitIntervalSec=0`, and has `RestartSec=5s` for `10s`. Its blob (`280ac317`) is exactly `deploy/systemd/zhen-agentd.service` at `bd91cb84` (2026-11-07), the version before `a3bca221` (S-ZHEN-FRONT Steps 100-103, 2026-11-15), which was never installed on west. The host holds no change the repository lacks, so there was nothing to carry into the repository and no commit; the repository's file went on. What changed on west with it: ordering after dockerd and wg0, `RestartSec` 10 s, a start limit (the unit's 90 in 30 min, over which west's drop-in `10-start-limit.conf` of plan 1 sets 180 in 2 h), `PartOf=` and `WantedBy=` the target. `ExecStart` and `EnvironmentFile=-/etc/zhen-agentd.env` are the same, so the running binary of 2026-11-12 starts under the new unit.
+3. **Step 254 recreated nothing.** VictoriaMetrics was recreated at 19:20:46Z today by plan 2 Phase 21 from the same compose file, so it already had the module mount and `-promscrape.configCheckInterval=30s`; it took up the `zhen-agentd` job by itself within a minute of Step 248. A compose dry run said `Running` before the step, so no planned stop was opened for it; the step's command and its 90 s wait were run as written.
