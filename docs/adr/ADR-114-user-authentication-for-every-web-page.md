@@ -351,7 +351,7 @@ With `AUTH_SESSION_STORE=well` a front verifies the issuer's token once, at logi
 5. **The cookie is no longer persistent.** No `Max-Age`: the browser drops it when it closes. It stays `HttpOnly; Secure; SameSite=Strict; Path=/` with the `__Host-` prefix.
 6. **A session no longer ends with the issuer's token or key.** That is the point, and it moves one duty: removing a user at the issuer (`unheaded-auth user del`) used to end their access within 15 minutes and now does not. The operator revokes (`unheaded session revoke-all --subject <user>`). The same holds for a changed role: roles are read at login and fixed in the row. "Rotate on privilege change" (N5) is therefore a revocation done by hand, not something the front detects. Pushed revocation (decision 0, the Wotan `session-revoked` event) is not built.
 7. **A session of one front is never accepted by another.** By the Well (the view), and again by the front: a row is believed only if it names this front and sits under the key that was asked for, compared in constant time, whatever the store returned.
-8. **Bounds.** At most 10,000 live sessions per front (a login past that answers 503). A session lives at most 31 days whatever the key says (the table refuses more). An ended row is kept for `AUTH_SESSION_RETENTION` (default 24 h) and then deleted by its front, at most 1,000 a minute.
+8. **Bounds.** At most 10,000 live sessions per front (a login past that answers 503), and 10 per user on it (see the addendum below). A session lives at most 31 days whatever the key says (the table refuses more). An ended row is kept for `AUTH_SESSION_RETENTION` (default 24 h) and then deleted by its front, at most 1,000 a minute.
 9. **Use is written at most once a minute per session**, so the idle time is exact to within a minute and a busy page does not write on every request.
 
 ### Not built, though N5 or the addenda name it
@@ -365,3 +365,20 @@ With `AUTH_SESSION_STORE=well` a front verifies the issuer's token once, at logi
 ### Before it is switched on anywhere
 
 Nothing shipped sets `AUTH_SESSION_STORE`. A front that sets it to `well` needs, first: migrations 055 and 056 applied; its role's password set (`scripts/well/set-role-passwords.sh`) and given to the front as `AUTH_SESSION_WELL_PASSWORD`; and room in the Well's connection budget, which has none today (`docs/architecture/THE_WELL_OPERATIONS.md`: each front adds a pool of 2).
+
+### Addendum 2026-11-21, after an independent review of the branch
+
+Nothing above is withdrawn. These were added or tightened before the branch merged; the migrations had been applied nowhere, so 056 was edited in place.
+
+| Finding | What changed |
+|---|---|
+| Two requests racing to record a use: the second write matched no row and its request got 401 on a live session | The write no longer depends on the order of arrival. Last-used and the expiry only move forward; "not written" means the session ended, and nothing else. (Choice 9 stands.) |
+| A flood of well-formed ids nobody holds queued on the Well's small pool | A budget of misses per client address per minute (`AUTH_SESSION_MISS_BUDGET`, 30). Past it, an id the front has not seen live is refused unread. Choice 1 stands: an id that is read is read every time, and the front's memory of ids seen live only admits a request to the read. A client that hangs up no longer cancels the read. |
+| One account could fill the front's 10,000 | A cap per user per front (`AUTH_SESSION_MAX_PER_USER`, 10). Past it the user's oldest session is ended, and the login succeeds: refusing would lock a user out of their own account, ending the oldest cannot lock anyone out. (Adds to choice 8.) |
+| A logout during an outage answered 204 with the row still live | 503 `logout_incomplete`; the browser's cookie is still cleared, and the page says the server could not end the session. |
+| Only the front's clock judges expiry | A front whose clock is more than `AUTH_SESSION_MAX_CLOCK_SKEW` (2 m) from the Well's starts no sessions; the log says clock skew, the browser only that sessions are unavailable. The command line no longer hides a session for looking expired by its own clock. |
+| The plaintext development switch beside TLS, or beside sessions in the Well, only warned | Both are refused at start. |
+| The session store took the service's `WELL_SSLMODE`, `require` by default | Its own `AUTH_SESSION_WELL_SSLMODE`, default `verify-full`; an unverified connection only to a Well on the same host, or with an explicit development key. Stricter than every other Well client in the tree, which take `require` unless told. |
+| Revocations recorded no actor | `revoked_by` on the row: `logout`, `login`, `limit`, or `cli:` and the user and host of the command. A note, not a proof, except that the Well refuses a front writing the command line's name. The audit table of cross-cutting 6 is still not built. |
+
+Still as the amendment says, and worth knowing: there is no command that revokes everyone; a polling page never idles out, so for an open dashboard tab only the maximum age ends the session; `pkg/bff` has no trusted-proxy setting, so behind a reverse proxy its per-address budgets are one budget for everybody.
