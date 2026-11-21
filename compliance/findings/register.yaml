@@ -602,8 +602,20 @@ findings:
     step: 3
     plan: >-
       Lock with scripts/ci-python-lock.sh notebooks. The lock brings packages absent from the dependency baseline, each an
-      ADR-096 admission a person makes (requirements.in says how many)
+      ADR-096 admission a person makes (requirements.in says how many). 2026-11-21, decision pack 2026-11-18 row 41
+      (M-220.1, on the seats' written recommendation): dropped, not locked. Nothing in the stack or CI runs the
+      notebooks, the lock would have admitted 114 packages (81 of them new to the baseline), and rows 17 and 29 of the
+      same pack settled the like cases the same way (a tool that is not ours runs from its own throwaway environment)
     decision: admit the notebook lock, or drop the notebooks' dependencies from the repo
+    resolved:
+      on: 2026-11-21
+      evidence: >-
+        notebooks/requirements.txt and notebooks/requirements.in left the tree (they stay in git history), so no
+        requirements file with a range is tracked: `git ls-files '*requirements*.txt'` lists .github/ci-python and
+        raft only, both fully pinned, and scripts/check-python-audit.sh audits every one of them. notebooks/README.md
+        says to install what a notebook imports in a throwaway environment. docs/policy/dependency-baseline.txt lost
+        ten pypi names (502 to 492) and python_components fell from 72 to 61; scripts/check-dependency-baseline.sh
+        and scripts/check-sbom-trend.sh pass and fail if a requirements file brings them back
 
   - id: FND-026
     title: West's apt repo on 18888 is still the old unsigned one.

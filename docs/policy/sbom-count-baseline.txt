@@ -4,6 +4,8 @@
 # rust_components lowered 2026-11-07 when the count stopped including this repo's own crates,
 # and 2026-11-18 (352 to 334) when zhend's uncalled hybrid KEM and sealed envelope were deleted,
 # and 2026-11-21 (334 to 317) when zhend's four unspawned subsystems were archived (ADR-152).
+# python_components lowered 2026-11-21 (72 to 61) when the notebooks' two requirement files left the tree
+# (FND-040, decision pack 2026-11-18 row 41: ten names; the count already stood at 71).
 go_components=148
 rust_components=317
-python_components=72
+python_components=61

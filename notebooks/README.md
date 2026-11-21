@@ -15,8 +15,18 @@ Re-run with live data when hosts are online.
 
 ## Usage
 
+The repository carries no requirements file for the notebooks (FND-040, decided
+2026-11-21): nothing in the stack or in CI runs them, and a lock would have put
+114 packages into the dependency baseline. Run them from a throwaway environment
+of your own, outside the repository and outside any venv a service uses, and
+install there what the notebook you open imports (numpy, pandas, matplotlib,
+seaborn, plotly, scipy, prometheus-api-client, psutil, nbformat, and Jupyter
+itself). The versions last resolved for them are in git history
+(`git log --diff-filter=D -- notebooks/requirements.in`).
+
 ```bash
-pip install -r requirements.txt
+python3 -m venv /var/tmp/unheaded-notebooks && . /var/tmp/unheaded-notebooks/bin/activate
+pip install jupyterlab numpy pandas matplotlib seaborn plotly scipy prometheus-api-client psutil nbformat
 jupyter lab
 ```
 
