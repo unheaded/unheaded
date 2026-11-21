@@ -72,7 +72,7 @@ A missing key is one warning and calls without a token, as for the Go clients. S
 
 ## Browser login: the backend-for-frontend
 
-Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-token-distribution.md) §4). dashboard-backend (20000) and kanban-app (20001) each run `pkg/bff` (cookies are per origin, so each page's own backend logs its users in):
+Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-token-distribution.md) §4). dashboard-backend (20000), kanban-app (20001) and, when its env file names an issuer, wiki-server (20002) each run `pkg/bff` (each page's own backend logs its users in, under its own cookie name). What follows is the default, where a session ends with the issuer's token; [Server-side sessions](#server-side-sessions) is the other mode, where it does not:
 
 | | |
 |---|---|
@@ -82,7 +82,7 @@ Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-t
 | `POST /auth/logout` | With `X-Requested-With`; deletes the session and clears the cookie |
 | `GET /auth/auth.js` | The page script: login panel on a 401, who-am-I badge, `X-Requested-With` on every same-origin `fetch`. Served even with auth off (then `/auth/me` is 404 and nothing shows) |
 
-- **Every cookie request re-verifies** the stored token against the cached JWKS, so a session ends with its token, at logout, and when the issuer stops publishing the key that signed it. Expired sessions are evicted every minute. The store is in memory (sessions do not survive a restart) and keyed by SHA-256 of the cookie value; a Well-backed store can implement `bff.Store`.
+- **Every cookie request re-verifies** the stored token against the cached JWKS, so a session ends with its token (15 minutes: every page then asks for the login again), at logout, and when the issuer stops publishing the key that signed it. Expired sessions are evicted every minute. The store is in memory (sessions do not survive a restart) and keyed by SHA-256 of the cookie value. This is the mode a front runs in while `AUTH_SESSION_STORE` is unset.
 - **CSRF:** `SameSite=Strict`, plus a second guard: login, logout and every state-changing request that a session cookie authenticates need `X-Requested-With: unheaded` (403 without). Bearer-token callers are not affected.
 - **Login rate limit** in front of the issuer's lockout (which only sees the backend's address): 10 attempts a minute per client address and username, 60 per client address. Then the failure budget: see [Login budgets](#login-budgets). A login always issues a new session id and drops a presented one.
 - **Roles:** reads take `admin`, `operator`, `observer`, `viewer` or `service`; writes take `admin`, `operator` or `service`; `guest` gets nothing. The dashboard needs a login for every `/api/` call and WebSocket (its pages, scripts and styles stay open); the board stays publicly readable and needs an operator login to write. The compliance profile switch (`POST /api/v1/compliance/profile`) takes `admin` or `operator` only and records the login's `sub` as the change's actor.
@@ -91,6 +91,73 @@ Browsers never hold a bearer token ([ADR-103](../docs/adr/ADR-103-service-auth-t
 - **Decision trail:** refusals reach the service's journal. `AUTH_AUDIT_LOG=/var/log/unheaded/<name>/auth-audit.log` in the unit's env file keeps every decision there instead (each packaged unit declares that directory); the file rotates at 64 MiB and keeps 7 generations, 512 MiB at most, oldest dropped (`pkg/auth/README.md`).
 - **Issuer over TLS:** the BFF reaches the issuer with the system roots plus the deployment CA when `UNHEADED_TLS_ENABLED=true` (compose: `https://auth:19020`, Secure cookie). `AUTH_BFF_DEV_PLAINTEXT=true` (or dashboard-backend `-dev-plaintext`) remains for a stack without TLS: it drops `Secure` and allows a plain-http issuer; without it a plain-http issuer off loopback refuses to start.
 - The login speaks this issuer's `POST /login`. Another OIDC provider would need an authorization-code flow in `pkg/bff`, which is not built.
+
+## Server-side sessions
+
+Off unless a front's environment sets `AUTH_SESSION_STORE` ([ADR-114](../docs/adr/ADR-114-user-authentication-for-every-web-page.md) N5, amendment 2026-11-21; decision pack 2026-11-18, row 44). No shipped unit or compose service sets it. It applies to the three `pkg/bff` fronts; the Zhen web UI's app has its own login and still asks again after 15 minutes.
+
+With it on, a login is a row in the Well instead of a token held in memory. The front checks the issuer's token once, at login, and drops it. The browser's cookie is 32 random bytes; the row is found by the SHA-256 of that value, and neither the value nor a token is stored. A session then ends when unused for the idle time, at its maximum age whatever its use, or when revoked. Restarting a front no longer logs anyone out.
+
+### Keys (a front's environment)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `AUTH_SESSION_STORE` | unset | unset: in memory, ending with the token (the section above). `well`: rows in the Well. `dev-memory`: the same lifetimes in the front's own memory, for a development stack without a Well; it must be named, logs a warning at start, and nothing outside the process can list or revoke such a session. Anything else: the front does not start. There is no value that tries the Well and settles for memory |
+| `AUTH_SESSION_IDLE` | `30m` | A session unused this long ends. Each use moves the end forward, never past the maximum age. At least `1m`, at most the maximum age |
+| `AUTH_SESSION_MAX_AGE` | `12h` | A session ends this long after login whatever its use. At most `744h` (31 days; the table refuses more) |
+| `AUTH_SESSION_RETENTION` | `24h` | How long an ended session stays on record (`unheaded session list --all`) before its front deletes it. At most `2160h` (90 days); `0` is the default, like unset |
+| `AUTH_SESSION_WELL_PASSWORD` | none | The password of the front's own Well role. Required with `well`; there is no default |
+| `AUTH_SESSION_WELL_DB` | `unheaded_app` | The database holding `bff_sessions` |
+| `WELL_HOST`, `WELL_PORT`, `WELL_SSLMODE`, `WELL_SSLROOTCERT` | as for the front's other Well use | Which Well, and how its certificate is checked |
+
+Durations are Go's (`45m`, `8h`). A value that cannot be read, or any of the three limits set while `AUTH_SESSION_STORE` is unset, stops the front from starting: a limit that silently did not apply would be worse.
+
+- **The Well role is not a key.** A front logs in as `bff_` plus its own name with `-` as `_`: `bff_dashboard_backend`, `bff_kanban_app`, `bff_wiki_server` (migration 055). Each role is granted one view, `bff_sessions_own`, which shows and accepts only the rows of the front the role is named after (migration 056). One front's password therefore cannot read, forge or end another front's sessions, and no front can touch the table itself. Set the passwords with `scripts/well/set-role-passwords.sh` (`BFF_DASHBOARD_BACKEND_PASSWORD`, `BFF_KANBAN_APP_PASSWORD`, `BFF_WIKI_SERVER_PASSWORD`), then give each front its own as `AUTH_SESSION_WELL_PASSWORD`.
+- **The cookie** keeps its name and stays `HttpOnly; Secure; SameSite=Strict; Path=/` with the `__Host-` prefix. It has no `Max-Age` any more: the server ends the session, and the browser drops the cookie when it closes.
+- **Every request with a session cookie reads the row**, so an expiry or a revocation holds on the next request. Nothing is cached. A use is written at most once a minute per session, so the idle time is exact to within a minute.
+- **A session of one front is not a session anywhere else**: by the view in the Well, and again in the front, which believes a row only if it names this front and sits under the key it asked for.
+- **`/auth/me`** also answers `absolute_expires_at`.
+- **Bounds:** at most 10,000 live sessions per front (a login past that answers 503); ended rows are deleted after the retention time, at most 1,000 a minute per front.
+
+### Listing and revoking
+
+`unheaded session` on a host that can reach the Well, logged in as `app_auth` (`AUTH_WELL_PASSWORD`, with `WELL_HOST` and the rest as for `unheaded apikey`). That role can read sessions and set `revoked_at`; it cannot create one.
+
+```bash
+unheaded session list                          # live sessions: ID, subject, front, state, last used, expires
+unheaded session list --subject dev --all      # one user's, ended ones included; -o wide|json|yaml
+unheaded session revoke 3f9c2a1b7d4e6f80       # one session, by the ID the list shows
+unheaded session revoke-all --subject dev      # every session of one user, on every front
+unheaded session revoke-all --subject dev --front kanban-app
+```
+
+The ID is the first 16 characters of the hash the row is stored under. It is not the cookie and cannot be turned into it. A revoked session is refused on its next request and the browser is shown the login.
+
+**What a revocation does not reach:** a WebSocket that is already open. The dashboard checks the session when the stream is opened and not again, so a stream opened before the revocation (or before the session ran out) keeps delivering until it closes; reopening it needs a live session. This was already so with token-bound sessions. Restart the front to cut open streams at once.
+
+**A session no longer ends with the issuer's token, so two things that used to happen by themselves within 15 minutes are now yours:**
+
+- After `unheaded-auth user del <name>`: `unheaded session revoke-all --subject <name>`.
+- After changing a user's roles: the same. Roles are read at login and fixed in the row; the user logs in again with the new ones.
+
+### When the Well is down
+
+- **Nobody can log in:** `POST /auth/login` answers 503 `sessions_unavailable` (the panel says "Login is unavailable (HTTP 503)").
+- **Nobody stays logged in on faith:** a request with a session cookie is treated as having no session, reads included, until the Well answers again. The dashboard, where every read needs a login, cannot be read by a browser meanwhile. The board's public reads go on. Service tokens are not affected; API keys are if their store is the Well too.
+- **No session is lost:** when the Well is back, a session that is still inside both its limits works again. The clock did not stop: one that ran out during the outage is gone.
+- **Nothing can be revoked** during the outage (`unheaded session` needs the Well), which is why nothing is accepted during it.
+- **At start:** a front whose Well does not answer starts anyway, accepts no session and no login, and retries every second, then less often, up to every 30 seconds. A front whose Well answers and refuses (wrong password, missing role, migrations 055 and 056 not applied, a weak `sslmode`) does not start, and its log says which.
+
+### Switching it on
+
+1. Apply migrations 055 and 056 (`scripts/well/batch-apply.sh`; `--dry-run` first).
+2. Set the three role passwords (`scripts/well/set-role-passwords.sh`) and make room in the Well's connection budget: each front opens at most 2 connections ([[The Well|The-Well]]; the budget table in `docs/architecture/THE_WELL_OPERATIONS.md`).
+3. Give each front `AUTH_SESSION_STORE=well` and its `AUTH_SESSION_WELL_PASSWORD` (unit: the env file; compose: `environment:`), with the `WELL_*` keys if it has none yet (wiki-server), and restart it. Everyone logs in once more.
+4. Check: `unheaded session list` shows the login; `unheaded session revoke <id>` and the next click asks for the login.
+
+To switch it off, unset `AUTH_SESSION_STORE` and restart the front: sessions are in memory again and end with the token. The rows stay until a front with the key set sweeps them.
+
+Proof: `pkg/bff` and `pkg/bff/sessions` tests (on memory, held to one contract with the Well's store); `scripts/well/test-bff-sessions.sh --with-go` for the table, the view, the grants and the Well's store on a throwaway server.
 
 ## Login budgets
 

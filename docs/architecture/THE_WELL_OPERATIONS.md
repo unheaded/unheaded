@@ -173,6 +173,22 @@ renew with `--renew`).
 A new pooled client means a new row here first; PgBouncer only when the
 sum no longer fits.
 
+**Not in the total, and they do not fit it (2026-11-21).** A login front
+that runs with `AUTH_SESSION_STORE=well` (ADR-114 N5; nothing shipped sets
+it) opens a pool of its own for sessions:
+
+| Client | Role | Pool |
+|---|---|---|
+| dashboard-backend sessions (`pkg/bff/sessions`) | bff_dashboard_backend | 2 (role limit 3) |
+| kanban-app sessions | bff_kanban_app | 2 (role limit 3) |
+| wiki-server sessions | bff_wiki_server | 2 (role limit 3) |
+
+All three on would make the sum 52 of 47. Before the first is switched
+on, make room: kanban-app's and dashboard-backend's pools of 10 are
+ceilings far above what they use, and lowering each to 7 fits all three; or
+raise `max_connections` in `db/postgresql.conf` (a restart of the Well).
+Which is not decided here.
+
 The role limits in this table are the ledger's defaults. A deployment
 changes one with `<ROLE>_CONNECTION_LIMIT` and
 `scripts/well/set-role-limits.sh` (for example `APP_ZHEN_CONNECTION_LIMIT`

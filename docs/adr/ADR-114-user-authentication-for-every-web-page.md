@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-114: User authentication for every web page, and which outside libraries (if any) it may use
 
-**Status:** Proposed (pitch, parked under ADR-112). Brainstorm before acceptance; nothing is built.
+**Status:** Proposed (pitch, parked under ADR-112), except N5. N5 (server-side sessions in the Well) left the park on Stevie's ruling of 2026-11-18 (decision pack row 44) and is built, behind a switch that nothing shipped turns on: see "Amendment 2026-11-21" at the end. Everything else here is still a brainstorm with nothing built.
 **Date:** 2026-10-30
 **Grounded on:** `churn/2026-10-30` at `49eb2fca`
 **Related:**
@@ -310,3 +310,58 @@ Small fix approved the same day under the freeze: per-app `__Host-` cookie names
 ## Decision
 
 None yet. Parked under ADR-112.
+
+> **2026-11-21:** true of everything but N5; see the amendment below.
+
+## Amendment 2026-11-21: N5 leaves the park (server-side sessions, as built)
+
+**The ruling (Stevie, decision pack 2026-11-18, row 44).** Asked about logins being demanded again every 15 minutes with N5 parked: "Build server-side sessions: stored in the Well, extended while in use, capped at a maximum age, revocable from the CLI; both limits config keys; tests first; on a later deploy." N5 leaves the park. Nothing else in this ADR does: no gate, no passport, no TOTP, no OIDC code flow, no issuer-side single sign-on session.
+
+**Why every page asked again.** A `pkg/bff` session held the issuer's access token and re-verified it on every request, so it ended with the token: 15 minutes (`cmd/unheaded-auth` `tokenLifetime`). The issuer has no refresh. The cure is a session that is its own record and does not depend on the token after login.
+
+### What is built
+
+| Piece | Where |
+|---|---|
+| The session record and its two stores (the Well, and memory with the same semantics) | `pkg/bff/sessions` |
+| The mode in the login front | `pkg/bff/server_sessions.go`, behind `AUTH_SESSION_STORE` |
+| The table, the view and the roles | `db/migrations/055_bff_session_roles.sql`, `056_app_bff_sessions.sql` |
+| Listing and revoking | `unheaded session list`, `revoke`, `revoke-all` (`cmd/unheaded-cli`) |
+| How to run it | `wiki/Service-Auth.md`, "Server-side sessions" |
+
+With `AUTH_SESSION_STORE=well` a front verifies the issuer's token once, at login, writes a session row and drops the token. The row is found by the SHA-256 of the cookie value. Every request with a session cookie reads the row.
+
+### Where this ADR already decided, and what was built
+
+| This ADR | Built |
+|---|---|
+| N5: "Move the session store to the Well (hashed ids, ...)" | `unheaded_app.bff_sessions`, keyed by the SHA-256 of the cookie value. The value and the token are never stored. |
+| Decision 5: idle 30 min / absolute 12 h | The defaults of `AUTH_SESSION_IDLE` and `AUTH_SESSION_MAX_AGE`. Both are keys, as the ruling asks. The server enforces both; the cookie's own expiry is not relied on (NIST SP 800-63B-4, quoted above). |
+| N5: "rotate on login" | A login always issues a new id and revokes a presented one. |
+| N5: "revoke-all per user" | `unheaded session revoke-all --subject <user>`. |
+| Addendum: each app "its own cookie name with the `__Host-` prefix" | Already so (`CookieNameFor`). Unchanged. |
+| Addendum: each app "its own Well-backed session table" | One table, and one Well login role per front (`bff_dashboard_backend`, `bff_kanban_app`, `bff_wiki_server`). A front's role is granted only a view that shows and accepts the rows of the front the role is named after. The isolation the sentence wants holds in the Well itself: one front's password cannot read, forge or end another front's sessions. A new front is a role and a grant, not a new table. |
+
+### Where it left a choice: the conservative one, each reviewable
+
+1. **Revocation and expiry hold on the next request. Nothing is cached.** Every request with a session cookie is one read by primary key. A short cache was the alternative; it would have traded a bounded window after a revocation for fewer reads.
+2. **The Well down means no. For existing sessions too.** A login answers 503. A request with a session cookie is treated as having no session, reads included, so the browser sees the login panel and the login says it is unavailable. The alternative was to keep serving reads for sessions this process had checked a moment ago (the repository's "no database = read-only"). It was not taken: during an outage nothing can be revoked and nothing can be checked, and the dashboard's reads are what a login protects. The cost is real and is Stevie's to weigh: **with this on, the dashboard cannot be read by a browser while the Well is down**, where today it can. Service tokens and API keys are not affected (unless the key store is the Well's too). kanban-app's public reads are not affected.
+3. **A Well that is not there is waited for; a Well that refuses stops the start.** A front with `AUTH_SESSION_STORE=well` starts when the Well is unreachable, accepts nothing, and retries (1 s doubling to 30 s), as kanban-app waits for its board. A Well that answers and says no (wrong password, missing role, migrations 055 or 056 missing, a weak `sslmode`) is a configuration error: the front does not start.
+4. **No fallback to memory, and memory has to be named.** Unset, `AUTH_SESSION_STORE` is the behaviour before this amendment: in memory, ending with the token. `dev-memory` gives the new lifetimes without a Well, for a development stack, and logs a warning at start: such sessions last hours and nothing outside the process can revoke one. There is no value that tries the Well and settles for memory.
+5. **The cookie is no longer persistent.** No `Max-Age`: the browser drops it when it closes. It stays `HttpOnly; Secure; SameSite=Strict; Path=/` with the `__Host-` prefix.
+6. **A session no longer ends with the issuer's token or key.** That is the point, and it moves one duty: removing a user at the issuer (`unheaded-auth user del`) used to end their access within 15 minutes and now does not. The operator revokes (`unheaded session revoke-all --subject <user>`). The same holds for a changed role: roles are read at login and fixed in the row. "Rotate on privilege change" (N5) is therefore a revocation done by hand, not something the front detects. Pushed revocation (decision 0, the Wotan `session-revoked` event) is not built.
+7. **A session of one front is never accepted by another.** By the Well (the view), and again by the front: a row is believed only if it names this front and sits under the key that was asked for, compared in constant time, whatever the store returned.
+8. **Bounds.** At most 10,000 live sessions per front (a login past that answers 503). A session lives at most 31 days whatever the key says (the table refuses more). An ended row is kept for `AUTH_SESSION_RETENTION` (default 24 h) and then deleted by its front, at most 1,000 a minute.
+9. **Use is written at most once a minute per session**, so the idle time is exact to within a minute and a busy page does not write on every request.
+
+### Not built, though N5 or the addenda name it
+
+- **The Zhen web UI's app** (`raft/zhen_login.py`) is not `pkg/bff`. It keeps the person's token, because zhen-agentd judges every call by it, and still asks again after 15 minutes. Decision 7 retires that UI; nothing here changes it.
+- **Audit rows.** Cross-cutting 6 wants every login, logout and revocation in `ops.login_events`. That table does not exist. Logins and logouts are in the front's journal with the session's id; a revocation from the command line is recorded only as the row's `revoked_at`.
+- **`http.CrossOriginProtection`** (N6) is not added. CSRF protection is unchanged: `SameSite=Strict` and `X-Requested-With`.
+- **Single sign-on and single logout.** Each front still has its own login and its own session.
+- **Cutting an open WebSocket.** dashboard-backend checks the session when a WebSocket is opened and not again (as before this amendment, when a stream likewise outlived its 15-minute token). A revocation or an expiry therefore refuses the next request and the next stream, and does not close a stream already open. Closing them on revocation needs the front to learn of it without a request: the pushed revocation of decision 0.
+
+### Before it is switched on anywhere
+
+Nothing shipped sets `AUTH_SESSION_STORE`. A front that sets it to `well` needs, first: migrations 055 and 056 applied; its role's password set (`scripts/well/set-role-passwords.sh`) and given to the front as `AUTH_SESSION_WELL_PASSWORD`; and room in the Well's connection budget, which has none today (`docs/architecture/THE_WELL_OPERATIONS.md`: each front adds a pool of 2).
