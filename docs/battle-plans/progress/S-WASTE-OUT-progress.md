@@ -260,6 +260,13 @@ After `fix/mailer-wotan-wiring` merged (`c21c195c`: the Wotan client takes `WOTA
 - The mailer is still `mode: dry-run`: plan 1 Steps 319-334 switch it to send in the morning window (pack row 53). This build also carries the boot line (pack row 22).
 - Seen: Wotan's trust directory on west (`configs/trust.d/dev`, not tracked) still holds the public keys of architect, captain, micromanager, monad and sophia. None is in `AUTH_ALLOW_CALLERS` or `topics.permissions`, so each would be refused; removing the five files and their private keys in `configs/keys/dev` belongs to this plan's close (Phase 23).
 
+### 2026-11-21 20:51Z: W-12 at 3 h, and the evening's host items
+
+- **W-12:** `prometheus_tsdb_head_series` 5,402 at 20:51:30Z (bar ≤ 4,000; 13,730 before; 4,621 at 1 h). **Not a clean 3 h reading:** plan 3's Phase 8A recreated Prometheus at 19:59Z (its head kept the series of before) and it now scrapes zhen-agentd. By job: prometheus 1,548, huginn 1,495, no job 282, dashboard-backend 185, alert-mailer 162, trace-collector 136, node_exporter 92, vector 70. Two thirds of what is left is Prometheus's own job, which has no keep filter on purpose (Phase 12), and huginn's per-cgroup series, which plan 1 added after this bar was set. The row's status is decided at the 24 h reading; if it is to meet 4,000, the lever is a keep filter on job `prometheus`.
+- kanban-app rebuilt from develop and recreated 20:13Z under a planned stop (old image `unheaded-dev-kanban-app:pre-row28`): the login budgets of pack row 28 now run on every Go front. Its `/health` after: healthy, `well: connected`, `critical_alerts: ok`.
+- The public keys of architect, captain, micromanager, monad and sophia moved out of Wotan's trust directory (`configs/trust.d/dev`, not tracked) to `/var/backups/s-waste-out/retired-trust-2026-11-21/`, 20:14Z. No refusal followed; the six trackers still read `ok`. Their private keys in `configs/keys/dev` and their host accounts are left for the close.
+- `docker builder prune` and `docker image prune` (pack row 33 a and d, dangling only) ran 20:17Z to 20:46Z: `/var` went from 1,001 G free to 1.3 T. The 15 `:pre-s-waste-out` tags are intact.
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
