@@ -158,6 +158,27 @@ func AppAuthConfig() Config {
 	}
 }
 
+// BFFSessionConfig returns the database config for a login front's session
+// store (pkg/bff/sessions, ADR-114 N5): the front's own role on
+// unheaded_app, which is granted the view bff_sessions_own and nothing else
+// (migrations 055/056). The role is given, not configured: the view shows a
+// role the sessions of the front it is named after, so another user would
+// see none. The password is AUTH_SESSION_WELL_PASSWORD and the database
+// AUTH_SESSION_WELL_DB, never the service's WELL_USER/WELL_PASSWORD/WELL_DB
+// (app_kanban, ops_writer) nor the API-key store's AUTH_WELL_*. Host, port,
+// sslmode and CA are the same Well's. There is no default password.
+func BFFSessionConfig(role string) Config {
+	return Config{
+		Host:        getEnv("WELL_HOST", "localhost"),
+		Port:        getEnv("WELL_PORT", "5432"),
+		User:        role,
+		Password:    os.Getenv("AUTH_SESSION_WELL_PASSWORD"),
+		DBName:      getEnv("AUTH_SESSION_WELL_DB", "unheaded_app"),
+		SSLMode:     getEnv("WELL_SSLMODE", "require"),
+		SSLRootCert: os.Getenv("WELL_SSLROOTCERT"),
+	}
+}
+
 // LogWriterConfig returns the database config for cmd/logstore-writer: the
 // scoped role log_writer on unheaded_ops, which may INSERT into log_events
 // and call log_events_maintain() and nothing else (migration 048). There is

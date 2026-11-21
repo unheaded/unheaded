@@ -74,6 +74,36 @@ func TestAppAuthConfig_OwnCredentials(t *testing.T) {
 	}
 }
 
+// A login front's session store (pkg/bff/sessions, migrations 055/056) logs
+// in as the role it is given, with a password of its own, whatever the
+// service's own Well login and the API-key store's are.
+func TestBFFSessionConfig_OwnCredentials(t *testing.T) {
+	unsetWell(t)
+	for _, k := range []string{"AUTH_SESSION_WELL_PASSWORD", "AUTH_SESSION_WELL_DB", "AUTH_WELL_PASSWORD"} {
+		t.Setenv(k, "x")
+		unsetenv(t, k)
+	}
+	t.Setenv("WELL_USER", "app_kanban")
+	t.Setenv("WELL_PASSWORD", "kanban-pw")
+	t.Setenv("WELL_DB", "unheaded_ops")
+	t.Setenv("AUTH_WELL_PASSWORD", "auth-pw")
+	t.Setenv("WELL_HOST", "10.10.10.5")
+	t.Setenv("WELL_SSLMODE", "verify-full")
+	c := BFFSessionConfig("bff_kanban_app")
+	if c.User != "bff_kanban_app" || c.Password != "" || c.DBName != "unheaded_app" {
+		t.Errorf("took another login's settings: user %q, password set %v, database %q", c.User, c.Password != "", c.DBName)
+	}
+	if c.Host != "10.10.10.5" || c.SSLMode != "verify-full" || c.Port != "5432" {
+		t.Errorf("not the same Well: host %q sslmode %q port %q", c.Host, c.SSLMode, c.Port)
+	}
+	t.Setenv("AUTH_SESSION_WELL_PASSWORD", "session-pw")
+	t.Setenv("AUTH_SESSION_WELL_DB", "unheaded_app_test")
+	c = BFFSessionConfig("bff_kanban_app")
+	if c.Password != "session-pw" || c.DBName != "unheaded_app_test" {
+		t.Errorf("AUTH_SESSION_WELL_* not read: password set %v, database %q", c.Password != "", c.DBName)
+	}
+}
+
 func TestConnect_MissingCredentialsFailsLoudly(t *testing.T) {
 	for name, cfg := range map[string]Config{
 		"no password": {Host: "127.0.0.1", Port: "1", User: "ops_writer", DBName: "unheaded_ops", SSLMode: "disable"},
