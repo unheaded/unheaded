@@ -23,6 +23,8 @@ Post-Quantum Cryptography (PQC) authentication for the Unheaded Protocol, ensuri
 | `ebpf/shield-ebpf` | Nothing. Layer-1 (XDP) verification is design only: the `PQC_SIG_STATUS` map and its fast-path check had no caller and no writer and were removed (S-TRUE-WIRE Step 233). The draft's Phases 1-3 carry an implementation-status note |
 | `pkg/pqc_policy/` | NIST-level policy (the KEM registry in `services/sophia` went with the service, ADR-147; archived in `unheaded-role-services`) |
 
+SLH-DSA signing is hedged (since 2026-11-21): `SLHDSASigner.Sign` uses FIPS 205's randomized variant, with fresh bytes from `crypto/rand` in every signature, so two signatures over one message differ and both verify. If the random source fails, signing fails; it does not fall back to the deterministic variant, which only the package's tests can call. No production code signs with SLH-DSA yet, and nothing stores a signature, so no verifier or stored value was affected.
+
 ## Specified, not built
 
 - Service mTLS (`pkg/transport/mtls`, minimum TLS 1.2) sets no post-quantum policy. Go's TLS 1.3 default key exchange includes X25519MLKEM768 when `CurvePreferences` is unset, so Go-to-Go TLS 1.3 links get hybrid ML-KEM from the standard library, not from Unheaded code.

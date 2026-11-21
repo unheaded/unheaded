@@ -1406,7 +1406,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "db/postgresql.conf:20:postgres-tls",
+      "bom-ref": "db/postgresql.conf:18:postgres-tls",
       "name": "PostgreSQL TLS settings",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1442,7 +1442,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "db/postgresql.conf:20"
+          "value": "db/postgresql.conf:18"
         }
       ]
     },
@@ -1535,7 +1535,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "docker-compose.yml:385:postgres-image",
+      "bom-ref": "docker-compose.yml:390:postgres-image",
       "name": "PostgreSQL (postgres:16.15-alpine)",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1575,7 +1575,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "docker-compose.yml:385"
+          "value": "docker-compose.yml:390"
         }
       ]
     },
@@ -2635,7 +2635,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/crypto/pqc/slh_dsa.go:9:sig-import",
+      "bom-ref": "pkg/crypto/pqc/slh_dsa.go:11:sig-import",
       "name": "SLH-DSA (github.com/cloudflare/circl/sign/slhdsa)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -2671,7 +2671,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/slh_dsa.go:9"
+          "value": "pkg/crypto/pqc/slh_dsa.go:11"
         }
       ]
     },
