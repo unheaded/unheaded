@@ -87,3 +87,67 @@ Departures from the step's text:
 - The bar's two numbers are options (`--ratio-bar`, `--move-bar`), default bar (A).
 - Rows dropped at the Well sink are shown and never judged (the bar says the Well sink may drop).
 
+### Results (Steps 22, 24, 27, 29, 32 to 34)
+
+- Step 22: `scripts/test-logstore-measure.sh`: 47 passed, 0 failed, about 50 s. `shellcheck` on the script, its test and `scripts/well/test-logstore-budget.sh`: clean at the default severity.
+- Step 23: registered in `scripts/check-gates-can-fail.sh` (row `test-logstore-measure`, fast), `scripts/ci-local.sh` (step 13) and `.github/workflows/static-analysis.yml` (job `manifests`, beside the other stubbed tests). The plan's `git grep -n 'test-planned-stop' -- .github scripts/ci-local.sh` finds nothing today: `test-planned-stop.sh`, `test-host-state-textfile.sh` and `test-boot-event.sh` are called by no workflow and not by `ci-local.sh` (named under "Found outside the task").
+- Step 24: the provocation (`MIN_RUNS=5` to `0`) makes the test fail: `test-logstore-measure      OK — bites when provoked (exit 1)`, `PASS: 1 gate(s) proven to fail when violated`. **Run in a throwaway copy of the tree, not in the worktree**: on develop the meta-gate stops at its coverage check before any row, `FAIL: gate script(s) with no classification: well/batch-apply` (`runbooks/data/well-pg18-upgrade.yaml` names `scripts/well/batch-apply.sh`; true at `91d63e30` and at `eb9af319`). The copy carried one extra line classifying that script; the branch does not: it is not this lane's to classify. `scripts/test-check-gates-can-fail.sh` fails on develop for the same reason.
+- Step 27: red: without the script, 16 of 16 fail. Green: 16 passed.
+- Step 29, week 1's real file (numbers only):
+  - The plan's command as written (`--baseline-until 2026-11-10T19 --start 2026-11-11T12`): disk 20x to 23x; q2 **137x** to 619x; q3 391x to 1,833x; the Well's probe -9% to +33%. Two figures differ from the prepared table and both are explained: the file now holds the closing reading of 2026-11-17T18:57Z, which the prepared table was written before (its q2 ratio is 137x), and `--baseline-until 2026-11-10T19` takes two readings as the "before" (18:28Z and 18:37Z, median 0.217 ms) where the prepared table used the first (0.178 ms).
+  - With `--baseline-until 2026-11-10T18:30 --start 2026-11-11T12 --end 2026-11-17T12` (the readings the prepared table had): ClickHouse 64 to 72 and Postgres 1,454 to 1,464 bytes a row, **20x to 23x**; q1 7.0 to 30 ms against 0.727 to 0.932 ms; q2 20 to 33 ms against 4.3 to 16.1 s, **177x to 619x**; q3 13 to 23 ms against 5.1 to 31.0 s, **391x to 1,833x**; the Well's probe 0.178 ms before, 0.197 to 0.289 ms, +11% to +62%; one send over 1 s and 263 rows dropped; the copy growing 361 MB a day, 5.8 days to 4 GiB. Every figure is the prepared table's and its Python block's.
+- Step 32: `systemd-analyze verify --user` on the two units: no line.
+- Steps 33, 34: `check-spdx.sh` OK; `check-unit-start-limits.sh` PASS; `check-systemd-units.sh` PASS (70 unit files); `check-unit-ceilings.sh` OK; `check-unit-flags.sh` PASS; `check-ci-verdicts.sh` PASS; `check-manifest-yaml.sh` PASS; `check-actions-pinned.sh` PASS. `scripts/check-live-paths.sh` does not exist under that or a like name. No list needed a new entry.
+
+### Steps 37, 38: the exit gate
+
+Step 37 as the lane's rules have it: develop (`eb9af319`) was merged **into** the branch (signed); the branch was not merged into develop. That merge is the coordinator's.
+
+| The gate's line | Result |
+|---|---|
+| Six cases | green: 47 checks over the plan's six cases and three more |
+| The gate proven to fail | yes, in a copy (see Step 24): the row cannot run on develop until `well/batch-apply` is classified |
+| The reckoner agreeing with week 1's table | yes, figure for figure, on the readings the table had |
+| `$PROG` committed by name | this commit |
+| No week 1 timer runs | `systemctl --user list-timers --all` has no `logstore-measure` line; no unit copied to `~/.config/systemd/user` |
+| Nothing live has changed | nothing: no docker, sudo, store query or unit; week 1's readings file is as it was (17,435 bytes, 2026-11-17 19:07) |
+
+Also run on the merged branch: `go build ./...` and `go vet ./pkg/... ./cmd/... ./services/...` (exit 0; no Go file is touched, so no package test, no golangci-lint); `ruff` on the two Python files and `scripts/check-ruff.sh` (0 findings); `bandit` with CI's skips on the two Python files (nothing); `pytest tests/scripts` (236 passed); `shellcheck -S warning` on the five touched scripts (clean); `check-nosec-ratchet.sh` (PASS, 845, none above baseline); `check-gosec-ratchet.sh` (PASS). No migration was added: `check-well-lint.sh` not run. No generated file is affected (no binary, runbook or crypto change).
+
+LW-01: done but for the container test below. LW-02: the units are written and verified; installing them is Step 54.
+
+### For the coordinator: needs a container (not run)
+
+1. `scripts/well/test-logstore-budget.sh` (about a minute; `postgres:16.15-alpine`, no network). It is the only proof of the budget against a real psql and server: the stub test cannot evaluate `\if`, `\gset` or `statement_timeout`. **Run it before the first live reading.** If it fails, the first thing to read is whether psql printed the marker (`logstore-run-ok`) after each finished run.
+2. `scripts/check-gates-can-fail.sh --only well/test-logstore-budget` (twice the above), once `well/batch-apply` is classified; and `--only test-logstore-measure` on the real tree then.
+3. `scripts/ci-local.sh`: two new steps, "log store reading budget (throwaway Well)" and "log store reading (stubs)".
+4. Live, read only, before Step 55: that VictoriaMetrics answers the three 24 h queries with Vector's series (`curl -s -G http://127.0.0.1:8428/api/v1/query --data-urlencode 'query=count by (__name__) ({job="vector",__name__=~"vector_buffer_send_duration_seconds_count|vector_buffer_discarded_events_total|vector_component_discarded_events_total"})'`). `config/victoria/scrape.yml` keeps every series of the `vector` job, so they should be there; a reading whose `vector_record_sends_over_1s_24h` is `NA` says they are not.
+
+### Phases 2 to 7 against today's tree (a list, nothing fixed)
+
+1. **Steps 47, 61, 89: the mark's scope.** `ContainerStopped` matches a mark to the container's `name` label, which is the container's name (`unheaded_container_running{name="unheaded-logstore-writer"}`, `monitoring/prometheus/rules/containers.yml`). `planned-stop.sh logstore-writer 26h` marks nothing that rule reads; the scope is `unheaded-logstore-writer`. `ContainerStopped` is promoted in `observability/alerting/policy.yaml`, so the wrong scope puts the stopped writer in the mail.
+2. **Step 50: the counter.** Its `grep` reads `vector_component_discarded_events_total`; a full `drop_newest` buffer counts in `vector_buffer_discarded_events_total`. Read both. `VectorSinkDroppingEvents` (urgency none, not promoted) will fire for the whole baseline.
+3. **Step 40** and the plan's "Prerequisite" line still say plan 4's reboot is past; decision pack row 47 replaces that (the note is on Step 40). Plan 4's Step 175 writes "the new layout began <time>", not "new layout since"; Step 39's `grep 'new layout'` finds either. `ADR147-LIVE-RUN-ORDER.md` line 185 still reads "Not settled".
+4. **Step 41** waits on plan 2's Steps 368 and 384 (block F): today `config/vector/vector.yaml`'s `clickhouse` sink has no `batch` block and `postgres` is at 256M. Not stale; not yet true.
+5. **Step 57: "03:37Z"** was one night's time: `unheaded-well-backup.timer` is 03:30 with up to 20 minutes of random delay. Since block D three more backups run each night that week 1 did not have (Zhen 04:00, ClickHouse 04:15, VictoriaMetrics 04:45); `backup_seconds` reads the Well's unit only.
+6. **The probe's table can change size inside the week.** The Well's latency is `SELECT * FROM kanban_tasks`, and decision pack rows 34 and 58 add and change cards "after the stack is up". The row's bar is 10%. Do the card work before the baseline or after the close, or write it in `disturbances`.
+7. **Step 78 with `--start T0`** takes the reading of one hour after `T0` into the week: its 24 h counts still cover 23 hours of the baseline (the Well sink's buffer drops with the writer stopped; not a test row), and its bytes a row are over one hour of rows.
+8. **Steps 81, 82 and 89 against ADR-151** (accepted in decision pack row 23 after this plan was forged: "the measurement writer becomes the Postgres driver"). The rider's `CREATE EXTENSION pg_trgm` and two indexes are made by hand on the live Well, outside the migration ledger; Step 89's "DROP TABLE and the removal of the writer are Stevie's" should be read with that ADR.
+9. **Step 92**: `ci-local.sh` has two more steps (above). **Step 90**: `wiki/Log-Aggregation.md` now has a section, "The log store reading", to bring up to date at the close.
+10. **The ceiling date.** "About 2026-11-22 20Z" (the run order, next.md) was reckoned before the stack was stopped from 11-19 00:44Z to 11-21 17:50Z; the copy took no rows then, so the date is later, and migration 048's 14 days start dropping 11-10's partitions on 11-24.
+11. **A reading by hand (Steps 55, 69, 77)** can now take up to five Postgres sessions of `QUERY_BUDGET_S` each; Step 55's "~25m" holds only while the queries are no slower than week 1's.
+
+### Found outside the task (named, not fixed)
+
+- The meta-gate does not run on develop: `well/batch-apply` is unclassified (see Step 24). `scripts/test-check-gates-can-fail.sh` fails with it.
+- `scripts/monitoring/test-planned-stop.sh`, `test-host-state-textfile.sh` and `test-boot-event.sh` are named as the proof of three `NOT_A_GATE` rows but no workflow and no `ci-local.sh` step runs them.
+- `scripts/check-spdx.sh --langs py,sh`: 6 files without a header, all fixtures or archive (`eval/two-brains/fixtures/sh-*`, `cmd/crypto-inventory/testdata/.../setup.sh`, `docs/archive/.../S27-P0-nomenclature-fix.sh`). The default (`go,rs`) passes.
+- West's `timeout` (uutils 0.2.2) adds about 0.1 s to every command it wraps. It does not touch a measured time; it is why the stub test takes 50 s.
+
+### For Stevie
+
+1. **Which probe decides the Well's latency row.** Taken: the probe before the three queries when a file has it (the plan's G4 is the reason: the one after them follows minutes of scans in the week and none in the baseline). Both are printed with their own verdict, so the other reading is one glance away. Say if the row should rest on the old probe, or on both.
+2. **What "the five tests" of row 12 are.** Taken: disk; the three queries' p95 as one test (it fails if any of the three is over 2x); the Well's latency; the backup's seconds; sends over 1 s on the record sink. The bar as chosen on 2026-11-10 names these five ("2x disk, 2x query p95, under 10% on the Well's p95 and backup time, zero stalls"). Rows dropped at the Well sink are not a test.
+3. **The stall test reads the 24 h count** when the file has it (the cumulative counter starts again at each Vector start and carries anything from before the week). Say if a stall before `T0` in the same Vector run should count.
+4. **Two metrics more than the plan lists** (`vector_well_buffer_dropped_*`), on the reasoning under Steps 17 to 21. Nothing is judged on them.
+
