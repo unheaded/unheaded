@@ -322,6 +322,32 @@ def test_unset_budgets_are_the_defaults():
     assert not login.failures.charge('203.0.113.5', 'dev')[0]
 
 
+def test_this_front_knows_the_issuers_limits():
+    # A budget that alone reaches the issuer's lock is refused at start; that
+    # needs the issuer's numbers, which must be the issuer's.
+    assert zhen_login.ISSUER_PAIR_LOCKOUT == _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerPair')
+    assert zhen_login.ISSUER_SOURCE_LOCKOUT == _go_const('cmd/unheaded-auth/lockout.go', 'maxFailuresPerSource')
+    assert zhen_login.ISSUER_PAIR_LOCKOUT == _go_const('pkg/bff/failures.go', 'IssuerPairLockout')
+    assert zhen_login.ISSUER_SOURCE_LOCKOUT == _go_const('pkg/bff/failures.go', 'IssuerSourceLockout')
+
+
+@pytest.mark.parametrize('env', [
+    {'AUTH_BFF_USER_LOGIN_FAILURES': '10', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '12'},
+    {'AUTH_BFF_USER_LOGIN_FAILURES': '2', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '25'},
+    {'AUTH_BFF_CLIENT_LOGIN_FAILURES': '400'},
+])
+def test_a_budget_that_alone_reaches_the_issuers_limit_stops_login(env):
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={'AUTH_ISSUER_URL': 'https://issuer.test', **env})
+    assert 'issuer' in login.config_error() and 'LOGIN_FAILURES' in login.config_error()
+
+
+def test_a_budget_just_under_the_issuers_limits_is_taken():
+    login = zhen_login.Login.from_env('http://127.0.0.1:20111', environ={
+        'AUTH_ISSUER_URL': 'https://issuer.test',
+        'AUTH_BFF_USER_LOGIN_FAILURES': '9', 'AUTH_BFF_CLIENT_LOGIN_FAILURES': '24'})
+    assert login.config_error() is None
+
+
 @pytest.mark.parametrize('env', [
     {'AUTH_BFF_USER_LOGIN_FAILURES': 'many'},
     {'AUTH_BFF_USER_LOGIN_FAILURES': '0'},

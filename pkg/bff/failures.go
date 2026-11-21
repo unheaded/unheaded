@@ -41,8 +41,13 @@ const (
 	// the issuer's limits (wiki/Service-Auth.md, "Login budgets").
 	EnvClientUserLoginFailures = "AUTH_BFF_USER_LOGIN_FAILURES"
 	EnvClientLoginFailures     = "AUTH_BFF_CLIENT_LOGIN_FAILURES"
-	// maxLoginFailureBudget refuses a budget that is a typing mistake.
-	maxLoginFailureBudget = 1000
+	// IssuerPairLockout and IssuerSourceLockout are the built-in issuer's
+	// two lockout limits (cmd/unheaded-auth/lockout.go, where a test holds
+	// these copies equal to them). A front's budgets must each stay under
+	// its limit: one front that alone lets a client reach the issuer's
+	// lock protects nobody, however few other fronts share its host.
+	IssuerPairLockout   = 10
+	IssuerSourceLockout = 25
 )
 
 // loginBudgets resolves a Config's two budgets: zero means the default.
@@ -53,9 +58,16 @@ func loginBudgets(perUser, perClient int) (int, int, error) {
 	if perClient == 0 {
 		perClient = DefaultClientLoginFailures
 	}
-	if perUser < 1 || perClient < perUser || perClient > maxLoginFailureBudget {
-		return 0, 0, fmt.Errorf("bff: login failure budgets %d per username and %d per client: want 1 <= per username <= per client <= %d (%s, %s)",
-			perUser, perClient, maxLoginFailureBudget, EnvClientUserLoginFailures, EnvClientLoginFailures)
+	if perUser < 1 || perClient < perUser {
+		return 0, 0, fmt.Errorf("bff: login failure budgets %d per username and %d per client: want 1 <= per username <= per client (%s, %s)",
+			perUser, perClient, EnvClientUserLoginFailures, EnvClientLoginFailures)
+	}
+	// This front's budget is one of several spent from the host's address.
+	// What the others are it cannot know; that its own alone must stay
+	// under the issuer's limit it can.
+	if perUser >= IssuerPairLockout || perClient >= IssuerSourceLockout {
+		return 0, 0, fmt.Errorf("bff: login failure budgets %d per username and %d per client: each must stay under the issuer's lockout at %d and %d, and the sum over every login front on this host must too (%s, %s; wiki/Service-Auth.md, Login budgets)",
+			perUser, perClient, IssuerPairLockout, IssuerSourceLockout, EnvClientUserLoginFailures, EnvClientLoginFailures)
 	}
 	return perUser, perClient, nil
 }

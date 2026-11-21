@@ -35,6 +35,28 @@ import (
 //     it, and the list is held to the tree from three sides: every file
 //     outside Go that names the issuer key, every shipped unit and every
 //     compose service that sets it must be accounted for.
+//
+// What these tests cannot see, and so do not promise:
+//
+//   - A budget set on a host. The two keys may be set in a unit's
+//     environment file (/etc/unheaded/*.env), a drop-in, or a compose
+//     override outside the repository. The tests read the tree: they refuse
+//     an override in any shipped unit (Environment= in either spelling) or
+//     compose file, and nothing more. The sums are over the defaults; an
+//     operator who raises a budget keeps the sums (wiki/Service-Auth.md,
+//     "Login budgets").
+//   - How many copies run. A binary is one front here. Two instances of
+//     one front on a host (two dashboards, say) each keep their own count
+//     and spend twice the budget; that host's sums are its operator's too.
+//
+// One thing is refused at run time whatever the host says: a front whose
+// own budget alone reaches the issuer's limit does not start
+// (bff.IssuerPairLockout, bff.IssuerSourceLockout; held equal to the
+// issuer's constants by TestLoginFronts_TheFrontsKnowTheIssuersLimits).
+// A per-front maximum of "the issuer's limit divided by the number of
+// fronts" was considered and is not used: the budgets are not equal (the
+// Zhen app has 3 where the others have 2, by the ruling), and a front does
+// not know how many others share its host.
 
 const repoRoot = "../.."
 
@@ -223,11 +245,11 @@ func TestLoginFronts_ShippedConfigurationRunsOnlyCountedFronts(t *testing.T) {
 		}
 		base := path.Base(u)
 		for _, key := range []string{bff.EnvClientUserLoginFailures, bff.EnvClientLoginFailures} {
-			if bytes.Contains(raw, []byte("Environment="+key+"=")) {
+			if unitSets(string(raw), key) {
 				t.Errorf("%s sets %s: the sum is taken over the defaults, so a shipped unit must not move one", base, key)
 			}
 		}
-		if !bytes.Contains(raw, []byte("Environment="+issuerURLKey+"=")) {
+		if !unitSets(string(raw), issuerURLKey) {
 			continue
 		}
 		if _, ok := foreignUnit[base]; ok {
@@ -245,19 +267,103 @@ func TestLoginFronts_ShippedConfigurationRunsOnlyCountedFronts(t *testing.T) {
 		}
 	}
 
-	compose, err := fs.ReadFile(repo, "docker-compose.yml")
-	if err != nil {
-		t.Fatal(err)
+	// Every compose file in the tree: the stack's, the monitoring stack's,
+	// and the overlays under docker/.
+	files := []string{"docker-compose.yml", "monitoring/docker-compose.yml"}
+	for _, pattern := range []string{"docker-compose.*.yml", "docker/*.yml", "docker/*.yaml", "monitoring/docker-compose.*.yml"} {
+		more, err := fs.Glob(repo, pattern)
+		if err != nil {
+			t.Fatal(err)
+		}
+		files = append(files, more...)
 	}
-	for _, key := range []string{bff.EnvClientUserLoginFailures, bff.EnvClientLoginFailures} {
-		if bytes.Contains(compose, []byte(key+":")) {
-			t.Errorf("docker-compose.yml sets %s: the sum is taken over the defaults", key)
+	fronts := 0
+	for _, file := range files {
+		raw, err := fs.ReadFile(repo, file)
+		if err != nil {
+			t.Fatalf("%s: %v", file, err)
+		}
+		for _, key := range []string{bff.EnvClientUserLoginFailures, bff.EnvClientLoginFailures} {
+			if composeSets(string(raw), key) {
+				t.Errorf("%s sets %s: the sum is taken over the defaults, so a shipped compose file must not move one", file, key)
+			}
+		}
+		for _, svc := range composeServicesSetting(string(raw), issuerURLKey) {
+			fronts++
+			if !counted[svc.binary] {
+				t.Errorf("%s: service %s (binary %q) sets %s and is no counted login front (pkg/bff fronts: %v)", file, svc.name, svc.binary, issuerURLKey, sortedKeys(counted))
+			}
 		}
 	}
-	for _, svc := range composeServicesSetting(t, string(compose), issuerURLKey) {
-		if !counted[svc.binary] {
-			t.Errorf("compose service %s (binary %q) sets %s and is no counted login front (pkg/bff fronts: %v)", svc.name, svc.binary, issuerURLKey, sortedKeys(counted))
+	if fronts == 0 {
+		t.Fatalf("no compose service in %v sets %s: the reader no longer understands the files", files, issuerURLKey)
+	}
+}
+
+// unitSets reports whether a unit file sets key in an Environment= line, in
+// any of systemd's spellings: Environment=KEY=v, Environment="KEY=v", and
+// either among other assignments on the line.
+func unitSets(unit, key string) bool {
+	re := regexp.MustCompile(`(?m)^\s*Environment=(.*\s)?["']?` + regexp.QuoteMeta(key) + `=`)
+	return re.MatchString(unit)
+}
+
+// composeSets reports whether a compose file sets key in an environment
+// block, as a mapping (KEY: v) or a list item (- KEY=v, quoted or not).
+func composeSets(compose, key string) bool {
+	re := regexp.MustCompile(`(?m)^\s+(-\s*["']?)?` + regexp.QuoteMeta(key) + `\s*[:=]`)
+	return re.MatchString(compose)
+}
+
+// The readers above, on the spellings they must and must not catch.
+func TestLoginFronts_ConfigurationReaders(t *testing.T) {
+	const key = "AUTH_BFF_USER_LOGIN_FAILURES"
+	for unit, want := range map[string]bool{
+		"Environment=AUTH_BFF_USER_LOGIN_FAILURES=5":                  true,
+		`Environment="AUTH_BFF_USER_LOGIN_FAILURES=5"`:                true,
+		`Environment='AUTH_BFF_USER_LOGIN_FAILURES=5'`:                true,
+		"Environment=A=1 AUTH_BFF_USER_LOGIN_FAILURES=5":              true,
+		`Environment=A=1 "AUTH_BFF_USER_LOGIN_FAILURES=5" B=2`:        true,
+		"  Environment=AUTH_BFF_USER_LOGIN_FAILURES=5":                true,
+		"# Environment=AUTH_BFF_USER_LOGIN_FAILURES=5":                false,
+		"Environment=NOT_AUTH_BFF_USER_LOGIN_FAILURES=5":              false,
+		"# set AUTH_BFF_USER_LOGIN_FAILURES in /etc/unheaded/x.env":   false,
+		"Environment=AUTH_BFF_USER_LOGIN_FAILURES_OLD=5":              false,
+		"ExecStart=/usr/local/bin/x --AUTH_BFF_USER_LOGIN_FAILURES=5": false,
+	} {
+		if got := unitSets("[Service]\n"+unit+"\nUser=x\n", key); got != want {
+			t.Errorf("unitSets(%q) = %v, want %v", unit, got, want)
 		}
+	}
+	for line, want := range map[string]bool{
+		"      AUTH_BFF_USER_LOGIN_FAILURES: 5":         true,
+		`      AUTH_BFF_USER_LOGIN_FAILURES: "5"`:       true,
+		"      - AUTH_BFF_USER_LOGIN_FAILURES=5":        true,
+		`      - "AUTH_BFF_USER_LOGIN_FAILURES=5"`:      true,
+		"      # AUTH_BFF_USER_LOGIN_FAILURES: 5":       false,
+		"      NOT_AUTH_BFF_USER_LOGIN_FAILURES: 5":     false,
+		"      AUTH_BFF_USER_LOGIN_FAILURES_OLD: 5":     false,
+		"      X: 1  # AUTH_BFF_USER_LOGIN_FAILURES: 5": false,
+		"      - NOT_AUTH_BFF_USER_LOGIN_FAILURES=5":    false,
+	} {
+		if got := composeSets("services:\n  x:\n    environment:\n"+line+"\n", key); got != want {
+			t.Errorf("composeSets(%q) = %v, want %v", line, got, want)
+		}
+	}
+	listForm := "services:\n  board:\n    build:\n      target: kanban-app\n    environment:\n      - AUTH_ISSUER_URL=https://auth:19020\n  other:\n    environment:\n      X: 1\n"
+	got := composeServicesSetting(listForm, issuerURLKey)
+	if len(got) != 1 || got[0].name != "board" || got[0].binary != "kanban-app" {
+		t.Errorf("a service that sets the issuer key as a list item: %+v", got)
+	}
+}
+
+// pkg/bff refuses a budget that alone reaches the issuer's limit. It can
+// only do that with the issuer's numbers, which live in this package: the
+// copies it holds must be these.
+func TestLoginFronts_TheFrontsKnowTheIssuersLimits(t *testing.T) {
+	if bff.IssuerPairLockout != maxFailuresPerPair || bff.IssuerSourceLockout != maxFailuresPerSource {
+		t.Fatalf("pkg/bff holds the issuer's limits as %d and %d; they are %d and %d (lockout.go). Change both together.",
+			bff.IssuerPairLockout, bff.IssuerSourceLockout, maxFailuresPerPair, maxFailuresPerSource)
 	}
 }
 
@@ -266,8 +372,7 @@ type composeService struct{ name, binary string }
 // composeServicesSetting returns the services of a compose file whose
 // environment sets key, with the binary each builds (its build target).
 // The file is read by indentation: services are the keys at two spaces.
-func composeServicesSetting(t *testing.T, compose, key string) []composeService {
-	t.Helper()
+func composeServicesSetting(compose, key string) []composeService {
 	var (
 		out        []composeService
 		inServices bool
@@ -282,7 +387,7 @@ func composeServicesSetting(t *testing.T, compose, key string) []composeService 
 	}
 	service := regexp.MustCompile(`^  ([A-Za-z0-9_.-]+):\s*(#.*)?$`)
 	target := regexp.MustCompile(`^\s+target:\s*([A-Za-z0-9_.-]+)`)
-	setsKey := regexp.MustCompile(`^\s+` + regexp.QuoteMeta(key) + `:`)
+	setsKey := regexp.MustCompile(`^\s+(-\s*["']?)?` + regexp.QuoteMeta(key) + `\s*[:=]`)
 	for _, line := range strings.Split(compose, "\n") {
 		if !strings.HasPrefix(line, " ") && strings.TrimSpace(line) != "" && !strings.HasPrefix(line, "#") {
 			flush()
@@ -305,9 +410,6 @@ func composeServicesSetting(t *testing.T, compose, key string) []composeService 
 		}
 	}
 	flush()
-	if len(out) == 0 {
-		t.Fatalf("no compose service sets %s: the reader no longer understands the file", key)
-	}
 	return out
 }
 

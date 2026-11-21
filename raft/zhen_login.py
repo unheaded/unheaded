@@ -59,7 +59,13 @@ CLIENT_USER_FAILURES = 3
 CLIENT_FAILURES = 5
 ENV_CLIENT_USER_FAILURES = 'AUTH_BFF_USER_LOGIN_FAILURES'
 ENV_CLIENT_FAILURES = 'AUTH_BFF_CLIENT_LOGIN_FAILURES'
-MAX_FAILURE_BUDGET = 1000
+# The issuer's two lockout limits (cmd/unheaded-auth/lockout.go; a test holds
+# these equal to them). This front's own budget must stay under each: a front
+# that alone lets a client reach the issuer's lock protects nobody. That the
+# sum over every front on the host stays under them too is the operator's to
+# keep when a budget is set on a host (wiki/Service-Auth.md, Login budgets).
+ISSUER_PAIR_LOCKOUT = 10
+ISSUER_SOURCE_LOCKOUT = 25
 MAX_TRACKED_KEYS = 10000
 
 
@@ -76,9 +82,12 @@ def budgets_from_env(env):
         if not raw.isascii() or not raw.isdigit() or int(raw) < 1:
             return None, f'{key}={raw!r}: want a positive integer'
         out.append(int(raw))
-    if out[0] > out[1] or out[1] > MAX_FAILURE_BUDGET:
+    if out[0] >= ISSUER_PAIR_LOCKOUT or out[1] >= ISSUER_SOURCE_LOCKOUT:
+        return None, (f'{ENV_CLIENT_USER_FAILURES} {out[0]} and {ENV_CLIENT_FAILURES} {out[1]}: each must stay '
+                      f"under the issuer's lockout at {ISSUER_PAIR_LOCKOUT} and {ISSUER_SOURCE_LOCKOUT}")
+    if out[0] > out[1]:
         return None, (f'{ENV_CLIENT_USER_FAILURES} {out[0]} and {ENV_CLIENT_FAILURES} {out[1]}: '
-                      f'want 1 <= per username <= per client <= {MAX_FAILURE_BUDGET}')
+                      'want 1 <= per username <= per client')
     return (out[0], out[1]), None
 
 OPERATOR_ROLES = frozenset({'admin', 'operator'})

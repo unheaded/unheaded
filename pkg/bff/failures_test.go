@@ -196,3 +196,40 @@ func TestFailureBudget_BadValuesRefuseToStart(t *testing.T) {
 		t.Error("a negative budget in Config accepted")
 	}
 }
+
+// A front whose own budget reaches the issuer's limit would, alone, let one
+// client address lock a username (or everyone) for all the others behind
+// the host. It does not start, whatever file the number came from.
+func TestFailureBudget_ABudgetThatAloneReachesTheIssuersLimitRefusesToStart(t *testing.T) {
+	const is = "https://auth.example"
+	for name, tc := range map[string]struct {
+		user, client int
+		ok           bool
+	}{
+		"the defaults":                        {0, 0, true},
+		"two fronts alone on a host":          {4, 12, true},
+		"one below each limit":                {bff.IssuerPairLockout - 1, bff.IssuerSourceLockout - 1, true},
+		"per username at the issuer's limit":  {bff.IssuerPairLockout, 20, false},
+		"per client at the issuer's limit":    {2, bff.IssuerSourceLockout, false},
+		"per client far over the limit":       {2, 500, false},
+		"per username over, per client under": {bff.IssuerPairLockout + 5, bff.IssuerSourceLockout - 1, false},
+	} {
+		b, err := bff.New(bff.Config{ServiceName: svc, IssuerURL: is, ClientUserLoginFailures: tc.user, ClientLoginFailures: tc.client})
+		if err == nil {
+			b.Close()
+		}
+		if (err == nil) != tc.ok {
+			t.Errorf("%s (%d, %d): err = %v, want ok = %v", name, tc.user, tc.client, err, tc.ok)
+		}
+		if err != nil && !strings.Contains(err.Error(), "issuer") {
+			t.Errorf("%s: the error does not say why: %v", name, err)
+		}
+	}
+	t.Setenv("AUTH_ISSUER_URL", is)
+	t.Setenv(bff.EnvClientUserLoginFailures, "2")
+	t.Setenv(bff.EnvClientLoginFailures, "25")
+	if b, err := bff.New(bff.ConfigFromEnv(svc)); err == nil {
+		b.Close()
+		t.Error("a budget of 25 from the environment accepted")
+	}
+}
