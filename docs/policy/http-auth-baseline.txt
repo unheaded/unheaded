@@ -6,12 +6,18 @@
 cmd/alert-mailer/main.go
 cmd/heimdall-daemon/metrics.go
 cmd/huginn/main.go
+# cmd/logstore-writer: the row stays until ADR-151's driver work, which moves
+# the writer to pkg/auth service tokens and deletes it (ADR-151, "Notes
+# 2026-11-21"; decision pack 2026-11-18, row 41, M-207.2).
 cmd/logstore-writer/main.go
 cmd/routing-health/main.go
 cmd/steel-echo/serve.go
 cmd/syslog-relay/main.go
 cmd/upc-cartridgectl/main_linux.go
 cmd/upc-tty-bridge/main.go
+# cmd/zhen-ui-front: closed 2026-11-21: the row stays; the front terminates TLS
+# for the Zhen web UI and the app behind it does the login, so the front cannot
+# sit behind the middleware it fronts (decision pack 2026-11-18, row 41, M-207.1).
 cmd/zhen-ui-front/main.go
 deploy/sophia-eye/sophia-gateway/main.go
 pkg/httputil/pprof.go
