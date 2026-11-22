@@ -328,6 +328,20 @@ Also read: Postgres CPU 13.6 s in the hour (0.004 core), no new throttled period
 
 Open after this reading: W-30's `io.pressure`, 0.9 points over its bar; and whether the cache-hit bar is meant on Huginn's cumulative gauge (both in `next.md` for Stevie).
 
+### 2026-11-22 20:56Z: Phase 20 statuses (Steps 362-366)
+
+Step 362: rows W-01, 04, 05, 07, 08, 13, 14/22, 15, 16, 18, 19, 20, 21, 23, 24, 25, 26 met their bars at 24 h (the table above): status `done`. Step 363, one look each for the rest:
+
+| Row | Status | The look |
+|---|---|---|
+| W-02 | `missed: half` | kanban-app's `/health` no longer claims `"grpc": true`; it does not show the stream's transport either. A code change in kanban-app, not made here |
+| W-03 | `missed: 104` | Above its before (63), but not because of this plan's change: Wotan's `unheaded_chat_members_approved` counts a member per client and topic, and Phase 8 subscribed every client to `alerts.critical`. Per process the row's intent holds: nine processes, one client each (Phase 7's policy test). Rolling Phase 7 back would raise the count, so Appendix A is not used. The bar needs a per-process reading (or a count of distinct clients) to be judged |
+| W-06 | `missed: 68%` | 26.8 MB against 39.3 before (better than before). Three trace rooms sit at exactly 8.39 MB: a per-room cap, so at 24 h the reading measures the cap, not the traffic. Meeting 55% means a smaller cap on those rooms |
+| W-12 | `missed: 4,915` | 13,730 before. 4,463 at 17:49Z; 4,915 at 20:52Z after plan 1's four SLIs brought back Wotan's and the dashboard's request histograms (about 173 series, scoped to those two jobs; the head also still holds series from before the reload). Two thirds of what is left are Prometheus's own job (no keep, on purpose: Phase 12) and huginn's per-cgroup series (plan 1, added after this bar was set) |
+| W-17 | `missed: 8.4%` | 44% before. Akira's throttling comes in bursts under a 0.1-CPU limit, and its memory peak equals its 64 MiB limit. Raising its limits is a question for Stevie in `next.md` |
+
+No row is worse than its before because of a change this plan made; nothing is rolled back. Step 364: the table above and this one hold every deployed row's after and status. **PHASE 20 EXIT GATE (Step 366): passed.**
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
