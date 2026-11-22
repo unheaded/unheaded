@@ -306,6 +306,28 @@ Open after this reading: W-03, W-06 and W-12 over their bars (each with its caus
 
 `cg unheaded-akira` at 17:49:33Z and 18:49:04Z: 190 of 2,255 periods throttled in the hour, **8.4%** (bar ≤ 1%; 44% before; 10.0% at 1 h). **W-17: over.** CPU used 3.98 s in the hour (0.0011 core on average) against its 0.1-CPU limit, so the throttling is bursts, not load. Also seen: `memory.peak` is exactly its 64 MiB limit and `memory.events` `max` rose 348 to 361 in the hour (13). Akira runs at its memory ceiling and is throttled in its bursts; neither limit was changed. Raw: `afters-24h-extra.txt`.
 
+### 2026-11-22: Steps 379 and 392 (W-28, W-29, W-30)
+
+24 h after plan 2's Vector batch and VictoriaMetrics limits (2026-11-21 19:20:48Z) and Postgres's restart at 2G / 1.0 CPU (19:24:44Z), with the QUIET flag set from 16:51Z. ClickHouse read at 19:22:09Z and 20:23:07Z (3,658 s apart); Postgres at 19:26:03Z and 20:23:27Z (3,444 s). Raw: `step379.txt` and `step392.txt` in the scratch directory.
+
+| Row | Reading | Bar (before) | Status |
+|---|---|---|---|
+| W-28 | 2,466 inserts in 24 h, 26.5 rows on average | ≤ 3,500 (47,386) | **met** |
+| W-28 | 908 merges in 24 h, 588 MiB merged | ≤ 5 GiB (41.9) | **met** |
+| W-28 | ClickHouse wrote 299,585,536 bytes to `sdb` in 3,658 s: 7.1 GB a day | ≤ 15 GB (71.3) | **met** |
+| W-28 | ClickHouse `io.pressure` some: 36.5 s in 3,658 s | none (27.4 s) | recorded: higher than before with a tenth of the writes |
+| W-29 | `count by (host) ({__name__=~"vector_.*"})`: one value, `host=west` (1,384 series) | one, `west` | **met** |
+| W-29 | Both series limits set; 25,358 new series in 7 days | both flags | **met** |
+| W-30 | Postgres `memory.events` `max` 0 and `oom_kill` 0 since the restart; `memory.peak` 1.06 GiB of 2G | 0 in the hour (about 640) | **met** |
+| W-30 | `unheaded_ops` `blks_read` +0 in the hour, `blks_hit` +60,732: the hour's hit ratio 1.000 | ≤ 20% of 9,993 | **met** |
+| W-30 | `huginn_pg_cache_hit_ratio{db="well-ops"}` 0.4957, then 0.4961 | ≥ 0.95 (0.683) | the hour's own ratio is 1.000 (row above); Huginn's gauge is cumulative since the stats reset, so it climbs slowly and says nothing about the hour |
+| W-30 | Postgres `io.pressure` some: 7.75 s in 3,444 s, 8.1 s an hour | ≤ 20% of 38.8 s an hour | **missed: 20.9%** (better than before, so no rollback under Step 363) |
+| W-30 | Slowest `log_events` reads, mean ms (calls): 12,595 (220), 8,506 (11), 6,860 (12), the same at both readings | no bar; plan 5 judges | recorded: no new slow read in the hour |
+
+Also read: Postgres CPU 13.6 s in the hour (0.004 core), no new throttled periods; `sdb` 56.2 GB a day for the whole host, against 104 before.
+
+Open after this reading: W-30's `io.pressure`, 0.9 points over its bar; and whether the cache-hit bar is meant on Huginn's cumulative gauge (both in `next.md` for Stevie).
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
