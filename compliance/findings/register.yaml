@@ -546,7 +546,11 @@ findings:
     plan: >-
       Not fixed in S-WIRE-HONEST: which of the two answers is a design call for Stevie. pkg/hoprules' comment now
       states the lever and its example names ring 1. Way back while it stands: set CONFIG key 4 to 0. Found by Step
-      125's security read.
+      125's security read. 2026-11-21 (decision pack 2026-11-18 row 41, M-197.2): the second answer is built.
+      `unheaded hop rules apply` refuses a require_hmac or require_retry validator with no live flow-0 entry in the
+      file or the maps (hoprules.CheckFlowZero), warns when that entry has a ttl, and `--allow-no-flow0` is the
+      operator's explicit way past it. The entry stays open and stays in hoprules.EnforceBlockers until Stevie
+      closes it on that evidence.
 
   - id: FND-027
     title: >-

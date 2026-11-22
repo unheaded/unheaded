@@ -17,6 +17,9 @@ func (*PinnedMap) KeySize() uint32 { return 0 }
 // ValueSize returns 0 off Linux.
 func (*PinnedMap) ValueSize() uint32 { return 0 }
 
+// OpenPinnedMapNamed returns ErrNotSupported off Linux.
+func OpenPinnedMapNamed(_, _ string) (*PinnedMap, error) { return nil, ErrNotSupported }
+
 // Lookup returns ErrNotSupported off Linux.
 func (*PinnedMap) Lookup([]byte) ([]byte, error) { return nil, ErrNotSupported }
 

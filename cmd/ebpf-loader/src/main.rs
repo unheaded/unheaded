@@ -152,12 +152,14 @@ fn main() -> Result<()> {
         );
     }
 
-    // Wait for signal
+    // Wait for SIGINT, SIGTERM or SIGHUP (ctrlc's `termination` feature adds
+    // the last two): systemd stops a unit with SIGTERM, and the cleanup below
+    // has to run for it too.
     let (tx, rx) = std::sync::mpsc::channel::<()>();
     ctrlc::set_handler(move || {
         let _ = tx.send(());
     })
-    .context("Failed to set Ctrl+C handler")?;
+    .context("Failed to set the signal handler")?;
     let _ = rx.recv();
 
     info!("Detaching all programs...");
@@ -405,12 +407,103 @@ fn load_monad_cpu(cli: &Cli) -> Result<Ebpf> {
 }
 
 // ---------------------------------------------------------------------------
+// Pins left by an earlier load
+// ---------------------------------------------------------------------------
+
+/// Where maps are pinned when neither --map-pin-path nor another base is given.
+const DEFAULT_PIN_BASE: &str = "/sys/fs/bpf/unheaded";
+
+/// The base directory this run pins under, if it pins at all.
+fn pin_base(cli: &Cli) -> Option<PathBuf> {
+    if !(cli.pin_maps || cli.map_pin_path.is_some()) {
+        return None;
+    }
+    Some(
+        cli.map_pin_path
+            .clone()
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_PIN_BASE)),
+    )
+}
+
+/// Refuse a pin directory that already holds something. Pins outlive the
+/// loader, and none of these objects' maps is pinned by name, so every load
+/// makes new maps: a pin found here names a map of an earlier load. Left in
+/// place it would be read (the collector, on Shield's ANAMNESIS) or written
+/// (`unheaded hop rules apply`) in place of the map the new programs use.
+/// Called before anything is parsed or attached. The loader does not remove
+/// the pins itself: another loader may be running on them.
+fn refuse_stale_pins(pin_dir: &std::path::Path) -> Result<()> {
+    let entries = match std::fs::read_dir(pin_dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(e) => {
+            return Err(e).with_context(|| format!("Failed to read {}", pin_dir.display()));
+        }
+    };
+    let mut found: Vec<PathBuf> = Vec::new();
+    for entry in entries {
+        let entry = entry.with_context(|| format!("Failed to read {}", pin_dir.display()))?;
+        found.push(entry.path());
+    }
+    found.sort();
+    let Some(first) = found.first() else {
+        return Ok(());
+    };
+    anyhow::bail!(
+        "{} was left by an earlier load ({} in {}): it names a map this load would not use, \
+         so whatever reads or writes the pin would work on the old map. Make sure no other \
+         loader is running, remove {}, and start again",
+        first.display(),
+        if found.len() == 1 {
+            "the only entry".to_string()
+        } else {
+            format!("one of {} entries", found.len())
+        },
+        pin_dir.display(),
+        pin_dir.display()
+    );
+}
+
+/// Refuse a trace_events link that points anywhere but `target`. A link to
+/// `target` itself is kept: the path is the same, and it names the new pin
+/// once this load has made it.
+fn refuse_stale_trace_link(link: &std::path::Path, target: &std::path::Path) -> Result<()> {
+    match std::fs::read_link(link) {
+        Ok(current) if current == target => Ok(()),
+        Ok(current) => anyhow::bail!(
+            "the trace_events link {} points to {}, not to {}: it was left by an earlier load \
+             and the collector would read that map. Remove the link and start again",
+            link.display(),
+            current.display(),
+            target.display()
+        ),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(e) => Err(e).with_context(|| {
+            format!(
+                "{} is in the way of the trace_events link and is not a symlink",
+                link.display()
+            )
+        }),
+    }
+}
+
+// ---------------------------------------------------------------------------
 // shield-ebpf: XDP ingress (BIRTH) + TC egress (DEATH) on boundary interface
 // ---------------------------------------------------------------------------
 
+/// Pinning is refused, not warned about (M-198.7): a pin already there, a pin
+/// that cannot be made and a trace_events link to another map are errors, as
+/// in load_hop. The collector reads Shield's ANAMNESIS through these paths, and
+/// a stale one feeds it a map no program writes.
 fn load_shield(cli: &Cli) -> Result<Ebpf> {
     let path = cli.obj_dir.join("shield-ebpf");
     info!("Loading shield-ebpf from {}", path.display());
+
+    if let Some(base) = pin_base(cli) {
+        let pin_dir = base.join("shield-ebpf");
+        refuse_stale_pins(&pin_dir)?;
+        refuse_stale_trace_link(&base.join("trace_events"), &pin_dir.join("ANAMNESIS"))?;
+    }
 
     let mut ebpf = if let Some(ref pin_path) = cli.map_pin_path {
         let shield_pin = pin_path.join("shield-ebpf");
@@ -474,36 +567,37 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
 
     info!("  shield_tc attached to {} (TC egress)", cli.interface);
 
-    // Pin ANAMNESIS ring buffer for trace-collector access
-    if cli.pin_maps || cli.map_pin_path.is_some() {
-        let pin_base = cli
-            .map_pin_path
-            .as_deref()
-            .unwrap_or(std::path::Path::new("/sys/fs/bpf/unheaded"));
+    // Pin every map, ANAMNESIS among them, for trace-collector access
+    if let Some(pin_base) = pin_base(cli) {
         let shield_pin_dir = pin_base.join("shield-ebpf");
-        std::fs::create_dir_all(&shield_pin_dir).ok();
+        std::fs::create_dir_all(&shield_pin_dir)
+            .with_context(|| format!("Failed to create {}", shield_pin_dir.display()))?;
 
         for (map_name, map) in ebpf.maps_mut() {
-            let pin = shield_pin_dir.join(map_name);
-            if pin.exists() {
-                info!("  map {} already pinned at {}", map_name, pin.display());
-            } else {
-                match map.pin(&pin) {
-                    Ok(()) => info!("  pinned map {} → {}", map_name, pin.display()),
-                    Err(e) => warn!("  failed to pin map {}: {}", map_name, e),
-                }
+            // .rodata and the like are the object's constants, not state, and
+            // bpffs refuses a dot in a name (EPERM).
+            if map_name.starts_with('.') {
+                continue;
             }
+            let pin = shield_pin_dir.join(map_name);
+            map.pin(&pin)
+                .with_context(|| format!("Failed to pin map {} at {}", map_name, pin.display()))?;
+            info!("  pinned map {} → {}", map_name, pin.display());
         }
 
-        // Create convenience symlink for trace-collector
+        // Convenience symlink for trace-collector. One that already names this
+        // path was checked before the load and now leads to the new pin.
         let anamnesis_link = pin_base.join("trace_events");
         let anamnesis_src = shield_pin_dir.join("ANAMNESIS");
-        if anamnesis_src.exists() && !anamnesis_link.exists() {
-            if let Err(e) = std::os::unix::fs::symlink(&anamnesis_src, &anamnesis_link) {
-                warn!("Failed to symlink trace_events: {}", e);
-            } else {
-                info!("  symlinked trace_events → {}", anamnesis_src.display());
-            }
+        if std::fs::read_link(&anamnesis_link).is_err() {
+            std::os::unix::fs::symlink(&anamnesis_src, &anamnesis_link).with_context(|| {
+                format!(
+                    "Failed to link {} to {}",
+                    anamnesis_link.display(),
+                    anamnesis_src.display()
+                )
+            })?;
+            info!("  symlinked trace_events → {}", anamnesis_src.display());
         }
     }
 
@@ -522,6 +616,12 @@ fn load_shield(cli: &Cli) -> Result<Ebpf> {
 fn load_hop(cli: &Cli) -> Result<Ebpf> {
     let path = cli.obj_dir.join("hop-ebpf");
     info!("Loading hop-ebpf from {}", path.display());
+
+    // The same refusal the pin loop below would give, before anything is
+    // loaded or attached.
+    if let Some(base) = pin_base(cli) {
+        refuse_stale_pins(&base.join("hop-ebpf"))?;
+    }
 
     let mut ebpf = if let Some(ref pin_path) = cli.map_pin_path {
         let hop_pin = pin_path.join("hop-ebpf");
@@ -561,11 +661,7 @@ fn load_hop(cli: &Cli) -> Result<Ebpf> {
         cli.interface, mode
     );
 
-    if cli.pin_maps || cli.map_pin_path.is_some() {
-        let pin_base = cli
-            .map_pin_path
-            .as_deref()
-            .unwrap_or(std::path::Path::new("/sys/fs/bpf/unheaded"));
+    if let Some(pin_base) = pin_base(cli) {
         let hop_pin_dir = pin_base.join("hop-ebpf");
         std::fs::create_dir_all(&hop_pin_dir)
             .with_context(|| format!("Failed to create {}", hop_pin_dir.display()))?;
@@ -591,7 +687,7 @@ fn load_hop(cli: &Cli) -> Result<Ebpf> {
 // ---------------------------------------------------------------------------
 
 fn pin_all_maps(handles: &mut [(&str, Ebpf)]) -> Result<()> {
-    let base = PathBuf::from("/sys/fs/bpf/unheaded");
+    let base = PathBuf::from(DEFAULT_PIN_BASE);
     std::fs::create_dir_all(&base).context("Failed to create /sys/fs/bpf/unheaded")?;
 
     for (name, ebpf) in handles.iter_mut() {

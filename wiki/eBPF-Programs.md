@@ -35,8 +35,43 @@ The CLI writes hop-ebpf's check maps, pinned under `/sys/fs/bpf/unheaded/hop-ebp
 
 | Command | Does |
 |---------|------|
-| `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Entries are never removed. The check mode stays as it is, so rules written while it is off do nothing. |
+| `unheaded hop rules apply --file <rules.yaml>` | Adds or replaces the validators, HMAC keys and retry entries in a rules file (`pkg/hoprules` gives the format). Without `--prune` nothing is removed. The check mode stays as it is, so rules written while it is off do nothing. |
+| `... --prune` | Off by default. After the file's entries have landed, deletes what `HOP_VALIDATORS`, `HMAC_KEYS` and `RETRY_TOKENS` hold and the file does not, validators first, and prints one `deleted` line per entry. `CONFIG` (the mode) is never pruned. The flow-0 check then reads the file alone. Deleting a validator removes a check: it happens only on this flag. |
+| `... --dry-run` | Runs every check, prints `would apply` with the counts and, with `--prune`, one `would delete` line per entry, and changes nothing. Run it before a first `--prune` on a host. |
 | `unheaded hop mode <off\|observe\|enforce>` | Sets the check mode (CONFIG key 4). `enforce` is refused until `hoprules.EnforceBlockers` is empty (today FND-031, FND-033, FND-035), and the packaged object runs enforce as observe anyway (ADR-125). |
+
+#### Flow 0 (FND-035)
+
+Shield leaves both service ids at 0, so every Shield-born packet is flow 0 (and ring 1). A validator with `require_hmac` or `require_retry` therefore fails all of them unless flow 0 has a live entry, and an enforcing hop would drop them. `hop rules apply` refuses such a file before it writes anything: each `require_hmac` validator needs an `hmac_keys` entry with `flow: 0` on its namespace, and each `require_retry` validator a `retry` entry with `flow: 0`, either in the file or already in the maps and not expired. The refusal names every validator at fault. If the entry that satisfies the check has a `ttl`, the command prints a warning: nothing renews it, and when it lapses the same packets fail. `--allow-no-flow0` skips the check, for a ring that carries no Shield-born packets; the command says on stderr that it was skipped.
+
+#### What `hop rules apply` accepts
+
+A correctly set up host passes every check below unchanged; anything else is refused before a map is opened, with a message naming the file and the reason.
+
+| File | Correct | Refused |
+|------|---------|---------|
+| Rules file (`--file`) | A regular file that its group and everyone else cannot write (`0600`, `0640`, `0644`). | Group- or world-writable (`chmod go-w` fixes it); not a regular file. |
+| Key file (`key_file:`) | A regular file of exactly 32 bytes, mode `0400` or `0600`, owned by root or by the user running the command, with one hard link, named by its real absolute path. | Any other mode or size; another user's file; a second hard link; a symlink at the file or at any directory above it (name the real path instead: on Linux the open uses `openat2` with `RESOLVE_NO_SYMLINKS`). |
+
+| Pin (`--pin-dir`/`<MAP>`), for `hop rules apply` and `hop mode` | The pin and the directory holding it are real files owned by root (or by the user running the command), closed to group and world writes, as `ebpf-loader --pin-maps` leaves them (`0755` directory, `0600` pins); and the kernel's own name for the map behind the pin is the pin's file name (`HOP_VALIDATORS`, `HMAC_KEYS`, `RETRY_TOKENS`, `CONFIG`). | A symlink at the pin or its directory; another user's pin or directory; a group- or world-writable one; a map the kernel knows under another name (a stale or wrong pin of the same sizes), with both names in the message. Directories above the pin directory are not checked. |
+
+The key file is read and checked, and its bytes go no further: the `HMAC_KEYS` entry is written with a zero key field (2026-11-21). hop-ebpf reads an entry's presence and expiry, never the key, because v0x01 carries no tag to verify (ADR-125, FND-031), so `bpftool map dump` on the pin shows no key material. The bytes return to the map the day a tag exists.
+
+A secret manager that hands out its files through a symlinked directory (`/run/secrets` under some of them) needs the directory's real path in `key_file`.
+
+### `ebpf-loader` and signals
+
+`cmd/ebpf-loader` holds the programs' link handles until it is told to stop. SIGINT, SIGTERM and SIGHUP all run the same cleanup: the handles are dropped, which detaches the programs, and the `--pid-file` is removed. Before 2026-11-21 only SIGINT did, so a unit stopped by systemd (SIGTERM) skipped the cleanup and left its PID file. SIGKILL still skips it.
+
+### `ebpf-loader` and pins left by an earlier load
+
+Pins outlive the loader: stopping it detaches the programs and leaves the pin files. None of these objects' maps is pinned by name, so the next load makes new maps, and a pin still there names a map no program writes. For `shield-ebpf` and `hop-ebpf` the loader refuses that before it parses, loads or attaches anything (since 2026-11-21 for Shield, where it used to log `already pinned` and go on):
+
+- anything already in `<pin base>/shield-ebpf/` or `<pin base>/hop-ebpf/` (the pin base is `--map-pin-path`, or `/sys/fs/bpf/unheaded` with `--pin-maps`);
+- a `<pin base>/trace_events` link that points anywhere but `<pin base>/shield-ebpf/ANAMNESIS`;
+- a map that cannot be pinned, or a link that cannot be made, after the load.
+
+The message names the pin. The loader never removes pins itself, because another loader may be running on them. Before a start, and in any deploy step that carries this loader to a host for the first time: check that no loader is running, then `rm -r` the program's pin directory (`ls /sys/fs/bpf/unheaded/shield-ebpf` shows whether there is anything to remove). No unit runs `ebpf-loader` today; it is a tool.
 
 ## Not tracing ourselves
 

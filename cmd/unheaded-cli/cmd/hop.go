@@ -6,7 +6,6 @@ package cmd
 import (
 	"flag"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -20,33 +19,82 @@ const defaultHopPinDir = "/sys/fs/bpf/unheaded/hop-ebpf"
 // hopMap is what `hop rules apply` needs from a pinned map.
 type hopMap interface {
 	Update(key, value []byte) error
+	Lookup(key []byte) ([]byte, error)
+	Iterate(fn func(key, value []byte) error) error
+	Delete(key []byte) error
 	Close() error
 }
 
-// openHopMap opens one pinned map. Tests replace it.
+// openHopMap opens one pinned map, whose file name is the map's name. The pin
+// and its directory must be root's or the caller's and closed to group and
+// world, and the kernel's name for the map must be the file's: key material
+// and rules go into whatever the pin names (pkg/ebpf.OpenPinnedMapNamed).
+// Tests replace it.
 var openHopMap = func(path string) (hopMap, error) {
-	return ebpf.OpenPinnedMap(path)
+	return ebpf.OpenPinnedMapNamed(path, filepath.Base(path))
 }
 
-// pinnedWriter is a hoprules.MapWriter over the pins in dir. A map is opened
-// the first time it is written; Close releases them all.
+// pinnedWriter is a hoprules.MapWriter and MapReader over the pins in dir. A
+// map is opened the first time it is used; Close releases them all.
 type pinnedWriter struct {
 	dir  string
 	maps map[string]hopMap
 }
 
+func (w *pinnedWriter) open(mapName string) (hopMap, error) {
+	if m, ok := w.maps[mapName]; ok {
+		return m, nil
+	}
+	m, err := openHopMap(filepath.Join(w.dir, mapName))
+	if err != nil {
+		return nil, err
+	}
+	w.maps[mapName] = m
+	return m, nil
+}
+
 // Update implements hoprules.MapWriter.
 func (w *pinnedWriter) Update(mapName string, key, value []byte) error {
-	m, ok := w.maps[mapName]
-	if !ok {
-		var err error
-		if m, err = openHopMap(filepath.Join(w.dir, mapName)); err != nil {
-			return err
-		}
-		w.maps[mapName] = m
+	m, err := w.open(mapName)
+	if err != nil {
+		return err
 	}
 	return m.Update(key, value)
 }
+
+// Lookup implements hoprules.MapReader.
+func (w *pinnedWriter) Lookup(mapName string, key []byte) ([]byte, error) {
+	m, err := w.open(mapName)
+	if err != nil {
+		return nil, err
+	}
+	return m.Lookup(key)
+}
+
+// Iterate implements hoprules.MapReader.
+func (w *pinnedWriter) Iterate(mapName string, fn func(key, value []byte) error) error {
+	m, err := w.open(mapName)
+	if err != nil {
+		return err
+	}
+	return m.Iterate(fn)
+}
+
+// Delete implements hoprules.MapPruner.
+func (w *pinnedWriter) Delete(mapName string, key []byte) error {
+	m, err := w.open(mapName)
+	if err != nil {
+		return err
+	}
+	return m.Delete(key)
+}
+
+// countingWriter is the MapWriter of a dry run: it takes every entry and
+// writes none, so Apply still encodes and counts the whole file.
+type countingWriter struct{}
+
+// Update implements hoprules.MapWriter.
+func (countingWriter) Update(string, []byte, []byte) error { return nil }
 
 // Close releases every map opened.
 func (w *pinnedWriter) Close() {
@@ -110,19 +158,34 @@ func newHopModeCommand() *Command {
 
 // newHopRulesApplyCommand creates `hop rules apply`: validators, HMAC keys and
 // retry entries from one rules file (pkg/hoprules gives the format), into
-// the maps pinned under --pin-dir. Entries are added or replaced, never
-// removed. CONFIG key 4 stays as it is, so rules written while it is 0 do
-// nothing. Needs CAP_BPF.
+// the maps pinned under --pin-dir. CONFIG key 4 stays as it is, so rules
+// written while it is 0 do nothing. Needs CAP_BPF.
+//
+// Before anything is written the file is held to FND-035's check: a
+// require_hmac or require_retry validator needs a live flow-0 entry, in the
+// file or already in the maps, because every Shield-born packet is flow 0
+// (hoprules.CheckFlowZero). --allow-no-flow0 skips it, for a ring that carries
+// no Shield-born packets.
+//
+// Entries are added or replaced. --prune, off by default, also deletes what
+// the three rule maps hold and the file does not, after the file's own
+// entries have landed, validators first; the flow-0 check then reads the file
+// alone, because the maps' other entries are about to go. --dry-run runs
+// every check, says what would be written and deleted, and changes nothing.
 func newHopRulesApplyCommand() *Command {
 	var file, pinDir string
+	var allowNoFlowZero, prune, dryRun bool
 	flags := flag.NewFlagSet("apply", flag.ContinueOnError)
 	flags.StringVar(&file, "file", "", "Rules file (YAML; see pkg/hoprules)")
 	flags.StringVar(&pinDir, "pin-dir", defaultHopPinDir, "Directory holding hop-ebpf's pinned maps")
+	flags.BoolVar(&allowNoFlowZero, "allow-no-flow0", false, "Apply a require_hmac or require_retry validator with no live flow-0 entry (it fails every Shield-born packet; FND-035)")
+	flags.BoolVar(&prune, "prune", false, "Also delete the validators, HMAC keys and retry entries the maps hold and the file does not")
+	flags.BoolVar(&dryRun, "dry-run", false, "Run every check and say what would be written and deleted; change nothing")
 
 	return &Command{
 		Name:  "apply",
-		Short: "Add or replace the entries in a rules file",
-		Usage: "unheaded hop rules apply --file <rules.yaml> [--pin-dir <dir>]",
+		Short: "Add or replace the entries in a rules file; with --prune, delete the rest",
+		Usage: "unheaded hop rules apply --file <rules.yaml> [--pin-dir <dir>] [--prune] [--dry-run] [--allow-no-flow0]",
 		Flags: flags,
 		RunFunc: func(ctx *Context, args []string) error {
 			if len(args) > 0 {
@@ -139,27 +202,80 @@ func newHopRulesApplyCommand() *Command {
 			if err != nil {
 				return err
 			}
+			clock := func() time.Duration { return now }
 			w := &pinnedWriter{dir: pinDir, maps: make(map[string]hopMap)}
 			defer w.Close()
-			done, err := hoprules.Apply(w, f, func() time.Duration { return now })
-			if err != nil {
-				return fmt.Errorf("%w (already written: %s)", err, hopApplied(done))
+
+			if allowNoFlowZero {
+				ctx.Output.WriteWarning("flow-0 check skipped (--allow-no-flow0): a require_hmac or require_retry validator in %s may fail every Shield-born packet", file)
+			} else {
+				// A pruning apply leaves the maps holding the file and nothing
+				// else, so the file must satisfy the check by itself.
+				var current hoprules.MapReader
+				if !prune {
+					current = w
+				}
+				notes, err := hoprules.CheckFlowZero(f, current, clock)
+				if err != nil {
+					return fmt.Errorf("%s: %w; or pass --allow-no-flow0 if that namespace carries no Shield-born packets", file, err)
+				}
+				for _, n := range notes {
+					ctx.Output.WriteWarning("%s", n)
+				}
 			}
-			return ctx.Output.WriteStringln("applied " + hopApplied(done))
+			var stale []hoprules.Stale
+			if prune {
+				if stale, err = hoprules.StaleEntries(f, w); err != nil {
+					return err
+				}
+			}
+
+			if dryRun {
+				would, err := hoprules.Apply(countingWriter{}, f, clock)
+				if err != nil {
+					return err
+				}
+				if err := ctx.Output.WriteStringln("would apply " + hopApplied(would)); err != nil {
+					return err
+				}
+				for _, s := range stale {
+					if err := ctx.Output.WriteStringln("would delete " + s.String()); err != nil {
+						return err
+					}
+				}
+				return ctx.Output.WriteStringln("dry run: nothing was written")
+			}
+
+			done, err := hoprules.Apply(w, f, clock)
+			if err != nil {
+				return fmt.Errorf("%w (already written: %s; nothing deleted)", err, hopApplied(done))
+			}
+			if err := ctx.Output.WriteStringln("applied " + hopApplied(done)); err != nil {
+				return err
+			}
+			if !prune {
+				return nil
+			}
+			gone, err := hoprules.Prune(w, stale)
+			if err != nil {
+				return fmt.Errorf("%w (already deleted: %s)", err, hopPruned(gone))
+			}
+			for _, s := range stale {
+				if err := ctx.Output.WriteStringln("deleted " + s.String()); err != nil {
+					return err
+				}
+			}
+			return ctx.Output.WriteStringln("pruned " + hopPruned(gone))
 		},
 	}
 }
 
-// loadHopRules parses path and reads the key files it names.
+// loadHopRules parses path, which hoprules refuses if its group or everyone
+// can write it, and reads the key files it names.
 func loadHopRules(path string) (*hoprules.File, error) {
-	fh, err := os.Open(path) // #nosec G304 -- the operator's --file
+	f, err := hoprules.ParseFile(path)
 	if err != nil {
 		return nil, err
-	}
-	defer func() { _ = fh.Close() }()
-	f, err := hoprules.Parse(fh)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", path, err)
 	}
 	if err := f.Load(); err != nil {
 		return nil, fmt.Errorf("%s: %w", path, err)
@@ -169,4 +285,8 @@ func loadHopRules(path string) (*hoprules.File, error) {
 
 func hopApplied(a hoprules.Applied) string {
 	return fmt.Sprintf("%d validators, %d HMAC keys, %d retry entries", a.Validators, a.HMACKeys, a.Retry)
+}
+
+func hopPruned(p hoprules.Pruned) string {
+	return fmt.Sprintf("%d validators, %d HMAC keys, %d retry entries", p.Validators, p.HMACKeys, p.Retry)
 }

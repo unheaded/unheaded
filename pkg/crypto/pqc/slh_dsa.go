@@ -4,7 +4,9 @@
 package pqc
 
 import (
+	"crypto/rand"
 	"fmt"
+	"io"
 
 	"github.com/cloudflare/circl/sign/slhdsa"
 )
@@ -91,15 +93,30 @@ type SLHDSASigner struct {
 	params ParameterSet
 	sk     *slhdsa.PrivateKey
 	pk     *slhdsa.PublicKey
+
+	// random is where Sign reads its per-signature randomness. Nil means
+	// crypto/rand; tests set it.
+	random io.Reader
 }
 
-// Sign produces an SLH-DSA signature over message using deterministic signing.
+// Sign produces an SLH-DSA signature over message with FIPS 205's hedged
+// variant (slh_sign with a fresh opt_rand, section 10.2): n bytes from
+// crypto/rand go into every signature, so two signatures over one message
+// differ and a fault or a repeated-message side channel has less to work
+// with than under the deterministic variant. Verification is the same for
+// both. A failed read of the random source is an error: there is no fallback
+// to deterministic signing. The deterministic variant is reachable from the
+// package's tests only, for known-answer comparisons.
 func (s *SLHDSASigner) Sign(message []byte) ([]byte, error) {
 	if s.sk == nil {
 		return nil, ErrAlgorithmNotAvailable
 	}
+	random := s.random
+	if random == nil {
+		random = rand.Reader
+	}
 	msg := slhdsa.NewMessage(message)
-	sig, err := slhdsa.SignDeterministic(s.sk, msg, nil)
+	sig, err := slhdsa.SignRandomized(s.sk, random, msg, nil)
 	if err != nil {
 		return nil, fmt.Errorf("pqc: SLH-DSA sign: %w", err)
 	}

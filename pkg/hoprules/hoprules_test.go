@@ -310,12 +310,12 @@ func TestApply_ExactBytes(t *testing.T) {
 		t.Errorf("applied = %+v, want %+v", got, want)
 	}
 
-	var key [KeySize]byte
-	copy(key[:], testKey())
+	// The key field is zeros: hop-ebpf reads presence and expiry, never the
+	// key, so the bytes stay out of the map until a tag exists (M-198.3).
 	want := []write{
 		{bpfschema.MapHMACKeys,
 			le(t, bpfschema.HMACKeyKey{FlowID: 0x2211, Namespace: 2}),
-			le(t, bpfschema.HMACKeyValue{Key: key, CreatedAt: 100, ExpiresAt: 3700})},
+			le(t, bpfschema.HMACKeyValue{CreatedAt: 100, ExpiresAt: 3700})},
 		{bpfschema.MapRetryTokens,
 			le(t, bpfschema.RetryTokenKey{FlowID: 0x2211, SrcLow48: [6]byte{0x04, 0x00, 0x03, 0x00, 0x02, 0x00}}),
 			le(t, bpfschema.RetryTokenValue{IssuedAt: 100, ExpiresAt: 160})},
@@ -331,6 +331,39 @@ func TestApply_ExactBytes(t *testing.T) {
 		if g := w.writes[i]; g.m != want[i].m || !bytes.Equal(g.key, want[i].key) || !bytes.Equal(g.value, want[i].value) {
 			t.Errorf("write %d:\n got %s %x %x\nwant %s %x %x", i, g.m, g.key, g.value, want[i].m, want[i].key, want[i].value)
 		}
+	}
+}
+
+// Nothing the writer hands to a map holds the key file's bytes, whole or in
+// part: HMAC_KEYS is readable by anyone who can open the pin, and nothing in
+// the kernel reads the key (M-198.3). The file is still read and validated.
+func TestApply_KeyBytesStayOutOfTheMaps(t *testing.T) {
+	f := loaded(t, HMACKey{Flow: 0x2211, Namespace: 2, TTL: time.Hour})
+	f.Validators = []Validator{{Hop: 7, Namespace: 2, RequireHMAC: true}}
+	var w fakeMaps
+	if _, err := Apply(&w, f, at(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	k := testKey()
+	for _, g := range w.writes {
+		for n := 4; n <= len(k); n += 4 {
+			if bytes.Contains(g.value, k[:n]) || bytes.Contains(g.value, k[len(k)-n:]) || bytes.Contains(g.key, k[:n]) {
+				t.Fatalf("%s write holds %d key bytes: %x", g.m, n, g.value)
+			}
+		}
+		if g.m == bpfschema.MapHMACKeys && !bytes.Equal(g.value[:KeySize], make([]byte, KeySize)) {
+			t.Errorf("HMAC_KEYS key field = %x, want zeros", g.value[:KeySize])
+		}
+	}
+}
+
+// An entry whose key file was never read is still refused: zeros in the map
+// do not make the file optional.
+func TestApply_ZeroKeyFieldStillNeedsTheFile(t *testing.T) {
+	var w fakeMaps
+	_, err := Apply(&w, &File{HMACKeys: []HMACKey{{KeyFile: "/k"}}}, at(time.Second))
+	if err == nil || !strings.Contains(err.Error(), "not loaded") || len(w.writes) != 0 {
+		t.Fatalf("err = %v, writes = %d", err, len(w.writes))
 	}
 }
 
