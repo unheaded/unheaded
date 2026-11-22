@@ -22,6 +22,11 @@ pub enum ExecError {
 
 pub const MAX_CYCLES_PER_TICK: u32 = 1000;
 
+/// ADR-109 D6: where a U-mode page-walk miss resolves, as in the ascend object
+/// (`D6_MISS_ADDR` in `ebpf/monad-cpu-ebpf/src/main.rs`). Outside RAM, so a
+/// load reads 0 and a store is dropped.
+pub const D6_MISS_ADDR: u32 = 0xFFFF_FFFC;
+
 /// Userspace MBC CPU emulator.
 pub struct Cpu {
     pub state: MbcCpuState,
@@ -164,7 +169,17 @@ impl Cpu {
         let pd_word_addr = (self.state.page_dir_base >> 2) as usize + pde_idx;
         let pde = self.mem_read_word(pd_word_addr);
         if (pde & mmu::PTE_PRESENT) == 0 {
+            if self.d6_user_miss() {
+                return D6_MISS_ADDR;
+            }
             return vaddr; // Page fault — return unmapped
+        }
+
+        // 4 MiB superpage leaf (ADR-074 large pages), as main.rs walks it.
+        if (pde & mmu::PTE_LEAF) != 0 {
+            let paddr = (pde & mmu::SUPERPAGE_MASK) | (vaddr & mmu::SUPERPAGE_OFFSET_MASK);
+            self.tlb[tlb_idx] = [vpn, paddr >> 12, mmu::PTE_PRESENT];
+            return paddr;
         }
 
         // Read page table entry
@@ -172,6 +187,9 @@ impl Cpu {
         let pt_word_addr = (pt_base >> 2) as usize + pte_idx;
         let pte = self.mem_read_word(pt_word_addr);
         if (pte & mmu::PTE_PRESENT) == 0 {
+            if self.d6_user_miss() {
+                return D6_MISS_ADDR;
+            }
             return vaddr; // Page fault
         }
 
@@ -181,6 +199,24 @@ impl Cpu {
         self.tlb[tlb_idx] = [vpn, pfn, pte];
 
         (pfn << 12) | offset
+    }
+
+    /// ADR-109 D6 (`d6_user_miss` in main.rs): a miss at U-mode with a page
+    /// directory goes nowhere. S-mode, and a CPU with no page directory, keep
+    /// the identity fall-through.
+    fn d6_user_miss(&self) -> bool {
+        self.state.priv_level == 3 && self.state.page_dir_base != 0
+    }
+
+    /// The address an atomic uses (`atomic_addr` in main.rs, ADR-135 D17 part
+    /// 2): translated at U-mode, physical otherwise. The ascend object
+    /// translates nothing below U-mode, so neither does this.
+    fn atomic_addr(&mut self, vaddr: u32) -> u32 {
+        if self.state.priv_level == 3 {
+            self.translate_address(vaddr)
+        } else {
+            vaddr
+        }
     }
 
     /// Flush all TLB entries (called by SYS_FLUSH_TLB).
@@ -599,7 +635,7 @@ impl Cpu {
                 // Atomic exchange: tmp=dst, dst=RAM[src+imm], RAM[src+imm]=tmp
                 let simm = imm as i16 as i32;
                 let addr = self.state.regs[src].wrapping_add(simm as u32);
-                let word_addr = (addr >> 2) as usize;
+                let word_addr = (self.atomic_addr(addr) >> 2) as usize;
                 let old = self.mem_read_word(word_addr);
                 self.mem_write_word(word_addr, self.state.regs[dst]);
                 self.state.regs[dst] = old;
@@ -609,7 +645,7 @@ impl Cpu {
                 let addr = self.state.regs[1];
                 let expected = self.state.regs[0];
                 let desired = self.state.regs[2];
-                let word_addr = (addr >> 2) as usize;
+                let word_addr = (self.atomic_addr(addr) >> 2) as usize;
                 let old = self.mem_read_word(word_addr);
                 if old == expected {
                     self.mem_write_word(word_addr, desired);
@@ -627,7 +663,9 @@ impl Cpu {
                 // interpreter will additionally emit a compiler_fence + per-CPU
                 // map flush. Per ADR-067 Decision 5.
             }
-            op::MRET => {
+            // ADR-109 D6, ADR-135 R-F1: at priv 3 MRET and SRET do not match
+            // and fall to the unknown-opcode NOP, as in the ascend object.
+            op::MRET if self.state.priv_level != 3 => {
                 // Machine-mode return. Pop MEPC into PC, restore prior priv
                 // from MSTATUS.MPP. CSR memory region per ADR-067 Decision 2.
                 // CSR addresses: MEPC = 0x341, MSTATUS = 0x300.
@@ -642,7 +680,7 @@ impl Cpu {
                 self.state.reservation_address = 0xFFFF_FFFF;
                 return Ok(());
             }
-            op::SRET => {
+            op::SRET if self.state.priv_level != 3 => {
                 // Supervisor-mode return. Pop SEPC into PC, restore prior priv
                 // from SSTATUS.SPP. CSR addresses: SEPC=0x141, SSTATUS=0x100.
                 let sepc = self.mem_read_word((0xF000 + 0x141 * 4) >> 2);
@@ -660,9 +698,9 @@ impl Cpu {
                 // Load-Reserved Word: rd = RAM[rs1]; mark rs1 as reserved.
                 // imm16 not used (RV32-A defines aq/rl bits we currently ignore).
                 let addr = self.state.regs[src];
-                let word_addr = (addr >> 2) as usize;
+                let word_addr = (self.atomic_addr(addr) >> 2) as usize;
                 self.state.regs[dst] = self.mem_read_word(word_addr);
-                self.state.reservation_address = addr;
+                self.state.reservation_address = addr; // the VA, as main.rs keeps it
             }
             op::SC_W => {
                 // Store-Conditional Word: if reservation on rs1 valid,
@@ -670,7 +708,7 @@ impl Cpu {
                 // src holds rs1 (address); imm16 holds rs2 (value source reg, 4 bits).
                 let addr = self.state.regs[src];
                 let value_reg = (imm & 0xF) as usize;
-                let word_addr = (addr >> 2) as usize;
+                let word_addr = (self.atomic_addr(addr) >> 2) as usize;
                 if self.state.reservation_address == addr {
                     self.mem_write_word(word_addr, self.state.regs[value_reg]);
                     self.state.regs[dst] = 0; // success
