@@ -871,3 +871,56 @@ Keys described in the file (comments) or on a wiki page. Grafana dashboard JSON 
 | `tomb/` | Project-Structure(row), ADR-057-Unheaded-Source-Code-Indexing, ADR-060-Zhenai-Multi-Model-Selector (+5) | none needed |
 | `tools/` | Project-Structure(row), Microservices, SBOM | none needed |
 | `wiki/` | Project-Structure(row), Protocol-Specs, Systemd-Units (+1) | none needed |
+
+## Re-audit after the fill (2026-11-22)
+
+Same reader, same rules, on `docs/doc-coverage` after commits `839d324e` (Go), `cca98446` (Rust), `f6dc6788`, `05596615`, `9ae91e36` (wiki). The tables above are the starting state and are not edited; this section is the state after.
+
+| Kind | Parts | Documented before | Documented after (reader) | After, checked by hand | Still missing |
+|---|---|---|---|---|---|
+| go | 255 | 225 (7 of them weak) | 254, none weak | 254 | 0 (the one left is `eval/two-brains/live/go-nil-map`, an eval fixture) |
+| rust-doc | 40 | 36 | 40 | 40 | 0 |
+| rust-wiki | 40 | 33 | 37 | 40 | 0 |
+| top-dirs | 50 | 42 | 50 | 50 | 0 |
+| cmd | 60 | 57 | 58 | 60 | 0 |
+| services | 16 | 16 | 16 | 16 | 0 |
+| modules | 1 | 1 | 1 | 1 | 0 |
+| units | 92 | 77 | 90 | 92 | 0 |
+| scripts (operator and gate) | 236 | 111 | 236 | 236 | 0 |
+
+"Checked by hand": parts the wiki now names in a form the reader does not match. `cmd/ebpf-collector/collector` and `ebpf/common` (named as `collector` and `common`, generic names the reader matches only by path), `crates/upc-api/fuzz` (named as `upc-api/fuzz`), `cmd/gjallarhorn-listener` (Microservices: `gjallarhorn-sender` / `-listener`), `cmd/tools` (Microservices: `tools/`), `deploy/systemd/user-1000.slice.d/50-unheaded-caps.conf` (Security: `deploy/systemd/user-1000.slice.d/`), `deploy/systemd/user/unheaded-git-mirror.service` (Well-Backups names its timer and the service's header).
+
+What changed, by kind:
+
+- **Go**: 29 packages got a package or command doc (two as `doc.go` beside generated protobuf code). Seven weak docs were fixed: the SPDX line split from the doc (huginn, demo-trace-injector, upc-tty-bridge, enkrateia, gjallarhorn, gungnir, Wotan's `signing`), and per-file comments sitting on the package clause moved off it (16 files of `trace-collector-go`, two of `heimdall-daemon`). `akira`, `heimdall-daemon` and `upc-tty-bridge` had a describing comment one blank line above `package`; the blank line is gone and the first line reads "Command NAME ...". `gofmt` rewrapped `akira`'s usage block into a code block.
+- **Rust**: `//!` docs on `upc-bootctl`, the four `lich-fuzz` targets, three `monad-mbc` fuzz targets and the LICH-015 harness.
+- **Wiki, parts**: Microservices +19 binaries; Rust-Components +objtrust, svc-token, upc-cartridge, the fuzz crates, the ebpf-collector workspace, the LICH-015 harness; Systemd-Units +the health sweep, IOC audit, module guard, Zhen switch, its module and backup units, llama, the slices; Project-Structure +cartridges, doom, modules, observability, man, security, `.github`, `.claude`, the root files.
+- **Wiki, generated and config files**: Compliance-Paperwork (framework catalogs, `baseline.yaml`, the Ansible output, the two evidence scripts), Runbooks (`MANIFEST.sha256`, `rolling-previous.sh`), Service-Wotan (proto and `generate.sh`), Project-Structure (`man/`, `.pb.go`), Log-Aggregation (ClickHouse schema and drop-ins), Observability-Backends (Grafana provisioning), Port-Registry (`configs/port-registry.yaml`).
+- **Wiki, scripts**: 30 gate scripts and 18 developer tools on Developer-Guide; the rest beside their siblings on Well-Backups, The-Well, UPC-Overview, eBPF-Programs, Zhen-AI, Overlay-Network, Containers, Host-Settings.
+- **Wiki, corrected**: Microservices no longer lists the Rust `trace-collector` (retired, `363f17bd`, DP-210) or `ebpf-exporter` (deleted, `94b919b8`, DP-401.5); Project-Structure's `raft/` row described a Python MCP server and scheduler that are retired.
+
+**Correction to the gap list above.** Its row for `references/timeline.{json,yaml,toml}` is wrong: the mirrors are written by `scripts/timeline-mirrors.py --write` (`--check` in CI), not by timeguru, and `wiki/Timeline.md` already said so. No change was needed.
+
+**Could not determine.**
+
+- The command that wrote `proto/unheaded/v1/*.pb.go`: no script or Makefile target in the tree; only the tool versions in the generated headers (`protoc-gen-go` v1.36.11, `protoc-gen-go-grpc` v1.6.1, protoc 3.21.12).
+- Whether anything outside the repository reads `configs/port-registry.yaml`; nothing inside it does.
+- Whether the older host scripts (`scripts/bare-metal/*`, `setup-host.sh`, `east-bootstrap.sh`, `deploy-alpha.sh`, `three-crowns*`) still run on today's hosts. They are described from their text and were not run.
+
+**Looked wrong, not changed** (outside this task, or a dated record):
+
+- `scripts/README.md` describes `init-project.sh`, which does not exist, and marks `setup-host.sh`, `deploy-alpha.sh`, `load-ebpf.sh` and `demo-kanban.sh` "To Implement"; all four exist.
+- `crates/lich-fuzz/Cargo.toml`'s header says the crate is at `ebpf/fuzz/` and to run `cargo +nightly fuzz -C ebpf/fuzz run`; it is at `crates/lich-fuzz/`.
+- `cmd/tools/README.md` names `pkg/anamnesis/` as a source of `anamnesis-lite`; there is no such package.
+- `scripts/verify-mbc-pipeline.sh` calls `scripts/doom-ring.sh`, which is gone, and with `load_rom.py`, `read_cpu.py` and `reset_cpu.py` uses the `doom-ring` pins the Doom runner made before it moved to `unheaded-doom`.
+- `scripts/probe-auto-grade.py` reads fixed paths under one home directory.
+- `scripts/east-bootstrap.sh` assumes NixOS on east; east runs Ubuntu.
+- `lxd/hosts/INDEX.md` says "Generated: February 26, 2026" and gives a base directory from another machine's session sandbox.
+- `docs/LIVE-PATHS.md` (generated) marks `services/timeguru` SUPERVISED, but that directory's own `main` is built by nothing: the Makefile, the Dockerfile and `scripts/build-binaries.sh` all build `services/timeguru/cmd/timeguru`.
+- `cmd/upc-bootctl/src/main.rs`'s older comment still says "skeleton with `validate` and `boot --dry-run`"; `boot` and `console` are implemented.
+- `.claude/settings.local.json` is tracked (permissions only, no credentials seen).
+- `scripts/pre-commit.sh` and `scripts/git-hooks/pre-commit` are two different pre-commit hooks; `make install-hooks` uses the second.
+- The root `CLAUDE.md` project tree lists `ebpf/packet_marker/`, `flow_tracker/`, `latency_probe/`; the directories are `packet-marker`, `flow-tracker`, `latency-probe`.
+- Several Go packages carry more than one doc comment, which `go doc` joins: `cmd/unheaded-cli/cmd` (11 files), `pkg/wotan-client` (5), `cmd/kanban-app`, `pkg/deploy/strategy`, `pkg/ebpf` and `tests/e2e` (4 each), `cmd/unheaded-cli/output` and `tomb/lich/harnesses` (3), and two each in `cmd/dashboard-backend/internal/ebpf`, `pkg/auth`, `pkg/deploy/rollback`, `pkg/health`, `services/yaldabaoth`.
+
+**Gates.** The quiet flag was up for the whole pass, so no build, test or lint was started by hand. The repository's pre-commit hook (`scripts/git-hooks/pre-commit`) ran `gofmt` and `go vet` on the packages with staged Go changes when `839d324e` was committed, and both passed after `gofmt -w cmd/akira/main.go`; it also checks rustfmt on staged Rust files and did not object to `cca98446` (it skips with a warning where rustfmt is missing). Not run: `go build ./...`, `go vet ./pkg/... ./cmd/... ./services/...`, cargo builds and clippy for the Rust files, `scripts/check-spdx.sh`.
