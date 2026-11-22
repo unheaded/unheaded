@@ -26,6 +26,46 @@ groups:
           service: dashboard-backend
           slo: dashboard
       - record: slo:good
+        expr: clamp_max((((sum(rate(unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}[5m])) / (sum(rate(unheaded_http_request_duration_seconds_count{job="wotan"}[5m])) > 0)) or on() (sum(rate(unheaded_http_request_duration_seconds_count{job="wotan"}[5m])) == bool 0)) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|wotan-latency"}) > bool time()) or on() vector(0)), 1)
+        labels:
+          service: wotan
+          slo: wotan-latency
+      - record: slo:objective
+        expr: vector(0.99)
+        labels:
+          service: wotan
+          slo: wotan-latency
+      - record: slo:good
+        expr: clamp_max((((1 - (sum(rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])) or on() vector(0)) / (sum(rate(unheaded_http_requests_total{job="wotan"}[5m])) > 0)) or on() (sum(rate(unheaded_http_requests_total{job="wotan"}[5m])) == bool 0)) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|wotan-errors"}) > bool time()) or on() vector(0)), 1)
+        labels:
+          service: wotan
+          slo: wotan-errors
+      - record: slo:objective
+        expr: vector(0.9990000000000001)
+        labels:
+          service: wotan
+          slo: wotan-errors
+      - record: slo:good
+        expr: clamp_max((((sum(rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}[5m])) / (sum(rate(unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) > 0)) or on() (sum(rate(unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) == bool 0)) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|dashboard-latency"}) > bool time()) or on() vector(0)), 1)
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+      - record: slo:objective
+        expr: vector(0.99)
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+      - record: slo:good
+        expr: clamp_max((((1 - (sum(rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])) or on() vector(0)) / (sum(rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) > 0)) or on() (sum(rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) == bool 0)) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|dashboard-errors"}) > bool time()) or on() vector(0)), 1)
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
+      - record: slo:objective
+        expr: vector(0.9990000000000001)
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
+      - record: slo:good
         expr: clamp_max(((min(huginn_pg_up)) or on() vector(0)) + ((max(unheaded_planned_stop_until_timestamp_seconds{scope=~"all|well"}) > bool time()) or on() vector(0)), 1)
         labels:
           service: postgres
@@ -119,6 +159,26 @@ groups:
         labels:
           service: dashboard-backend
           slo: dashboard
+      - record: slo:error_budget_remaining
+        expr: 1 - (1 - avg_over_time(slo:good{slo="wotan-latency"}[28d])) / 0.01
+        labels:
+          service: wotan
+          slo: wotan-latency
+      - record: slo:error_budget_remaining
+        expr: 1 - (1 - avg_over_time(slo:good{slo="wotan-errors"}[28d])) / 0.0009999999999999432
+        labels:
+          service: wotan
+          slo: wotan-errors
+      - record: slo:error_budget_remaining
+        expr: 1 - (1 - avg_over_time(slo:good{slo="dashboard-latency"}[28d])) / 0.01
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+      - record: slo:error_budget_remaining
+        expr: 1 - (1 - avg_over_time(slo:good{slo="dashboard-errors"}[28d])) / 0.0009999999999999432
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
       - record: slo:error_budget_remaining
         expr: 1 - (1 - avg_over_time(slo:good{slo="well"}[28d])) / 0.005
         labels:
@@ -250,6 +310,198 @@ groups:
           description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard-backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
           runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
           summary: 'SLO dashboard: The dashboard answers on both hosts'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1h{slo="wotan-latency"} / 0.01 > 14.4 and slo:error_ratio:5m{slo="wotan-latency"} / 0.01 > 14.4
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-latency
+          tier: fast
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="wotan"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-latency: Wotan answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:6h{slo="wotan-latency"} / 0.01 > 6 and slo:error_ratio:30m{slo="wotan-latency"} / 0.01 > 6
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-latency
+          tier: medium
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="wotan"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-latency: Wotan answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1d{slo="wotan-latency"} / 0.01 > 3 and slo:error_ratio:2h{slo="wotan-latency"} / 0.01 > 3
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-latency
+          tier: slow
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="wotan"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-latency: Wotan answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:3d{slo="wotan-latency"} / 0.01 > 1 and slo:error_ratio:6h{slo="wotan-latency"} / 0.01 > 1
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-latency
+          tier: steady
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="wotan"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-latency: Wotan answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1h{slo="wotan-errors"} / 0.0009999999999999432 > 14.4 and slo:error_ratio:5m{slo="wotan-errors"} / 0.0009999999999999432 > 14.4
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-errors
+          tier: fast
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])); docker logs unheaded-wotan --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-errors: Wotan answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:6h{slo="wotan-errors"} / 0.0009999999999999432 > 6 and slo:error_ratio:30m{slo="wotan-errors"} / 0.0009999999999999432 > 6
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-errors
+          tier: medium
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])); docker logs unheaded-wotan --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-errors: Wotan answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1d{slo="wotan-errors"} / 0.0009999999999999432 > 3 and slo:error_ratio:2h{slo="wotan-errors"} / 0.0009999999999999432 > 3
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-errors
+          tier: slow
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])); docker logs unheaded-wotan --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-errors: Wotan answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:3d{slo="wotan-errors"} / 0.0009999999999999432 > 1 and slo:error_ratio:6h{slo="wotan-errors"} / 0.0009999999999999432 > 1
+        for: 2m
+        labels:
+          service: wotan
+          slo: wotan-errors
+          tier: steady
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"wotan-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])); docker logs unheaded-wotan --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO wotan-errors: Wotan answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1h{slo="dashboard-latency"} / 0.01 > 14.4 and slo:error_ratio:5m{slo="dashboard-latency"} / 0.01 > 14.4
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+          tier: fast
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-latency: The dashboard on west answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:6h{slo="dashboard-latency"} / 0.01 > 6 and slo:error_ratio:30m{slo="dashboard-latency"} / 0.01 > 6
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+          tier: medium
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-latency: The dashboard on west answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1d{slo="dashboard-latency"} / 0.01 > 3 and slo:error_ratio:2h{slo="dashboard-latency"} / 0.01 > 3
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+          tier: slow
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-latency: The dashboard on west answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:3d{slo="dashboard-latency"} / 0.01 > 1 and slo:error_ratio:6h{slo="dashboard-latency"} / 0.01 > 1
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-latency
+          tier: steady
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-latency\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m]))) names the path.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-latency: The dashboard on west answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1h{slo="dashboard-errors"} / 0.0009999999999999432 > 14.4 and slo:error_ratio:5m{slo="dashboard-errors"} / 0.0009999999999999432 > 14.4
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
+          tier: fast
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])); docker logs unheaded-dashboard --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-errors: The dashboard on west answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:6h{slo="dashboard-errors"} / 0.0009999999999999432 > 6 and slo:error_ratio:30m{slo="dashboard-errors"} / 0.0009999999999999432 > 6
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
+          tier: medium
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])); docker logs unheaded-dashboard --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-errors: The dashboard on west answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:1d{slo="dashboard-errors"} / 0.0009999999999999432 > 3 and slo:error_ratio:2h{slo="dashboard-errors"} / 0.0009999999999999432 > 3
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
+          tier: slow
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])); docker logs unheaded-dashboard --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-errors: The dashboard on west answers 99.9% of requests without a 5xx'
+      - alert: ErrorBudgetBurn
+        expr: slo:error_ratio:3d{slo="dashboard-errors"} / 0.0009999999999999432 > 1 and slo:error_ratio:6h{slo="dashboard-errors"} / 0.0009999999999999432 > 1
+        for: 2m
+        labels:
+          service: dashboard-backend
+          slo: dashboard-errors
+          tier: steady
+          urgency: ticket
+        annotations:
+          description: 'Burning the error budget (99.9% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard-errors\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: sum by (path, status) (rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])); docker logs unheaded-dashboard --since 15m.'
+          runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
+          summary: 'SLO dashboard-errors: The dashboard on west answers 99.9% of requests without a 5xx'
       - alert: ErrorBudgetBurn
         expr: slo:error_ratio:1h{slo="well"} / 0.005 > 14.4 and slo:error_ratio:5m{slo="well"} / 0.005 > 14.4
         for: 2m

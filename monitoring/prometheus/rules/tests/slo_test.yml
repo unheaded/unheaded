@@ -15,6 +15,18 @@ tests:
         values: '1x4500'
       - series: 'up{job="dashboard-backend",instance="west"}'
         values: '1x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0+10x4500'
       - series: 'huginn_pg_up{db="unheaded_app"}'
         values: '1x4500'
       - series: 'unheaded_well_backup_last_success_timestamp_seconds'
@@ -55,6 +67,18 @@ tests:
         values: '1x4400 0x30 1x69'
       - series: 'up{job="dashboard-backend",instance="west"}'
         values: '1x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0+10x4500'
       - series: 'huginn_pg_up{db="unheaded_app"}'
         values: '1x4500'
       - series: 'unheaded_well_backup_last_success_timestamp_seconds'
@@ -121,6 +145,18 @@ tests:
         values: '1x4500'
       - series: 'up{job="dashboard-backend",instance="west"}'
         values: '1x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0+10x4500'
       - series: 'huginn_pg_up{db="unheaded_app"}'
         values: '1x4400 _x30'
       - series: 'unheaded_well_backup_last_success_timestamp_seconds'
@@ -176,6 +212,18 @@ tests:
         values: '1x4500'
       - series: 'up{job="dashboard-backend",instance="west"}'
         values: '1x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0+10x4500'
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0+10x4500'
       - series: 'huginn_pg_up{db="unheaded_app"}'
         values: '1x4500'
       - series: 'unheaded_well_backup_last_success_timestamp_seconds'
@@ -284,3 +332,165 @@ tests:
         exp_samples:
           - labels: 'slo:good{slo="wotan",service="wotan"}'
             value: 0
+
+  # ADR-147 SS4 (S-SEE-AND-SURVIVE Phase 17): latency and error SLIs, T = 0.005 s.
+  # No traffic is good; a missing 5xx series is none; half slow or half 5xx is 0.5.
+  # wotan-latency: no traffic
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0x20'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0x20'
+    promql_expr_test:
+      - expr: slo:good{slo="wotan-latency"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="wotan-latency",service="wotan"}'
+            value: 1
+
+  # wotan-latency: all fast
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0+10x20'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0+10x20'
+    promql_expr_test:
+      - expr: slo:good{slo="wotan-latency"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="wotan-latency",service="wotan"}'
+            value: 1
+
+  # wotan-latency: half slow
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}'
+        values: '0+5x20'
+      - series: 'unheaded_http_request_duration_seconds_count{job="wotan"}'
+        values: '0+10x20'
+    promql_expr_test:
+      - expr: slo:good{slo="wotan-latency"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="wotan-latency",service="wotan"}'
+            value: 0.5
+
+  # wotan-errors: no traffic
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0x20'
+    promql_expr_test:
+      - expr: slo:good{slo="wotan-errors"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="wotan-errors",service="wotan"}'
+            value: 1
+
+  # wotan-errors: traffic and no 5xx series
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0+10x20'
+    promql_expr_test:
+      - expr: slo:good{slo="wotan-errors"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="wotan-errors",service="wotan"}'
+            value: 1
+
+  # wotan-errors: half 5xx
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_requests_total{job="wotan",status="200"}'
+        values: '0+5x20'
+      - series: 'unheaded_http_requests_total{job="wotan",status="503"}'
+        values: '0+5x20'
+    promql_expr_test:
+      - expr: slo:good{slo="wotan-errors"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="wotan-errors",service="wotan"}'
+            value: 0.5
+
+  # dashboard-latency: no traffic
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0x20'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0x20'
+    promql_expr_test:
+      - expr: slo:good{slo="dashboard-latency"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="dashboard-latency",service="dashboard-backend"}'
+            value: 1
+
+  # dashboard-latency: all fast
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0+10x20'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0+10x20'
+    promql_expr_test:
+      - expr: slo:good{slo="dashboard-latency"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="dashboard-latency",service="dashboard-backend"}'
+            value: 1
+
+  # dashboard-latency: half slow
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}'
+        values: '0+5x20'
+      - series: 'unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}'
+        values: '0+10x20'
+    promql_expr_test:
+      - expr: slo:good{slo="dashboard-latency"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="dashboard-latency",service="dashboard-backend"}'
+            value: 0.5
+
+  # dashboard-errors: no traffic
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0x20'
+    promql_expr_test:
+      - expr: slo:good{slo="dashboard-errors"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="dashboard-errors",service="dashboard-backend"}'
+            value: 1
+
+  # dashboard-errors: traffic and no 5xx series
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0+10x20'
+    promql_expr_test:
+      - expr: slo:good{slo="dashboard-errors"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="dashboard-errors",service="dashboard-backend"}'
+            value: 1
+
+  # dashboard-errors: half 5xx
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="200"}'
+        values: '0+5x20'
+      - series: 'unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status="503"}'
+        values: '0+5x20'
+    promql_expr_test:
+      - expr: slo:good{slo="dashboard-errors"}
+        eval_time: 10m
+        exp_samples:
+          - labels: 'slo:good{slo="dashboard-errors",service="dashboard-backend"}'
+            value: 0.5

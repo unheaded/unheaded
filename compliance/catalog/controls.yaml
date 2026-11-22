@@ -1574,6 +1574,10 @@ controls:
     evidence:
       - {kind: slo, ref: wotan}
       - {kind: slo, ref: dashboard}
+      - {kind: slo, ref: wotan-latency}
+      - {kind: slo, ref: wotan-errors}
+      - {kind: slo, ref: dashboard-latency}
+      - {kind: slo, ref: dashboard-errors}
       - {kind: slo, ref: well}
       - {kind: slo, ref: well-backups}
       - {kind: slo, ref: overlay}

@@ -37,6 +37,44 @@ if [[ $rc -ne 1 || "$out" != *"b.yml"* ]]; then
     fail=1
 fi
 
+# Phase 17 (S-SEE-AND-SURVIVE): a series every rule pins to jobs is kept in
+# those jobs only, in a keep of their own; a bare use anywhere keeps it in all.
+got="$(python3 - "$gen" <<'PY' 2>&1
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("g", sys.argv[1])
+g = importlib.util.module_from_spec(spec); spec.loader.exec_module(g)
+e = 'sum(rate(a_total{job="w",x="1"}[5m])) / sum(b_count{job=~"w|d"}) + c + c{job="w"} + d{status=~"5.."} + label_replace(up, "x", "a_total", "", "")'
+s = g.scoped_in(e, g.names_in(e, "t"))
+print(sorted(s["a_total"]), sorted(s["b_count"]), s["c"], s["d"])
+text = "  - job_name: one\n    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)\n    # END rule-series\n  - job_name: w\n    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)\n    # END rule-series\n  - job_name: two\n    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)\n    # END rule-series"
+print(g.render_prometheus(text, {"c"}, {"a_total": {"w"}}))
+PY
+)"
+want="['w'] ['d', 'w'] None None
+  - job_name: one
+    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)
+    metric_relabel_configs: &rule_series
+      - source_labels: [__name__]
+        regex: 'c'
+        action: keep
+    # END rule-series
+  - job_name: w
+    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'a_total|c'
+        action: keep
+    # END rule-series
+  - job_name: two
+    # BEGIN rule-series (scripts/gen-prom-keep-list.py; do not edit)
+    metric_relabel_configs: *rule_series
+    # END rule-series"
+if [[ "$got" != "$want" ]]; then
+    echo "FAIL: series pinned to jobs:" >&2
+    diff <(printf '%s\n' "$want") <(printf '%s\n' "$got") >&2
+    fail=1
+fi
+
 if [[ $fail -eq 0 ]]; then
     echo "test-prom-keep-list: OK"
 fi

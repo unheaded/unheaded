@@ -318,6 +318,60 @@ slos:
       up{job="dashboard-backend"} says which host; curl :20000/health there;
       it needs Wotan, so check the wotan SLO first.
 
+  # ADR-147 SS4 (A, pack row 14): T = 0.005 s, the smallest bucket bound at or
+  # above 3x the idle p99 over 24 h (S-SEE-AND-SURVIVE Phase 17). No traffic
+  # counts as good; a missing 5xx series counts as none.
+  - name: wotan-latency
+    service: wotan
+    description: Wotan answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)
+    objective: 99.0
+    page: false
+    good: >-
+      (sum(rate(unheaded_http_request_duration_seconds_bucket{job="wotan",le="0.005"}[5m]))
+       / (sum(rate(unheaded_http_request_duration_seconds_count{job="wotan"}[5m])) > 0))
+      or on() (sum(rate(unheaded_http_request_duration_seconds_count{job="wotan"}[5m])) == bool 0)
+    checks: >-
+      histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="wotan"}[5m]))) names the path.
+
+  - name: wotan-errors
+    service: wotan
+    description: Wotan answers 99.9% of requests without a 5xx
+    objective: 99.9
+    page: false
+    good: >-
+      (1 - (sum(rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])) or on() vector(0))
+           / (sum(rate(unheaded_http_requests_total{job="wotan"}[5m])) > 0))
+      or on() (sum(rate(unheaded_http_requests_total{job="wotan"}[5m])) == bool 0)
+    checks: >-
+      sum by (path, status) (rate(unheaded_http_requests_total{job="wotan",status=~"5.."}[5m])); docker logs unheaded-wotan --since 15m.
+
+  # ADR-147 SS4 (A, pack row 14): T = 0.005 s, the smallest bucket bound at or
+  # above 3x the idle p99 over 24 h (S-SEE-AND-SURVIVE Phase 17). No traffic
+  # counts as good; a missing 5xx series counts as none.
+  - name: dashboard-latency
+    service: dashboard-backend
+    description: The dashboard on west answers 99% of requests in under 0.005 s (ADR-147 SS4, 3x idle p99)
+    objective: 99.0
+    page: false
+    good: >-
+      (sum(rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",le="0.005"}[5m]))
+       / (sum(rate(unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) > 0))
+      or on() (sum(rate(unheaded_http_request_duration_seconds_count{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) == bool 0)
+    checks: >-
+      histogram_quantile(0.99, sum by (le, path) (rate(unheaded_http_request_duration_seconds_bucket{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m]))) names the path.
+
+  - name: dashboard-errors
+    service: dashboard-backend
+    description: The dashboard on west answers 99.9% of requests without a 5xx
+    objective: 99.9
+    page: false
+    good: >-
+      (1 - (sum(rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])) or on() vector(0))
+           / (sum(rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) > 0))
+      or on() (sum(rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}[5m])) == bool 0)
+    checks: >-
+      sum by (path, status) (rate(unheaded_http_requests_total{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000",status=~"5.."}[5m])); docker logs unheaded-dashboard --since 15m.
+
   - name: well
     service: postgres
     description: The Well accepts connections for every database

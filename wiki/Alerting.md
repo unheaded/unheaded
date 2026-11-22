@@ -13,7 +13,7 @@ Only an SLO burning its error budget notifies anyone (ADR-100). Everything else 
 
 After an edit: `go run ./cmd/alert-policy` regenerates `monitoring/prometheus/rules/slo.yml` and `monitoring/alertmanager/alertmanager.yml`. CI fails if they are stale, or if a hand-written rule is not `urgency: none`. Then restart Prometheus and Alertmanager: `cd monitoring && sudo docker compose up -d --force-recreate prometheus alertmanager alert-mailer`.
 
-**Prometheus keeps what its rules read (ADR-147 decisions 9, 10).** Every scrape job in `monitoring/prometheus/prometheus.yml` but `prometheus` and `alert-mailer` carries a `metric_relabel_configs` keep generated from the rules (`monitoring/prometheus/rule-series.txt`, 42 series on 2026-11-15); 30 days of those, nothing else. After adding a rule that reads a new series: `python3 scripts/gen-prom-keep-list.py`. `scripts/check-prometheus-rules.sh` runs `--check` first and fails until you do; a reader of Prometheus' own API that needs a series no rule reads lists it in `monitoring/prometheus/keep-extra.txt`. `up` and `scrape_*` are made by Prometheus and always kept.
+**Prometheus keeps what its rules read (ADR-147 decisions 9, 10).** Every scrape job in `monitoring/prometheus/prometheus.yml` but `prometheus` and `alert-mailer` carries a `metric_relabel_configs` keep generated from the rules (`monitoring/prometheus/rule-series.txt`, 42 series on 2026-11-15); 30 days of those, nothing else. After adding a rule that reads a new series: `python3 scripts/gen-prom-keep-list.py`. `scripts/check-prometheus-rules.sh` runs `--check` first and fails until you do; a reader of Prometheus' own API that needs a series no rule reads lists it in `monitoring/prometheus/keep-extra.txt`. A series every rule names with a `job` matcher (`job="wotan"`, `job=~"a|b"`) is kept only in those jobs, which then carry their own keep instead of the shared one (2026-11-22: the latency and error SLIs read only Wotan's and the dashboard's request histograms; the list file marks these `# only in job ...`). The `job` label must be the scrape job's name: a job that rewrites it would lose the series. `up` and `scrape_*` are made by Prometheus and always kept.
 
 ## Urgency
 
@@ -57,6 +57,10 @@ To tune it, edit the `mailer:` block and restart the mailer (no regeneration: th
 |---|---|---|---|
 | wotan | Wotan `up` on west and east | 99.5% | yes |
 | dashboard | dashboard-backend `up` on west and east | 99.5% | yes |
+| wotan-latency | Wotan answers under 0.005 s (3x the idle p99 over 24 h, rounded up to a bucket bound; no traffic is good) | 99% | ticket |
+| wotan-errors | Wotan answers without a 5xx (no traffic is good) | 99.9% | ticket |
+| dashboard-latency | dashboard-backend on west answers under 0.005 s | 99% | ticket |
+| dashboard-errors | dashboard-backend on west answers without a 5xx | 99.9% | ticket |
 | well | every Well database answers (`huginn_pg_up`) | 99.5% | yes |
 | well-backups | backup and offsite under 26 h old, restore drill under 8 days | 99% | ticket |
 | overlay | west scrapes east's node_exporter over wg0 | 99% | ticket |

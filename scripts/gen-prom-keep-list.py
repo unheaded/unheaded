@@ -19,6 +19,13 @@ API, one per line, `# reader: <file>`), and writes:
     in each scrape job that has them: an anchored keep in the first, an
     alias in the rest.
 
+A series that every rule names with a `job` matcher (`job="a"` or
+`job=~"a|b"`, plain names only) is kept only in those jobs (S-SEE-AND-SURVIVE
+Phase 17: the SLIs on Wotan's and the dashboard's request histograms must not
+bring back every job's). A job with such series gets its own keep, not the
+alias. A bare name anywhere, a runbook's query or keep-extra.txt keeps it in
+every job.
+
   --print   print the names, write nothing
   --check   regenerate in memory; exit 1 with a diff when a file differs
   --rules D read rule files from D (default monitoring/prometheus/rules)
@@ -65,6 +72,50 @@ class RuleError(Exception):
     pass
 
 
+# A metric name and the label matchers right after it, strings kept whole.
+SELECTOR_RE = re.compile(r'(?<![a-zA-Z0-9_:."\'])([a-zA-Z_][a-zA-Z0-9_:]*)(\s*\{(?:[^{}"\']|"(?:[^"\\]|\\.)*"|\'(?:[^\'\\]|\\.)*\')*\})?')
+JOB_EQ_RE = re.compile(r'(?:^|[{,\s])job\s*=\s*"([a-zA-Z0-9_.-]+)"')
+JOB_RE_RE = re.compile(r'(?:^|[{,\s])job\s*=~\s*"([a-zA-Z0-9_.|-]+)"')
+
+
+def jobs_of(matchers):
+    """The jobs a selector's matchers pin it to, or None for any job."""
+    if not matchers:
+        return None
+    m = JOB_EQ_RE.search(matchers)
+    if m:
+        return {m.group(1)}
+    m = JOB_RE_RE.search(matchers)
+    if m and all(m.group(1).split("|")):
+        return set(m.group(1).split("|"))
+    return None
+
+
+def scoped_in(expr, names):
+    """For each of names in expr: the jobs every use of it is pinned to, or
+    None when one use is not pinned (kept in every job)."""
+    out = {}
+    for m in SELECTOR_RE.finditer(expr):
+        name = m.group(1)
+        if name not in names:
+            continue
+        jobs = jobs_of(m.group(2))
+        if name in out and out[name] is None:
+            continue
+        out[name] = None if jobs is None else (out.get(name) or set()) | jobs
+    for name in names - out.keys():
+        out[name] = None  # only seen inside a string: keep it everywhere
+    return out
+
+
+def merge_scopes(into, more):
+    for name, jobs in more.items():
+        if jobs is None or into.get(name, set()) is None:
+            into[name] = None
+        else:
+            into[name] = into.get(name, set()) | jobs
+
+
 def names_in(expr, where):
     """Metric names one PromQL expression reads."""
     if "__name__" in expr:
@@ -89,7 +140,7 @@ def names_in(expr, where):
     return out
 
 
-def rule_series(rules_dir):
+def rule_series(rules_dir, scopes=None):
     names = set()
     files = sorted(pathlib.Path(rules_dir).glob("*.yml"))
     if not files:
@@ -101,7 +152,10 @@ def rule_series(rules_dir):
                 expr = rule.get("expr")
                 if expr is None:
                     continue
-                names |= names_in(str(expr), f"{f.name}:{rule.get('alert') or rule.get('record')}")
+                got = names_in(str(expr), f"{f.name}:{rule.get('alert') or rule.get('record')}")
+                names |= got
+                if scopes is not None:
+                    merge_scopes(scopes, scoped_in(str(expr), got))
     return names
 
 
@@ -144,17 +198,26 @@ def extra_series(path):
     return out
 
 
-def render_list(names):
-    return HEADER + "".join(n + "\n" for n in sorted(names))
+def render_list(names, scoped=None):
+    scoped = scoped or {}
+    return HEADER + "".join(n + "\n" for n in sorted(names)) + "".join(
+        f"{n}  # only in job {', '.join(sorted(scoped[n]))}\n" for n in sorted(scoped))
 
 
-def render_prometheus(text, names):
+JOB_NAME_RE = re.compile(r"^\s*-\s*job_name:\s*['\"]?([^'\"\s]+)")
+
+
+def render_prometheus(text, names, scoped=None):
+    scoped = scoped or {}
     regex = "|".join(sorted(names))
     lines = text.split("\n")
-    out, first, i, blocks = [], True, 0, 0
+    out, first, i, blocks, job = [], True, 0, 0, None
     while i < len(lines):
         line = lines[i]
         out.append(line)
+        jm = JOB_NAME_RE.match(line)
+        if jm:
+            job = jm.group(1)
         if line.strip() == BEGIN:
             indent = line[: len(line) - len(line.lstrip())]
             j = i + 1
@@ -162,7 +225,13 @@ def render_prometheus(text, names):
                 j += 1
             if j == len(lines):
                 raise RuleError("prometheus.yml: a BEGIN rule-series marker has no END")
-            if first:
+            extra = sorted(n for n, jobs in scoped.items() if job in jobs)
+            if extra:
+                out.append(f"{indent}metric_relabel_configs:")
+                out.append(f"{indent}  - source_labels: [__name__]")
+                out.append(f"{indent}    regex: '{'|'.join(sorted(names | set(extra)))}'")
+                out.append(f"{indent}    action: keep")
+            elif first:
                 out.append(f"{indent}metric_relabel_configs: &rule_series")
                 out.append(f"{indent}  - source_labels: [__name__]")
                 out.append(f"{indent}    regex: '{regex}'")
@@ -189,7 +258,8 @@ def main():
     ap.add_argument("--check", action="store_true")
     a = ap.parse_args()
     try:
-        platform = rule_series(a.rules)
+        scopes = {}
+        platform = rule_series(a.rules, scopes)
         extra = extra_series(PROM_DIR / "keep-extra.txt")
         names = platform | runbook_series(a.runbooks) | extra
         # A module's series reach Prometheus through the module's own job,
@@ -198,9 +268,13 @@ def main():
         if a.do_print:
             print("\n".join(sorted(names)))
             return 0
+        # Pinned to jobs by every rule and read by nothing else.
+        scoped = {n: j for n, j in scopes.items() if j is not None and n in names and n not in extra}
+        scoped = {n: j for n, j in scoped.items() if n not in runbook_series(a.runbooks)}
+        names -= scoped.keys()
         want = {
-            PROM_DIR / "rule-series.txt": render_list(names),
-            PROM_DIR / "prometheus.yml": render_prometheus((PROM_DIR / "prometheus.yml").read_text(), names),
+            PROM_DIR / "rule-series.txt": render_list(names, scoped),
+            PROM_DIR / "prometheus.yml": render_prometheus((PROM_DIR / "prometheus.yml").read_text(), names, scoped),
         }
     except RuleError as e:
         print(f"gen-prom-keep-list: {e}", file=sys.stderr)
@@ -220,7 +294,7 @@ def main():
         print("gen-prom-keep-list: FAIL: a rule or a runbook reads a series the keep-list lacks, or the list is stale; run scripts/gen-prom-keep-list.py", file=sys.stderr)
         return 1
     if a.check:
-        print(f"gen-prom-keep-list: OK ({len(names)} series)")
+        print(f"gen-prom-keep-list: OK ({len(names)} series in every job, {len(scoped)} in named jobs only)")
     return 0
 
 

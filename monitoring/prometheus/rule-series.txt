@@ -36,8 +36,6 @@ prometheus_notifications_errors_total
 prometheus_remote_storage_highest_timestamp_in_seconds
 prometheus_remote_storage_queue_highest_sent_timestamp_seconds
 prometheus_remote_storage_samples_failed_total
-syslog_relay_dropped_total
-syslog_relay_unknown_sender_total
 trace_collector_batch_latency_seconds_bucket
 trace_publisher_flush_duration_seconds_bucket
 trace_publisher_flush_duration_seconds_count
@@ -66,7 +64,6 @@ unheaded_host_settings_drift_files
 unheaded_host_state_docker_ok
 unheaded_host_state_last_run_timestamp_seconds
 unheaded_kev_last_success_timestamp_seconds
-unheaded_log_lines_total
 unheaded_module_listener_guard_last_run_timestamp_seconds
 unheaded_module_listener_public_total
 unheaded_planned_stop_until_timestamp_seconds
@@ -80,9 +77,15 @@ unheaded_well_backup_last_success_timestamp_seconds
 unheaded_well_drill_last_success_timestamp_seconds
 unheaded_well_offsite_last_success_timestamp_seconds
 unheaded_wotan_topic_permission_refusals_total
-vector_buffer_byte_size
-vector_buffer_discarded_events_total
-vector_component_errors_total
-vector_component_sent_events_total
 vm_daily_series_limit_rows_dropped_total
 vm_hourly_series_limit_rows_dropped_total
+syslog_relay_dropped_total  # only in job syslog-relay
+syslog_relay_unknown_sender_total  # only in job syslog-relay
+unheaded_http_request_duration_seconds_bucket  # only in job dashboard-backend, wotan
+unheaded_http_request_duration_seconds_count  # only in job dashboard-backend, wotan
+unheaded_http_requests_total  # only in job dashboard-backend, wotan
+unheaded_log_lines_total  # only in job vector
+vector_buffer_byte_size  # only in job vector
+vector_buffer_discarded_events_total  # only in job vector
+vector_component_errors_total  # only in job vector
+vector_component_sent_events_total  # only in job vector
