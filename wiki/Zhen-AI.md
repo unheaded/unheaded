@@ -220,6 +220,21 @@ Well refused. Events also go to `audit_events` and Wotan `zhen.agent.runs`
 (`modules/zhen/prometheus/rules/zhen.yml`, loaded only while the Zhen module is on) fires when it is absent or stale for
 15 minutes; runbook `runbooks/observe/zhen-scheduler-stalled.yaml`.
 
+## Scripts
+
+| Script | What |
+|---|---|
+| `scripts/write-zhen-app-env.sh --db-host HOST:PORT` | As root: writes `/etc/unheaded/zhen-app.env` for `unheaded-zhen-app.service`, copying `APP_ZHEN_PASSWORD` from `/etc/unheaded/compose.env` without ever printing it or passing it as an argument |
+| `scripts/zhen-lan-proof.sh [--dry-run] BASE_URL` | Proves no Zhen route answers a stranger (D-01): every route in `raft/tests/zhen_routes.golden` off the open list must answer 401 or 403 bare, same-origin without a session, and cross-site |
+| `scripts/zhen-agent-preflight.sh` | `make zhen-agent-up`'s check before launch: `bin/zhen-agent`, vor at `VOR_URL`, llama-server at `LLAMA_URL`, the vor sources directory |
+| `scripts/vor-fuzz.sh` | Quick parser fuzz of vor's `GET /api/search?q=`; every input, status and body head to a CSV |
+| `scripts/session-to-runbook.py` | Turns the shell commands in a session log into a draft runbook YAML (ADR-024 Phase 3) |
+| `scripts/two-brains/author-runbook.sh CATEGORY/NAME` | The runbook authoring pipeline (S-TWO-BRAINS Step 277): local draft in an agent worktree, the repository's checker decides, Claude reviews and patches, authorship fields written by the script, status `draft` ([[Zhen-Routing]]) |
+| `scripts/two-brains/split.py TASKS` | The two-brains eval's fixed tune/hold-out split: `sha256(id) % 2` ([[Zhen-Routing]]) |
+| `scripts/run-coding-gate.sh` | The 14-prompt coding-gate eval (`eval/coding-gate/prompts.jsonl`) through `bin/zhen-rag`, greedy, raw outputs to `eval/coding-gate/results-<date>.md` for hand grading against `RUBRIC.md` |
+| `scripts/run-coding-gate-via-webui.sh`, `scripts/coding-gate-agent.sh`, `scripts/coding-gate-probe.sh`, `scripts/coding-gate-ci.sh` | The same gate through the web UI's `/api/v1/query`, through `zhen-agent`, with per-run seed and system-prompt settings, and over 5 fixed seeds with a variance band (`eval/coding-gate/CONTRIBUTING.md`) |
+| `scripts/probe-auto-grade.py`, `scripts/probe-sanitization-check.sh` | A heuristic first-pass grader for the 2026-05-02 probe runs (suggestions only; it reads fixed paths under one home directory), and a check that every adversarial finding doc under `eval/coding-gate/probe-*/` is marked `sanitized: true` |
+
 ## Vision
 
 Zhen is designed to progressively build itself and Unheaded:

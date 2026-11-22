@@ -141,6 +141,20 @@ The UPC is the Kingdom's computational-generality evidence. The Unheaded Protoco
 
 The longer-term play is that everything Unheaded does — gateway routing, drift detection, scheduler decisions, observability event correlation — eventually compiles down to MBC and runs on the UPC. The eBPF dispatch path is the only path. There is no separate userspace coordinator. The kernel ring 0 IS the application.
 
+## Scripts
+
+| Script | What |
+|---|---|
+| `scripts/ascend-linux-smoke.sh` | End-to-end smoke of the ASCEND-LINUX chain: monad-mbc tests, the BPF build, the xv6 kernel build, `upc-bootctl validate` |
+| `scripts/cross-compile.sh IN.c [OUT.mbc]` | C → RV32I ELF → MBC through `rv32i-to-mbc` |
+| `scripts/upc-mbc-patch-opcode.py` | Rewrites one opcode in a copy of an MBC image to make a hostile test image (the translator emits no atomics); `upc-bootctl`'s opcode scan refuses the result, which is the point |
+| `scripts/upc-tty-split.py` | Splits a `upc-bootctl` TTY dump into its two writers (kernel word stores, user byte stores) and prints the probe tokens |
+| `scripts/upc-rung0-assert.awk` | ADR-109 rung 0 asserter over those tokens: per-slot trapframes, pids, fork marks |
+| `scripts/lab-two-node.sh up\|down\|status` | Two "nodes" in network namespaces on one bridge, for lab work when east is not a node; evidence from it must say so |
+| `scripts/node-guard.sh arm\|renew\|disarm\|status` | Dead-man switch for lab work on a node whose one link is also the way in (east): undoes the lab from a fixed list when the peer stops answering or the lease runs out |
+| `scripts/boot-linux.sh` | Older MBC Linux path (`arch/mbc`): builds init, `/bin/sh` and a UNFS rootfs, then boots through `wotan-ctl boot` when it is installed |
+| `scripts/load_rom.py`, `scripts/read_cpu.py`, `scripts/reset_cpu.py`, `scripts/verify-mbc-pipeline.sh` | Doom-era helpers: load an MBC image into `ROM_MAP`, read or reset instance 0xDE's `CPU_MAP` entry, run the MBC assembler tests. They use the maps pinned under `/sys/fs/bpf/unheaded/doom-ring`, which the Doom runner made; it moved to `unheaded-doom`, and `verify-mbc-pipeline.sh` calls a `scripts/doom-ring.sh` this repository no longer has |
+
 ## Cross-references
 
 - [Linux on UPC](Linux-on-UPC) — ASCEND-LINUX status, Phase 0 through the ownership ladder and EVOLUTION-1

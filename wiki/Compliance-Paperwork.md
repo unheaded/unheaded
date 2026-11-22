@@ -30,6 +30,8 @@ Generated files, never edited by hand:
 | `compliance/baseline/baseline.yaml` | `go run ./cmd/compliance-evidence baseline` | the host-scoped evidence sources of `compliance/catalog/controls.yaml` and the frameworks (ADR-098); each host's `unheaded-baseline` evaluates its own entries |
 | `deploy/ansible/compliance/**` | `go run ./cmd/compliance-evidence ansible` | `compliance/remediation/fixes.yaml` (ADR-099) |
 
+Two evidence scripts read the compose file as written, not what runs, and are evidence sources, not CI gates (ADR-097): `scripts/compliance/check-edge-tls.sh [compose-file]` (UH-TLS-01: the edge redirects HTTP to HTTPS, sets a TLS 1.3 minimum and does not serve its API insecurely; written while it failed, which the dashboard shows) and `scripts/compliance/check-service-auth.sh [compose-file]` (UH-AUTHN-01: every first-party service sets `AUTH_ENABLED=true`, or carries the token variable it checks itself).
+
 ## Regenerate the SSP
 
 ```bash

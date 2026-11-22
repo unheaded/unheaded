@@ -42,3 +42,16 @@ ssh east 'sudo birdc show protocols'                  # west  BGP  up  Establish
 sudo vtysh -c 'show bfd peers brief'                  # fd00:dead:beef::2  up
 ssh east 'sudo birdc show bfd sessions'               # fd00:dead:beef::1  Up  0.300
 ```
+
+## Scripts
+
+From the S77 build-out of the overlay and the firewall lab; none runs on a timer.
+
+| Script | What |
+|---|---|
+| `scripts/wireguard/setup-wireguard.sh` | Deploys the WireGuard IPv6 overlay between west and east (keys, configs, both ends) |
+| `scripts/wireguard/verify-wireguard.sh` | Checks the overlay's health and performance from west (SSH to `east` by alias) |
+| `scripts/routing/select-routing.sh bgp-evpn\|ospf\|isis\|mpls` | Points `/etc/frr/frr.conf` at one of the `routing/` configs, validates it and prints the restart command |
+| `scripts/firewall/install-bird.sh`, `install-frr.sh` | Build and install BIRD or FRR from a source checkout (`BIRD_SRC`, default `~/tmp/bird-master`; FRR likewise) |
+| `scripts/firewall/setup-opnsense.sh`, `setup-ipfire.sh` | Post-boot configuration of an OPNsense or IPFire firewall VM: interfaces, rules, Monad Hop-by-Hop pass-through, the routing daemon |
+| `scripts/firewall/firewall-health-check.sh` | Checks both firewalls and the routing stack; API credentials come from the environment |

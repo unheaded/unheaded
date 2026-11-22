@@ -103,6 +103,14 @@ A game-day window turns chaos on with `CUIRASS_CHAOS=true` in the Cuirass enviro
 
 For NixOS-based deployments, declarative container definitions live in `nix/containers/`. These are the reference implementations — other runtimes map to equivalent security postures.
 
+## Runtime scripts
+
+| Script | What |
+|---|---|
+| `scripts/three-crowns.sh [--phase N] [--from N] [--skip-tunnel]` | Operation Three Crowns: the stack on Docker, LXD (Ubuntu and NixOS) and containerd across west and east over WireGuard and BGP, one phase script each in `scripts/three-crowns/`: `phase0-prerequisites.sh` (clean slate, build, nerdctl), `phase1-tunnel.sh` (WireGuard and BGP up), `phase2-docker.sh`, `phase3-lxd.sh`, `phase3b-nixos-lxd.sh` (west only), `phase4-containerd.sh`, `phase5-tunnel-teardown.sh`, `phase6-final-sweep.sh` (nothing left running on either host), helpers in `lib.sh`. East has no Docker or LXD, so its services run natively there |
+| `scripts/install-nerdctl.sh` | Installs nerdctl and the CNI plugins for an existing containerd |
+| `scripts/deploy-alpha.sh [--teardown] [--skip-build]` | The alpha deployment: each service in its own LXD system container on a 10.10.10.0/24 bridge. Today's deploy path is Sword through Cuirass ([[Service-Sword]]) |
+
 ---
 
 > **Source:** [nix/](../nix/) · [nix/DEPLOYMENT.md](../nix/DEPLOYMENT.md)

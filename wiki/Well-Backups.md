@@ -52,6 +52,8 @@ sudo cat /srv/backups/unheaded-well/LATEST
 ssh govan@east sudo systemctl start unheaded-well-offsite-check.service
 ```
 
+The scripts behind the units (installed as root-owned copies under `/usr/local/lib/unheaded/well/`, never run from the checkout): `scripts/db-backup.sh` (the set), `scripts/well/offsite-copy.sh` (west: verify the newest set against its `SHA256SUMS`, then SFTP it to east as `well-backup-copy`, which can add but not delete), `scripts/well/offsite-check.sh` (east: verify every set, fail if the newest is older than `WELL_OFFSITE_MAX_AGE_H`, keep the newest `WELL_OFFSITE_KEEP`), `scripts/well/restore-drill.sh [SET_DIR]` (restore a set into a throwaway container and prove it).
+
 ## Restore
 
 1. Prove the set first: `sudo /usr/local/lib/unheaded/well/restore-drill.sh /srv/backups/unheaded-well/<set>`.
@@ -88,6 +90,8 @@ Offsite: SS5 A (with plan 6, east as second home: its chroot account gets two mo
 **What a set holds.** Beside each set: `<name>.SHA256SUMS` (every file of the set), `<name>.meta.env` (ClickHouse: `NAME`, `DB`, `TABLE`, `FROM`, `CUTOFF`, `ROWS`, `IMAGE`, `BYTES`; VictoriaMetrics: `NAME`, `CUTOFF`, `SERIES`, `SNAPSHOT`, `IMAGE`, `BYTES`) and `LATEST` (0644, the newest set's name). ClickHouse's `ROWS` is `count()` `FINAL` of the logs between `CUTOFF` - 89 days and `CUTOFF` (5 minutes before the backup): inside every TTL, so merges and TTL passes in a restored copy cannot change it. VictoriaMetrics' `SERIES` is `count({__name__!=""})` at `CUTOFF` (two minutes before the snapshot).
 
 **Schedule.** `unheaded-clickhouse-backup.timer` 04:15, `unheaded-victoria-backup.timer` 04:45 (after the Well's 03:30), `unheaded-store-drill.timer` Sundays 05:40 (after the Well's drill at 05:00). All `Persistent=`.
+
+**The scripts.** `scripts/backup/clickhouse-backup.sh` and `scripts/backup/victoria-backup.sh` make one set each; `scripts/backup/clickhouse-drill.sh [set]` and `scripts/backup/victoria-drill.sh [set]` prove one (default: the set `LATEST` names); `scripts/backup/lib-disks.sh` holds what they share (the other-disk refusal, the strict `meta.env` parser, the textfile writer).
 
 **The drill.** `scripts/backup/store-drill.sh` runs both drills every time and fails if either does. Each checks the set against its checksums ("set damaged"), reads the meta through a strict parser, restores into a throwaway container of the image that made it (ClickHouse: no network, read-only, 2 GiB, scratch `/srv/backups/.drill-clickhouse`; VictoriaMetrics: 1 GiB on `127.0.0.1:26428`, scratch `/srv/backups/.drill-victoria`, no scrape config) and compares the count. A trap removes the container and the scratch.
 

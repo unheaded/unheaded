@@ -141,6 +141,19 @@ Three gates, all on west (they need root to load programs):
 
 The baseline is kernel-specific: on another kernel `check-ebpf-insns.sh` exits 2 (not comparable). CI loads every program and publishes its counts in the job summary for comparison, but the ratchet gates on west (`scripts/ci-local.sh`, `scripts/check-gates-can-fail.sh`). In CI, `check-gates-can-fail.sh` proves the gate's logic on the recorded numbers and its row says so; a host outside CI on another kernel gets a refusal, not that shortcut. `cmd/ebpf-load-check` prints `<program> OK verified N insns`.
 
+## Hand-run scripts
+
+Lab and debugging tools, run as root by hand; nothing in the stack calls them. The supervised path is `trace-collector-go` (`unheaded-trace-collector.service`) and `ebpf-loader`.
+
+| Script | What |
+|---|---|
+| `scripts/load-ebpf.sh [--dry-run] [--verbose]` | Loads packet-marker, flow-tracker, latency-probe and syscall-tracer and pins their maps under `/sys/fs/bpf/unheaded/` |
+| `scripts/unload-ebpf.sh` | Detaches XDP and the TC filters from the interface and removes the pinned programs and maps |
+| `scripts/shield-monitor.sh [SECS]` | Prints shield-ebpf's `STATS`, `ERROR_COUNTERS` and ANAMNESIS ring positions every few seconds (the Phase 10 tap-tomb lab) |
+| `scripts/stress-cannon.py` | Floods IPv6 with Monad Hop-by-Hop options through kernel UDP sockets, so the packets cross XDP and TC (`--rate`, `--mode ramp\|baseline`, `--threads`) |
+| `scripts/fast_inject.py [COUNT]` | Sends COUNT raw IPv6 frames with flow label 0xDE on an AF_PACKET socket, with no delay |
+| `scripts/ringbuf-drain.py [PIN]` | Drains a BPF ring buffer (default shield-ebpf's ANAMNESIS) without parsing, the floor for how fast a consumer can go |
+
 ## Licensing
 
 - **Aya/aya-ebpf**: MIT / Apache-2.0
