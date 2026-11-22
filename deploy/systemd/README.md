@@ -265,9 +265,10 @@ Environment=VOR_REFRESH_SETTLE_SEC=180
 TimeoutStartSec=240s
 ```
 
-If the limit is reached anyway (starts by hand count too), `UnitFailed`
-names the path unit: `unheaded-host-state` reports `unheaded-*.path` units
-and any watched unit in the `failed` state (`wiki/Systemd-Units.md`).
+If the limit is reached anyway (starts by hand count too), the path unit
+fails, and today **nothing alerts on it**: `unheaded-host-state` does not
+report `.path` units or failed oneshots yet (M-194.1's second half, not built;
+read `systemctl --failed`).
 
 Install (the account first):
 
