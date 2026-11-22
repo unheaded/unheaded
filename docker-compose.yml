@@ -638,6 +638,11 @@ services:
       # explore, Pyroscope; found in /tmp/plugins on west, 2026-11-11). No
       # dashboard uses a plugin: nothing is downloaded at run time.
       GF_PLUGINS_PREINSTALL_DISABLED: "true"
+      # No usage report and no update checks to grafana.com (M-201.2,
+      # decision pack row 41): update awareness is check-image-drift.sh's.
+      GF_ANALYTICS_REPORTING_ENABLED: "false"
+      GF_ANALYTICS_CHECK_FOR_UPDATES: "false"
+      GF_ANALYTICS_CHECK_FOR_PLUGIN_UPDATES: "false"
     volumes:
       - ./config/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
       # The provider file and the dashboards it loads (kingdom/) are one mount.
