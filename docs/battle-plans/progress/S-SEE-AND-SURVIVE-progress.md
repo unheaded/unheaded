@@ -309,3 +309,41 @@ The run order folds this phase's build and recreate into S-WASTE-OUT Steps 327-3
 | 344 | `ContainerStopped` firing: 0 |
 | 346 | The tags stay until plan 2 Step 408 |
 | 348 | **PHASE 16 EXIT GATE: passed** for every service plan 2 rebuilt. Open: wiki-server on west (plan 3 Step 256) and every east binary (plan 6). Phase 17 may start 2026-11-22 17:51Z (24 h after the rollout) |
+
+## Phase 15, 2026-11-22: mail on, four drills (Steps 318-334)
+
+Run between 06:00Z and 15:00Z (decision pack 2026-11-18 row 53) by Claude, unattended. Nothing was mailed: under `delivery: digest` each page below is an outbox line of outcome `digest`, carried by the 15:00Z digest (09:00 America/Chicago), which is the first real mail.
+
+| Step | Result |
+|---|---|
+| 318 | 06:02Z: firing only AlertPipelineHeartbeat, ComplianceFindingsOverdue, ComplianceFindingsUntriaged (urgency none, none promoted). 15 of 17 containers healthy, coredns and vector have no health check. No planned-stop mark open |
+| 319 | `e7625310` (signed): `mailer.mode: send`, `run_days.dates: ["2026-11-22"]`, the 2026-11-18 dry-run comment dropped. Written in place (inode kept: sword's mount shares the file). `alert-policy --check` passed |
+| 320 | `docker compose build alert-mailer` and `up -d --no-deps --force-recreate alert-mailer`, 06:04:05Z |
+| 321 | `send digest 24`; `"relay_configured":true`; `last_digest` 2026-11-21, so nothing was due at the start and nothing was sent |
+| 323-324 | MailPathTest posted 06:04:30Z; outbox `digest [page] MailPathTest: firing` 06:06:31Z; `sent_today` 0. **SSV-03 after: open until the 15:00Z digest shows `sent`** |
+| 325-326 | **Drill 1, SSV-01 after.** `unheaded-timeguru` stopped 06:07:57Z (the role services are gone); ContainerStopped firing after 153 s; outbox `digest [page] ContainerStopped: firing` 06:12:17Z (260 s); started 06:13:01Z, `healthy` 10 s later |
+| 328-329 | **Drill 2, SSV-02 after.** `oom=true exit=137`; MemoryKill firing after 65 s with `cgroup="system.slice"`; HostOOMKill firing (urgency none); outbox `digest [page] MemoryKill: firing` 06:16:17Z (180 s); `ssv-oom-drill` removed |
+| 330-331 | **Drill 3, SSV-08 after.** `unheaded-ssv-drill.service` (Restart=always, 5 s) from 06:16:59Z: UnitRestartLoop firing for it within 241 s, `unheaded_unit_restarts` 40; the unit stopped, reset and gone |
+| 332-333 | **Drill 4, SSV-11 after.** Mark `unheaded-alertmanager` 45m at 06:21:13Z, stopped 06:21:15Z; outbox `digest [page] alert pipeline silent` 06:40:06Z (18 min 51 s after the stop); started 06:46:16Z; `alert pipeline back` 06:47:30Z (74 s); mark ended; `healthy`. **The plan's bar, 20-23 minutes after the stop, is wrong by design, not the mailer:** `silent_after: 20m` counts from the last receipt, and receipts came every 6 minutes (06:07:32, 06:13:32, 06:19:32; then 06:47:30). Silent came 20 min 34 s after the last receipt, which is the design; from the stop it can be anywhere from 14 to 20 minutes plus one check |
+| 334 | **PHASE 15 EXIT GATE: passed**, but SSV-03 waits for the 15:00Z digest's `sent` line. 118 alerting rules loaded, 0 not `ok` |
+
+Seen during the drills:
+
+- **UnitFailed page, 06:20:11Z, `unheaded-health-sweep.service`: a true fault the drill caused.** Its 6-hourly timer ran at 06:12:29Z while Drill 1 had timeguru stopped, the sweep failed on `timeguru (:19000): HTTP 000`, and host state (since `79c63c02`, 05:00Z today) reports a failed oneshot. Re-run by hand 06:54Z: all seven services OK, `Result=success`. The digest carries the page under "Resolved".
+- AlertmanagerNotReached (urgency none) fired after Drill 4: its expression averages notifier errors over 10 minutes, so it outlasts the stop by that much.
+- ComplianceNewFinding `host-probe:west:alert-route` (urgency none): the probe asked Alertmanager while it was stopped. The probe does not read planned-stop marks, so a planned stop of a link in the alert path records a finding. Follow-up, not fixed.
+
+Rows after (series rule 15), live:
+
+| Row | After | Still open |
+|---|---|---|
+| SSV-01 | Drill 1: firing 153 s, page recorded 260 s after the stop | |
+| SSV-02 | Drill 2: firing 65 s on `system.slice`, page recorded 180 s | |
+| SSV-03 | mode `send`, `max_per_day` 24 (run day), relay configured, test page recorded | the 15:00Z digest `sent` |
+| SSV-04 | the drills' pages recorded as `[page]`: the promotions route | the mail itself |
+| SSV-05 | `run_days.dates` 2026-11-22: caps 24 / 6 live | the date comes out at Step 371 |
+| SSV-06, SSV-07 | pressure, swap and heat rules `ok`, inactive | |
+| SSV-08 | Drill 3: UnitRestartLoop firing, 40 restarts | |
+| SSV-10 | the five watcher rules `ok`; AlertmanagerNotReached fired truly after Drill 4 | |
+| SSV-11 | Drill 4: silent 20 min 34 s after the last receipt, back 74 s after the start | |
+| SSV-12, SSV-13 | TraceCollectorHighLatency and VectorSinkDroppingEvents `ok`, inactive | |
