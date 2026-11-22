@@ -251,3 +251,42 @@ Run without Stevie under DECISION-PACK-2026-11-18 rows 1, 2 and 15, each gate an
 | Z15 | The platform's set holds 4 databases and no Zhen table; Zhen has its own local set, drilled |
 
 For Stevie: your own shell's `zhen-claude` needs `WELL_ZHEN_DSN` (the same value as `WELL_APP_ZHEN_DSN` with `unheaded_zhen` for the database).
+
+## Phase 9, 2026-11-22: the switch proved off and on; every after (Steps 298-317)
+
+| Step | Time (UTC) | Result |
+|---|---|---|
+| 298 | 21:08:02 | `test-zhen-switch.sh --expect on`: pass. 6 alerts firing, all urgency none: AlertPipelineHeartbeat, ComplianceFindingsOverdue, ComplianceFindingsUntriaged, ComplianceNewFinding (`gate-script:scripts/check-crypto-inventory.sh`: the inventory was stale by three line shifts from the doc-coverage merge; regenerated, `93687f40`), LogSilence for `unheaded-sophia` and `unheaded-cuirass` (retired units) |
+| 299-300 | 21:08:10 | **Off: rc=0, took 42 s** (C1-C12 pass; C10 `app_zhen` sessions 0) |
+| 302-303 | 21:20:03 | After 11 min off: the firing set is identical to Step 298's (empty diff); `unheaded-health-sweep.service` `Result=success` |
+| 304-305 | 21:20 | Z2, Z9: unheaded-dashboard 0, unheaded-akira 0, unheaded-kanban 0, platform units 0 lines naming Zhen in the window: four `0`s, no new Z row |
+| 306-307 | 21:20:33 | **On: rc=0, took 42 s** (C1-C12 pass, C10 skipped while on). ZhenSchedulerStalled: no series at 21:27:02 |
+| 308-309 | 21:21 | D7 by pack row 7: `ioc-audit.yaml` approved (`approved_by: stevie`, `approved_at: 2026-11-18`), the manifest sealed with a key made on west (`f7ccd761`; ML-DSA-65 kid `878f87566b6d6e02`, seed `/etc/unheaded/keys/runbook-manifest.key` root 0400, public half `/etc/unheaded/zhen/runbook-manifest.pub` 0444; the seal verifies against it and a changed manifest fails). Installed, timer enabled, run once: `Result=exit-code` **with an indicator** (a finding for Stevie, below); `schedule_ioc-audit.prom` written, `unheaded_schedule_last_success_timestamp_seconds{schedule="ioc-audit"}` has a series |
+| 310 | | D8 = on (pack row 8): `enabled`, `active` |
+| 311 | | Z1 after on develop: `0`, `0`. East: with plan 6's debs |
+| 312 | | `0`, `0`, `0`, `absent`, `0`; `service-health-sweep` last success 94 s ago, `ioc-audit` 15 s; timers `2` |
+| 313-314 | | Listeners as Step 14's reference (`127.0.0.1:20103`, `:20110`, `:20111`, `:20112`, `[fd00:dead:beef::1]:20111`); `unheaded_module_listener_public_total{module="zhen"} 0`; `check-gates-can-fail.sh --only check-module-binds`: PASS (run in the plan's worktree, fast-forwarded to develop: the main checkout holds an untracked `demos/doom/` that is not this plan's, and the script refuses a dirty tree) |
+
+**ioc-audit's first run (for Stevie).** The runner shows ten lines of a step, so the report was read again by hand with the runbook's defaults (VictoriaMetrics only): one indicator, `untrusted kernel module loaded on west: spl (3)`. `spl` is Ubuntu's own ZFS (`/lib/modules/6.17.0-41-generic/kernel/zfs/spl.ko.zst` from `linux-modules-6.17.0-41-generic`, version 2.3.4-1ubuntu2, signed by the kernel's build-time key); the kernel logs "loading out-of-tree module taints kernel" for it at boot (2026-11-21 01:44:35Z), which the audit reads as untrusted. Notes, not indicators: one login `govan@west` from 192.168.69.149 by keyboard-interactive (inside the operator networks; SSHLoginNewSource fired for it in the window), 3 OOM kills on west, sudo 2,767 commands by govan and 628 by root, east ships no journal. Until Stevie decides (allow the kernel package's own modules, or set `IOC_MODULE_UNTRUSTED_IS_INDICATOR=0`), the daily run will end with exit code 1; no rule reads that code, so nothing mails.
+
+| Row | After | Status |
+|---|---|---|
+| Z1 | `0`, `0` on develop | fixed (west); east `handoff` plan 6 |
+| Z2 | module targets 2 on, 0 off (C7); no platform log line naming Zhen while off | fixed |
+| Z3 | `service-health-sweep` from its own timer, last success 94 s before the reading | fixed |
+| Z4 | rules and scrape jobs present only while on (C4-C6 both ways); `rules/zhen.yml` absent | fixed |
+| Z5 | Phase 8B: eight tables in `unheaded_zhen`, none in `unheaded_app` | fixed |
+| Z6 | listeners as the reference; public total 0; the gate proven to fail | fixed |
+| Z7 | `0` | fixed |
+| Z8 | menu entry absent off, present on (C8) | fixed |
+| Z9 | 0 lines while off | fixed |
+| Z10 | `0` | fixed |
+| Z11 | | `handoff` plan 4 (decision 12) |
+| Z12 | `ioc-audit` timer enabled, first run with one indicator (above) | fixed; the indicator `waiting on Stevie` |
+| Z13 | the sweep over every target from its unit, `Result=success` | fixed |
+| Z14 | `app_zhen` 1 session, in `unheaded_zhen`, limit 20 | fixed |
+| Z15 | platform set 4 databases, no Zhen table; Zhen's own set drilled | fixed |
+
+The switch: **off in 42 s, on in 42 s.**
+
+**PHASE 9 EXIT GATE (Step 317): passed.** Steps 300 and 307 passed; every row has an after or a written reason.
