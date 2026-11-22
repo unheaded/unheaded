@@ -432,3 +432,12 @@ Seen, not changed: a planned-stop mark is matched by SLO name, so a mark for `wo
 | SSV-26 | handed | orb's load gate: plan 8 (SS6) |
 | SSV-27 | handed | second recorder and run marker: plan 8 |
 | SSV-28 | for Stevie | `/health` answers 200 when DEGRADED, by design; `/ready` semantics are his |
+
+| Step | Result |
+|---|---|
+| 372-374 | First run (21:30Z): passed 29, failed 2. Both were fixed and committed (`b6cb30f1`). (1) `Rust Test (cmd/ebpf-collector)`: `http_join_not_approved_is_an_error` failed 4 runs in 15, on develop as on the sprint (this plan did not touch the crate). Its fake server replied and closed after one read, so a client that wrote its body separately got a reset; it now reads the whole request (30 of 30). (2) `Go Test`, `scripts/lib`: the doc-coverage merge had put a link inside `wiki/Project-Structure.md`'s crate list and a `doom/` row the move-out residue test bans. Rerun: **passed 31, failed 0**, skipped 2 (the live Well check and the live perf gate need settings on west). Both runs rewrote the tracked `sbom/` files where the Python licence lookup failed (32 "Unknown"); they were restored each time, not committed |
+| 379-380 | `wiki/Alerting.md` (the mode paragraph gains a dated sentence) and `wiki/Well-Backups.md` corrected; the other hits describe the dry-run feature, not the state |
+| 382-383 | Worktrees removed: `0` |
+| 385 | Tracked tree clean; every unpushed commit signed (below, at the plan's last commit) |
+| 386 | `"mode":"send"`; timers `4` |
+| 387 | **PHASE 19 EXIT GATE: passed.** Open with Stevie: SSV-19's `slo_definitions`, SSV-23's 401, SSV-28, SSV-25 for orion, the inbox check of SSV-03, `/var/backups/s-see-and-survive/` after 2026-11-25. No `[STUCK]`. Stevie pushes |

@@ -342,6 +342,16 @@ Step 362: rows W-01, 04, 05, 07, 08, 13, 14/22, 15, 16, 18, 19, 20, 21, 23, 24, 
 
 No row is worse than its before because of a change this plan made; nothing is rolled back. Step 364: the table above and this one hold every deployed row's after and status. **PHASE 20 EXIT GATE (Step 366): passed.**
 
+### 2026-11-22: Phase 23, close (Steps 401-414)
+
+| Step | Result |
+|---|---|
+| 401-402 | The same `ci-local.sh` run as S-SEE-AND-SURVIVE Step 374 (same tree, same command): passed 31, failed 0, skipped 2. The two failures of the first run (a collector test's race; two wiki rows from the doc-coverage merge) were fixed in `b6cb30f1` |
+| 403 | ADR-147: "Update 2026-11-22 (S-WASTE-OUT closed)", W-01 to W-31 |
+| 404-405 | The sweep: 34 hits, each a retirement note or the new `alerts.critical` text; nothing reworded |
+| 407-408 | "Handoffs", final, and "For Stevie" items 11-15, below |
+| 414 | **PHASE 23 EXIT GATE: passed.** Every row W-01 to W-31 has a status; next.md written. Stevie pushes |
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
@@ -355,6 +365,15 @@ No row is worse than its before because of a change this plan made; nothing is r
 - **Plan 3 (S-ZHEN-SWITCH), the change hold (Phase 8 Step 143):** zhen-agentd should hold an unattended run while a critical alert fires: `crit := critalert.Attach(ctx, wc, "zhen-agentd")` once, then `if held, why := crit.Hold(); held { refuse(why) }` before a run starts. Not done here because plan 3 moves those paths now.
 - **Coordinator, merge order (session 3):** this branch now also touches `scripts/check-gates-can-fail.sh` (the run loop walks registry rows, so a gate's second provocation runs: plan 12's `provoke_prom_keep_list` included; a new `provoke_unit_ceilings_compose` row), `scripts/check-unit-ceilings.sh` (compose section), `CLAUDE.md` (one ratchet line), `docker-compose.yml` (dashboard `--vm-url`; timeguru `WELL_*`, CA mount, `depends_on: postgres`; kanban `DATA_DIR`, `kanban-data` gone), `configs/wotan.yaml` (Phase 10 mirror topics out), `db/migrations/MANIFEST` (050, before plan 3's 051-053), `compliance/crypto/cbom.cdx.json` (regenerate after the merge). `scripts/check-well-lint.sh --update` can lower the Well-lint baseline (findings went down); not run here because siblings touch the same baseline.
 - **Plan 3 (S-ZHEN-SWITCH):** the same Akira target list and `config/dashboard/services.txt` lost architect, captain, micromanager, monad, sophia and cuirass; keep both sides.
+
+### Final, 2026-11-22 (Step 407)
+
+- **Plan 1:** the stopped-container rule reads host state's watched list, which no longer has the six removed containers. `AuditWriteFailing` (`rules/compliance.yml`) and `VictoriaMetricsSeriesLimitReached` (`rules/watchers.yml`) exist, urgency none. Plan 1 closed 2026-11-22.
+- **Plan 3:** Akira's default targets lost `zhenai` (Z1 after `0`); zhen-agentd's hold on `alerts.critical` is the line above (Phase 8 Step 143). Plan 3's Phase 8B and Phase 9 ran 2026-11-22.
+- **Plan 4:** images tagged `:pre-s-waste-out` stay until 3 days of green (2026-11-24 at the earliest); Postgres runs at 2G / 1.0 CPU, `shared_buffers` 512MB, since 2026-11-21 19:24:44Z.
+- **Plan 5:** Vector batched and VictoriaMetrics bounded since 2026-11-21 19:20:48Z (Step 376); Postgres's budget since 19:24:44Z (Step 388).
+- **Plan 6:** east's three role units and their `config/logging/sources.yaml` entries; `configs/akira-east.yaml` and its `discover.subnets`; the eBPF pair and the collector (Evening 10B); alert-mailer's twin on east; east's chaos-controller and kev-poller binaries.
+- **Plan 7:** Cuirass's start command above; `CUIRASS_ENFORCE` and `CUIRASS_PRUNE` unset; `cuirass-state` to clear before the first enforce.
 
 ## For Stevie
 
@@ -371,6 +390,14 @@ No row is worse than its before because of a change this plan made; nothing is r
 9. Phase 13: the dashboard's metric endpoints read VictoriaMetrics (`--vm-url http://victoria:8428` in compose). Without it they answer 503; `/api/v1/hosts` still reads each huginn per request.
 
 10. Not a defect (independent review 2026-11-15): `trace_collector_flow_state_insert_failures` (Phase 15) counts failed `FLOW_STATE` inserts; with the map now an LRU an insert evicts instead of failing, so it will likely always read 0. It shows a failure if one happens; whether to keep it or count LRU evictions instead (the kernel does not expose those per map) is yours.
+
+### 2026-11-22 (Step 408)
+
+11. The runbook manifest is sealed (`f7ccd761`, pack row 7), so item 3 is done.
+12. `unheaded-role-services` still has no remote (item 2).
+13. Step 317 was B (pack row 2: a host-local `wotan.yaml`, both keys made on west), not C: no key waits on you. W-05 and W-19 are live.
+14. After 3 days of green (2026-11-24 at the earliest): `sudo docker images | grep pre-s-waste-out` (remove those tags), `sudo rm -r /var/backups/s-waste-out`, and `/srv/backups/unheaded-well/pre-050`.
+15. No `[STUCK]` in this plan. Rows missed with their causes: W-02, W-03, W-06, W-12, W-17, and W-30's I/O pressure (Phase 20 statuses and the Steps 379 and 392 section).
 
 ## Blocked
 

@@ -462,3 +462,40 @@ Plan 1 closed 2026-11-22 (record: `docs/battle-plans/progress/S-SEE-AND-SURVIVE-
 | SSV-28 `/health` when degraded | | for Stevie |
 
 Drills (2026-11-22, Phase 15): ContainerStopped 153 s, MemoryKill 65 s, UnitRestartLoop within 241 s, pipeline silent 18 min 51 s after the stop and back 74 s after the start.
+
+## Update 2026-11-22 (S-WASTE-OUT closed)
+
+Plan 2 closed 2026-11-22 (record: `docs/battle-plans/progress/S-WASTE-OUT-progress.md`). Deployed 2026-11-21 17:51Z; afters at 1 h, 3 h and 24 h. Status of this ADR unchanged.
+
+| Row | Finding | Before | After (24 h) | Status |
+|---|---|---|---|---|
+| W-01 | Wotan polled for ever | 68.9 GET/s | 0.37 GET/s | done |
+| W-02 | `grpcOK: true` by default | the false claim | the claim is gone; the stream's transport is not shown | missed: half |
+| W-03 | a client per library | 63 members | 104 (Wotan counts per client and topic; nine processes, one client each) | missed: 104 |
+| W-04 | discovery polls nobody reads | 12 pollers | 1 (akira, the reader) | done |
+| W-05 | `alerts.critical` had no publisher | no room | signed, published; one subscriber per client binary | done |
+| W-06 | mirrored trace rooms | 39.3 MB | 26.8 MB (three rooms at a per-room cap) | missed: 68% |
+| W-07 | 429s from the rate limit | 367 in 7 d | 0 in 24 h | done |
+| W-08 | audit write errors ignored | dropped | counted on ten jobs, 0 | done |
+| W-09, W-10, W-11 | role services, monad and sophia, Cuirass on a mock | six containers | removed (Cuirass behind `--profile lxd`) | done |
+| W-12 | Prometheus beside VictoriaMetrics | 13,730 series | 4,915 (Prometheus's own job and huginn's per-cgroup series are most of it) | missed: 4,915 |
+| W-13 | dashboard memory and allocation | 285 MiB, 2.23 MB/s | 66.4 MiB, 1.12 MB/s | done |
+| W-14, W-22 | health pollers and probes | 6.46 `/health` a second | 0.83 | done |
+| W-15 | a page polling into 401 | 56% of answers 401 | 0.00013 a second | done |
+| W-16 | log lines on west | 241 a minute | 41.1 | done |
+| W-17 | Akira throttled | 44% | 8.4% (bursts under a 0.1-CPU limit) | missed: 8.4% |
+| W-18 | Akira zombies | 18 (seat read) | 0 | done |
+| W-19 | signed publishes refused | 51 and 13 | none since the key | done |
+| W-20 | health upserts and WAL syncs | 0.73 and 0.98 a second | 0.028 and 0.141 | done |
+| W-21 | GOMAXPROCS and GOMEMLIMIT | unexported; 11 services without | exported by every first-party job | done |
+| W-23 | `FLOW_STATE` a full hash | hash, failures ignored | LRU, failures counted (0) | done |
+| W-24 | `FLOW_EVENTS` undrained | 95.5% dropped | not loaded | done |
+| W-25 | timeguru on tmpfs SQLite | `DB_PATH` | 79 rows in the Well | done |
+| W-26 | kanban's SQLite fallback | 2 call sites | none | done |
+| W-27 | rooms times size | 78 GiB | bounded already by `-buffer-bytes-total` | closed |
+| W-28 | Vector inserts every second | 47,386 inserts, 42 GiB merged, 71 GB written a day | 2,466 inserts, 588 MiB merged, 7.1 GB a day | done |
+| W-29 | Vector's `host`, no series limit | container id; none | `host=west`; both limits set | done |
+| W-30 | Postgres 256 MiB | 640 limit hits an hour; cache 0.683 | 0 hits; the hour's cache ratio 1.000; I/O pressure 20.9% of before | done but I/O pressure (bar 20%) |
+| W-31 | orphan volumes and tables | four | removed | done |
+
+Open, and with whom: W-02 (kanban-app's `/health`, a code change), W-03 (a per-process reading for the bar), W-06 (the per-room cap), W-12 (a keep on Prometheus's own job), W-17 (Akira's limits) and W-30's I/O pressure: Stevie, in `next.md`.
