@@ -267,6 +267,41 @@ After `fix/mailer-wotan-wiring` merged (`c21c195c`: the Wotan client takes `WOTA
 - The public keys of architect, captain, micromanager, monad and sophia moved out of Wotan's trust directory (`configs/trust.d/dev`, not tracked) to `/var/backups/s-waste-out/retired-trust-2026-11-21/`, 20:14Z. No refusal followed; the six trackers still read `ok`. Their private keys in `configs/keys/dev` and their host accounts are left for the close.
 - `docker builder prune` and `docker image prune` (pack row 33 a and d, dangling only) ran 20:17Z to 20:46Z: `/var` went from 1,001 G free to 1.3 T. The 15 `:pre-s-waste-out` tags are intact.
 
+### 2026-11-22: the 24 h afters (Phase 20, Step 361)
+
+Read 17:49:17Z to 17:49:33Z, 24 h after Step 355 (2026-11-21 17:51:25Z), with the QUIET flag set from 16:51Z (no build or test on the host in that hour). W-20's pair at 17:49:25Z and 17:59:41Z. Raw: `afters-24h.txt` and `afters-24h-extra.txt` in the scratch directory. `afters.sh` reads 1 h windows; the rows below that need the day use 24 h windows from the extra file.
+
+| Row | Reading at 24 h | Bar | Status |
+|---|---|---|---|
+| W-01 | Wotan GET 0.37 a second (30 m rate); POST 0.67 | ≤ 1.0 | **met** (68.8 before) |
+| W-02 | kanban-app `/health`: no `"grpc": true`, no `stream_transport` field (keys: `critical_alerts`, `well`, `timeline_subscribed`, `wotan_enabled`, ...) | as stated | half, as at 1 h: the false claim is gone, the field is not shown |
+| W-03 | 104 approved members | ≤ 25 | **over** (63 before, 107 at 1 h): Wotan counts a member per client and topic, as found at 1 h |
+| W-04 | `unheaded_wotan_client_stream_up{topic="system.discovery"}`: 1 series, akira | 1 or 0 | **met** |
+| W-05 | `unheaded_critical_alerts_state` for akira, dashboard-backend, kanban-app, kev-poller, timeguru, trace-collector; room `alerts.critical` 1.45 MB | one per client binary | **met** |
+| W-06 | No `ebpf.*.events` room holds bytes (`ebpf.syscall.events` 0). Trace rooms 26.8 MB: flow 8.39, latency 8.39, packet 8.39, stats 1.60, correlated 0 | no mirror room; ≤ 55% of 39.3 MB (21.6 MB) | **over: 68%** (36% at 1 h). Three rooms sit at the same 8.39 MB: they look full to a per-room cap, so the day's reading is the cap, not the traffic |
+| W-07 | No 429 in 24 h (`increase(...status="429"[24h])`: no series) | 0 in 24 h | **met** (367 in 7 d before) |
+| W-08 | `unheaded_auth_audit_write_failures_total` on ten jobs, all 0 | present, 0 | **met** |
+| W-12 | `prometheus_tsdb_head_series` 4,463 | ≤ 4,000 | **over** (13,730 before; 4,621 at 1 h; 5,402 at 3 h after plan 3's recreate) |
+| W-13 | dashboard RSS 66.4 MiB; allocation 1.12 MB a second and CPU 0.0023 core over 24 h | ≤ 120 MiB; ≤ 2 MB/s | **met** (285 MiB; 2.23 MB/s) |
+| W-14, W-22 | `/health` 0.83 a second across all services | ≤ 2.6 | **met** (6.46) |
+| W-15 | dashboard: 23,032 answers 200 and 11 answers 401 in 24 h (0.00013 a second) | ≤ 0.01 a second | **met** |
+| W-16 | 41.1 lines a minute on west (systemd 20.8, `unheaded-baseline.service` 13.0) | ≤ 60 | **met** (241) |
+| W-17 | Akira: 4,398 of 51,762 periods throttled since its start (8.5%); the hour's share needs the second reading | ≤ 1% over 1 h | open: second reading 18:49Z |
+| W-18 | Akira zombies 0 | 0 | **met** |
+| W-19 | `akira_signed_publish_refused_total`: no series since the key went in (2026-11-21 19:03Z) | flat once enrolled | **met** |
+| W-20 | 17 upserts and 87 WAL syncs in 616 s: 0.028 and 0.141 a second | ≤ 0.1; ≤ 0.4 | **met** (0.73; 0.98) |
+| W-21 | `go_sched_gomaxprocs_threads` for akira, alert-mailer, dashboard-backend, kanban-app, kev-poller, logstore-writer, timeguru, trace-collector, wiki-server, wotan | every first-party job | **met** (wiki-server now has it) |
+| W-23 | `FLOW_STATE` `lru_hash`, 35,391 entries of 65,536; insert failures 0 | lru_hash; present | **met** |
+| W-24 | No `FLOW_EVENTS` map | not loaded | **met** |
+| W-25 | 79 rows = `milestones=79` in timeguru's load line | rows equal | **met** |
+| W-26 | `kanban.db` in the running image's binary: no match | absent | **met** |
+
+Also read: 17 containers running; Postgres cache hit 0.995 (app, config), 0.495 (ops); Vector to ClickHouse 0.68 events a second.
+
+Firing at 17:49Z, all urgency none: AlertPipelineHeartbeat, ComplianceFindingsOverdue, ComplianceFindingsUntriaged, and LogSilence for `unheaded-sophia` and `unheaded-cuirass` (from 16:08Z) with `unheaded-dashboard` pending (from 17:40Z). **LogSilence is a false alarm here:** sophia and cuirass were retired by this plan and the rule's 7-day baseline still expects their lines; the dashboard is up and healthy and logs far less since W-13 and W-15. Follow-up, not fixed: the rule could skip units with no container and no unit file, or the baseline could age faster.
+
+Open after this reading: W-03, W-06 and W-12 over their bars (each with its cause above); W-17's hour (18:49Z); Step 379 (19:21Z) and Step 392 (19:25Z, twice an hour apart).
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
