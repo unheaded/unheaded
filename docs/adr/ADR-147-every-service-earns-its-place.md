@@ -430,3 +430,35 @@ What it means for this series (each item belongs to the plan named; none is buil
 
 The journal shows the power cycles were not random: of the 12 boots ended since 10-26, 7 were `sudo reboot` or `sudo poweroff` typed on a terminal, 3 were reboots after a root session, 1 a short power-key press (11-03), 1 the 11-04 memory wedge. Nothing in Unheaded (the chaos controller included), no timer and no unattended-upgrades setting reboots west. Stevie asked that west stay up while Claude Code works: a dev-host guard outside the repo (`~/tmp/west-hold.conf`, `hold=true|false`; a user unit holds a systemd `block` lock while Claude Code or tmux runs; override `sudo systemctl reboot -i`). The table above still stands as a design case: a power cut, a long press of the power button and a hang are not stopped by that lock.
 
+## S-SEE-AND-SURVIVE (2026-11-22)
+
+Plan 1 closed 2026-11-22 (record: `docs/battle-plans/progress/S-SEE-AND-SURVIVE-progress.md`, Phases 12 to 19). Status of this ADR unchanged.
+
+| Row | Before | After |
+|---|---|---|
+| SSV-01 stopped container | 0 rules on a stopped container | host state every 30 s; ContainerStopped fired in 153 s (Drill 1) |
+| SSV-02 memory kill | 0 rules; no per-cgroup series | per-cgroup `memory.events`; MemoryKill fired in 65 s (Drill 2) |
+| SSV-03 mailer | `dry-run` | `send` since 2026-11-22 06:04Z; first digest sent 15:00:07Z |
+| SSV-04 what mails | 8 promotions, 9 routes | 24 promotions, 25 routes; a snooze field per item |
+| SSV-05 run-day caps | one cap | 24 a day and 6 an hour on a listed date (used 2026-11-22) |
+| SSV-06, SSV-07 pressure, swap, heat | 0 rules | loaded, `health: ok` |
+| SSV-08 restarts and failed units | none exported | UnitRestartLoop at 40 restarts (Drill 3); failed oneshots and `.path` units reach UnitFailed |
+| SSV-09 start limits | 27 of 28 units could not trip | 28 of 28; gate proven to fail |
+| SSV-10 watchers | 0 rules on VictoriaMetrics, remote write, huginn, the mailer or Alertmanager | five rules and the `victoria` job |
+| SSV-11 the alert path watched | nothing mailed when it went silent | silent mail 18 min 51 s after Alertmanager stopped, back 74 s after its start (Drill 4) |
+| SSV-12, SSV-13 | read dead series | read the live ones |
+| SSV-14 AIDE | | handed to S-EVIDENCE-RUNS Phase 10 |
+| SSV-15 latency buckets | p50 0.0025 / p99 0.00495 for 13 services (the floor) | from 0.1 ms; wotan p50 0.00018, p99 0.0016 |
+| SSV-16 per-cgroup series | 0 | every cgroup on west |
+| SSV-17 planned stops | spent budget | spend none |
+| SSV-18 ci-develop | four burn alerts firing | recorded, no alert |
+| SSV-19 Wotan SLO text | "both hosts" | "west"; the Well's `slo_definitions` still empty (open) |
+| SSV-20 latency and error SLIs | none | four, tickets, T = 0.005 s |
+| SSV-21, SSV-22 store backups | no ClickHouse or VictoriaMetrics set | nightly sets with restore drills |
+| SSV-23 qa-smoke | 7 passed, 43 failed | 30 passed, 1 failed (the dashboard's 401 on a non-GET `/health`) |
+| SSV-24 vor | 0 request lines | one JSON line per request |
+| SSV-25 nginx | no request time | `rt=` on the apt site |
+| SSV-26, SSV-27 | | handed to plan 8 |
+| SSV-28 `/health` when degraded | | for Stevie |
+
+Drills (2026-11-22, Phase 15): ContainerStopped 153 s, MemoryKill 65 s, UnitRestartLoop within 241 s, pipeline silent 18 min 51 s after the stop and back 74 s after the start.

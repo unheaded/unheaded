@@ -393,3 +393,42 @@ Seen, not changed: a planned-stop mark is matched by SLO name, so a mark for `wo
 | 368 | The one FAIL is real: `probe-methods/dashboard` 200/401 where 200/405 is the contract (`httputil.ProbeMethods`). The dashboard's auth chain answers a method other than GET or HEAD on `/health` before the handler does; kanban answers 405. Not changed: making it 405 means opening `/health` to every method in the dashboard's auth routes (for Stevie). Compared with Step 263 (block A, 7 passed, 43 failed, without docker rights): every container, endpoint, health and consensus row now passes. **SSV-23 after: one known fault** |
 | 369 | This entry, with the `qa-smoke.sh` fix |
 | 370 | **PHASE 18 EXIT GATE: passed**, with the dashboard's 401 written above |
+
+## Phase 19, 2026-11-22: close (Steps 371-387)
+
+| Step | Result |
+|---|---|
+| 371 | No `:pre-ssv` tag exists (amended text): nothing removed. `run_days.dates` emptied in place on develop (`049aa44f`, inode kept); the alert-mailer restarted 21:29Z under a 5-minute mark: `send`, `digest`, `max_per_day` 6. The restart also moved the mailer onto `policy.yaml`'s current inode (a `sed -i` at Step 355 had left it on the old one). Housekeeping for Stevie: `/var/backups/s-see-and-survive/` (vor.old, unheaded-apt.conf.old and the earlier copies) may go after 2026-11-25 |
+
+### The closing table (Step 375)
+
+| Row | Status | After (where recorded) |
+|---|---|---|
+| SSV-01 | closed | stopped container: host state every 30 s, ContainerStopped loaded; Drill 1 (timeguru) fired in 153 s (Phase 15, 2026-11-22) |
+| SSV-02 | closed | memory kill and oom: `huginn_cgroup_memory_events_total` for every cgroup, MemoryKill and HostOOMKill loaded; Drill 2 fired in 65 s on `system.slice` (Phase 15) |
+| SSV-03 | closed | mailer in `send` since Phase 15; the first real digest sent 2026-11-22 15:00:07Z (`097f23fa`); whether it reached Stevie's inbox is his to say |
+| SSV-04 | closed | 25 `alertname=` routes plus the snooze field (`8f3825e0`); the drills' pages went to the digest |
+| SSV-05 | closed | run-day caps 24/6 live on 2026-11-22, the date taken out at Step 371 |
+| SSV-06 | closed | memory pressure, IO and CPU pressure, heat, throttling and near-limit rules loaded, `health: ok` |
+| SSV-07 | closed | swap and memory pressure: HostMemoryPressure (page), HostSwapping, HostSwapNearFull (tickets) loaded |
+| SSV-08 | closed | UnitFailed and UnitRestartLoop: Drill 3, 40 restarts (Phase 15); failed oneshots and `.path` units reach UnitFailed (`79c63c02`) |
+| SSV-09 | closed | 28 of 28 restarting units can trip their start limit; the gate proven to fail (block D) |
+| SSV-10 | closed | five watcher rules and the `victoria` job live; AlertmanagerNotReached fired truly after Drill 4 |
+| SSV-11 | closed | the mailer's pipeline mail: Drill 4 silent at 20 min 34 s, back 74 s after the start |
+| SSV-12 | closed | TraceCollectorHighLatency reads the live flush histogram, inactive |
+| SSV-13 | closed | VectorSinkDroppingEvents over every component, inactive |
+| SSV-14 | handed | AIDE producer: S-EVIDENCE-RUNS Phase 10 (attended) |
+| SSV-15 | closed | latency buckets from 0.1 ms live since 2026-11-21 17:51Z (Phase 16; wiki-server with plan 3's rebuild, east with plan 6) |
+| SSV-16 | closed | per-cgroup series from huginn live (block D) |
+| SSV-17 | closed | planned stops spend no budget: `slo:good` honours a mark (promtool cases; used live at every stop this week) |
+| SSV-18 | closed | ci-develop recorded, no burn alert (`notify: false`) |
+| SSV-19 | closed, one part open | the Wotan SLO says west. Open: the Well's `slo_definitions` is empty (S-WELL-SPRING's `-sync-well` never ran live), so it holds neither the old SLOs nor the four of Phase 17: for Stevie |
+| SSV-20 | closed | four latency and error SLIs, tickets, at 1 at idle (Phase 17, `f9da6d1d`) |
+| SSV-21 | closed | clickhouse backup and restore drill live, nightly (block D) |
+| SSV-22 | closed | victoria backup and restore drill live, nightly 04:45 (block D) |
+| SSV-23 | closed, one fault written | qa-smoke 30 of 31; the dashboard's 401 for a non-GET on `/health` is for Stevie (Phase 18) |
+| SSV-24 | closed | vor logs one JSON line per request, no client address (Phase 18) |
+| SSV-25 | closed on west | nginx `rt=` on the apt site (Phase 18); orion is SS7, for Stevie |
+| SSV-26 | handed | orb's load gate: plan 8 (SS6) |
+| SSV-27 | handed | second recorder and run marker: plan 8 |
+| SSV-28 | for Stevie | `/health` answers 200 when DEGRADED, by design; `/ready` semantics are his |

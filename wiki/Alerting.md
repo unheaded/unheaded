@@ -124,7 +124,7 @@ curl -s 127.0.0.1:19130/v1/outbox    # last 50 mails: sent, dry-run, capped, fai
 
 Its state (cap count, open tickets, outbox) lives in the `alert_mailer_data` volume and survives restarts.
 
-**Mode (2026-11-15):** `dry-run` on west since 2026-11-10 (Stevie: while the kingdom ran as a test cut); `send` again in `policy.yaml` on Stevie's ADR-147 decision 2, live once S-SEE-AND-SURVIVE Phase 15 restarts the mailer with a test mail. On a date listed in `mailer.run_days.dates` the caps are 24 a day and 6 an hour (a load run's stop marks late in the day still mail); add the date before the run, delete it after.
+**Mode (2026-11-15):** `dry-run` on west since 2026-11-10 (Stevie: while the kingdom ran as a test cut); `send` again in `policy.yaml` on Stevie's ADR-147 decision 2, live once S-SEE-AND-SURVIVE Phase 15 restarts the mailer with a test mail. On a date listed in `mailer.run_days.dates` the caps are 24 a day and 6 an hour (a load run's stop marks late in the day still mail); add the date before the run, delete it after. **Since 2026-11-22 06:04Z the mailer is in `send`** (S-SEE-AND-SURVIVE Step 320; the first digest went out 15:00:07Z; the run day of 2026-11-22 was taken out at Step 371).
 
 **Mode was `send` from 2026-10-27 (265badbb).** Short term it sends from personal Gmail to stevie@bellis.tech; the Workspace account below is the longer-term sender. One synthetic page went through `smtp.gmail.com:587` with outbox outcome `sent` before the flip. `dry-run` (2026-10-20 → 10-27) decides everything as if sending, including the cap, and sends nothing; switch back to it in the policy if the outbox shows noise, and fix the SLO, not the mailer.
 

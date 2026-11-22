@@ -177,3 +177,7 @@ None yet. Parked under ADR-112, marked high emphasis.
 ## Decisions 2026-11-04 (decision pack, round 3)
 
 - DP-710: outbound alert mail gets its own expectation: send-only, no listening relay, a per-hour cap, every send logged, a volume alert.
+
+## Note 2026-11-22 (S-SEE-AND-SURVIVE)
+
+R4's receipt is built for the alert path: the mailer's pipeline mail (S-SEE-AND-SURVIVE Phase 2), proven live by Drill 4 on 2026-11-22 (silent mail 18 min 51 s after Alertmanager stopped, back 74 s after its start). The warden, mutual heartbeats and the out-of-band paths are not built.

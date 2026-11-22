@@ -274,3 +274,7 @@ Yesterday's rows match in both stores (295,591 each). Step 284 is still Stevie's
 ### 2026-11-18, 20:07Z: ClickHouse recreated (S-SEE-AND-SURVIVE Step 276)
 
 ClickHouse recreated 2026-11-18 20:07:30Z to 20:07:52Z, S-SEE-AND-SURVIVE Step 276; the log store week had ended (Step 284 above, about 00:30Z). Same image and data volume; the only change is the `/backups` mount (`/srv/backups/unheaded-clickhouse`) and `config.d/backups.xml`. Healthy 25 s after the start. Vector retried through the gap and discarded nothing; its send rate to ClickHouse five minutes later was 7.66 events/s (5.32 before). A planned-stop mark (`all`) covered 20:07:25Z to 20:12:48Z. Record: `docs/battle-plans/progress/S-SEE-AND-SURVIVE-progress.md`, "Block D, 2026-11-18".
+
+### 2026-11-22: the mailer in send
+
+The alert-mailer went to `send` on 2026-11-22 at 06:04:05Z under ADR-147 decision 2 (S-SEE-AND-SURVIVE Step 320); the first digest was sent 15:00:07Z. Steps 81-83 and the mail part of Steps 102-109 are done there.
