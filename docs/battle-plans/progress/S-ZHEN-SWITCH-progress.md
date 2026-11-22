@@ -302,3 +302,7 @@ The switch: **off in 42 s, on in 42 s.**
 | 326-327 | Worktree removed (`0`); `/var/tmp/zhen-switch` removed (alert lists, fingerprints, an empty `bad-trace-ids.txt`, 8A's `wiki-server` build). The rollback directory `/var/backups/zhen-switch-2026-11-22` and the `pre-zhen-switch` image tags stay: for Stevie after 7 days of the switch working (2026-11-29) |
 | 330 | **PHASE 10 EXIT GATE: passed.** Waiting on Stevie: the `spl` indicator of the IOC audit; `WELL_ZHEN_DSN` in his shell for `zhen-claude`; ADR-149's acceptance; the rollback housekeeping. Handoffs: Z11 to plan 4; east's Akira to plan 6; Zhen into an LXD instance, plan 7. No `[STUCK]`. Stevie pushes |
 
+
+### 2026-11-22 22:00Z: the IOC indicator, by pack row 40
+
+The `spl` indicator of Step 309 was answered ahead by DECISION-PACK-2026-11-18 row 40, missed at Phase 9: `deploy/systemd/unheaded-ioc-audit.service.d/west.conf` (`IOC_KNOWN_MODULES=spl`; operator networks the LAN /25, the link to east and the overlay) installed on west, `c51d92f4`. The rerun: `Result=success`, `unheaded_schedule_last_exit_code{schedule="ioc-audit"} 0`, spl a note. Z12 is fixed, with nothing waiting on Stevie. Row 40's third part, the 21-day baseline as a recording rule, is still to do.
