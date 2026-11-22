@@ -50,7 +50,8 @@ impl Fixture {
     fn program(&self, name: &str) {
         std::fs::write(self.dir.join(format!("{name}.mbc")), [0u8; 64]).unwrap();
         std::fs::write(self.rv2mbc(name), RV).unwrap();
-        std::fs::write(self.dir.join(format!("{name}.data")), [0u8; 4]).unwrap();
+        std::fs::write(self.dir.join(format!("{name}.data")), [0, 0, 0, 0x80]).unwrap();
+        // count 0, .bss marker
     }
     fn sidecar(&self, name: &str, text: &str) {
         let mut p = self.rv2mbc(name).into_os_string();

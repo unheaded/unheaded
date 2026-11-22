@@ -47,7 +47,8 @@ impl Fixture {
         std::fs::write(self.path(name), bytes).unwrap();
         std::fs::write(self.dir.join(format!("{name}.rv2mbc")), RV).unwrap();
         // An empty but valid .data sidecar: a missing one refuses the boot.
-        std::fs::write(self.dir.join(format!("{name}.data")), [0u8; 4]).unwrap();
+        std::fs::write(self.dir.join(format!("{name}.data")), [0, 0, 0, 0x80]).unwrap();
+        // count 0, .bss marker
     }
     /// A clean image with one word replaced.
     fn image_with(&self, name: &str, at: usize, word: u32) {

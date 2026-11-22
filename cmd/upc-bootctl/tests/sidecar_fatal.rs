@@ -8,15 +8,19 @@
 //! The check runs before the eBPF object is opened, so a dry run shows it.
 //! `MONAD_CPU_EBPF_OBJ` points at a path that does not exist.
 
+use monad_common::mbc_sidecar::WITH_BSS;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 const RV: &[u8] = &[0x00, 0x40, 0x00, 0x00, 0x04, 0x40, 0x00, 0x00];
-/// A TLV with no record: count 0.
-const EMPTY_TLV: &[u8] = &[0, 0, 0, 0];
+/// A TLV with no record: count 0, with the `.bss` marker (`mbc_sidecar::WITH_BSS`,
+/// bit 31 of the count word) that `rv32i-to-mbc --with-bss` sets.
+const EMPTY_TLV: &[u8] = &[0, 0, 0, 0x80];
+/// The same TLV as written before `--with-bss`: no marker.
+const EMPTY_TLV_UNMARKED: &[u8] = &[0, 0, 0, 0];
 /// One record at 0x1000, four bytes.
 const ONE_RECORD: &[u8] = &[
-    1, 0, 0, 0, 0x00, 0x10, 0, 0, 4, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD,
+    1, 0, 0, 0x80, 0x00, 0x10, 0, 0, 4, 0, 0, 0, 0xAA, 0xBB, 0xCC, 0xDD,
 ];
 
 struct Fixture {
@@ -147,7 +151,7 @@ fn a_resident_program_with_a_bad_sidecar_refuses_the_boot() {
 /// One record: `addr`, then `len` bytes of 0xAA.
 fn record_at(addr: u32, len: u32) -> Vec<u8> {
     let mut b = Vec::new();
-    b.extend_from_slice(&1u32.to_le_bytes());
+    b.extend_from_slice(&(1u32 | WITH_BSS).to_le_bytes());
     b.extend_from_slice(&addr.to_le_bytes());
     b.extend_from_slice(&len.to_le_bytes());
     b.extend(std::iter::repeat_n(0xAAu8, len as usize));
@@ -160,7 +164,7 @@ fn record_at(addr: u32, len: u32) -> Vec<u8> {
 /// Two four-byte records at `a` and `b`.
 fn two_records(a: u32, b: u32) -> Vec<u8> {
     let mut v = Vec::new();
-    v.extend_from_slice(&2u32.to_le_bytes());
+    v.extend_from_slice(&(2u32 | WITH_BSS).to_le_bytes());
     for addr in [a, b] {
         v.extend_from_slice(&addr.to_le_bytes());
         v.extend_from_slice(&4u32.to_le_bytes());
@@ -249,4 +253,42 @@ fn records_inside_the_windows_pass() {
     let e = out(&o);
     assert!(o.status.success(), "{e}");
     assert!(!e.contains("UserSidecar"), "{e}");
+}
+
+// ── ADR-135 SP-3 (M-186.12b, decision pack row 41): the `.bss` marker ────────
+// A sidecar written before `--with-bss` parses, and exec would hand the program
+// whatever another program left where its `.bss` is. The marker in the count
+// word says the zeros are there; a user image's sidecar must carry it.
+
+#[test]
+fn a_userland_sidecar_without_the_bss_marker_refuses_the_boot() {
+    let f = Fixture::new("unmarked-init");
+    f.image("init");
+    f.data("init", EMPTY_TLV_UNMARKED);
+    let o = dry_run(&f.path("xv6-mbc"), &f.path("init"));
+    let e = out(&o);
+    assert!(!o.status.success(), "must refuse: {e}");
+    assert!(
+        e.contains("UserSidecarBad") && e.contains("init.data"),
+        "{e}"
+    );
+    assert!(
+        e.contains("--with-bss"),
+        "the message must say how to fix it: {e}"
+    );
+}
+
+#[test]
+fn a_resident_sidecar_without_the_bss_marker_refuses_the_boot() {
+    let f = Fixture::new("unmarked-sh");
+    f.image("init");
+    f.data("init", EMPTY_TLV);
+    f.image("sh");
+    let mut old = ONE_RECORD.to_vec();
+    old[3] = 0; // the same record, as written before --with-bss
+    f.data("sh", &old);
+    let o = dry_run(&f.path("xv6-mbc"), &f.path("init"));
+    let e = out(&o);
+    assert!(!o.status.success(), "must refuse: {e}");
+    assert!(e.contains("UserSidecarBad") && e.contains("sh.data"), "{e}");
 }

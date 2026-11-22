@@ -9,6 +9,7 @@
 //! as a flat binary of little-endian u32 words.
 
 use goblin::elf::Elf;
+use monad_common::mbc_sidecar;
 use monad_mbc::Translator;
 use std::env;
 use std::fs;
@@ -54,6 +55,29 @@ fn data_records(sections: &[DataSection], elf_data: &[u8], with_bss: bool) -> Ve
     records
 }
 
+/// The `.data` sidecar's bytes: `[count u32 LE]`, then per record `[addr u32]
+/// [len u32][bytes, padded to 4]`. With `with_bss` the count word also carries
+/// `mbc_sidecar::WITH_BSS`, which upc-bootctl requires of a user image's
+/// sidecar (ADR-135 SP-3).
+fn data_blob(records: &[(u32, Vec<u8>)], with_bss: bool) -> Vec<u8> {
+    let mut count = records.len() as u32 & mbc_sidecar::COUNT_MASK;
+    if with_bss {
+        count |= mbc_sidecar::WITH_BSS;
+    }
+    let mut blob = Vec::new();
+    blob.extend_from_slice(&count.to_le_bytes());
+    for (vma, bytes) in records {
+        blob.extend_from_slice(&vma.to_le_bytes());
+        blob.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+        blob.extend_from_slice(bytes);
+        // Pad to 4-byte alignment so subsequent record headers are naturally aligned.
+        while !blob.len().is_multiple_of(4) {
+            blob.push(0);
+        }
+    }
+    blob
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
@@ -69,6 +93,8 @@ fn main() {
         eprintln!("  --sections   List ELF sections and exit");
         eprintln!("  --with-bss   Also write each ALLOC NOBITS section (.bss, .sbss) into the");
         eprintln!("               .data sidecar as zeros, so exec hands a program a zeroed .bss");
+        eprintln!("               (and marks the sidecar so: upc-bootctl requires the mark of a");
+        eprintln!("               user image's sidecar)");
         process::exit(if args.len() < 2 { 1 } else { 0 });
     }
 
@@ -272,10 +298,11 @@ fn main() {
                 // addresses (e.g. `lui a3, 0x27` for byte 0x27000+). MBC
                 // executes from ROM_MAP (instruction-indexed) so those
                 // bytes need to also reach RAM_MAP at byte_addr/4 word
-                // indices. We emit a TLV file: [count u32 LE]
+                // indices. We emit a TLV file: [count u32 LE, with
+                // mbc_sidecar::WITH_BSS under --with-bss]
                 // [(byte_addr u32, len u32, bytes (len bytes, padded to
                 // 4-byte alignment))]+ — upc-bootctl loads this alongside
-                // the .mbc file and bulk-writes to RAM_MAP.
+                // the .mbc file and bulk-writes to RAM_MAP (data_blob).
                 //
                 // Sections included: every ALLOC PROGBITS section that
                 // is NOT executable (filters out .text + .text.* but keeps
@@ -300,18 +327,7 @@ fn main() {
                     })
                     .collect();
                 let data_records = data_records(&sections, &elf_data, with_bss);
-                let mut data_blob: Vec<u8> = Vec::new();
-                data_blob.extend_from_slice(&(data_records.len() as u32).to_le_bytes());
-                for (vma, bytes) in &data_records {
-                    data_blob.extend_from_slice(&vma.to_le_bytes());
-                    data_blob.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
-                    data_blob.extend_from_slice(bytes);
-                    // Pad to 4-byte alignment so subsequent record headers
-                    // are naturally aligned.
-                    while !data_blob.len().is_multiple_of(4) {
-                        data_blob.push(0);
-                    }
-                }
+                let data_blob = data_blob(&data_records, with_bss);
                 if let Err(e) = fs::write(&data_path, &data_blob) {
                     eprintln!("Error writing data image: {e}");
                     process::exit(1);
@@ -428,5 +444,36 @@ mod tests {
         sections[3].alloc = false; // a NOBITS section that is not loaded
         sections.push(section(false, false, 0x2000, 0, 0)); // an empty .sbss
         assert_eq!(data_records(&sections, &elf, true).len(), 2);
+    }
+
+    fn count_word(blob: &[u8]) -> u32 {
+        u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]])
+    }
+
+    #[test]
+    fn with_bss_the_count_word_carries_the_marker() {
+        // ADR-135 SP-3 (M-186.12b): upc-bootctl refuses a user sidecar without it.
+        let (sections, elf) = fixture();
+        let blob = data_blob(&data_records(&sections, &elf, true), true);
+        assert_eq!(count_word(&blob), 3 | mbc_sidecar::WITH_BSS);
+        let empty = data_blob(&[], true);
+        assert_eq!(empty, mbc_sidecar::WITH_BSS.to_le_bytes().to_vec());
+    }
+
+    #[test]
+    fn without_the_flag_the_count_word_is_the_count() {
+        let (sections, elf) = fixture();
+        let blob = data_blob(&data_records(&sections, &elf, false), false);
+        assert_eq!(count_word(&blob), 2);
+    }
+
+    #[test]
+    fn the_blob_layout_is_unchanged_past_the_count_word() {
+        // [addr][len][bytes padded to 4] per record, as before the marker.
+        let blob = data_blob(&[(0x10, vec![1, 2, 3]), (0x20, vec![4; 4])], true);
+        assert_eq!(blob.len(), 4 + (8 + 4) + (8 + 4));
+        assert_eq!(&blob[4..12], &[0x10, 0, 0, 0, 3, 0, 0, 0]);
+        assert_eq!(&blob[12..16], &[1, 2, 3, 0]);
+        assert_eq!(&blob[16..24], &[0x20, 0, 0, 0, 4, 0, 0, 0]);
     }
 }
