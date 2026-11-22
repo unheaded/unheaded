@@ -502,9 +502,11 @@ if python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --wor
   # program's span to slice base + address. Three dry runs: a record in the
   # kernel's .data, a record whose end wraps, and a resident program ("sh", a
   # copy of the same clean image) whose two records are over 256 KiB apart.
+  # The count word carries the .bss marker, bit 31 (M-186.12b): without it the
+  # loader refuses a user sidecar before any record is read.
   tlv() { python3 -c 'import struct,sys
 a=[int(x,0) for x in sys.argv[2:]]
-b=struct.pack("<I",len(a)//2)
+b=struct.pack("<I",(len(a)//2)|0x80000000)
 for i in range(0,len(a),2):
     b+=struct.pack("<II",a[i],a[i+1])+bytes([0xAA])*a[i+1]
     b+=bytes(-len(b)%4)
