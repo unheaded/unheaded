@@ -302,6 +302,10 @@ Firing at 17:49Z, all urgency none: AlertPipelineHeartbeat, ComplianceFindingsOv
 
 Open after this reading: W-03, W-06 and W-12 over their bars (each with its cause above); W-17's hour (18:49Z); Step 379 (19:21Z) and Step 392 (19:25Z, twice an hour apart).
 
+### 2026-11-22 18:49Z: W-17, Akira's hour (Step 361)
+
+`cg unheaded-akira` at 17:49:33Z and 18:49:04Z: 190 of 2,255 periods throttled in the hour, **8.4%** (bar ≤ 1%; 44% before; 10.0% at 1 h). **W-17: over.** CPU used 3.98 s in the hour (0.0011 core on average) against its 0.1-CPU limit, so the throttling is bursts, not load. Also seen: `memory.peak` is exactly its 64 MiB limit and `memory.events` `max` rose 348 to 361 in the hour (13). Akira runs at its memory ceiling and is throttled in its bursts; neither limit was changed. Raw: `afters-24h-extra.txt`.
+
 ## Handoffs
 
 - **Plan 5 (S-LOG-WEEK-2):** S-WASTE-OUT deployed 2026-11-21 17:51Z. Vector batched (30 s) and VictoriaMetrics series limits since 2026-11-21 19:20:48Z. Postgres at 2G / 1.0 CPU since 2026-11-21 19:24:44Z.
