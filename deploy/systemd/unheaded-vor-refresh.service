@@ -17,6 +17,25 @@
 #   sudo systemctl reset-failed unheaded-vor-refresh.path unheaded-vor-refresh.service
 #   sudo systemctl start unheaded-vor-refresh.path
 #
+# Settle delay (M-194.1, decision pack row 41, 2026-11-21): seven commits or
+# merges on develop inside ten minutes tripped that limit (S-WIKI-VOR
+# progress; seven branches were merged on 2026-11-21). The unit now waits
+# VOR_REFRESH_SETTLE_SEC before the restart. While it waits it is
+# "activating": an export that lands then starts nothing new and is read by
+# the one restart that follows. A run therefore lasts at least the wait, so
+# with 120 s no more than 6 starts fit in 10 minutes and exports alone cannot
+# reach the limit (the least wait that holds is interval / burst = 100 s).
+# The burst is not raised: D1 bounds this account's restarts. Cost: vor
+# serves a new export up to two minutes later.
+# To change the wait on a host, a drop-in
+# (/etc/systemd/system/unheaded-vor-refresh.service.d/10-settle.conf):
+#   [Service]
+#   Environment=VOR_REFRESH_SETTLE_SEC=180
+#   TimeoutStartSec=240s
+# Keep it at or above StartLimitIntervalSec / StartLimitBurst, and
+# TimeoutStartSec at least a minute above it (the timeout covers the wait
+# and the restart).
+#
 # Install on west (the account first: deploy/sysusers.d/unheaded.conf):
 #   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/unheaded.conf && sudo systemd-sysusers
 #   sudo install -m 0644 deploy/polkit/61-unheaded-vor-refresh.rules /etc/polkit-1/rules.d/61-unheaded-vor-refresh.rules
@@ -31,8 +50,10 @@ StartLimitBurst=6
 
 [Service]
 Type=oneshot
+Environment=VOR_REFRESH_SETTLE_SEC=120
+ExecStartPre=/usr/bin/sleep ${VOR_REFRESH_SETTLE_SEC}
 ExecStart=/usr/bin/systemctl --no-ask-password try-restart unheaded-vor.service
-TimeoutStartSec=60s
+TimeoutStartSec=180s
 
 User=unheaded-vor-refresh
 Group=unheaded-vor-refresh
