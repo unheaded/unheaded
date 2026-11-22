@@ -11,6 +11,8 @@
  * For GPL 2.0-licensed components (DOOM engine), see doom/LICENSE.
  */
 
+// Command unheaded is a liveness stub: it parses the standard flags and logs
+// that it is alive. The operator CLI is cmd/unheaded-cli (the Gauntlets).
 package main
 
 import (

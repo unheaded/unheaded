@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
-// upc-tty-bridge — WebSocket bridge for UPC tty streams (Mode A demo surface).
+
+// Command upc-tty-bridge is the WebSocket bridge for UPC tty streams (Mode A demo surface).
 // ASCEND-LINUX Phase 1 deliverable per
 // references/battle-plan-ascend-linux-2026-05-08.md.
 //
@@ -14,7 +14,6 @@
 // Default listen: 127.0.0.1:26100 (UPC user-app band 26000-26666 per
 // pkg/ports). Typing into the UPC shell is a write path; widen --listen only
 // deliberately.
-
 package main
 
 import (

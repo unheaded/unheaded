@@ -8,6 +8,7 @@
 // TRACE_MAP and STATS decoders left with the poll path (2026-11-09).
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
+
 package main
 
 import (

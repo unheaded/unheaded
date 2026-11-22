@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package room is Wotan's room manager: create rooms (on behalf of a verified
+// caller), look them up and track the last sequence number assigned in any
+// room.
 package room
 
 import (

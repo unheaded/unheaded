@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package monad holds Monad wire helpers for PQC authentication: the flags
+// byte, the 12-byte PQC value, the 52-byte pseudo-header that gets signed, and
+// a per-flow sliding window against replayed sequence numbers. Parked
+// (docs/sweeps/REAL-STEEL-UNREACHED.tsv): no binary imports it; the
+// pkg/crypto/pqc tests do.
 package monad
 
 // Monad flags byte (offset 0x07 in wire format).

@@ -7,6 +7,7 @@
 // The standard loader only attaches a single kprobe. This uses cilium/ebpf's
 // LoadCollectionSpec to properly load all kprobe/kretprobe functions from
 // the Aya-compiled ELF and attach them to their kernel functions.
+
 package main
 
 import (

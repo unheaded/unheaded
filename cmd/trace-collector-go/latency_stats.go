@@ -9,6 +9,7 @@
 // exits, ring buffer events sent and dropped, LATENCY_MAP inserts taken and
 // refused. Nothing read it, so a full ring buffer and a full map were both
 // silent (FND-044). The map is read at scrape time, ten lookups.
+
 package main
 
 import (

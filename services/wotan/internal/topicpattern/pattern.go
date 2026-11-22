@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package topicpattern matches dot-separated Wotan topics against patterns
+// ("*" one segment, "#" the rest) and decides whether one pattern covers
+// another (Covers, FND-043), which is how a subscription is checked against
+// an allow-list entry.
 package topicpattern
 
 import "strings"

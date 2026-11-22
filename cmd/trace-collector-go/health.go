@@ -12,6 +12,7 @@
 //	/api/v1/stats   — Current statistics (JSON)
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
+
 package main
 
 import (

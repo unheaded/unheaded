@@ -8,6 +8,7 @@
 // path, so with the PACKET_EVENTS ring buffer (the normal case) traces.stats
 // was never published. They run on their own timer now, whatever the trace
 // reader does.
+
 package main
 
 import (

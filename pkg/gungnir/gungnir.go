@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package gungnir wraps cloudflare/circl ML-DSA-65 for signing and verifying
 // GungnirSeal payloads in the Mímir's Law / Gleipnir Phase 0 PoC.
 //

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package member is Wotan's room membership: join requests start pending and
+// are approved or refused; EnsureApproved gives a verified publisher its
+// approved member.
 package member
 
 import (

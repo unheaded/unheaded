@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package ringbuffer is the fixed-size circular buffer Wotan keeps messages
+// in: sequence numbers (optionally shared across rooms), reads after a given
+// seq, and the byte count held.
 package ringbuffer
 
 import (

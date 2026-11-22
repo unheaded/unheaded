@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
+
 // huginn — a small bare-metal host metrics agent.
 //
 // Runs NATIVELY on each Kingdom host (west, east, ...), reads the real host

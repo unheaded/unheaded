@@ -11,6 +11,12 @@
  * For GPL 2.0-licensed components (DOOM engine), see doom/LICENSE.
  */
 
+// Command trace-collector-go collects BPF trace events from the Kingdom's
+// ring buffers and publishes them to Wotan: packet-marker (XDP), flow-tracker
+// (TC) and latency-probe objects, loaded from --ebpf-obj-dir or read
+// from pinned maps, correlated and enriched, then sent on the traces.* topics.
+// unheaded-trace-collector.service runs it with --unified.
+//
 // trace-collector-go — Unified BPF trace collector.
 //
 // Loads and manages three BPF programs:

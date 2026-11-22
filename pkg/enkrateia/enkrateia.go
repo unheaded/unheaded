@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package enkrateia is the v1 alerts-only drift event aggregator for
 // Mímir's Law / Gleipnir Phase 0 PoC.
 //

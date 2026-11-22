@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 
-// Akira — Kingdom Health Daemon
+// Command akira is the Kingdom health daemon.
 //
 // Monitors all services via ping/pong health protocol.
 // Every service pushes health to Wotan, Akira aggregates and
@@ -10,12 +10,12 @@
 // Named after the film.
 //
 // Usage:
-//   akira                         # Run daemon (foreground)
-//   akira --once                  # Single health sweep, print results, exit
-//   akira --config /etc/unheaded/akira.yaml
+//
+//	akira                         # Run daemon (foreground)
+//	akira --once                  # Single health sweep, print results, exit
+//	akira --config /etc/unheaded/akira.yaml
 //
 // ADR: ADR-029 Wotan Consensus Health + Auto-Remediation
-
 package main
 
 import (

@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Command wotan is Wotan, the Kingdom's message bus: topic publish and
+// subscribe over gRPC and HTTP, rooms and members, a ring buffer per room,
+// signed config topics, an allow-list per service (configs/wotan.yaml) and
+// optional active-passive clustering. See wiki/Service-Wotan.md.
 package main
 
 import (

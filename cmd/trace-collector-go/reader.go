@@ -9,6 +9,7 @@
 // are not traces, so every poll counted decode errors and published nothing
 // (removed 2026-11-09). Without the ring buffer the collector does not start;
 // see openPacketEvents.
+
 package main
 
 import (

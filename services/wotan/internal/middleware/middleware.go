@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package middleware is Wotan's HTTP middleware: per-route metrics, admin
+// authentication with a constant-time key comparison, and rate limiting
+// (ratelimit.go).
 package middleware
 
 import (
