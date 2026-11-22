@@ -355,3 +355,28 @@ Rows after (series rule 15), live:
 | SSV-03 | outbox `2026-11-22T15:00:07Z ticket sent [digest] 5 open, west booted, 23 resolved`; `/v1/status` mode `send`, delivery `digest`, `last_digest` 2026-11-22, open tickets 5; `unheaded_alert_mailer_messages_total{urgency="ticket",outcome="sent"}` 1, `{urgency="page",outcome="digest"}` 6. The relay took the mail; arrival in Stevie's inbox is his to confirm | Stevie's inbox |
 
 SSV-03 is done on the mailer's side. Phase 15's exit gate no longer waits on it.
+
+## Phase 17, 2026-11-22: latency and error SLIs (Steps 349-362)
+
+| Step | Result |
+|---|---|
+| 349 | 24 h after the rollout (2026-11-21 17:51Z): started 20:26Z |
+| 350 | VictoriaMetrics labels them `{job="wotan",instance="host.docker.internal:18000",service="wotan"}` and `{job="dashboard-backend",instance="host.docker.internal:20000",service="dashboard"}` (west only; no `exported_service` there). Prometheus scrapes `[fd00:dead:beef::1]:18000` for wotan, and `::1` and `::2` port 20000 for the dashboard |
+| 351 | Selectors for the rules (Prometheus): `{job="wotan"}` and `{job="dashboard-backend",instance="[fd00:dead:beef::1]:20000"}`, as expected; Steps 352's readings use `{job="wotan"}` and `{job="dashboard-backend"}` in VictoriaMetrics, which hold west alone |
+| 352-353 | See the table below |
+| 354 | SS4 = A (decision pack row 14): the four SLOs alert as tickets |
+| 355 | Written on develop directly, not in the sprint worktree: `policy.yaml` is bind-mounted into the alert-mailer as a single file, and a merge rewrites it under a new inode. Two departures from the plan's text: (1) the error SLI reads `(sum(rate(...status=~"5.."}[5m])) or on() vector(0))`, because with requests flowing and no 5xx series at all the plan's expression is empty and the SLO reads 0; (2) the keep-list generator now keeps a series that every rule pins with a `job` matcher in those jobs only, so the SLIs bring back about 173 series (Wotan's and the dashboard's), not every job's 720 (S-WASTE-OUT W-12 is over its 4,000 bar). The same rule scopes the Vector and syslog-relay series to their jobs. promtool cases: no traffic, all fast, half slow (latency); no traffic, no 5xx series, half 5xx (errors), for each service; a mutated expectation fails the gate |
+| 356-357 | `go test -race ./cmd/alert-policy`, `check-prometheus-rules.sh` (keep list, its test, config, 19 rule files and tests, module zhen), `alert-policy --check`: pass |
+| 358 | `f9da6d1d` on develop. `alertmanager.yml` unchanged (the shared ticket route carries them) |
+| 359 | HUP to Prometheus and Alertmanager at 20:45:56Z; `prometheus_config_last_reload_successful` 1 |
+| 360-361 | 20:52:05Z: `slo:good` 1 for wotan-latency, wotan-errors, dashboard-latency, dashboard-errors. Nothing new firing |
+| 362 | **PHASE 17 EXIT GATE: passed.** SSV-20 after: below |
+
+| Service | Idle p99 over 24 h | 3 x p99 | T | 5xx share over 24 h |
+|---|---|---|---|---|
+| wotan | 0.00099 s | 0.0030 s | 0.005 | 0 (1.03 requests a second) |
+| dashboard-backend | 0.00110 s | 0.0033 s | 0.005 | 0 (0.27 a second) |
+
+**SSV-20 after:** four SLOs live, tickets only, each at 1 at idle. Prometheus head series 4,915 at 20:52Z (4,463 at 17:49Z): its `unheaded_http_*` series are now wotan 78, dashboard-backend 95 and alert-mailer 140 (that job carries no keep, as before). The rest of the rise is the head still holding series from before the reload; S-WASTE-OUT W-12 reads it again at its close.
+
+Seen, not changed: a planned-stop mark is matched by SLO name, so a mark for `wotan` does not cover `wotan-latency` or `wotan-errors` (a mark for `all` covers them). `policy.yaml` was given a new inode by a `sed -i` during Step 355; the alert-mailer keeps the old copy, which differs in one `checks:` string, until its restart at Step 371.
