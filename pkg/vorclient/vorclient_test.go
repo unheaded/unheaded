@@ -267,6 +267,9 @@ func (f *categoryVor) client(t *testing.T) *Client {
 		switch {
 		case strings.EqualFold(name, "saml") && (category == "auth" || category == "security"):
 			_, _ = w.Write([]byte(`{"name":"saml","category":"` + category + `","content":"# ` + category + `\n","source_trust":"canonical"}`))
+		case name == "README" && (category == "docs/adr" || category == "wiki"):
+			// A vor of 2026-11-22 or later takes a directory as a category.
+			_, _ = w.Write([]byte(`{"name":"README","category":"` + category + `","source_trust":"external"}`))
 		case name == "old" && category == "auth":
 			// A vor from before 2026-11-12 ignores category and answers
 			// with whichever sheet wins the name.
@@ -313,8 +316,17 @@ func TestTopicIn(t *testing.T) {
 	if got, err = c.TopicIn(ctx, "auth", "SAML"); err != nil || got.Name != "saml" {
 		t.Errorf("TopicIn(auth, SAML) = %+v, %v", got, err)
 	}
+	// A directory is a category.
+	got, err = c.TopicIn(ctx, "docs/adr", "README")
+	if err != nil || got.Category != "docs/adr" {
+		t.Fatalf("TopicIn(docs/adr, README) = %+v, %v", got, err)
+	}
+	if _, last := f.seen(); last != "/api/topics/README?category=docs%2Fadr" {
+		t.Errorf("request = %s, want /api/topics/README?category=docs%%2Fadr", last)
+	}
 
 	for _, c2 := range []struct{ category, name, why string }{
+		{"docs/wiki", "README", "404"},
 		{"nosuch", "saml", "404"},
 		{"auth", "nosuch", "404"},
 		{"auth", "old", "the reply is from another category"},
@@ -339,10 +351,14 @@ func TestTopicIn_RefusesWithoutARequest(t *testing.T) {
 	if _, err := c.TopicIn(ctx, "", "saml"); err == nil || errors.Is(err, ErrNotFound) {
 		t.Errorf("TopicIn with no category = %v, want an error that is not ErrNotFound", err)
 	}
-	// Never names, never categories.
+	// Never names, never categories. A category may be a directory, under
+	// the rule vor applies (validCategory); a name is one segment.
 	for _, p := range [][2]string{
 		{"auth", ""}, {"auth", "."}, {"auth", ".."}, {"auth", "a/b"}, {"auth", "a..b"},
-		{".", "saml"}, {"..", "saml"}, {"a/b", "saml"}, {"a..b", "saml"},
+		{".", "saml"}, {"..", "saml"}, {"a..b", "saml"},
+		{"/", "saml"}, {"/docs", "saml"}, {"docs/", "saml"}, {"docs//adr", "saml"},
+		{"docs/./adr", "saml"}, {"docs/../adr", "saml"}, {"../docs", "saml"}, {"docs/..", "saml"},
+		{"docs\\adr", "saml"}, {"docs/adr\x00", "saml"}, {strings.Repeat("a/", 128) + "a", "saml"},
 	} {
 		if _, err := c.TopicIn(ctx, p[0], p[1]); !errors.Is(err, ErrNotFound) {
 			t.Errorf("TopicIn(%q, %q) = %v, want ErrNotFound", p[0], p[1], err)
@@ -396,10 +412,12 @@ func TestTopicFor(t *testing.T) {
 	ctx := context.Background()
 
 	for _, tc := range []struct{ category, name, wantRequest, wantCategory string }{
-		// One segment: asked by category.
+		// One segment or a directory: asked by category.
 		{"auth", "saml", "/api/topics/saml?category=auth", "auth"},
-		// A directory, the top of a directory, or nothing: by name alone.
-		{"docs/adr", "ADR-001", "/api/topics/ADR-001", "docs/adr"},
+		{"docs/adr", "ADR-001", "/api/topics/ADR-001?category=docs%2Fadr", "docs/adr"},
+		{"wiki/ops", "README", "/api/topics/README?category=wiki%2Fops", "wiki/ops"},
+		// The top of a directory, nothing, or what vor would refuse: by
+		// name alone.
 		{".", "README", "/api/topics/README", "docs/adr"},
 		{"", "README", "/api/topics/README", "docs/adr"},
 		{"a/../b", "x", "/api/topics/x", "docs/adr"},
@@ -416,5 +434,76 @@ func TestTopicFor(t *testing.T) {
 			t.Errorf("TopicFor(%q, %q) asked %q, want %q", tc.category, tc.name, requests, tc.wantRequest)
 		}
 		mu.Unlock()
+	}
+}
+
+// A vor from before 2026-11-22 answers a directory category with 400
+// "invalid category". TopicFor then asks by name alone, as it did for every
+// directory before; a one-segment category gets no second request.
+func TestTopicFor_VorWithoutDirectoryCategories(t *testing.T) {
+	var mu sync.Mutex
+	var requests []string
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/topics/", func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		requests = append(requests, r.URL.RequestURI())
+		mu.Unlock()
+		name := strings.TrimPrefix(r.URL.Path, "/api/topics/")
+		category := r.URL.Query().Get("category")
+		switch {
+		case strings.Contains(category, "/"):
+			http.Error(w, `{"error":"invalid category"}`, http.StatusBadRequest)
+		case category == "" && name == "README":
+			_, _ = w.Write([]byte(`{"name":"README","category":"wiki"}`))
+		default:
+			http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		}
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	c, err := New(srv.URL, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	got, err := c.TopicFor(ctx, "docs/adr", "README")
+	if err != nil || got.Category != "wiki" {
+		t.Errorf("TopicFor(docs/adr, README) against an older vor = %+v, %v; want the bare-name topic", got, err)
+	}
+	mu.Lock()
+	want := []string{"/api/topics/README?category=docs%2Fadr", "/api/topics/README"}
+	if strings.Join(requests, " ") != strings.Join(want, " ") {
+		t.Errorf("asked %q, want %q", requests, want)
+	}
+	requests = nil
+	mu.Unlock()
+
+	// TopicIn stays exact: no fallback.
+	if _, err := c.TopicIn(ctx, "docs/adr", "README"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("TopicIn(docs/adr, README) against an older vor = %v, want ErrNotFound", err)
+	}
+	// A one-segment category that is not there is not found, once.
+	if _, err := c.TopicFor(ctx, "auth", "README"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("TopicFor(auth, README) = %v, want ErrNotFound", err)
+	}
+	mu.Lock()
+	if len(requests) != 2 {
+		t.Errorf("asked %q, want one request each", requests)
+	}
+	mu.Unlock()
+}
+
+func TestValidCategory(t *testing.T) {
+	t.Parallel()
+	for s, want := range map[string]bool{
+		"auth": true, "docs/adr": true, "a/b/c": true, "ramp-up": true, "x.y/z": true,
+		"": false, ".": false, "..": false, "/": false, "a/": false, "/a": false, "a//b": false,
+		"a/./b": false, "a/../b": false, "a..b": false, "a\\b": false, "a\x00b": false,
+		strings.Repeat("a", MaxCategoryBytes): true, strings.Repeat("a", MaxCategoryBytes+1): false,
+	} {
+		if got := validCategory(s); got != want {
+			t.Errorf("validCategory(%q) = %v, want %v", s, got, want)
+		}
 	}
 }
