@@ -126,9 +126,15 @@ static KBD_TAIL: Array<u32> = Array::with_max_entries(1, 0);
 static CPU_MAP: HashMap<u32, MbcCpuState> =
     HashMap::with_max_entries(monad_common::mbc_maps::CPU_MAP_ENTRIES, 0);
 
-/// Statistics counters.
+/// Statistics counters. Keys 0-31 are taken; the two refusal counters
+/// (UPC_REFUSAL_STATS) need one more entry, in the ascend object only.
 #[map]
-static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
+static STATS: HashMap<u32, u64> = HashMap::with_max_entries(STATS_ENTRIES, 0);
+const STATS_ENTRIES: u32 = if cfg!(feature = "ascend-linux") && UPC_REFUSAL_STATS {
+    33
+} else {
+    32
+};
 
 /// S-ASCEND-2 Phase 6 (M-225, the flow-label instance hijack): which flow may
 /// tick each instance. Index = instance (flow label & 0xFF). Value: bit 31 =
@@ -336,6 +342,21 @@ const UPC_USER_STACKOP_NOP: bool = false;
 fn user_stackop_refused(cpu: &MbcCpuState) -> bool {
     cfg!(feature = "ascend-linux") && UPC_USER_STACKOP_NOP && cpu.priv_level == 3
 }
+
+/// ADR-135 RV-3's second half (M-186.1b, decision pack row 41): a refusal and a
+/// D6 miss leave a trace. With this const on, in the ascend object, an opcode
+/// refused at priv 3 (MRET, SRET, and PUSH, POP, INT, IRET under
+/// UPC_USER_STACKOP_NOP) bumps STAT_PRIV_REFUSED, and a U-mode page-walk miss
+/// that resolves to D6_MISS_ADDR bumps STAT_D6_MISSES. upc-bootctl prints them
+/// as `REFUSALS: priv3=N d6_miss=M` when either is non-zero.
+///
+/// Wired OFF (2026-11-22): turning it on needs the verified count
+/// (check-ebpf-insns.sh --update, the delta in the ledger) and the harness
+/// lines in scripts/upc-regression.sh, which need root. Off, the object is the
+/// earlier one exactly.
+const UPC_REFUSAL_STATS: bool = false;
+const STAT_PRIV_REFUSED: u32 = 31;
+const STAT_D6_MISSES: u32 = 32;
 
 /// Whether CALL, JMPR, CALLR and RET store their branch diagnostics at
 /// physical 0xE0000 and 0xE1000: the Doom object only. They are Doom
@@ -1661,6 +1682,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 reply_req = true; // read after the loop: ADR-135 Consequences
                 break;
             }
+        } else if cfg!(feature = "ascend-linux")
+            && UPC_REFUSAL_STATS
+            && cpu.priv_level == 3
+            && (opc == op::MRET
+                || opc == op::SRET
+                || (UPC_USER_STACKOP_NOP
+                    && (opc == op::PUSH || opc == op::POP || opc == op::INT || opc == op::IRET)))
+        {
+            // M-186.1b: the opcode is refused at U-mode (the arms above do not
+            // match there); count it, then it is a NOP.
+            increment_stat(STAT_PRIV_REFUSED);
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
             // Load-Reserved Word: rd = RAM[rs1]; reserve rs1. The reservation
             // keeps the virtual address; the access is translated (ADR-135 D17).
@@ -4344,6 +4376,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pde = mem_read_word(pd_word_addr);
     if (pde & mmu::PTE_PRESENT) == 0 {
         if d6_user_miss(cpu) {
+            if UPC_REFUSAL_STATS {
+                increment_stat(STAT_D6_MISSES);
+            }
             return D6_MISS_ADDR;
         }
         return vaddr; // Page fault — return unmapped (handle gracefully)
@@ -4370,6 +4405,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pte = mem_read_word(pt_word_addr);
     if (pte & mmu::PTE_PRESENT) == 0 {
         if d6_user_miss(cpu) {
+            if UPC_REFUSAL_STATS {
+                increment_stat(STAT_D6_MISSES);
+            }
             return D6_MISS_ADDR;
         }
         return vaddr; // Page fault

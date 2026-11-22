@@ -211,10 +211,13 @@ fi
 
 # S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
 rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
-probe_lines() { # $1 program, $2 triggers, $3 token prefix, then VAR=value pairs for the boot's environment
+probe_raw() { # $1 program, $2 triggers, $3 token prefix (unused), then VAR=value pairs: the whole boot log
   (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "${@:4}" "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
-    --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
-    | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
+    --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1); }
+tag_lines() { # $1 token prefix; stdin a boot log: the probe's tagged lines
+  grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$1: [a-z0-9-]+(=[a-z0-9]+)?"; }
+probe_lines() { # $1 program, $2 triggers, $3 token prefix, then VAR=value pairs for the boot's environment
+  probe_raw "$@" | tag_lines "$3"; }
 rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
   if ! rung_on "$1"; then note "$2 gate skipped: $1 is off"; return; fi
   local l; l="$(probe_lines "$2" "$3" "$4")"
@@ -351,7 +354,8 @@ want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: g
 # scan refuses in a user image (ADR-135 D17); UPC_ALLOW_USER_PRIVRET=1 is the
 # probe hatch for exactly that (returns only, never an atomic).
 if rung_on UPC_REPLY; then
-  HRL="$(probe_lines hostile_reply 3000000 HR UPC_ALLOW_USER_PRIVRET=1)"
+  HRRAW="$(probe_raw hostile_reply 3000000 HR UPC_ALLOW_USER_PRIVRET=1)"
+  HRL="$(tag_lines HR <<<"$HRRAW")"
   if rung_on UPC_D6_MISS_FAULT; then
     want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
       "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
@@ -366,6 +370,21 @@ if rung_on UPC_REPLY; then
     note "hostile_reply: D6 is off, a child forged a fork note through its own PDE (ADR-135 open)"
   else
     fail "hostile_reply (D6 off: the probe no longer reaches the hole)"
+  fi
+  # M-186.1b (ADR-135 RV-3): with UPC_REFUSAL_STATS on, the two refused
+  # returns are counted (STAT 31), and with D6 on so is at least one U-mode miss
+  # (the PDE store past the child's mapping, STAT 32). upc-bootctl prints the
+  # line only when a counter is non-zero.
+  if rung_on UPC_REFUSAL_STATS; then
+    REF="$(grep -aoE 'REFUSALS: priv3=[0-9]+ d6_miss=[0-9]+' <<<"$HRRAW" | tail -1)"
+    P3="$(sed -nE 's/.*priv3=([0-9]+).*/\1/p' <<<"$REF")"; D6M="$(sed -nE 's/.*d6_miss=([0-9]+).*/\1/p' <<<"$REF")"
+    if [ "${P3:-0}" -ge 2 ] && { ! rung_on UPC_D6_MISS_FAULT || [ "${D6M:-0}" -ge 1 ]; }; then
+      pass "hostile_reply: refusals counted (priv3=${P3:-0} d6_miss=${D6M:-0})"
+    else
+      fail "hostile_reply: refusal counters (priv3=${P3:-0} d6_miss=${D6M:-0}, want priv3>=2 and, with D6 on, d6_miss>=1)"
+    fi
+  else
+    note "refusal counters skipped: UPC_REFUSAL_STATS is off"
   fi
 else
   note "hostile_reply gate skipped: UPC_REPLY is off"
