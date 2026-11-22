@@ -213,3 +213,41 @@ New on west, nothing before them: `/etc/tmpfiles.d/unheaded-modules.conf`; `/usr
 3. **For plan 2's W-12 reading at 20:51Z:** `prometheus_tsdb_head_series` was 5,087 at 19:57Z, before the recreate, and 5,336 at 20:08Z. Prometheus now also scrapes `zhen-agentd` (66 series) and carries the churn of a restart; the 3 h figure is not comparable with the 1 h figure (4,621) without that.
 4. The five role accounts (architect, captain, micromanager, monad, sophia) still exist on west with no line in the sysusers file; plan 2 Phase 23's host items are the place to remove them.
 5. Step 302 of Phase 9 starts the sweep again; with follow-up 1 open it should be read by `Result=` and the textfile (as it is written), not by the journal's `RESULT` line.
+
+## Phase 8B, 2026-11-22: Zhen's tables in their own database (Steps 265-297)
+
+Run without Stevie under DECISION-PACK-2026-11-18 rows 1, 2 and 15, each gate and rollback as written. S-WEST-GROUND has no move in flight (its progress file: Phases 4-12 not run). Rollback directory `RB=/var/backups/zhen-switch-2026-11-22` (fixed to the start date, so a step after midnight does not make a second one).
+
+| Step | Time (UTC) | Result |
+|---|---|---|
+| 265 | | Answered ahead (pack row 1) |
+| 266 | 20:55 | 053 on develop (`29af4a2f`). The migration password: `POSTGRES_PASSWORD` in `/etc/unheaded/compose.env` (its name checked, nothing else), sourced as `WELL_MIGRATE_PASSWORD` inside a root subshell for each `well-migrate` run, never printed. `well-migrate` built once into the session's scratch directory |
+| 267 | 20:55 | `exit=3`; pending exactly 051 (`postgres`), 052 (`unheaded_zhen`), 053, 054 and 056 (`unheaded_app`), 055 (`postgres`): as amended |
+| 268 | 20:55:54 | `counts-before.tsv`: zhen_action_snapshots 0, zhen_actions 26, zhen_agent_runs 0, zhen_capture_labels 0, zhen_captures 0, zhen_conversations 226, zhen_memories 1, zhen_pending_confirmations 0 |
+| 269-270 | 20:56:00 to 21:00:19 | **Rollback set `2026-11-22/well-205600Z`**: drill PASS, 4 databases, 58 tables, 3,938,632 rows match, restore 167 s |
+| 271-272 | 21:00:25 | `unheaded-zhen.target` stopped; both units `inactive` (after 5 s of `deactivating`); `sessions|0` |
+| 273-274 | 21:00:40 | `051_zhen_database.sql` (`-through`, 1.19 s) and `052_zhen_schema.sql` (1.76 s) applied; `unheaded_zhen` status clean; `unheaded_zhen|well_zhen_owner`, `app_zhen` connection limit 20 |
+| 276 | 21:00:48 | `zhen-copy-rows.sh --null-bad-trace-id`: one transaction, exit 0, the eight counts as before. **No trace_id nulled** (0 rows; the file gained no line) |
+| 277 | | `counts-after.tsv` same as before. Sequences: `zhen_conversations_id_seq` 226 (max 226), `zhen_memories_id_seq` 1 (1), `zhen_actions_id_seq` 37 (max 37); the two on empty tables unset |
+| 279 | | `zhen_schema_diff.py`: `same but for the 30 listed change(s)`, no `unexpected:` line |
+| 280 | 21:00:50 | The comment on `unheaded_app`'s `zhen_conversations` names all eight tables with their counts |
+| 281-282 | 21:01:17 | `053_app_drop_zhen.sql` (1.13 s) and `054_app_ledger_read_timeguru.sql` applied (`-through 054`). Status `exit=3` with exactly 055 and 056 pending. No `zhen_*` table left in `unheaded_app`; `kanban_zhen_optin` still there |
+| 283 | | `F=/etc/zhen-agentd.env` (the file the installed unit names; `/etc/unheaded/zhen-agentd.env` does not exist). Copied to `$RB`; `WELL_ZHEN_DSN` added from `WELL_APP_ZHEN_DSN` without printing the file: `1`, `1`. The run order's two extras have nothing to write on west: `unheaded-zhen-app.service` is not installed (no `/etc/unheaded/zhen-app.env`), and the overnight user unit is not installed |
+| 284 | 21:01 to 21:03 | `zhen-agentd` and `zhen-ui-front` built and installed (old ones, of 2026-11-12 and 11-11, in `$RB`), `db-backup.sh` installed (old one in `$RB`), `unheaded-zhen-backup.{service,timer}` installed and enabled, `/srv/backups/unheaded-zhen` made. **`well-retention` not installed:** west has neither the binary nor `unheaded-well-retention.service`, so there is nothing to replace |
+| 285 | 21:04 | Planned-stop mark `unheaded-kanban` 20 min; kanban-app built and recreated; healthy at 28 s; no error or agent-run line |
+| 286-287 | 21:05:17 | `unheaded-zhen.target` started: zhen-agentd, zhen-ui-front, unheaded-zhen-backup.timer `active`; no error, refusal or `WELL_` line; `app_zhen` sessions: `unheaded_zhen|1` only; listeners 127.0.0.1:20103, 20111, 20112 and `[fd00:dead:beef::1]:20111`, as at Step 261 |
+| 289-290 | 21:06:01 to 21:06:16 | Zhen's first set `2026-11-22/well-210602Z`: drill PASS, 1 database, 9 tables, 256 rows, restore 11 s; `zhen_backup.prom` holds the five series (size 107,248 bytes) |
+| 291-292 | 21:06:23 | Platform set `2026-11-22/well-210623Z`: `unheaded_well_backup_databases` 4 (Step 17's before: 4); no file named for Zhen. Rows 3,940,312 against 3,938,632 at 20:56: the eight Zhen tables (253 rows) are gone from `rowcounts.tsv`, and `log_events` grew by 963 rows (counted in its parent and in today's partition), `service_health_transitions` by 4 and the ledgers by 3 |
+| 293-294 | | Not run: `well-retention` is not installed on west (Step 284). Phase 10 has nothing to read either; installing it is its own item |
+| 295 | | Z5, Z14 and Z15 after: below |
+| 297 | | **PHASE 8 EXIT GATE: passed.** The password was never exported outside the subshells, so there is nothing to unset |
+
+**Zhen was stopped 21:00:25Z to 21:05:17Z: 4 min 52 s** (the plan allowed about 20).
+
+| Row | After |
+|---|---|
+| Z5 | Zhen's eight tables live in `unheaded_zhen` (owner `well_zhen_owner`), none left in `unheaded_app`; 253 rows moved, counts equal on both sides |
+| Z14 | `app_zhen` connects to `unheaded_zhen` only (1 session), within its limit of 20 |
+| Z15 | The platform's set holds 4 databases and no Zhen table; Zhen has its own local set, drilled |
+
+For Stevie: your own shell's `zhen-claude` needs `WELL_ZHEN_DSN` (the same value as `WELL_APP_ZHEN_DSN` with `unheaded_zhen` for the database).
