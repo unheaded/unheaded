@@ -88,6 +88,13 @@ type Policy struct {
 	Boot struct {
 		StateMaxAge string `yaml:"state_max_age,omitempty"`
 	} `yaml:"boot,omitempty"`
+	// PlannedStop.ProbeMax: the alert-route compliance probe passes a link
+	// that is down under a planned-stop mark ending within this long
+	// (Stevie, 2026-11-22). compliance-evidence alone reads it
+	// (collect.PlannedStopMax, the same bounds); no regeneration.
+	PlannedStop struct {
+		ProbeMax string `yaml:"probe_max,omitempty"`
+	} `yaml:"planned_stop,omitempty"`
 	Promote []Promotion `yaml:"promote"`
 	Window  string      `yaml:"window"`
 	SLOs    []SLO       `yaml:"slos"`
@@ -143,6 +150,7 @@ var (
 	durationRE = regexp.MustCompile(`^[0-9]+[smhdw]$`)
 	clockRE    = regexp.MustCompile(`^([01][0-9]|2[0-3]):[0-5][0-9]$`)
 	runbookRE  = regexp.MustCompile(`^runbooks/[a-z]+/[a-z0-9][a-z0-9-]*\.yaml$`)
+	probeMaxRE = regexp.MustCompile(`^[0-9]+[mh]$`) // collect.PlannedStopMax reads it with the same rule
 )
 
 func loadPolicy(path string) (*Policy, error) {
@@ -258,6 +266,11 @@ func (p *Policy) validate() []error {
 	if v := p.Boot.StateMaxAge; v != "" {
 		if d, err := parsePromDuration(v); err != nil || d < time.Minute {
 			bad("boot.state_max_age %q: want a duration of at least 1m (host_state.prom is written every 30 s)", v)
+		}
+	}
+	if v := p.PlannedStop.ProbeMax; v != "" {
+		if d, err := time.ParseDuration(v); !probeMaxRE.MatchString(v) || err != nil || d < time.Minute || d > 24*time.Hour {
+			bad("planned_stop.probe_max %q: want <n>m or <n>h, 1m to 24h (past a day a stack stopped for days reads as planned)", v)
 		}
 	}
 	if len(p.SLOs) == 0 {

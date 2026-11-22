@@ -88,6 +88,17 @@ pipeline:
 boot:
   state_max_age: 5m
 
+# A planned stop in the alert-route compliance probe (Stevie, 2026-11-22). The
+# probe asks each link of the alert path (Prometheus, Alertmanager, the
+# mailer, the Well) directly. A link that is down under a planned-stop mark
+# (scripts/monitoring/planned-stop.sh) for its container or "all" passes only
+# when the mark ends within probe_max of the probe; a longer mark still fails,
+# since a stack stopped for days is what the probe exists to catch.
+# kingdom-shutdown.sh marks "all" for 2h. <n>m or <n>h, 1m to 24h; absent: no
+# mark counts. compliance-evidence alone reads this block; no regeneration.
+planned_stop:
+  probe_max: 2h
+
 # Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
 #   - alert: WellBackupMissing

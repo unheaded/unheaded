@@ -679,6 +679,9 @@ func (h *HostSSHD) Collect(ctx context.Context, sources []crosswalk.Source) ([]c
 type Probe struct {
 	Command string                                      // run by sh on the host; $UH_PRIV prefixes what needs root (see HostProbes)
 	Judge   func(out string) (pass bool, detail string) // out is the command's stdout
+	// JudgeEnv, when set, judges in HostProbes.Collect instead of Judge,
+	// with the collector's ProbeEnv. Judge stays the judgement with none.
+	JudgeEnv func(out string, env ProbeEnv) (pass bool, detail string)
 	// Baseline marks a probe of host configuration, which the host agent
 	// also evaluates (ADR-098). Operational probes (backup recency, which
 	// depends on the operator's $HOME) stay central-only.
@@ -797,25 +800,12 @@ var Probes = map[string]Probe{
 		// monitoring source is a file or a series the stopped stack would
 		// have written. Operational, so central-only. The Well's link is a
 		// listener on its port and no more: the container's port proxy can
-		// hold that socket with Postgres down.
-		Command: `for t in prometheus=http://127.0.0.1:9090/-/healthy alertmanager=http://127.0.0.1:9093/-/healthy alert-mailer=http://127.0.0.1:19130/health; do ` +
-			`echo "${t%%=*}=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 "${t#*=}")"; done; echo "well=$(ss -Hltn 'sport = :5432' | wc -l)"`,
-		Judge: func(out string) (bool, string) {
-			f := parseKV(out)
-			var down []string
-			for _, link := range []string{"prometheus", "alertmanager", "alert-mailer"} {
-				if f[link] != "200" {
-					down = append(down, link+" "+f[link])
-				}
-			}
-			if n, err := strconv.Atoi(f["well"]); err != nil || n < 1 {
-				down = append(down, "well not listening")
-			}
-			if len(down) > 0 {
-				return false, "alert path down: " + strings.Join(down, ", ")
-			}
-			return true, "prometheus, alertmanager and alert-mailer answer; the Well's port has a listener"
-		},
+		// hold that socket with Postgres down. A link down under a short
+		// planned-stop mark passes (Stevie, 2026-11-22; plannedstop.go):
+		// only through JudgeEnv, with the policy's window.
+		Command:  alertRouteCommand,
+		Judge:    func(out string) (bool, string) { return judgeAlertRoute(out, ProbeEnv{}) },
+		JudgeEnv: judgeAlertRoute,
 	},
 	"db-backup-recent": {
 		// The Well's dumps: the scheduled sets (unheaded-well-backup.timer)
@@ -943,6 +933,9 @@ type HostProbes struct {
 	// ExecStartPre=+): aa-status.json and root-path. Empty: the probes get
 	// them through sudo.
 	RootFacts string
+	// Env is the operator's settings for probes with a JudgeEnv. Zero: the
+	// strictest judgement (no planned-stop mark counts).
+	Env ProbeEnv
 }
 
 // probePath puts the sbin directories first: probes call modprobe, sshd,
@@ -1051,7 +1044,13 @@ func (p *HostProbes) Collect(ctx context.Context, sources []crosswalk.Source) ([
 			if !ok || forged[c.probe] {
 				continue // no section, or two: no verdict
 			}
-			pass, detail := Probes[c.probe].Judge(sec)
+			pr := Probes[c.probe]
+			pass, detail := false, ""
+			if pr.JudgeEnv != nil {
+				pass, detail = pr.JudgeEnv(sec, p.Env)
+			} else {
+				pass, detail = pr.Judge(sec)
+			}
 			v := crosswalk.VerdictFail
 			if pass {
 				v = crosswalk.VerdictPass

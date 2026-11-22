@@ -176,7 +176,15 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	// planned_stop.probe_max from the alerting policy: how short a
+	// planned-stop mark must be for alert-route to pass a link it covers.
+	// Unreadable or out of bounds: no mark counts.
 	probes := &collect.HostProbes{}
+	if pol, err := fs.ReadFile(os.DirFS(repoDir), "observability/alerting/policy.yaml"); err != nil {
+		fmt.Fprintln(os.Stderr, "planned-stop window unavailable, no mark counts:", err)
+	} else if probes.Env.PlannedStopMax, err = collect.PlannedStopMax(pol); err != nil {
+		fmt.Fprintln(os.Stderr, "planned-stop window unavailable, no mark counts:", err)
+	}
 	if recs, err = probes.Collect(ctx, sources); err != nil {
 		return err
 	}

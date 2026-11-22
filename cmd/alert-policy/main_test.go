@@ -405,6 +405,29 @@ func TestValidateBoot(t *testing.T) {
 	}
 }
 
+// planned_stop.probe_max (alert-route under a planned-stop mark, Stevie
+// 2026-11-22): absent means no mark counts; <n>m or <n>h, 1m to 24h. Only
+// compliance-evidence reads it; the repository's policy carries it.
+func TestValidatePlannedStop(t *testing.T) {
+	for v, ok := range map[string]bool{"": true, "2h": true, "1m": true, "24h": true, "25h": false, "30s": false, "1d": false, "soon": false} {
+		p, err := loadPolicy(filepath.Join("..", "..", policyPath))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if p.PlannedStop.ProbeMax == "" {
+			t.Fatal("the repository's policy has no planned_stop.probe_max")
+		}
+		p.PlannedStop.ProbeMax = v
+		var hit bool
+		for _, e := range p.validate() {
+			hit = hit || strings.Contains(e.Error(), "planned_stop.probe_max")
+		}
+		if hit == ok {
+			t.Errorf("probe_max %q: refused=%v, want %v", v, hit, !ok)
+		}
+	}
+}
+
 // A promotion routes exactly that alert, ahead of the urgency routes.
 func TestPromotionRoutesOneAlert(t *testing.T) {
 	root := tree(t, addPromotion(t, "  - alert: HostDiskFull\n    urgency: ticket\n    reason: test"), "")
