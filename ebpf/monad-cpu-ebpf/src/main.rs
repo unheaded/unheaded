@@ -318,6 +318,25 @@ fn atomic_addr(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     }
 }
 
+/// ADR-135 SP-2's residue (M-186.12e, decision pack row 41): PUSH, POP, INT and
+/// IRET reach memory through r15 with no translation, so at U-mode a chosen
+/// stack pointer is a physical address. With this const on, in the ascend
+/// object, the four are a NOP at priv 3, as MRET and SRET are: the arms do not
+/// match and the opcode falls to the unknown-opcode NOP. The translator emits
+/// none of them and upc-bootctl refuses a user image that holds one, so this is
+/// the second control, not the first; no stock image reaches it.
+///
+/// Wired OFF (2026-11-22): turning it on needs the verified count
+/// (check-ebpf-insns.sh) and the four patched-image proofs on a throwaway
+/// bootctl, as the atomics had, which need root. Off, the object is the
+/// earlier one exactly.
+const UPC_USER_STACKOP_NOP: bool = false;
+
+#[inline(always)]
+fn user_stackop_refused(cpu: &MbcCpuState) -> bool {
+    cfg!(feature = "ascend-linux") && UPC_USER_STACKOP_NOP && cpu.priv_level == 3
+}
+
 /// Whether CALL, JMPR, CALLR and RET store their branch diagnostics at
 /// physical 0xE0000 and 0xE1000: the Doom object only. They are Doom
 /// debugging, and in the ascend object a U-mode program chose the words and
@@ -1190,11 +1209,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Stack operations ─────────────────────────────────────────────────
         // SP is a byte address (consistent with LD/ST). Each entry is 4 bytes.
-        } else if opc == op::PUSH {
+        } else if opc == op::PUSH && !user_stackop_refused(cpu) {
             cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
             let word_addr = cpu.regs[15] >> 2;
             mem_write_word(word_addr, cpu.regs[d]);
-        } else if opc == op::POP {
+        } else if opc == op::POP && !user_stackop_refused(cpu) {
             let word_addr = cpu.regs[15] >> 2;
             cpu.regs[d] = mem_read_word(word_addr);
             cpu.regs[15] = cpu.regs[15].wrapping_add(4);
@@ -1664,7 +1683,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.reservation_address = 0xFFFF_FFFF;
 
         // ── Interrupts ────────────────────────────────────────────────────────
-        } else if opc == op::INT {
+        } else if opc == op::INT && !user_stackop_refused(cpu) {
             let vector = imm as u8;
             // The INT-0x80 Linux/FUZIX dispatch below is dead weight under
             // ASCEND-LINUX: xv6 issues syscalls via `ecall` (op::SYSCALL), never
@@ -2260,7 +2279,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 let ivt_addr = (vector as u32) * 4;
                 cpu.pc = mem_read_word(ivt_addr >> 2);
             }
-        } else if opc == op::IRET {
+        } else if opc == op::IRET && !user_stackop_refused(cpu) {
             // Return from interrupt: pop PC + flags, re-enable interrupts.
             // Pop PC from stack
             let word_addr = cpu.regs[15] >> 2;
