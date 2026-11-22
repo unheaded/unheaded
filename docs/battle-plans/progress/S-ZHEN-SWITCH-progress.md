@@ -290,3 +290,15 @@ For Stevie: your own shell's `zhen-claude` needs `WELL_ZHEN_DSN` (the same value
 The switch: **off in 42 s, on in 42 s.**
 
 **PHASE 9 EXIT GATE (Step 317): passed.** Steps 300 and 307 passed; every row has an after or a written reason.
+
+## Phase 10, 2026-11-22: close (Steps 318-330)
+
+| Step | Result |
+|---|---|
+| 318-320 | The `ci-local.sh` run of S-SEE-AND-SURVIVE Step 374 (same command, the tree since then changed only in records): passed 31, failed 0, skipped 2. Its first run's two failures (the collector's join test race; two rows the doc-coverage merge put in `wiki/Project-Structure.md`) were fixed in `b6cb30f1`; neither was this plan's |
+| 321 | ADR-149 "Implemented on west, 2026-11-22" (status stays Proposed); ADR-147 "decision 15 carried out by S-ZHEN-SWITCH", one line per row; the series index: "Executed 2026-11-22; 8B done" (`72b8a398`) |
+| 322 | `wiki/Zhen-AI.md` (the switch, its two commands and the checker, the bind rule; the sweep and the audit are the platform's timers), `wiki/The-Well.md` (`unheaded_zhen`, owner, the two DSNs, `retention_runner`), `wiki/Well-Backups.md` (Zhen's set), `wiki/Alerting.md` (the five schedule and module alerts). `wiki/Systemd-Units.md` already named the target, the oneshot and the timers |
+| 323-324 | No line says the sweep or the audit is scheduled by Zhen; `tests/scripts/test_doc_links.py` 2 passed; `scripts/lib` move-out tests pass |
+| 326-327 | Worktree removed (`0`); `/var/tmp/zhen-switch` removed (alert lists, fingerprints, an empty `bad-trace-ids.txt`, 8A's `wiki-server` build). The rollback directory `/var/backups/zhen-switch-2026-11-22` and the `pre-zhen-switch` image tags stay: for Stevie after 7 days of the switch working (2026-11-29) |
+| 330 | **PHASE 10 EXIT GATE: passed.** Waiting on Stevie: the `spl` indicator of the IOC audit; `WELL_ZHEN_DSN` in his shell for `zhen-claude`; ADR-149's acceptance; the rollback housekeeping. Handoffs: Z11 to plan 4; east's Akira to plan 6; Zhen into an LXD instance, plan 7. No `[STUCK]`. Stevie pushes |
+
