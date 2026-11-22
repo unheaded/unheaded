@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
+//! LICH-008: libFuzzer target for races in a model of Wotan's L1 cache under
+//! concurrent access. See the comment below and wiki/LICH-Campaigns.md.
 use libfuzzer_sys::fuzz_target;
 use std::sync::{atomic::AtomicU64, Arc};
 

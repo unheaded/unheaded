@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis.
 #![no_main]
+//! Fuzz target: MBC instructions built from valid opcodes survive an encode and
+//! `decode_checked` round trip.
 
 use libfuzzer_sys::fuzz_target;
 use monad_common::{mbc_opcodes as op, MbcInsn};

@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis.
+//! LICH-015 differential harness: runs bounded MBC programs on the reference
+//! interpreter (`monad_mbc::ExecCpu`) and on the cartridge step
+//! (`monad_common::cart::step`, the monad-cpu-ebpf model) in lockstep and
+//! reports the first instruction where they differ. Subcommands `run`,
+//! `self-test`, `mulhu-probe`, `corpus`; details in the comment below.
 //
 // LICH-015 differential harness (S-LICH-AWAKENS Phase 7, ADR-062/067/080).
 //

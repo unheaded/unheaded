@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
+//! Fuzz target: the reference MBC CPU (`execute::run_fuzz_input`) never panics
+//! on any initial registers and ROM; the same body runs in the seeded
+//! `cargo test` (`tests/seeded_execute.rs`).
 
 use libfuzzer_sys::fuzz_target;
 

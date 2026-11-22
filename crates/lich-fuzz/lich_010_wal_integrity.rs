@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
+//! LICH-010: libFuzzer target interleaving writes and compaction in a model of
+//! Wotan's write-ahead log. See the comment below and wiki/LICH-Campaigns.md.
 use libfuzzer_sys::fuzz_target;
 use std::collections::VecDeque;
 

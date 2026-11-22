@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
+//! LICH-007: libFuzzer target over MBC instruction decoding (random bytecode
+//! streams must never panic). See the comment below and wiki/LICH-Campaigns.md.
 use libfuzzer_sys::fuzz_target;
 
 // LICH-007: MBC Bytecode Instruction Fuzzer

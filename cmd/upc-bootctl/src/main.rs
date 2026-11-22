@@ -1,4 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+//! upc-bootctl loads and boots MBC kernel images on the UPC (ASCEND-LINUX):
+//! `validate` checks an image without loading it, `boot` loads the kernel (and
+//! optional stub, ramdisk and userland) into the pinned BPF maps and sends the
+//! boot triggers, `console` does the same and then runs the guest
+//! interactively (TTY to stdout and the tty bridge, keystrokes into the KBD
+//! ring). Run by `unheaded-upc-bootctl@.service`; recipe in
+//! wiki/Linux-on-UPC.md.
 //
 // upc-bootctl — UPC kernel image loader + boot dispatcher.
 //
