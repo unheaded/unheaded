@@ -499,3 +499,21 @@ Plan 2 closed 2026-11-22 (record: `docs/battle-plans/progress/S-WASTE-OUT-progre
 | W-31 | orphan volumes and tables | four | removed | done |
 
 Open, and with whom: W-02 (kanban-app's `/health`, a code change), W-03 (a per-process reading for the bar), W-06 (the per-room cap), W-12 (a keep on Prometheus's own job), W-17 (Akira's limits) and W-30's I/O pressure: Stevie, in `next.md`.
+
+## Update 2026-11-22: decision 15 carried out by S-ZHEN-SWITCH
+
+- Z1 Akira's Zhen defaults: fixed on west; east with plan 6.
+- Z2 the dashboard's module targets: fixed (only while on).
+- Z3 the health sweep: fixed (platform timer).
+- Z4 Zhen's rules and scrape jobs: fixed (module fragments, only while on).
+- Z5 Zhen's tables: fixed (`unheaded_zhen`).
+- Z6 the bind rule: fixed (guard, gate proven to fail, public total 0).
+- Z7 vor's description: fixed.
+- Z8 the menu entry: fixed (only while on).
+- Z9 platform silence while off: fixed (0 lines).
+- Z10 `build-zhen` out of `build-services`: fixed.
+- Z11 huge pages for the model server: handed to plan 4.
+- Z12 the IOC audit: fixed (platform timer, approved by pack row 7); its first run's indicator waits on Stevie.
+- Z13 the sweep over TLS: fixed.
+- Z14 `app_zhen`'s limit and pools: fixed (limit 20).
+- Z15 Zhen's rows out of the platform's backups: fixed (its own set, drilled).

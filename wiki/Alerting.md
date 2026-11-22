@@ -326,6 +326,18 @@ Before ADR-147 no alert read a resource, a stopped container or the monitoring p
 
 `HostDiskFull` is promoted to a page and `HostDiskAlmostFull` and `NodeExporterDown` to tickets at the same time. Each bar comes from five days of west's own series (`resources.yml`'s header). Two rules that could not fire were repaired: **TraceCollectorHighLatency** now reads the share of flushes to Wotan over 100 ms from `trace_publisher_flush_duration_seconds` (the old `trace_collector_batch_latency_seconds` was never observed), and **VectorSinkDroppingEvents** reads every component's discards (the ClickHouse sink it read blocks and never discards; `well_logs` is the one that can).
 
+### Schedules and modules (ADR-149)
+
+| Alert | File | Fires when | Urgency |
+|---|---|---|---|
+| HealthSweepNotSucceeding | `schedules.yml` | the platform's health sweep has not succeeded for over a day (30m) | ticket |
+| IOCAuditNotSucceeding | `schedules.yml` | the IOC audit has not succeeded for over 3 days (30m) | ticket |
+| ModuleListenerPublic | `modules.yml` | a module listens where the public side can reach it (1m) | page |
+| ModuleListenerGuardNotRunning | `modules.yml` | the listener guard has not run for over 30 minutes (10m) | ticket |
+| ZhenBackupStale | `modules/zhen/prometheus/rules/zhen.yml` | Zhen's database has had no set for over a day (30m) | ticket |
+
+The two schedule rules read the platform's series (`unheaded_schedule_*`), not Zhen's. Zhen's own rules (`ZhenSchedulerStalled`, `ZhenBackupStale`) are loaded only while the switch is on.
+
 ## Postmortems
 
 Blameless, in `docs/incidents/` from `docs/incidents/TEMPLATE.md`. Written

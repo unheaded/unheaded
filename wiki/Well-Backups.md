@@ -36,6 +36,8 @@ West is not up 24/7. Every timer is `Persistent=`, so a run missed while west wa
 
 East's account `well-backup-copy` is nologin, key-only and chrooted, and it can add files but never delete or rename them. A compromised west cannot wipe east. East's check fails while west has been off for more than 36 h, because the offsite copy really is stale.
 
+**Zhen's set (ADR-149, since 2026-11-22).** `unheaded_zhen` is left out of the platform's set (`WELL_BACKUP_EXCLUDE`) and has its own: `unheaded-zhen-backup.timer` (part of `unheaded-zhen.target`, so only while Zhen is on) writes `/srv/backups/unheaded-zhen/`, local only, no offsite copy; `zhen_backup.prom` carries five `unheaded_zhen_backup_*` series and `ZhenBackupStale` reads them. The first set was drilled 2026-11-22 (1 database, 256 rows).
+
 ## Alerts
 
 Each job writes a `.prom` file to `/var/lib/unheaded/textfile` on success only; Huginn forwards it. `monitoring/prometheus/rules/well.yml`: backup late (> 26 h), missing (> 50 h), offsite late (> 26 h), drill late (> 8 days), metrics absent. Each waits 45 min so the boot catch-up does not fire them.

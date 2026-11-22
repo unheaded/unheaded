@@ -102,13 +102,20 @@ A hand-started vor needs its port: `cs serve 20110`. The unit gets its corpus fr
 
 Rule 2 fails closed. A retrieval source that does not answer adds an `unavailable` reference, so while vor is down or restarting, reads and answers continue and every mutating agent call is held.
 
+## The switch (ADR-149)
+
+Zhen is a module: `unheaded-zhen.target` is its one switch. `sudo systemctl disable --now unheaded-zhen.target` turns it off (its units stop, `/run/unheaded/modules/zhen` goes, so Prometheus, VictoriaMetrics and the dashboard drop its rules, jobs, targets and menu entry); `sudo systemctl enable --now unheaded-zhen.target` turns it on. `sudo scripts/test-zhen-switch.sh --expect on|off [--wait 90]` checks twelve things either way. On west both directions took 42 s (2026-11-22). Zhen's listeners must be on loopback or an address in the host's bind list (`UNHEADED_MODULE_BIND_ALLOW`, per unit drop-in); the binaries refuse anything else, and a guard timer exports `unheaded_module_listener_public_total`. Zhen's tables are in their own database, `unheaded_zhen` ([[The-Well]]), backed up on their own ([[Well-Backups]]).
+
 ## Scheduler
 
 Zhen runs approved runbooks on a schedule from inside `zhen-agentd`
 (`-scheduler`), so every run meets the Champion gate, the runbook manifest and
 the audit log, under the daemon's own unit and nologin user. The Python
 scheduler (`raft/zhen_scheduler.py`, ADR-028) was retired 2026-10-27
-(S-CHAMPION-HARDENING Phase 8).
+(S-CHAMPION-HARDENING Phase 8). Since ADR-149 the health sweep and the
+IOC audit are not Zhen's jobs: they run from the platform's own timers
+(`unheaded-health-sweep.timer`, `unheaded-ioc-audit.timer`, [[Systemd-Units]])
+whether Zhen is on or off. The example below shows the file's shape.
 
 **Unit.** `deploy/systemd/zhen-agentd.service` runs
 `-scheduler -schedules /etc/unheaded/zhen/schedules.yaml
@@ -147,9 +154,10 @@ a restart; for a job that has never succeeded it is the time the job was first
 loaded. An alert on "no success for N days" reads this gauge.
 
 **The daily indicator-of-compromise audit.** `runbooks/security/ioc-audit.yaml`
-(job `ioc-audit`, `daily@02:00`, `catch_up: true`; commented out in the shipped
-schedule until the runbook is approved, since a draft makes the file refuse to
-load). It reads VictoriaMetrics on loopback and nothing else: SSH logins by
+runs daily at 02:00 from the platform's `unheaded-ioc-audit.timer` (ADR-149;
+enabled on west 2026-11-22, the runbook approved by pack row 7 and the manifest
+sealed); `platform-schedule.sh` writes `unheaded_schedule_last_exit_code` and
+the report goes to the timer's journal. It reads VictoriaMetrics on loopback and nothing else: SSH logins by
 host, account, source and method, authentication failures by host and kind, and
 host events by kind (`unheaded_host_events_total`, counted by Vector from the
 journal), over the last two days. The run fails, and its card lands in Review,

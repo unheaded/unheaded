@@ -23,7 +23,8 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 
 | Database | Holds | Owner (NOLOGIN) |
 |---|---|---|
-| `unheaded_app` | kanban tasks, timeline milestones, Zhen conversations/memories/actions, API keys (`api_keys`: SHA-256 of each `uhk_` key, owner, role, expiry, revocation; migration 036), browser sessions (`bff_sessions`: SHA-256 of each session cookie, front, subject, roles, created, last used, expiry, maximum age, revocation and what did it; migration 056; empty unless a front runs with `AUTH_SESSION_STORE=well`) | `well_app_owner` |
+| `unheaded_app` | kanban tasks, timeline milestones, API keys (`api_keys`: SHA-256 of each `uhk_` key, owner, role, expiry, revocation; migration 036), browser sessions (`bff_sessions`: SHA-256 of each session cookie, front, subject, roles, created, last used, expiry, maximum age, revocation and what did it; migration 056; empty unless a front runs with `AUTH_SESSION_STORE=well`) | `well_app_owner` |
+| `unheaded_zhen` | Zhen's eight tables (conversations, memories, actions and their snapshots, pending confirmations, agent runs, captures and their labels), moved out of `unheaded_app` 2026-11-22 (ADR-149, migrations 051-053). `app_zhen` (limit 20) reads it through `WELL_ZHEN_DSN`, and reads the board in `unheaded_app` through `WELL_APP_ZHEN_DSN`; kanban-app reads agent runs here (`WELL_ZHEN_DB`) | `well_zhen_owner` |
 | `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`), retention records (`retention_runs`, `retention_archive`; 043), Sword's deployment history and the chaos journals (`deploy_history`, `deploy_history_transitions`, `chaos_journal`, `chaos_journal_transitions`; 039, append-only, written by `ops_writer`), SLO definitions with history (`slo_definitions`; 040, synced from `observability/alerting/policy.yaml` by `go run ./cmd/alert-policy -sync-well`) | `well_ops_owner` |
 | `unheaded_config` | kingdom_config (+ history), service registry, compliance catalogue | `well_config_owner` |
 | `postgres` | `pg_stat_statements` only | `unheaded` |
@@ -43,7 +44,7 @@ Each database has its own `well_schema_migrations` ledger. Migrations 030-046 ar
 | `config_admin`, `config_reader` | `unheaded_config` | unheaded-daemon, services |
 | `huginn_reader` | all three, `pg_monitor`, 3 conns | Huginn |
 | `well_backup` | all, `pg_read_all_data`, 3 conns | backups, restore drill |
-| `retention_runner` | `unheaded_app` + `unheaded_ops`, 4 conns: DELETE on `zhen_conversations`, `kanban_tasks`, `retention_archive` only; `zhen_captures_purge()`; age columns of the append-only tables; INSERT on `retention_runs`; password `RETENTION_RUNNER_PASSWORD` (migrations 042/043) | `well-retention` (`unheaded-well-retention.timer`) |
+| `retention_runner` | `unheaded_app`, `unheaded_zhen` (since 2026-11-22, migration 052) and `unheaded_ops`, 4 conns: DELETE on `zhen_conversations` (in `unheaded_zhen`), `kanban_tasks`, `retention_archive` only; `zhen_captures_purge()`; age columns of the append-only tables; INSERT on `retention_runs`; password `RETENTION_RUNNER_PASSWORD` (migrations 042/043) | `well-retention` (`unheaded-well-retention.timer`) |
 | `unheaded` | superuser, TLS from the host only | well-migrate, operators |
 
 PUBLIC has no CONNECT or TEMP anywhere: a role reaches only the databases it is granted.

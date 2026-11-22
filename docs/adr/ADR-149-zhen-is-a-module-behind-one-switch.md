@@ -51,3 +51,7 @@ Measured on west and develop on 2026-11-15 (plan grounding rows G1-G13).
 - A module's health never decides the platform's overall state: the dashboard lists module targets beside the platform's and leaves them out of its counts.
 - With the switch off: no Zhen unit runs, no Zhen scrape job or rule is loaded, no Zhen health target is registered, the menu has no Zhenai entry, and the board shows no Zhen fields. `scripts/test-zhen-switch.sh --expect on|off` reads both states from outside.
 - Zhen built from this branch needs `WELL_ZHEN_DSN` (its own tables) beside `WELL_APP_ZHEN_DSN` (the board only).
+
+## Implemented on west, 2026-11-22 (S-ZHEN-SWITCH)
+
+8A on 2026-11-21; 8B, Phase 9 and the close on 2026-11-22 (record: `docs/battle-plans/progress/S-ZHEN-SWITCH-progress.md`). The switch: off in 42 s, on in 42 s, every check of `scripts/test-zhen-switch.sh` passing both ways; with Zhen off for 11 minutes nothing new fired and no platform log line named it. Zhen's tables live in `unheaded_zhen` (Zhen stopped 4 min 52 s for the move). Status stays Proposed: acceptance is Stevie's.
