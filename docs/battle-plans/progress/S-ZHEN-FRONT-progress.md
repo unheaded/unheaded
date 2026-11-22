@@ -76,3 +76,7 @@ Answered by Stevie 2026-11-12 (round 2, and Step 141).
 ## Found on the way, not this plan's
 
 - (Fixed 2026-11-15, `d1bbd94c`.) `tests/scripts/test_go_root_ci.py::test_a_change_to_a_root_test_package_starts_the_workflow` failed on develop (`cmd/trace-collector-go` is not in the eBPF workflow's paths). It fails the same way in `~/tmp/unheaded`; it came with the trace collector fix.
+
+### 2026-11-22 23:05Z: Steps 115-119 unstuck by DECISION-PACK-2026-11-18 row 30
+
+Row 30: "Lock what runs today, all 44." The lock resolved on 2026-11-15 (kept at `/var/tmp/unheaded-sprint/s-zhen-front-runtime-lock/`) is now tracked as `raft/runtime/requirements.in` and `requirements.txt` (65 packages, 875 hashes), on develop (no sprint worktree is left). Step 117: empty against `~/.venv/zhen` (every version equal). Gates: `check-dependency-baseline.sh` PASS (492 packages, all in the baseline already), `check-python-audit.sh` PASS (3 pinned files; torch 2.10.0's PYSEC-2025-194 and PYSEC-2026-139 were already accepted under FND-013), `check-sbom-trend.sh` PASS (the committed SBOM is not regenerated here; the next regeneration raises the Python count, which row 30 approves), ruff, SPDX and the crypto inventory pass. torch stays PyPI's build (Step 118's default). Step 151 (Phase 10) is no longer blocked by the lock; Phases 10 and 11 are attended.
