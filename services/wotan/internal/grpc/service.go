@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package grpc is Wotan's gRPC side: the ChatStream and TopicStream services
+// of services/wotan/proto, and the server options that authenticate every
+// call.
 package grpc
 
 import (

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
+//! Fuzz target: every 4-byte word fed to `decode_checked` returns Ok or Err,
+//! never panics.
 
 use libfuzzer_sys::fuzz_target;
 use monad_mbc::instruction::decode_checked;

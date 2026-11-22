@@ -87,6 +87,14 @@ One job, `well-retention` (`cmd/well-retention`, package `unheaded-well-retentio
 - **No credentials in the repo**, and every `kingdom_config` change states a reason (`well.change_reason`, 028).
 - **Backup before change:** `sudo systemctl start unheaded-well-backup.service`.
 
+One-shot repair scripts (each refuses to guess and says why):
+
+| Script | What |
+|---|---|
+| `scripts/well-reconcile-kanban.sh [--dry-run]` | Moves `kanban_tasks` from the maintenance database `unheaded` into `unheaded_app` on a volume made before 2026-09-21 (the ADR-091 initdb bug); refuses if the destination already has rows; the source table stays until dropped by hand |
+| `scripts/well/zhen-copy-rows.sh` | Copies Zhen's eight `zhen_*` tables from `unheaded_app` into `unheaded_zhen` (ADR-149, S-ZHEN-SWITCH Step 276); attended only, with Zhen stopped; refuses unless the source tables are exactly those eight and the target's are empty |
+| `scripts/well/zhen_schema_diff.py A B [changes]` | Compares two outputs of `zhen-schema-fingerprint.sql` (`unheaded_app` before 053, `unheaded_zhen` after 052) against the deliberate differences in `zhen-schema-changes.txt`; exit 1 on any other difference |
+
 ---
 
 > **Source:** [THE_WELL_OPERATIONS.md](../docs/architecture/THE_WELL_OPERATIONS.md) · [ADR-016](../docs/adr/ADR-016-postgres-the-well.md) · [ADR-101](../docs/adr/ADR-101-well-migration-ledger.md) · [ERDA audit](../docs/battle-plans/WELL-ERDA-AUDIT-2026-10-13.md)

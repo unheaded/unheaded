@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package database is the Go side of the Well (PostgreSQL): Connect with
+// TLS required, the migration ledger check (RequireMigrations), and one store
+// per table family: health reports from Akira (WotanBridge, HealthStore),
+// Kanban tasks, kingdom config, deploy and chaos journals, SLO definitions,
+// Zhen conversations and timeguru's timeline. Used by dashboard-backend,
+// kanban-app, sword, chaos-controller, well-migrate, well-retention,
+// alert-policy, compliance-evidence, zhen-agentd, timeguru and others.
 package database
 
 import (

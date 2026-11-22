@@ -12,6 +12,7 @@
 //  2. When an entry opens a new direction whose reverse already exists, it
 //     is the first response: compute RTT and emit one CorrelatedFlow.
 //  3. Stale flows are garbage-collected after a configurable TTL.
+
 package main
 
 import (

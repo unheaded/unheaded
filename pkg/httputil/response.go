@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package httputil is the HTTP plumbing every Kingdom service shares: the
+// JSON response envelope (WriteSuccess, WriteError, WriteJSON) and bounded
+// request decoding, the standard unheaded_http_* metrics middleware, access
+// logging, listeners on several addresses, the WebSocket origin check,
+// security headers, /health and /ready method limits, and pprof on a
+// loopback-only listener.
 package httputil
 
 import (

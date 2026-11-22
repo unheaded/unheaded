@@ -8,6 +8,7 @@
 // each cost grew with its map until it was most of a core (FND-044, ADR-144).
 // A batch lookup reads thousands of entries per call. Both readers share the
 // loop here; each keeps what it does with an entry.
+
 package main
 
 import (

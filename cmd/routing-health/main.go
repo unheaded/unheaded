@@ -1,4 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+// Command routing-health serves routing-plane health over HTTP (/health,
+// /ready, /metrics on ROUTING_HEALTH_ADDR): whether the frr and bird units are
+// active, and the BGP and OSPF neighbour counts vtysh reports.
 package main
 
 import (

@@ -123,3 +123,16 @@ Two things learned on 2026-11-21: the Pi-hole refuses a client everything for at
 2. Copy each west-named file a row points at (`99-unheaded-west.conf`, `west-fstab.fragment`, `west-docker-data.conf`, `west.nft`) to the host's name and edit it; for the filter, only the `define` block.
 3. `scripts/check-host-settings.sh` (the repository check), then on the host `scripts/check-host-settings.sh --host <host> --allow-skip`.
 4. Install the unit, the timer and `/etc/unheaded/host-settings.env` with `HOST_SETTINGS_REPO` set.
+
+## Older host scripts
+
+Bring-up and check scripts from the first bare-metal builds (host A "the Forge" = west, host B "the Outpost" = east). They predate the manifest above; read one before running it.
+
+| Script | What |
+|---|---|
+| `scripts/setup-host.sh` | Generic host setup for a Linux machine (bare metal or VM), kernel 5.8 or newer, as root |
+| `scripts/pre-flight-check.sh [--strict]` | Prerequisites before a bare-metal deployment (run before `nixos-rebuild switch`); `--strict` makes the optional checks blocking |
+| `scripts/capture-baseline.sh [--host-role forge\|outpost] [--output-dir DIR]` | JSON and text snapshot of CPU, memory, disk, network, kernel and eBPF support before a deployment |
+| `scripts/bare-metal/preflight-host-a.sh`, `preflight-host-b.sh` | Hardware and software prerequisites per host before the boot sequence; exit 1 on a failure |
+| `scripts/bare-metal/validate-host-a.sh`, `validate-host-b.sh [--json]` | Post-boot validation per host; firewall API credentials from the environment |
+| `scripts/east-bootstrap.sh [phase]` | East bring-up in phases: `preflight`, `wireguard`, `bgp`, `services`, `observability`, `verify`, `all`; it assumes NixOS on east, which runs Ubuntu today |

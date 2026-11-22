@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package signing provides ML-DSA-65 message signing and verification
 // for Wotan topic messages. ADR-043 hard condition #2: all config.* topic
 // messages MUST be ML-DSA-65 signed before the Mímir's Law spike begins.

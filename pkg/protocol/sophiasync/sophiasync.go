@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package sophiasync is reference code for Sophia dictionary synchronisation
+// (draft-bellis-unheaded-sophia-dictionary-03): versioned dictionary deltas
+// published on a Wotan control topic (EncoderStream), per-hop acknowledgements,
+// and a SyncManager that applies deltas and tracks each endpoint's version.
+// Deltas are signed with ML-DSA-65 (signing.go); an unsigned delta is accepted
+// and counted, or refused when a signature is required. Parked as reference
+// code for the frozen specs: no binary imports it.
 package sophiasync
 
 import (

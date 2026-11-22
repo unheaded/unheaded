@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package timeline is timeguru's data model: Timeline, Phase and Milestone,
+// each with a Validate method, and the lookups by ID the parser, storage,
+// sync and api packages use.
 package timeline
 
 import (

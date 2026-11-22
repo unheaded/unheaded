@@ -10,6 +10,7 @@
 // the code compiles and gracefully falls back to MockBPFLoader.
 //
 // Per RFC 9669: we use "BPF" (not "eBPF") throughout.
+
 package main
 
 import (

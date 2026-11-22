@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Command timeguru (this directory's main) is the older, smaller timeguru: it
+// loads TIMELINE_PATH, serves it on /api/v1/timeline and /timeline with
+// /health, /ready and /metrics, and takes updates from the Wotan topic
+// timeline.updates. The binary that is built and deployed is
+// services/timeguru/cmd/timeguru (make build-timeguru).
 package main
 
 import (

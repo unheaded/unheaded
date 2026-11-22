@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package integrity is reference code for the protocol's integrity checks:
+// an 8-byte HMAC-SHA256 tag per flow, keyed by a flow secret derived (HMAC as
+// KDF) from a node secret, the flow label and both addresses, and
+// CRC-16/CCITT. Parked as reference code for the frozen specs: no binary
+// imports it.
 package integrity
 
 import (

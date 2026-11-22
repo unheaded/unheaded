@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
 // Package gjallarhorn implements the UPC trigger packet sender/receiver
 // for Mímir's Law / Gleipnir Phase 0 PoC. Per ADR-043 §Decision: discrete
 // trigger packets that fit within the frozen Monad v0x01 wire format.

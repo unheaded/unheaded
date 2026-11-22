@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package protocol (directory pkg/protocol/fuzz) holds Go fuzz targets for the protocol's encodings: varint,
+// exponent, CRC-16/CCITT and TLV round trips (README.md). Test files only.
 package protocol
 
 import (

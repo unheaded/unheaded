@@ -10,6 +10,7 @@
 //
 // Every attachment is a bpf_link owned by this process, so the kernel
 // detaches all of it when the daemon exits, cleanly or not.
+
 package main
 
 import (

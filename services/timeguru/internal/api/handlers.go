@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package api is timeguru's HTTP handlers: the timeline, its milestones and
+// phases, and the Kanban tasks it reports, served by
+// services/timeguru/cmd/timeguru.
 package api
 
 import (

@@ -18,6 +18,8 @@ Operational procedures. `runbooks/` holds YAML runbooks that Zhen's Champion can
 
 93 runbooks. Lifecycle (`metadata.status` draft → approved, only Stevie approves, with an ISO `approved_at`), the checker `scripts/check-runbooks.sh` and its shrink-only baseline `runbooks/.check-baseline`: ADR-024 §6. Who authors and who approves: ADR-024 "Authorship and approval" (Claude authors, Zhen executes and may only draft, a local model authors for approval once the newest eval clears the bar); the drafts awaiting approval are listed in `docs/battle-plans/progress/S-CHAMPION-HARDENING-approvals.md` (E1). A live `runbook_execute` through the Champion needs the runbook's sha256 in `runbooks/MANIFEST.sha256`: run `scripts/runbook-manifest.sh --write` after any runbook edit (CI checks it). Each draft has a dry-run test in `tests/runbooks/`.
 
+`runbooks/MANIFEST.sha256` is generated: `scripts/runbook-manifest.sh --write` lists the sha256 of every runbook after an edit, `--check` fails CI while it is stale, and `--seal KEY` seals it with an ML-DSA-65 key (a person's act, after reading the change). The Champion refuses a live run of a runbook whose bytes are not in a sealed manifest. Never edit the manifest by hand.
+
 `scripts/run-runbook.py` runs a runbook's `verification:` section after its steps succeed: each entry's `command` (or `check`) runs, `action: manual` entries are printed for the operator, and the run ends with `verification: n/m passed`; any failed check exits 1 (no rollback: every step succeeded). `--dry-run` lists the checks without running them. The checker `bash -n`s verification commands too.
 
 `zhen-eval -family runbook-draft` scores the five runbook-draft tasks of `eval/two-brains` with the same harness: the drafted YAML must dry-run, pass `scripts/check-runbooks.py --one` (strict draft rules, no baseline) and match the task's `requirements.json` (judge contract: `eval/two-brains/PREREG.md`, amendment 2026-10-27).
@@ -26,7 +28,7 @@ Plans in prose: `runbooks/security/ir-plan-v1-2026-05-06.md` (incident response)
 
 The Well's runbooks (backup-restore, migration, secrets-rotation) follow the migration ledger (ADR-101): no `DROP DATABASE`, no passwords in SQL. Backup locations are in [[Well Backups|Well-Backups]].
 
-`deploy/rolling-upgrade` keeps what it may have to put back in `dist/debs/rollback-<commit>` on west: each host's versions and the debs for them. East takes the signed repo, west the debs in `dist/debs/rolling-<commit>`. Before anything moves it also records what a health sweep finds up on each host; after a host moves, anything in that record that stays down fails the run. Its rollback restores the packages and checks that record again; the repo keeps serving the failed build until a fixed commit is published.
+`deploy/rolling-upgrade` keeps what it may have to put back in `dist/debs/rollback-<commit>` on west: each host's versions and the debs for them. East takes the signed repo, west the debs in `dist/debs/rolling-<commit>`. Before anything moves it also records what a health sweep finds up on each host; after a host moves, anything in that record that stays down fails the run. Its rollback restores the packages and checks that record again; the repo keeps serving the failed build until a fixed commit is published. The keeping is `scripts/rolling-previous.sh`: `record KEEP APT_BASE PKG...` before anything moves (each host's versions and their debs), `health west|east KEEP` after a host moves, `restore west|east KEEP` for the rollback.
 
 ## docs/runbooks/ (incident prose)
 

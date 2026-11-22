@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package logger sets up Wotan's zerolog logging from a Config (level and
+// output).
 package logger
 
 import (

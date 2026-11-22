@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 
-// Heimdall Daemon — userspace control for Mímir's Law / Gleipnir Phase 0 PoC.
+// Command heimdall-daemon is Heimdall's userspace control for Mímir's Law /
+// Gleipnir Phase 0 PoC.
 //
 // Responsibilities:
 //  1. Load Mjölnir baseline manifest + verify its GungnirSeal

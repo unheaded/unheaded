@@ -17,6 +17,7 @@
 // Integers are little-endian (bpfel). Every record is an untrusted input
 // from the kernel boundary: the decoders accept only exact sizes and known
 // values.
+
 package main
 
 import (

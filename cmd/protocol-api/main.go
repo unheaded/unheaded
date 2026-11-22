@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Command protocol-api serves the Unheaded Protocol API: Monad encode, decode
+// and validate, Sophia dictionary listing, Wotan protocol RAM reads and writes,
+// Anamnesis events and flows, over HTTP (/api/v1/...) and gRPC
+// (proto/unheaded/v1). --mode=mock answers from in-memory data; --mode=bpf reads
+// the maps pinned under --bpf-maps. With an API key set (--api-key-file or
+// PROTOCOL_API_KEY) every call must carry it (HTTP header X-API-Key, gRPC
+// metadata x-api-key).
 package main
 
 import (

@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Command sophia-gateway is the model gateway of the sophia-eye compose stack
+// (deploy/sophia-eye/docker-compose.yml). It serves an OpenAI-shaped
+// /v1/chat/completions and sends each request to the vLLM or Qwen endpoint
+// the model name selects, registers itself in the Sophia dictionary through
+// protocol-api, records each inference to Anamnesis and reports its metrics
+// to Wotan. Every endpoint comes from the environment (VLLM_ENDPOINT,
+// QWEN_ENDPOINT, UNHEADED_PROTOCOL_API, WOTAN_ENDPOINT, ...).
 package main
 
 import (

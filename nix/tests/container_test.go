@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package tests checks the NixOS container definitions under nix/: addresses,
+// ports, dependencies and start order, health checks, hardening (seccomp,
+// capabilities, read-only filesystem) and network isolation (README.md).
+// Test files only.
 package tests
 
 import (

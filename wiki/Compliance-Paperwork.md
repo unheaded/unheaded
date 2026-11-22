@@ -21,6 +21,17 @@ The written half of the compliance program (ADR-097/098): policies, plans, the g
 
 The May 2026 matrices under `docs/compliance/control-matrix/` are historical snapshots; the live crosswalk is `compliance/catalog/controls.yaml`.
 
+Generated files, never edited by hand:
+
+| File | Written by | From |
+|---|---|---|
+| `compliance/catalog/frameworks/*.yaml` except `30-` and `40-`, and `compliance/catalog/references/nist-csf2-informative.yaml` | `scripts/compliance/import-frameworks.py [--out DIR]` (standard library only; it downloads) | The publishers' machine-readable releases: NIST OSCAL catalogs, FedRAMP's Rev 5 baseline workbook, ComplianceAsCode's CIS Ubuntu 24.04 structure (IDs and levels only). Each file's header records the source URL, retrieval time, sha256 and upstream version. The numeric prefix is the display order |
+| `compliance/catalog/frameworks/30-soc2-tsc-security.yaml`, `40-iso27001-2022-annex-a.yaml` | by hand (`AUTHORED (not generated)` in the header) | the published ID structure only; the criteria text is AICPA's and ISO's and is left out |
+| `compliance/baseline/baseline.yaml` | `go run ./cmd/compliance-evidence baseline` | the host-scoped evidence sources of `compliance/catalog/controls.yaml` and the frameworks (ADR-098); each host's `unheaded-baseline` evaluates its own entries |
+| `deploy/ansible/compliance/**` | `go run ./cmd/compliance-evidence ansible` | `compliance/remediation/fixes.yaml` (ADR-099) |
+
+Two evidence scripts read the compose file as written, not what runs, and are evidence sources, not CI gates (ADR-097): `scripts/compliance/check-edge-tls.sh [compose-file]` (UH-TLS-01: the edge redirects HTTP to HTTPS, sets a TLS 1.3 minimum and does not serve its API insecurely; written while it failed, which the dashboard shows) and `scripts/compliance/check-service-auth.sh [compose-file]` (UH-AUTHN-01: every first-party service sets `AUTH_ENABLED=true`, or carries the token variable it checks itself).
+
 ## Regenerate the SSP
 
 ```bash

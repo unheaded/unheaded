@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package api is Wotan's HTTP API: rooms, members, messages and topics, with
+// the per-topic configuration and publish/subscribe permissions it enforces.
 package api
 
 import (

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//
+
 // demo-trace-injector — publishes realistic synthetic eBPF trace events to the
 // Wotan topics the dashboard ingestor consumes (traces.flow /
 // traces.latency / traces.packet), so the Flow Graph, Latency, and

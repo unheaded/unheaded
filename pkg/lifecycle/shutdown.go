@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
+// Package lifecycle holds WaitForShutdown: block until SIGINT or SIGTERM, shut
+// the HTTP server down within a timeout, then run cleanup functions. No
+// binary imports it today.
 package lifecycle
 
 import (

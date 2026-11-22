@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
+//! LICH-009: libFuzzer target measuring 20-bit flow-label collisions (the
+//! birthday bound on a cache keyed by flow label only). See the comment below
+//! and wiki/LICH-Campaigns.md.
 use libfuzzer_sys::fuzz_target;
 use std::collections::HashMap;
 
