@@ -60,6 +60,24 @@ Type=
 LoadState=not-found
 ActiveState=inactive
 NRestarts=0
+
+Id=unheaded-clickhouse-backup.service
+Type=oneshot
+LoadState=loaded
+ActiveState=failed
+NRestarts=0
+
+Id=unheaded-vor-refresh.path
+Type=
+LoadState=loaded
+ActiveState=failed
+NRestarts=0
+
+Id=unheaded-baseline.path
+Type=
+LoadState=loaded
+ActiveState=active
+NRestarts=0
 SHOW
 cat >"$T/bin/docker" <<FAKE
 #!/usr/bin/env bash
@@ -90,9 +108,18 @@ check "2 stopped, exit code, memory kill" bash -c "grep -qxF 'unheaded_container
 check "3 health only where a healthcheck exists" bash -c "grep -qxF 'unheaded_container_healthy{name=\"unheaded-wotan\"} 1' '$F' && ! grep -qF 'unheaded_container_healthy{name=\"unheaded-postgres\"}' '$F'"
 check "4 one-shots and unwatched projects skipped" bash -c "! grep -qF 'unheaded-volume-init' '$F' && ! grep -qF netbox '$F'"
 check "5 a quote in a name is escaped" has 'unheaded_container_running{name="unheaded-\"odd\"",project="unheaded-dev",service="odd"} 1'
-check "6 units: failed, restarts, active; oneshot and not-found skipped" bash -c "grep -qxF 'unheaded_unit_failed{unit=\"unheaded-wiki-server.service\"} 1' '$F' &&
+check "6 units: failed, restarts, active; not-found skipped" bash -c "grep -qxF 'unheaded_unit_failed{unit=\"unheaded-wiki-server.service\"} 1' '$F' &&
     grep -qxF 'unheaded_unit_restarts{unit=\"unheaded-wiki-server.service\"} 15' '$F' && grep -qxF 'unheaded_unit_active{unit=\"unheaded-kev-poller.service\"} 1' '$F' &&
-    ! grep -qF well-backup '$F' && ! grep -qF nginx '$F'"
+    ! grep -qF nginx '$F'"
+# A oneshot or a .path unit is inactive or waiting between runs: only its
+# failed state is reported, so UnitFailed sees it and nothing reads a 0 active.
+check "11 oneshot: only failed, 0 when it finished, 1 when it failed" bash -c "grep -qxF 'unheaded_unit_failed{unit=\"unheaded-well-backup.service\"} 0' '$F' &&
+    grep -qxF 'unheaded_unit_failed{unit=\"unheaded-clickhouse-backup.service\"} 1' '$F' &&
+    ! grep -qE 'unheaded_unit_(active|restarts)\{unit=\"unheaded-(well|clickhouse)-backup.service\"' '$F'"
+check "12 path units: only failed, 1 when the start limit tripped" bash -c "grep -qxF 'unheaded_unit_failed{unit=\"unheaded-vor-refresh.path\"} 1' '$F' &&
+    grep -qxF 'unheaded_unit_failed{unit=\"unheaded-baseline.path\"} 0' '$F' &&
+    ! grep -qE 'unheaded_unit_(active|restarts)\{unit=\"[a-z-]+\.path\"' '$F'"
+check "13 the default unit list names path units" grep -qF 'unheaded-*.path' "$SCRIPT"
 check "7 last run and docker_ok" bash -c "grep -qE '^unheaded_host_state_last_run_timestamp_seconds [0-9]+$' '$F' && grep -qxF 'unheaded_host_state_docker_ok 1' '$F'"
 # Every line must pass huginn's filter (cmd/huginn/textfile.go: textfileSample,
 # textfileComment, textfileLabel), or huginn drops it.

@@ -17,7 +17,11 @@
 #   HOST_STATE_ONESHOT   compose services skipped: they exit 0 by design
 #                        (default "volume-init clickhouse-schema")
 #   HOST_STATE_UNITS     unit names or patterns for systemctl show
-#                        (default below); Type=oneshot and not-found are skipped
+#                        (default below); not-found units are skipped. A
+#                        Type=oneshot service or a .path unit is inactive or
+#                        waiting between runs, so it gets only its failed
+#                        line (M-194.1, 2026-11-22: a tripped path unit and a
+#                        failed backup were seen by nothing before)
 #
 # Writes (host is added by huginn):
 #   unheaded_container_running{name,project,service}   1 running, 0 not
@@ -37,7 +41,7 @@ set -euo pipefail
 dir="${1:?usage: host-state-textfile.sh <textfile dir>}"
 projects="${HOST_STATE_PROJECTS:-unheaded-dev monitoring}"
 oneshot="${HOST_STATE_ONESHOT:-volume-init clickhouse-schema}"
-units="${HOST_STATE_UNITS:-unheaded-*.service huginn.service zhen-*.service docker.service containerd.service nginx.service}"
+units="${HOST_STATE_UNITS:-unheaded-*.service unheaded-*.path huginn.service zhen-*.service docker.service containerd.service nginx.service}"
 for v in "$projects" "$oneshot" "$units"; do
     [[ "$v" =~ ^[a-z0-9\ _.*-]+$ ]] || { echo "host-state: setting '$v' has characters outside [a-z0-9 _.*-]" >&2; exit 2; }
 done
@@ -81,10 +85,12 @@ fi
 # shellcheck disable=SC2086 # the patterns are words
 unit_lines="$(systemctl show --property=Id,Type,LoadState,ActiveState,NRestarts $units 2>/dev/null | awk '
   function flush() {
-    if (id != "" && type != "oneshot" && load != "not-found" && id ~ /^[A-Za-z0-9@:._-]+$/) {
-      printf "unheaded_unit_active{unit=\"%s\"} %d\n", id, (active == "active")
+    if (id != "" && load != "not-found" && id ~ /^[A-Za-z0-9@:._-]+$/) {
+      if (type != "oneshot" && id !~ /\.path$/) {
+        printf "unheaded_unit_active{unit=\"%s\"} %d\n", id, (active == "active")
+        printf "unheaded_unit_restarts{unit=\"%s\"} %d\n", id, restarts + 0
+      }
       printf "unheaded_unit_failed{unit=\"%s\"} %d\n", id, (active == "failed")
-      printf "unheaded_unit_restarts{unit=\"%s\"} %d\n", id, restarts + 0
     }
     id = type = load = active = ""; restarts = 0
   }
