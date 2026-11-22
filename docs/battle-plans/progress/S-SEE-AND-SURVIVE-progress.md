@@ -347,3 +347,11 @@ Rows after (series rule 15), live:
 | SSV-10 | the five watcher rules `ok`; AlertmanagerNotReached fired truly after Drill 4 | |
 | SSV-11 | Drill 4: silent 20 min 34 s after the last receipt, back 74 s after the start | |
 | SSV-12, SSV-13 | TraceCollectorHighLatency and VectorSinkDroppingEvents `ok`, inactive | |
+
+## 2026-11-22 15:07Z: SSV-03 after (the first real digest)
+
+| Row | After | Still open |
+|---|---|---|
+| SSV-03 | outbox `2026-11-22T15:00:07Z ticket sent [digest] 5 open, west booted, 23 resolved`; `/v1/status` mode `send`, delivery `digest`, `last_digest` 2026-11-22, open tickets 5; `unheaded_alert_mailer_messages_total{urgency="ticket",outcome="sent"}` 1, `{urgency="page",outcome="digest"}` 6. The relay took the mail; arrival in Stevie's inbox is his to confirm | Stevie's inbox |
+
+SSV-03 is done on the mailer's side. Phase 15's exit gate no longer waits on it.
