@@ -224,7 +224,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/heimdall-daemon/main.go:30:sig-import",
+      "bom-ref": "cmd/heimdall-daemon/main.go:31:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -261,7 +261,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/heimdall-daemon/main.go:30"
+          "value": "cmd/heimdall-daemon/main.go:31"
         }
       ]
     },
@@ -2720,7 +2720,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "pkg/gungnir/gungnir.go:18:sig-import",
+      "bom-ref": "pkg/gungnir/gungnir.go:19:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -2757,7 +2757,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/gungnir/gungnir.go:18"
+          "value": "pkg/gungnir/gungnir.go:19"
         }
       ]
     },
@@ -4338,7 +4338,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "services/wotan/internal/signing/signing.go:14:sig-import",
+      "bom-ref": "services/wotan/internal/signing/signing.go:15:sig-import",
       "name": "PQC helpers (unheaded/pkg/crypto/pqc)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -4373,7 +4373,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "services/wotan/internal/signing/signing.go:14"
+          "value": "services/wotan/internal/signing/signing.go:15"
         }
       ]
     },
