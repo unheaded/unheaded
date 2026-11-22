@@ -940,6 +940,24 @@ Measured: 553,534 → 549,509 (-4,025; the skip alone -4,480, the clear alone +4
 
 **What the same experiment found: the reservation is not enough for preemption.** With the death clear taken out, the stale mark made a later fork skip slot 2 and take slot 3, which raised `num_processes` to 4. Slot 2 was then below the high-water mark and neither halted nor suspended, so the scheduler ran it: a row that was never built. The machine halted at PC 0 in slot 2. The same would happen to a live reservation under preemption: parent A is copying into a never-used slot k, parent B skips it and finalizes into k+1, and the scheduler now sees slot k as runnable. A recycled slot is safe (its halted and reaped bits stay set until finalize); a never-used one is not. So before a timer switch under ascend, three things are needed, not two: the scan skip and the death clear (here), and a scheduler that leaves a reserved row alone (not designed, not built). I9's assertion stays and its message now says so.
 
+## Decision pack row 41, 2026-11-22: the review residues (lane `row41-upc`, branch `fix/row41-upc`)
+
+Taken on the seats' written recommendation (`~/tmp/pending-2026-11-21/row41-recommendations.md`, M-186). Nothing above is rewritten. No switch that was on is turned off, and none that was off is turned on: the three new consts land OFF, each turned on by itself alone, after the verified count and boots that need root.
+
+| Item | What landed | State |
+|---|---|---|
+| RV-3, first half (M-186.1) | `crates/monad-mbc/src/execute.rs`: MRET and SRET at priv 3 are a NOP; a U-mode page-walk miss with a page directory resolves to `D6_MISS_ADDR`; a `PTE_LEAF` PDE is a superpage; atomics translate at U-mode only. `tests/ascend_parity.rs` pins each against `main.rs`. | In; host only. The host still translates loads and stores below U-mode when `mmu_enabled` is set, where `main.rs` does not (the Level 4d tests rely on it). |
+| RV-3, second half (M-186.1b) | `UPC_REFUSAL_STATS`: a priv-3 refusal bumps STATS 31, a D6 miss STATS 32; `upc-bootctl` prints `REFUSALS:` when either is non-zero; a harness line on `hostile_reply`. | Wired, OFF. |
+| SP-2's residue (M-186.12e) | `UPC_USER_STACKOP_NOP`: PUSH, POP, INT and IRET at priv 3 fall to the unknown-opcode NOP, as MRET and SRET do. | Wired, OFF. Needs the four patched-image proofs (as the atomics had) and the count. |
+| SP-3 (M-186.12b) | `rv32i-to-mbc --with-bss` sets bit 31 of the sidecar's count word (`monad_common::mbc_sidecar::WITH_BSS`); `upc-bootctl` refuses a user image's sidecar without it. Kernel and bootstub sidecars are read either way. | In. A tree with older sidecars rebuilds its userland. |
+| SP-4d (M-186.12c) | `upc-regression.sh` builds a D6-off copy of the ascend object to a temporary target and boots `hostile_fork` on it: `UPC_FORK_MARK` is then the deciding control. | In the harness; not yet run (root). |
+| SP-5b (M-186.12d) | CALL, JMPR, CALLR and RET store their 0xE0000/0xE1000 diagnostics in the Doom object only (`BRANCH_DIAG`). | In. The ascend count falls; the Doom object is unchanged. |
+| Rung 4's cost (M-186.8) | `UPC_CHEAP_WAIT` and `#define UPC_CHEAP_WAIT` (parity-tested): the kernel marks a new slot-table word, `cons_wait` (0x824), with the slot and fd of a console read it retried with nothing buffered and nothing offered; BPF holds that read while the mark matches and the ring is empty, with the kernel retry's yield. | Wired, OFF on both sides. The table grows by the word with the switch off, as it did for `kbd_in`. |
+
+Static BPF instruction counts of the ascend object's `.text` (`readelf`, not the verifier): 9,003 on develop `44bc8106`; 8,556 with SP-5b; +17 with `UPC_USER_STACKOP_NOP` on, +500 with `UPC_REFUSAL_STATS` on, +88 with `UPC_CHEAP_WAIT` on. With the three off the object is the SP-5b one exactly. The verified count, the twelve goldens and the harness are the coordinator's to run.
+
+The fuzz SKIP (open call 11) is not closed here: `crates/monad-mbc/tests/seeded_execute.rs` (M-186.11b) runs the body of `fuzz_mbc_execute` under plain `cargo test` from a seeded generator, which is weaker than coverage-guided fuzzing; whether to run the libFuzzer target is still Stevie's (M-186.11).
+
 ## Alternatives considered
 
 - **BPF serves sbrk itself.** One arm and no reply word, but kill and blocking still need a way back, so the channel
