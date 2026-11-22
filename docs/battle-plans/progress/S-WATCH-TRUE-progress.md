@@ -185,7 +185,7 @@ Step 115 was not needed.
 
 | Reading | Before | +10 min (21:17Z to 21:21Z) | 6 h |
 |---|---|---|---|
-| CPU, VictoriaMetrics | 2.18 cores (30 min rate) | **0.109 core** (10 min rate at 21:21Z; 0.11 over 20 s from `/proc`) | pending, due after 2026-11-22T03:07Z |
+| CPU, VictoriaMetrics | 2.18 cores (30 min rate) | **0.109 core** (10 min rate at 21:21Z; 0.11 over 20 s from `/proc`) | **0.132 core** (6 h rate at 2026-11-22T04:29Z; 1 h rate 0.134) |
 | `bpf()` calls, 10 s under strace | 33,582 a second | **7.9 a second** (79 calls; the 18 errors are the ends of batch passes) | |
 | `LATENCY_MAP` | hash, 40-byte key, 35,216 | LRU, 24-byte key, 93 entries | |
 | `FLOWS` / `FLOW_STATE` | 65,421 / 65,536 (full, plain hash) | 17,272 / 34,625, both LRU | |
@@ -198,6 +198,27 @@ Step 115 was not needed.
 | Publish failures | counted | counted: 21 a second on `traces.packet` and on `traces.correlated` | |
 
 The bar at 6 h: the plan's Step 117 says east ≤ 0.10 core; FND-044's verify line says under 0.05 on each host, with the map gauge present, decode errors 0 and the installed probe accepted. At +10 min the CPU row is over both, and the cause is the refused-dial loop, not the sweep: the same collector with no Wotan client used about 0.03 core.
+
+### The 6 h reading (2026-11-22, read by the coordinator; the block's executor stopped on a usage limit before it)
+
+Read 2026-11-22T04:29Z, 7 h 22 min after the soak clock started (21:06:56Z). The executor had stopped at 21:2xZ after the +10 min reading; nothing on east changed after that. No `unheaded-4b-revert` timer or unit exists on east.
+
+| Reading | Value | Bar |
+|---|---|---|
+| CPU, `rate(process_cpu_seconds_total{job="trace-collector",host="east"}[6h])` | **0.132 core** (1 h: 0.134) | Step 117: ≤ 0.10. FND-044: under 0.05 |
+| The same on west, same binary | 0.015 core (1 h) | |
+| `trace_collector_latency_map_entries` | 753 | present |
+| `trace_collector_latency_decode_errors_total` | 0 | 0 |
+| Programs loaded | packet_marker, flow_tracker, latency_probe, 1 each; the installed latency-probe accepted | |
+| Restarts, RSS | 0 since 21:06:56Z; 30 MB | |
+| `trace_publisher_errors_total`, 1 h rate | traces.packet 20.3, traces.correlated 19.9, traces.flow 1.2, traces.latency 0.5, traces.stats 0.1 a second | |
+| East load | 0.01 / 0.10 / 0.23 (2.42 before) | |
+
+**Step 117: missed (0.132 against 0.10). FND-044 stays open** on east: its verify line wants under 0.05. On west the same binary meets it (0.015).
+
+The likely cause is the one this section's "What the new binary does on a host with no Wotan" already names: with no Wotan on east, every batch is a refused dial on `lo`, about 42 a second, and `lo` is the interface the collector traces, so it spends its CPU on its own failures. Not tested here (that would change east). The ways out, each a change and none made: give east's collector a reachable Wotan (plan 6 brings east's back); have the collector stop dialling for a while after N refusals (a code change with a test: the code defect this section's "Found outside the block" names); or attach it to an interface other than `lo` on east. The reading is recorded as missed, not as passed with a reason.
+
+East keeps the new set: it is 16 times cheaper than the old (2.18 cores) and correct where the old was not (full `FLOW_STATE`, 25.8 million dropped events, no latency published). `/var/backups/s-watch-true-4b-2026-11-21/` on east (and `revert.sh --run`) brings the old pair back if wanted. `/var/backups/trace-collector-2026-11-15` on west stays until FND-044 closes.
 
 ### Deviations from the steps as written
 
