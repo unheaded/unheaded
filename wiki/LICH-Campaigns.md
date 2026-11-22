@@ -55,6 +55,8 @@ Pick a grimoire class → write or extend a harness with seeds (`tomb/lich/seeds
 
 Locally: `scripts/lich-cargo-fuzz.sh --list`, then `scripts/lich-cargo-fuzz.sh --time 60 [target...]` (nightly Rust, no cargo-fuzz needed). A crash fails the run and keeps the input under `<out>/artifacts/<target>/`.
 
+Without a fuzzer: `cargo test --test seeded_execute` in `crates/monad-mbc` runs the body of `fuzz_mbc_execute` (`execute::run_fuzz_input`) on the committed seeds and on 50,000 inputs from a seeded generator, with no coverage guidance. A failure prints the seed and the case; `MBC_SEEDED_SEED` and `MBC_SEEDED_CASES` replay or widen the run.
+
 ---
 
 > **Sources:** [docs/security/lich-campaigns.md](../docs/security/lich-campaigns.md) · [docs/security/lich-execution.md](../docs/security/lich-execution.md) · `tomb/lich/`

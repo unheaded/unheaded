@@ -1211,6 +1211,32 @@ impl Cpu {
     }
 }
 
+/// The body of the libFuzzer target `fuzz_mbc_execute`, kept here so the
+/// target and the seeded `cargo test` (`tests/seeded_execute.rs`, M-186.11b)
+/// run the same code.
+///
+/// Input layout: 64 bytes of initial registers (16 x u32 LE), then ROM words
+/// (u32 LE). Shorter input is ignored. The CPU runs up to 10,000 cycles and
+/// must not panic, whatever the bytes.
+pub fn run_fuzz_input(data: &[u8]) {
+    if data.len() < 64 + 4 {
+        return;
+    }
+    let (reg_bytes, rom_bytes) = data.split_at(64);
+    let mut cpu = Cpu::new();
+    for (r, c) in cpu.state.regs.iter_mut().zip(reg_bytes.as_chunks::<4>().0) {
+        *r = u32::from_le_bytes(*c);
+    }
+    let rom: Vec<u32> = rom_bytes
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
+        .collect();
+    cpu.load_rom(&rom);
+    let _ = cpu.run(10_000);
+}
+
 /// Set Z, N, C flags based on result and carry.
 fn set_flags(cpu: &mut Cpu, result: u32, carry: bool) {
     cpu.state.flags = 0;
