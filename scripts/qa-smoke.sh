@@ -79,10 +79,16 @@ http_method() {
 
 # Every compose service must be running. Health is only asserted where the
 # service declares a healthcheck — services without one never report healthy.
+# By the compose labels, not `docker compose ps`: compose reads .env, which
+# is root's alone on a host that holds its credentials there, so a user with
+# docker rights saw every service "absent" (2026-11-22).
+project=$(awk '/^name:/{print $2; exit}' docker-compose.yml)
+project=${project:-$(basename "$R")}
 for svc in wotan dashboard-backend kanban-app timeguru \
            postgres clickhouse victoria \
            grafana traefik coredns vector akira; do
-  state=$("${DOCKER[@]}" compose ps --format '{{.Service}} {{.State}}' 2>/dev/null \
+  state=$("${DOCKER[@]}" ps -a --filter "label=com.docker.compose.project=$project" \
+            --format '{{.Label "com.docker.compose.service"}} {{.State}}' 2>/dev/null \
           | awk -v s="$svc" '$1==s{print $2; found=1} END{if(!found) print "absent"}')
   check "container/$svc" "running" "$state"
 done
@@ -91,7 +97,7 @@ done
 # with the binary again hands the binary its own path as the first argument,
 # Go's flag parsing stops there, and every flag is silently ignored (akira,
 # micromanager and architect ran like that until 2026-09-29).
-for c in $("${DOCKER[@]}" compose ps -q 2>/dev/null); do
+for c in $("${DOCKER[@]}" ps -q --filter "label=com.docker.compose.project=$project" 2>/dev/null); do
   name=$("${DOCKER[@]}" inspect -f '{{.Name}}' "$c" | tr -d /)
   dup=$("${DOCKER[@]}" inspect -f '{{if and .Config.Entrypoint .Config.Cmd}}{{if eq (index .Config.Entrypoint 0) (index .Config.Cmd 0)}}repeated{{end}}{{end}}' "$c" 2>/dev/null)
   [ -n "$dup" ] && check "command/$name" "flags-reach-binary" "entrypoint-repeated"

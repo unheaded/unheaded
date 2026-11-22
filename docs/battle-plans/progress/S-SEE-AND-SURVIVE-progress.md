@@ -380,3 +380,16 @@ SSV-03 is done on the mailer's side. Phase 15's exit gate no longer waits on it.
 **SSV-20 after:** four SLOs live, tickets only, each at 1 at idle. Prometheus head series 4,915 at 20:52Z (4,463 at 17:49Z): its `unheaded_http_*` series are now wotan 78, dashboard-backend 95 and alert-mailer 140 (that job carries no keep, as before). The rest of the rise is the head still holding series from before the reload; S-WASTE-OUT W-12 reads it again at its close.
 
 Seen, not changed: a planned-stop mark is matched by SLO name, so a mark for `wotan` does not cover `wotan-latency` or `wotan-errors` (a mark for `all` covers them). `policy.yaml` was given a new inode by a `sed -i` during Step 355; the alert-mailer keeps the old copy, which differs in one `checks:` string, until its restart at Step 371.
+
+## Phase 18, 2026-11-22: vor, nginx and the smoke check (Steps 363-370)
+
+| Step | Result |
+|---|---|
+| 363 | vor's checkout clean on `main` (`f8eebff`, row41-vor's two commits); `access-log` merged `--no-ff -S` (`76a64f5`, clean auto-merge of `cmd/vor/main.go`); vor's `go test ./...` passes; built, old binary (2026-11-12) to `/var/backups/s-see-and-survive/vor.old`, installed 20:52:49Z, restarted. **Ready after 1 s.** `/api/search` 200, `/health` 200 (the row41-vor path, now installed) |
+| 364 | 3 JSON request lines in 2 min, e.g. `{"ts":"2026-11-22T20:52:50.991510651Z","method":"GET","uri":"/health","status":200,"bytes":77,"dur_us":48}`: no client address. **SSV-24 after: met.** vor's repository is now 3 commits ahead of its origin (the two row41-vor commits and this merge), unpushed |
+| 365 | Old site file to `/var/backups/s-see-and-survive/unheaded-apt.conf.old`; `conf.d/unheaded-timed.conf` and the site installed; `nginx -t` successful; reloaded 20:53:14Z. The first request after the reload was still logged in the old format (the reload had not reached the workers); the next, at 20:53:21Z: `2026-11-22T20:53:21+00:00 GET "/" 403 146 rt=0.000 urt=- host=127.0.0.1` (403: the repository root has no index) |
+| 366 | `test is successful`, an `rt=` value, no client address. **SSV-25 after: met** |
+| 367 | First run: passed 18, failed 13. Twelve were the probe, not the stack: govan has docker rights, so the script ran `docker compose ps` without sudo, and compose stops on `.env`, which is root's alone (`open .env: permission denied`); every service read "absent". Fixed in `scripts/qa-smoke.sh`: containers found by their compose labels (`com.docker.compose.project`, from `name:` in `docker-compose.yml`), which needs no `.env`; shellcheck clean. Second run: **passed 30, failed 1** |
+| 368 | The one FAIL is real: `probe-methods/dashboard` 200/401 where 200/405 is the contract (`httputil.ProbeMethods`). The dashboard's auth chain answers a method other than GET or HEAD on `/health` before the handler does; kanban answers 405. Not changed: making it 405 means opening `/health` to every method in the dashboard's auth routes (for Stevie). Compared with Step 263 (block A, 7 passed, 43 failed, without docker rights): every container, endpoint, health and consensus row now passes. **SSV-23 after: one known fault** |
+| 369 | This entry, with the `qa-smoke.sh` fix |
+| 370 | **PHASE 18 EXIT GATE: passed**, with the dashboard's 401 written above |
