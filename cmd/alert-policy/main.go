@@ -105,6 +105,15 @@ type Promotion struct {
 	Alert   string `yaml:"alert"`
 	Urgency string `yaml:"urgency"`
 	Reason  string `yaml:"reason"`
+	Snooze  `yaml:",inline"`
+}
+
+// Snooze mutes an item's alerts in Alertmanager through the end of
+// SnoozeUntil (MM-DD-YYYY) in mailer.timezone (Stevie, 2026-11-22). Absent:
+// no snooze. A past date is inactive. snooze.go renders it.
+type Snooze struct {
+	SnoozeUntil  string `yaml:"snooze_until,omitempty"`
+	SnoozeReason string `yaml:"snooze_reason,omitempty"`
 }
 
 // SLO is one objective with a time-based SLI.
@@ -123,6 +132,7 @@ type SLO struct {
 	// ErrorBudgetBurn tiers, so it notifies nobody (ADR-147 decision 4).
 	// Absent means true.
 	Notify *bool `yaml:"notify,omitempty"`
+	Snooze `yaml:",inline"`
 }
 
 // notifies reports whether the SLO renders burn alerts.
@@ -252,6 +262,7 @@ func (p *Policy) validate() []error {
 		if s.Runbook != "" && !runbookRE.MatchString(s.Runbook) {
 			bad("%s: runbook %q: want runbooks/<area>/<name>.yaml", where, s.Runbook)
 		}
+		p.validateSnooze(where, s.Snooze, bad)
 		for _, t := range []string{s.Description, s.Checks, s.Service} {
 			if strings.Contains(t, "{{") || strings.Contains(t, "}}") {
 				bad("%s: text may not contain {{ or }} (it goes into an alert template)", where)
@@ -283,6 +294,7 @@ func (p *Policy) validate() []error {
 		if strings.TrimSpace(pr.Reason) == "" {
 			bad("promote[%d] %q: a reason is required", i, pr.Alert)
 		}
+		p.validateSnooze(fmt.Sprintf("promote[%d] %q", i, pr.Alert), pr.Snooze, bad)
 	}
 	return errs
 }
@@ -405,17 +417,21 @@ type amFile struct {
 	Route        amRoute           `yaml:"route"`
 	InhibitRules []amInhibit       `yaml:"inhibit_rules"`
 	Receivers    []amReceiver      `yaml:"receivers"`
+	// TimeIntervals: one per snoozed item (snooze.go); none without a snooze.
+	TimeIntervals []amTimeInterval `yaml:"time_intervals,omitempty"`
 }
 
 type amRoute struct {
-	Receiver       string    `yaml:"receiver"`
-	GroupBy        []string  `yaml:"group_by,omitempty"`
-	GroupWait      string    `yaml:"group_wait,omitempty"`
-	GroupInterval  string    `yaml:"group_interval,omitempty"`
-	RepeatInterval string    `yaml:"repeat_interval,omitempty"`
-	Matchers       []string  `yaml:"matchers,omitempty"`
-	Continue       bool      `yaml:"continue,omitempty"`
-	Routes         []amRoute `yaml:"routes,omitempty"`
+	Receiver       string   `yaml:"receiver"`
+	GroupBy        []string `yaml:"group_by,omitempty"`
+	GroupWait      string   `yaml:"group_wait,omitempty"`
+	GroupInterval  string   `yaml:"group_interval,omitempty"`
+	RepeatInterval string   `yaml:"repeat_interval,omitempty"`
+	Matchers       []string `yaml:"matchers,omitempty"`
+	Continue       bool     `yaml:"continue,omitempty"`
+	// MuteTimeIntervals: a snoozed item's own interval (snooze.go).
+	MuteTimeIntervals []string  `yaml:"mute_time_intervals,omitempty"`
+	Routes            []amRoute `yaml:"routes,omitempty"`
 }
 
 type amInhibit struct {
@@ -444,6 +460,7 @@ func renderAlertmanager(p *Policy) ([]byte, error) {
 	ticket := amRoute{Receiver: "ticket", Matchers: []string{`urgency="ticket"`},
 		GroupWait: "1m", GroupInterval: "5m", RepeatInterval: "24h"}
 	var routes []amRoute
+	var intervals []amTimeInterval
 	promos := append([]Promotion(nil), p.Promote...)
 	sort.Slice(promos, func(i, j int) bool { return promos[i].Alert < promos[j].Alert })
 	for _, pr := range promos {
@@ -452,7 +469,25 @@ func renderAlertmanager(p *Policy) ([]byte, error) {
 			r = page
 		}
 		r.Matchers = []string{fmt.Sprintf("alertname=%q", pr.Alert), `urgency="none"`}
+		var ti []amTimeInterval
+		r, ti = snoozeRoute(r, "promote-"+pr.Alert, pr.Snooze, p.Mailer.Timezone)
+		intervals = append(intervals, ti...)
 		routes = append(routes, r)
+	}
+	// A snoozed SLO: its own page and ticket routes, muted, ahead of the
+	// shared ones (a route's mute reaches only the alerts it matches).
+	for _, s := range p.SLOs {
+		if s.SnoozeUntil == "" {
+			continue
+		}
+		var ti []amTimeInterval
+		for _, base := range []amRoute{page, ticket} {
+			r := base
+			r.Matchers = append(append([]string(nil), base.Matchers...), fmt.Sprintf("slo=%q", s.Name))
+			r, ti = snoozeRoute(r, "slo-"+s.Name, s.Snooze, p.Mailer.Timezone)
+			routes = append(routes, r)
+		}
+		intervals = append(intervals, ti...)
 	}
 	routes = append(routes, page, ticket)
 	receivers := []amReceiver{
@@ -480,8 +515,9 @@ func renderAlertmanager(p *Policy) ([]byte, error) {
 			Routes:         routes,
 		},
 		// A page for an SLO says everything its tickets would.
-		InhibitRules: []amInhibit{{SourceMatchers: []string{`urgency="page"`}, TargetMatchers: []string{`urgency="ticket"`}, Equal: []string{"slo"}}},
-		Receivers:    receivers,
+		InhibitRules:  []amInhibit{{SourceMatchers: []string{`urgency="page"`}, TargetMatchers: []string{`urgency="ticket"`}, Equal: []string{"slo"}}},
+		Receivers:     receivers,
+		TimeIntervals: intervals,
 	}
 	var buf bytes.Buffer
 	buf.WriteString("# GENERATED by go run ./cmd/alert-policy from " + policyPath + ". Do not edit.\n")

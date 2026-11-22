@@ -234,3 +234,18 @@ then `-sync-well` once and `-check` with `WELL_DB` set. Read on
 pass; ci-develop has no series until its timer runs. Editing objectives from
 the dashboard admin with a signed change record (ADR-099 section 5) waits
 for S-IRON-GATE's board login; not built.
+
+## 2026-11-22: snooze, and planned stops in alert-route
+
+Stevie, 2026-11-22: "there should be a field/line in alert config for each
+item where we can set sleep/snooze with a date in MM-DD-YYYY format". Any
+SLO or promotion in `observability/alerting/policy.yaml` may carry
+`snooze_until` (MM-DD-YYYY) with a required `snooze_reason`; `cmd/alert-policy`
+mutes that item's Alertmanager route through the end of the day in
+`mailer.timezone` (an Alertmanager time interval). The alert still fires and
+shows; it reaches no receiver. Absent: no snooze; a past date is inactive; at
+most 90 days ahead. Details: `wiki/Alerting.md`, "Planned work".
+
+The same day, option (b) for the `alert-route` compliance probe: a link that
+is down under a planned-stop mark ending within `planned_stop.probe_max` (2h)
+passes; a longer mark still fails.

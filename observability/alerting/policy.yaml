@@ -99,11 +99,22 @@ boot:
 planned_stop:
   probe_max: 2h
 
+# Snooze (Stevie, 2026-11-22): any entry under promote: or slos: may carry
+#     snooze_until: "12-01-2026"       # MM-DD-YYYY, quoted
+#     snooze_reason: why it is quiet   # required with a date
+# Its alerts are muted in Alertmanager through the end of that day in
+# mailer.timezone: they still fire and show (Prometheus, and Alertmanager as
+# muted) but reach no receiver, so none is mailed or digested. Absent: no
+# snooze. A past date is inactive and may stay; at most 90 days ahead. A
+# manual override: after editing, go run ./cmd/alert-policy and reload
+# Alertmanager (curl -X POST localhost:9093/-/reload).
+
 # Cause alerts that should notify anyway. Keep this short: every entry is
 # noise the SLOs should already catch. Form:
 #   - alert: WellBackupMissing
 #     urgency: ticket
 #     reason: why the SLOs miss it
+#     snooze_until: "12-01-2026"        # optional, with snooze_reason (above)
 promote:
   - alert: HeartbeatMissing
     urgency: page
