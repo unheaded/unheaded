@@ -2,6 +2,8 @@
 
 All Unheaded services use high ports (16666-26666) to avoid conflicts with common dev tools.
 
+`pkg/ports/ports.go` is the source of truth. `configs/port-registry.yaml` restates part of it for non-Go readers (per tier: `port`, `proto`, `lore_name`); nothing in the tree reads that file today (2026-11-22), and where the two differ `pkg/ports` is right.
+
 ## Port Allocation Table
 
 From `pkg/ports/ports.go`:

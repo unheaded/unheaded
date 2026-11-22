@@ -21,6 +21,15 @@ The written half of the compliance program (ADR-097/098): policies, plans, the g
 
 The May 2026 matrices under `docs/compliance/control-matrix/` are historical snapshots; the live crosswalk is `compliance/catalog/controls.yaml`.
 
+Generated files, never edited by hand:
+
+| File | Written by | From |
+|---|---|---|
+| `compliance/catalog/frameworks/*.yaml` except `30-` and `40-`, and `compliance/catalog/references/nist-csf2-informative.yaml` | `scripts/compliance/import-frameworks.py [--out DIR]` (standard library only; it downloads) | The publishers' machine-readable releases: NIST OSCAL catalogs, FedRAMP's Rev 5 baseline workbook, ComplianceAsCode's CIS Ubuntu 24.04 structure (IDs and levels only). Each file's header records the source URL, retrieval time, sha256 and upstream version. The numeric prefix is the display order |
+| `compliance/catalog/frameworks/30-soc2-tsc-security.yaml`, `40-iso27001-2022-annex-a.yaml` | by hand (`AUTHORED (not generated)` in the header) | the published ID structure only; the criteria text is AICPA's and ISO's and is left out |
+| `compliance/baseline/baseline.yaml` | `go run ./cmd/compliance-evidence baseline` | the host-scoped evidence sources of `compliance/catalog/controls.yaml` and the frameworks (ADR-098); each host's `unheaded-baseline` evaluates its own entries |
+| `deploy/ansible/compliance/**` | `go run ./cmd/compliance-evidence ansible` | `compliance/remediation/fixes.yaml` (ADR-099) |
+
 ## Regenerate the SSP
 
 ```bash
