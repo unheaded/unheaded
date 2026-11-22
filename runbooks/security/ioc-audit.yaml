@@ -7,10 +7,11 @@ metadata:
   estimated_duration: 1m
   risk: low
   requires_sudo: false
-  status: draft
+  status: approved
   authored_by: claude
   reviewed_by: ""
-  approved_by: ""
+  approved_by: stevie
+  approved_at: "2026-11-18"   # DECISION-PACK-2026-11-18 row 7, "Approve ioc-audit; you seal"
   dry_run_test: tests/runbooks/test_ioc_audit.py
 
 notes: |
