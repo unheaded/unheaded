@@ -28,12 +28,7 @@ mailer:
   # 2026-11-10 (Stevie): dry-run while the kingdom ran as a test cut on west.
   # 2026-11-15 (Stevie, ADR-147 decision 2): mail on. A stopped container and
   # a memory kill each mail (promote: below). S-SEE-AND-SURVIVE Phase 15.
-  # 2026-11-18: dry-run again until the mailer is rebuilt from this tree
-  # (S-SEE-AND-SURVIVE Step 319 sets send in the same commit as the drill
-  # day). The container on west is still the old build, which reads this
-  # file at its start and knows nothing of delivery: digest; with send it
-  # would mail every page at once.
-  mode: dry-run
+  mode: send
   # delivery: what is mailed.
   #   digest     the daily digest and nothing else: at most one mail a day. A
   #              page is recorded (outbox outcome "digest") and leads the
@@ -63,7 +58,7 @@ mailer:
   run_days:
     max_per_day: 24
     max_per_hour: 6
-    dates: []
+    dates: ["2026-11-22"]
 
 # Alertmanager timing for urgency=page. Alertmanager passes every change in
 # the set of firing pages to the mailer within group_interval; the mailer
