@@ -126,9 +126,15 @@ static KBD_TAIL: Array<u32> = Array::with_max_entries(1, 0);
 static CPU_MAP: HashMap<u32, MbcCpuState> =
     HashMap::with_max_entries(monad_common::mbc_maps::CPU_MAP_ENTRIES, 0);
 
-/// Statistics counters.
+/// Statistics counters. Keys 0-31 are taken; the two refusal counters
+/// (UPC_REFUSAL_STATS) need one more entry, in the ascend object only.
 #[map]
-static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
+static STATS: HashMap<u32, u64> = HashMap::with_max_entries(STATS_ENTRIES, 0);
+const STATS_ENTRIES: u32 = if cfg!(feature = "ascend-linux") && UPC_REFUSAL_STATS {
+    33
+} else {
+    32
+};
 
 /// S-ASCEND-2 Phase 6 (M-225, the flow-label instance hijack): which flow may
 /// tick each instance. Index = instance (flow label & 0xFF). Value: bit 31 =
@@ -317,6 +323,93 @@ fn atomic_addr(cpu: &MbcCpuState, vaddr: u32) -> u32 {
         vaddr
     }
 }
+
+/// ADR-135 SP-2's residue (M-186.12e, decision pack row 41): PUSH, POP, INT and
+/// IRET reach memory through r15 with no translation, so at U-mode a chosen
+/// stack pointer is a physical address. With this const on, in the ascend
+/// object, the four are a NOP at priv 3, as MRET and SRET are: the arms do not
+/// match and the opcode falls to the unknown-opcode NOP. The translator emits
+/// none of them and upc-bootctl refuses a user image that holds one, so this is
+/// the second control, not the first; no stock image reaches it.
+///
+/// Wired OFF (2026-11-22): turning it on needs the verified count
+/// (check-ebpf-insns.sh) and the four patched-image proofs on a throwaway
+/// bootctl, as the atomics had, which need root. Off, the object is the
+/// earlier one exactly.
+const UPC_USER_STACKOP_NOP: bool = false;
+
+#[inline(always)]
+fn user_stackop_refused(cpu: &MbcCpuState) -> bool {
+    cfg!(feature = "ascend-linux") && UPC_USER_STACKOP_NOP && cpu.priv_level == 3
+}
+
+/// M-186.8 (decision pack row 41): rung 4's cheap wait. Since rung 4 a read
+/// blocked at an empty console traps into the kernel on every tick and retries
+/// (ADR-135 D7, D20): `ls` 6.27 M to 63.3 M MBC instructions per boot, an idle
+/// console about sixteen times the BPF work per tick. With this const on (and
+/// `#define UPC_CHEAP_WAIT 1` in upc_slots.h, which parity_slot_tables keeps
+/// equal), the kernel marks `cons_wait` with the slot and fd when it retries a
+/// console read with nothing buffered and no byte offered, and BPF holds that
+/// slot's read of that fd here while the mark is there and the ring is empty:
+/// the ecall is run again, with a yield when other slots exist, as the kernel's
+/// retry does, but without the trap. The fd is in the mark because under
+/// UPC_RUNG56 BPF cannot tell a console fd from a file fd.
+///
+/// Wired OFF (2026-11-22): turning it on needs the verified count, a mutant
+/// (the hold kept when a byte is waiting must fail crprobe and the echo
+/// golden), the sweep and lab boots, all with root. Off, the object is the
+/// earlier one exactly; the kernel keeps the word in its slot table at 0.
+const UPC_CHEAP_WAIT: bool = false;
+
+#[inline(always)]
+fn cheap_wait_holds(cpu: &MbcCpuState) -> bool {
+    if !(cfg!(feature = "ascend-linux") && UPC_CHEAP_WAIT && UPC_RUNG4 && UPC_RUNG56) {
+        return false;
+    }
+    if cpu.priv_level != 3 || cpu.regs[1] != 5 || cpu.regs[8] >= 16 {
+        return false;
+    }
+    let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+    if base == 0 {
+        return false;
+    }
+    let slot = cpu.current_pid as u32 & (phase12::UPC_SLOTS - 1);
+    let want = phase12::UPC_TAG_CWAIT | (slot << 8) | cpu.regs[8];
+    if mem_read_word((base + phase12::UPC_ST_CONS_WAIT_OFF) >> 2) != want {
+        return false;
+    }
+    let tail = match KBD_TAIL.get(0) {
+        Some(v) => *v,
+        None => 0,
+    };
+    let head = match KBD_HEAD.get(0) {
+        Some(v) => *v,
+        None => 0,
+    };
+    tail >= head
+}
+
+/// ADR-135 RV-3's second half (M-186.1b, decision pack row 41): a refusal and a
+/// D6 miss leave a trace. With this const on, in the ascend object, an opcode
+/// refused at priv 3 (MRET, SRET, and PUSH, POP, INT, IRET under
+/// UPC_USER_STACKOP_NOP) bumps STAT_PRIV_REFUSED, and a U-mode page-walk miss
+/// that resolves to D6_MISS_ADDR bumps STAT_D6_MISSES. upc-bootctl prints them
+/// as `REFUSALS: priv3=N d6_miss=M` when either is non-zero.
+///
+/// Wired OFF (2026-11-22): turning it on needs the verified count
+/// (check-ebpf-insns.sh --update, the delta in the ledger) and the harness
+/// lines in scripts/upc-regression.sh, which need root. Off, the object is the
+/// earlier one exactly.
+const UPC_REFUSAL_STATS: bool = false;
+const STAT_PRIV_REFUSED: u32 = 31;
+const STAT_D6_MISSES: u32 = 32;
+
+/// Whether CALL, JMPR, CALLR and RET store their branch diagnostics at
+/// physical 0xE0000 and 0xE1000: the Doom object only. They are Doom
+/// debugging, and in the ascend object a U-mode program chose the words and
+/// they landed in kernel memory, past its slice (ADR-135 SP-5b; M-186.12d,
+/// decision pack row 41). STAT_ROM_FAULT still counts in both objects.
+const BRANCH_DIAG: bool = !cfg!(feature = "ascend-linux");
 
 /// Whether the BPF timer fires and switches processes: the Doom object only.
 /// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
@@ -1183,11 +1276,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
         // ── Stack operations ─────────────────────────────────────────────────
         // SP is a byte address (consistent with LD/ST). Each entry is 4 bytes.
-        } else if opc == op::PUSH {
+        } else if opc == op::PUSH && !user_stackop_refused(cpu) {
             cpu.regs[15] = cpu.regs[15].wrapping_sub(4);
             let word_addr = cpu.regs[15] >> 2;
             mem_write_word(word_addr, cpu.regs[d]);
-        } else if opc == op::POP {
+        } else if opc == op::POP && !user_stackop_refused(cpu) {
             let word_addr = cpu.regs[15] >> 2;
             cpu.regs[d] = mem_read_word(word_addr);
             cpu.regs[15] = cpu.regs[15].wrapping_add(4);
@@ -1267,12 +1360,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let target = insn_word & 0x00FF_FFFF;
             cpu.pc = target;
             if cpu.pc == 0 {
-                let old_pc = cpu.pc.wrapping_sub(1);
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, 0x27);
-                mem_write_word(0xE0008 >> 2, old_pc);
-                mem_write_word(0xE000C >> 2, target);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                if BRANCH_DIAG {
+                    let old_pc = cpu.pc.wrapping_sub(1);
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, 0x27);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, target);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                }
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::JMPR {
@@ -1292,23 +1387,27 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // Skipping the indirect jump lets execution fall through to
                     // the next MBC instruction (the return point), as if the
                     // called function returned immediately. Write diagnostics.
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0002); // sentinel (unmapped)
-                    mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
-                    mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of JMPR insn
-                    mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
-                    mem_write_word(0xE0014 >> 2, rv_word); // RV word index
+                    if BRANCH_DIAG {
+                        mem_write_word(0xE0000 >> 2, 0xDEAD0002); // sentinel (unmapped)
+                        mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
+                        mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of JMPR insn
+                        mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
+                        mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
+                        mem_write_word(0xE0014 >> 2, rv_word); // RV word index
+                    }
                     increment_stat(STAT_ROM_FAULT);
                     cpu.pc // keep PC at next instruction (skip the JMPR)
                 }
             };
             // Restart: log but don't halt
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, opc as u32);
-                mem_write_word(0xE0008 >> 2, old_pc);
-                mem_write_word(0xE000C >> 2, rv_addr);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                if BRANCH_DIAG {
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, opc as u32);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, rv_addr);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                }
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::CALLR || (insn_word >> 24) == 0x2A {
@@ -1332,40 +1431,48 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
 
-            // DIAGNOSTIC: log every CALLR to debug region 0xE1000
+            // DIAGNOSTIC: log every CALLR to debug region 0xE1000 (Doom only)
             let callr_log_base = 0xE1000u32 >> 2;
-            mem_write_word(callr_log_base, rv_addr);
-            mem_write_word(callr_log_base + 1, rv_word);
-            mem_write_word(callr_log_base + 2, d as u32);
-            mem_write_word(callr_log_base + 3, old_pc);
+            if BRANCH_DIAG {
+                mem_write_word(callr_log_base, rv_addr);
+                mem_write_word(callr_log_base + 1, rv_word);
+                mem_write_word(callr_log_base + 2, d as u32);
+                mem_write_word(callr_log_base + 3, old_pc);
+            }
 
             cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Log successful lookup
-                    mem_write_word(callr_log_base + 4, *mbc_idx);
-                    mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
+                    if BRANCH_DIAG {
+                        mem_write_word(callr_log_base + 4, *mbc_idx);
+                        mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
+                    }
                     *mbc_idx
                 }
                 _ => {
                     // Unmapped CALLR — skip
-                    mem_write_word(callr_log_base + 4, 0xDEAD0003);
-                    mem_write_word(callr_log_base + 5, rv_word);
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0003);
-                    mem_write_word(0xE0004 >> 2, opc as u32);
-                    mem_write_word(0xE0008 >> 2, old_pc);
-                    mem_write_word(0xE000C >> 2, rv_addr);
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
-                    mem_write_word(0xE0014 >> 2, rv_word);
+                    if BRANCH_DIAG {
+                        mem_write_word(callr_log_base + 4, 0xDEAD0003);
+                        mem_write_word(callr_log_base + 5, rv_word);
+                        mem_write_word(0xE0000 >> 2, 0xDEAD0003);
+                        mem_write_word(0xE0004 >> 2, opc as u32);
+                        mem_write_word(0xE0008 >> 2, old_pc);
+                        mem_write_word(0xE000C >> 2, rv_addr);
+                        mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                        mem_write_word(0xE0014 >> 2, rv_word);
+                    }
                     increment_stat(STAT_ROM_FAULT);
                     cpu.pc // skip
                 }
             };
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, opc as u32);
-                mem_write_word(0xE0008 >> 2, old_pc);
-                mem_write_word(0xE000C >> 2, rv_addr);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                if BRANCH_DIAG {
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, opc as u32);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, rv_addr);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                }
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::RET {
@@ -1401,12 +1508,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             } else {
                 // (b) Raw RV byte address (or a stale 0). rv2mbc lookup.
                 if ret == 0 {
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                    mem_write_word(0xE0004 >> 2, 0x28);
-                    mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
-                    mem_write_word(0xE000C >> 2, ret);
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
-                    mem_write_word(0xE0014 >> 2, cpu.regs[14]);
+                    if BRANCH_DIAG {
+                        mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                        mem_write_word(0xE0004 >> 2, 0x28);
+                        mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
+                        mem_write_word(0xE000C >> 2, ret);
+                        mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                        mem_write_word(0xE0014 >> 2, cpu.regs[14]);
+                    }
                     increment_stat(STAT_ROM_FAULT);
                 }
                 let rv_word = ret >> 2;
@@ -1619,6 +1728,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 reply_req = true; // read after the loop: ADR-135 Consequences
                 break;
             }
+        } else if cfg!(feature = "ascend-linux")
+            && UPC_REFUSAL_STATS
+            && cpu.priv_level == 3
+            && (opc == op::MRET
+                || opc == op::SRET
+                || (UPC_USER_STACKOP_NOP
+                    && (opc == op::PUSH || opc == op::POP || opc == op::INT || opc == op::IRET)))
+        {
+            // M-186.1b: the opcode is refused at U-mode (the arms above do not
+            // match there); count it, then it is a NOP.
+            increment_stat(STAT_PRIV_REFUSED);
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
             // Load-Reserved Word: rd = RAM[rs1]; reserve rs1. The reservation
             // keeps the virtual address; the access is translated (ADR-135 D17).
@@ -1641,7 +1761,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.reservation_address = 0xFFFF_FFFF;
 
         // ── Interrupts ────────────────────────────────────────────────────────
-        } else if opc == op::INT {
+        } else if opc == op::INT && !user_stackop_refused(cpu) {
             let vector = imm as u8;
             // The INT-0x80 Linux/FUZIX dispatch below is dead weight under
             // ASCEND-LINUX: xv6 issues syscalls via `ecall` (op::SYSCALL), never
@@ -2237,7 +2357,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 let ivt_addr = (vector as u32) * 4;
                 cpu.pc = mem_read_word(ivt_addr >> 2);
             }
-        } else if opc == op::IRET {
+        } else if opc == op::IRET && !user_stackop_refused(cpu) {
             // Return from interrupt: pop PC + flags, re-enable interrupts.
             // Pop PC from stack
             let word_addr = cpu.regs[15] >> 2;
@@ -2257,6 +2377,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a0 (x10 → r8) = first arg / return value,
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
+            // M-186.8: the cheap wait. The kernel's last answer to this read was a
+            // retry with nothing buffered, and the ring is still empty, so a trap
+            // would only retry again. Hold it as the kernel's retry does (the ecall
+            // runs again, others run first), without the trap.
+            if cheap_wait_holds(cpu) {
+                cpu.pc = cpu.pc.wrapping_sub(1);
+                if cpu.num_processes > 1 {
+                    switch_req = SWITCH_YIELD;
+                }
+                break;
+            }
             // Kernel-routed numbers share the getpid inject arm; the kernel reads
             // the real number from trap_a7 (regs[1]).
             let syscall_nr = kernel_routed_alias(syscall_nr, cpu);
@@ -4302,6 +4433,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pde = mem_read_word(pd_word_addr);
     if (pde & mmu::PTE_PRESENT) == 0 {
         if d6_user_miss(cpu) {
+            if UPC_REFUSAL_STATS {
+                increment_stat(STAT_D6_MISSES);
+            }
             return D6_MISS_ADDR;
         }
         return vaddr; // Page fault — return unmapped (handle gracefully)
@@ -4328,6 +4462,9 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pte = mem_read_word(pt_word_addr);
     if (pte & mmu::PTE_PRESENT) == 0 {
         if d6_user_miss(cpu) {
+            if UPC_REFUSAL_STATS {
+                increment_stat(STAT_D6_MISSES);
+            }
             return D6_MISS_ADDR;
         }
         return vaddr; // Page fault

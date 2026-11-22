@@ -33,6 +33,16 @@ static struct upc_slot_tables upc_st __attribute__((aligned(UPC_TF_STRIDE)));
 static int upc_active; // inside a tagged trap: upc_slot_enter to upc_slot_leave
 static int upc_kbd_taken; // this trap took the console byte BPF offered (ADR-135 D20)
 
+#if UPC_CHEAP_WAIT
+// M-186.8: a new process in slot s, or slot s killed: its cheap-wait mark goes.
+static void
+upc_cons_wait_drop(uint32 s)
+{
+  if(upc_st.cons_wait != 0 && ((upc_st.cons_wait >> 8) & 0xFF) == s)
+    upc_st.cons_wait = 0;
+}
+#endif
+
 int
 upc_slot_active(void)
 {
@@ -103,6 +113,9 @@ upc_kill(int pid)
 {
   if(pid < 2 || pid > UPC_SLOTS)
     return -1;
+#if UPC_CHEAP_WAIT
+  upc_cons_wait_drop(pid - 1);
+#endif
   upc_close_row(&proc[pid - 1]);
   upc_reply(UPC_REPLY_KILL, pid - 1);
   return 0;
@@ -171,6 +184,30 @@ upc_kbd_take(void)
   upc_kbd_taken = 1;
   return (int)(w & 0xFF);
 }
+
+// M-186.8 (decision pack row 41): the cheap wait. A console read that found no
+// line and was offered no byte retries (D7), and finds the same on every tick
+// until a byte reaches BPF's ring: only a console read moves the console's
+// input, and the next byte is offered only at a read's injection. So the kernel
+// says so here, naming the slot and the fd, and BPF holds that slot's read of
+// that fd in its own arm (the PC rewound, a yield when others can run, the tick
+// ended) while the mark is set and the ring is empty. Every console read clears
+// the mark first (upc_consoleread), so only the last one can have set it, and
+// only while nothing is buffered; a slot that gets a new process or is killed
+// loses it (upc_cons_wait_drop). Under UPC_RUNG56 BPF cannot tell a console fd
+// from a file fd, hence the fd in the mark. Off, the word stays 0.
+#if UPC_CHEAP_WAIT
+void
+upc_cons_wait(int idle)
+{
+  struct proc *p = myproc();
+  if(idle && upc_active && p >= &proc[0] && p < &proc[UPC_SLOTS])
+    upc_st.cons_wait = UPC_TAG_CWAIT | ((uint32)(p - proc) << 8)
+                     | ((uint32)p->trapframe->a0 & 0xFF);
+  else
+    upc_st.cons_wait = 0;
+}
+#endif
 
 // ADR-135 D6. A slot row's user VA to its physical address, 0 when refused.
 // Only inside a tagged trap. VA 0 is mapped, so for slots 1-7 0 only ever means
@@ -305,6 +342,9 @@ upc_row_refresh(uint32 s)
   struct proc *p = &proc[s];
   upc_st.fresh_mask &= ~(1u << s);
   upc_wake[s] = 0;
+#if UPC_CHEAP_WAIT
+  upc_cons_wait_drop(s);
+#endif
   p->pid = s + 1;
 #ifdef UPC_MUT_SHARED_TF
   p->trapframe = &upc_st.tf[0].tf;

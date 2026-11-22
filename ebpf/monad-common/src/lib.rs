@@ -1891,6 +1891,22 @@ pub mod mbc_mmu {
     pub const PTE_PFN_MASK: u32 = 0xFFFFF000;
 }
 
+/// The `.data` sidecar `rv32i-to-mbc` writes beside a `.mbc`: a TLV, `[count
+/// u32 LE]` then `count` records of `[byte_addr u32][len u32][len bytes, padded
+/// to 4]`. A build artefact of this repository, read by `upc-bootctl`; not a
+/// wire format.
+pub mod mbc_sidecar {
+    /// Set in the count word by `rv32i-to-mbc --with-bss`: the records include
+    /// every ALLOC NOBITS section (.bss, .sbss) as zeros. `upc-bootctl` refuses
+    /// a user image's sidecar without it (ADR-135 SP-3): such a sidecar was
+    /// written before `--with-bss`, and exec would hand the program another
+    /// program's bytes where its `.bss` is. Kernel and bootstub sidecars are
+    /// written without it and read either way.
+    pub const WITH_BSS: u32 = 1 << 31;
+    /// The record count, below the flags.
+    pub const COUNT_MASK: u32 = !WITH_BSS;
+}
+
 // ── Ring buffer sizing helpers ────────────────────────────────────────────────
 
 /// Required Anamnesis ring buffer size (bytes) for given traffic parameters.

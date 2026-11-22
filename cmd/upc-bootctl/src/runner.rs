@@ -381,7 +381,10 @@ impl BootRunner {
                 blob.len()
             );
         }
-        let count = u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]]) as usize;
+        // A kernel or bootstub sidecar is written without --with-bss; the
+        // marker is read off either way (ADR-135 SP-3).
+        let count = (u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]])
+            & monad_common::mbc_sidecar::COUNT_MASK) as usize;
         let mut off = 4usize;
         let mut regions: Vec<(u32, Vec<u8>)> = Vec::with_capacity(count);
         for i in 0..count {
@@ -444,15 +447,30 @@ impl BootRunner {
         self.populate_ram(&region_refs)
     }
 
-    /// Parse a `.data` TLV blob into `(byte_addr, bytes)` regions — the same
-    /// format `load_data_image` consumes, but returned to the caller instead
-    /// of written at the linked VAs. Used by `stage_program_data` to build a
-    /// flat exec-staging image for a non-pid-0 program (ADR-077 Gate B).
+    /// Parse a user image's `.data` TLV blob into `(byte_addr, bytes)` regions
+    /// — the same format `load_data_image` consumes, but returned to the
+    /// caller instead of written at the linked VAs. Used by
+    /// `stage_program_data` to build a flat exec-staging image for a non-pid-0
+    /// program (ADR-077 Gate B), and for the `--userland` image.
+    ///
+    /// ADR-135 SP-3 (M-186.12b): the count word must carry
+    /// `mbc_sidecar::WITH_BSS`. Without it the sidecar was written before
+    /// `--with-bss`, holds no `.bss` zeros, and exec would hand the program the
+    /// bytes another program left there.
     pub(crate) fn parse_data_regions(blob: &[u8], what: &str) -> Result<Vec<(u32, Vec<u8>)>> {
+        use monad_common::mbc_sidecar::{COUNT_MASK, WITH_BSS};
         if blob.len() < 4 {
             bail!("{what}: data image too short ({} bytes)", blob.len());
         }
-        let count = u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]]) as usize;
+        let word = u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]]);
+        if word & WITH_BSS == 0 {
+            bail!(
+                "{what}: no .bss marker in the count word (written without \
+                 rv32i-to-mbc --with-bss, so .bss would not be zeroed); rebuild it \
+                 with the userland Makefile"
+            );
+        }
+        let count = (word & COUNT_MASK) as usize;
         let mut off = 4usize;
         let mut regions = Vec::with_capacity(count);
         for i in 0..count {

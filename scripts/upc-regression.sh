@@ -211,10 +211,13 @@ fi
 
 # S-STAGE-2B rungs: each gate runs when its const is on; off, it is a note.
 rung_on() { grep -q "^const $1: bool = true;" "$EBPF/monad-cpu-ebpf/src/main.rs"; }
-probe_lines() { # $1 program, $2 triggers, $3 token prefix, then VAR=value pairs for the boot's environment
+probe_raw() { # $1 program, $2 triggers, $3 token prefix (unused), then VAR=value pairs: the whole boot log
   (cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "${@:4}" "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
-    --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1) | grep -a 'ascii:' \
-    | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$3: [a-z0-9-]+(=[a-z0-9]+)?"; }
+    --ramdisk "$K/fs.img" --userland "$K/$1.mbc" --triggers "$2" --instance 111 2>&1); }
+tag_lines() { # $1 token prefix; stdin a boot log: the probe's tagged lines
+  grep -a 'ascii:' | sed -E 's/([0-9A-F]{4} )+//g' | sed 's/\xc2\xb7/\n/g' | grep -aoE "$1: [a-z0-9-]+(=[a-z0-9]+)?"; }
+probe_lines() { # $1 program, $2 triggers, $3 token prefix, then VAR=value pairs for the boot's environment
+  probe_raw "$@" | tag_lines "$3"; }
 rung_gate() { # $1 const, $2 program, $3 triggers, $4 prefix, $5 how many =yes lines
   if ! rung_on "$1"; then note "$2 gate skipped: $1 is off"; return; fi
   local l; l="$(probe_lines "$2" "$3" "$4")"
@@ -270,6 +273,25 @@ if rung_on UPC_RUNG4; then
   fi
 else
   note "crprobe gate skipped: UPC_RUNG4 is off"
+fi
+
+# M-186.8 (decision pack row 41): with UPC_CHEAP_WAIT on, a read blocked at an
+# empty console waits in BPF's arm, not in a kernel trap per tick. An `ls` boot
+# that ends at the prompt ran 6.27 M MBC instructions before rung 4 and 63.3 M
+# with the kernel's retry (4,000,000 triggers); held, it must come in far under
+# the second. 20 M sits between the two. crprobe above is the check that a held
+# read still takes the bytes that arrive.
+if rung_on UPC_CHEAP_WAIT; then
+  CWO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/init.mbc" --triggers 4000000 --instance 111 --input $'ls\n' 2>&1)"
+  CWN="$(grep -aoE 'insn_count=[0-9]+' <<<"$CWO" | tail -1 | cut -d= -f2)"
+  if grep -aq 'README' <<<"$CWO" && [ -n "$CWN" ] && [ "$CWN" -lt 20000000 ]; then
+    pass "cheap wait: ls then an idle prompt, insn_count=$CWN (UPC_CHEAP_WAIT)"
+  else
+    fail "cheap wait (UPC_CHEAP_WAIT): insn_count=${CWN:-none}, want README and under 20,000,000"
+  fi
+else
+  note "cheap wait gate skipped: UPC_CHEAP_WAIT is off"
 fi
 
 # S-STAGE-2C Phase 8 (A-62): the rung 0 asserter (ADR-109 I1-I8) against a
@@ -351,7 +373,8 @@ want_counts "$(hs_lines hostile_tf)" "HT: child-pid=2" 1 "HT: gc-pid=3" 1 "HT: g
 # scan refuses in a user image (ADR-135 D17); UPC_ALLOW_USER_PRIVRET=1 is the
 # probe hatch for exactly that (returns only, never an atomic).
 if rung_on UPC_REPLY; then
-  HRL="$(probe_lines hostile_reply 3000000 HR UPC_ALLOW_USER_PRIVRET=1)"
+  HRRAW="$(probe_raw hostile_reply 3000000 HR UPC_ALLOW_USER_PRIVRET=1)"
+  HRL="$(tag_lines HR <<<"$HRRAW")"
   if rung_on UPC_D6_MISS_FAULT; then
     want_counts "$HRL" "HR: mret-refused=yes" 1 "HR: sret-refused=yes" 1 \
       "HR: own-slice-intact=yes" 1 "HR: table-reached=no" 1 "HR: route=closed" 1 \
@@ -367,8 +390,54 @@ if rung_on UPC_REPLY; then
   else
     fail "hostile_reply (D6 off: the probe no longer reaches the hole)"
   fi
+  # M-186.1b (ADR-135 RV-3): with UPC_REFUSAL_STATS on, the two refused
+  # returns are counted (STAT 31), and with D6 on so is at least one U-mode miss
+  # (the PDE store past the child's mapping, STAT 32). upc-bootctl prints the
+  # line only when a counter is non-zero.
+  if rung_on UPC_REFUSAL_STATS; then
+    REF="$(grep -aoE 'REFUSALS: priv3=[0-9]+ d6_miss=[0-9]+' <<<"$HRRAW" | tail -1)"
+    P3="$(sed -nE 's/.*priv3=([0-9]+).*/\1/p' <<<"$REF")"; D6M="$(sed -nE 's/.*d6_miss=([0-9]+).*/\1/p' <<<"$REF")"
+    if [ "${P3:-0}" -ge 2 ] && { ! rung_on UPC_D6_MISS_FAULT || [ "${D6M:-0}" -ge 1 ]; }; then
+      pass "hostile_reply: refusals counted (priv3=${P3:-0} d6_miss=${D6M:-0})"
+    else
+      fail "hostile_reply: refusal counters (priv3=${P3:-0} d6_miss=${D6M:-0}, want priv3>=2 and, with D6 on, d6_miss>=1)"
+    fi
+  else
+    note "refusal counters skipped: UPC_REFUSAL_STATS is off"
+  fi
 else
   note "hostile_reply gate skipped: UPC_REPLY is off"
+fi
+
+# M-186.12c (ADR-135 SP-4d): in the stock object D6 drops hostile_fork's pde
+# plant, so no boot makes UPC_FORK_MARK the deciding control. A second ascend
+# object with D6 off, built from a copy of ebpf/ into its own target directory
+# (the tree's object is not touched), boots hostile_fork once: the plant lands
+# and the copy must still be whole. Ledger 2026-11-15, Step 120, is the hand run
+# this repeats.
+if rung_on UPC_D6_MISS_FAULT && rung_on UPC_FORK_MARK; then
+  D6S="$(mktemp -d)"
+  D6SRC="$D6S/ebpf/monad-cpu-ebpf/src/main.rs"
+  # build.rs includes upc-api's surface hash from outside ebpf/, so it comes too.
+  tar -C "$ROOT" --exclude=ebpf/target -cf - ebpf crates/upc-api/src/surface_hash.rs docs/protocol/error-registry.md \
+    | tar -C "$D6S" -xf -
+  sed -i 's/^const UPC_D6_MISS_FAULT: bool = true;$/const UPC_D6_MISS_FAULT: bool = false;/' "$D6SRC"
+  d6off_build() { ( cd "$D6S/ebpf" && CARGO_TARGET_DIR="$D6S/target" cargo build --release -p monad-cpu-ebpf --features ascend-linux ); }
+  if ! grep -q '^const UPC_D6_MISS_FAULT: bool = false;$' "$D6SRC"; then
+    fail "hostile_fork, D6 off: the variant's const was not switched"
+  elif ! cargo_build_ok d6off_build; then
+    fail "hostile_fork, D6 off: the variant object did not build"
+  else
+    HFD="$(probe_lines hostile_fork 4000000 HF MONAD_CPU_EBPF_OBJ="$D6S/target/bpfel-unknown-none/release/monad-cpu-ebpf")"
+    if want_counts "$HFD" "HF: copy-complete=yes" 1 "HF: pde-plant-dropped=no" 1 "HF: a2-ignored=yes" 1 "HF: done" 1; then
+      pass "hostile_fork, D6 off: the plant lands and the fork mark keeps the copy whole"
+    else
+      fail "hostile_fork, D6 off (UPC_FORK_MARK as the deciding control)"; note "$(tr '\n' ' ' <<<"$HFD")"
+    fi
+  fi
+  rm -rf "$D6S"
+else
+  note "hostile_fork D6-off boot skipped: needs UPC_D6_MISS_FAULT and UPC_FORK_MARK on"
 fi
 
 # S-STAGE-2C Phase 4, ADR-135 D17 (R-S4): upc-bootctl refuses a user image that
@@ -433,9 +502,11 @@ if python3 "$ROOT/scripts/upc-mbc-patch-opcode.py" "$K/hostile_atomic.mbc" --wor
   # program's span to slice base + address. Three dry runs: a record in the
   # kernel's .data, a record whose end wraps, and a resident program ("sh", a
   # copy of the same clean image) whose two records are over 256 KiB apart.
+  # The count word carries the .bss marker, bit 31 (M-186.12b): without it the
+  # loader refuses a user sidecar before any record is read.
   tlv() { python3 -c 'import struct,sys
 a=[int(x,0) for x in sys.argv[2:]]
-b=struct.pack("<I",len(a)//2)
+b=struct.pack("<I",(len(a)//2)|0x80000000)
 for i in range(0,len(a),2):
     b+=struct.pack("<II",a[i],a[i+1])+bytes([0xAA])*a[i+1]
     b+=bytes(-len(b)%4)

@@ -40,7 +40,7 @@ fn c_define(src: &str, name: &str) -> u32 {
     parse(l.split_whitespace().nth(2).unwrap())
 }
 
-const NAMES: [&str; 25] = [
+const NAMES: [&str; 27] = [
     "UPC_SLOT_TABLES_BP_BYTE",
     "UPC_SLOTS",
     "UPC_TF_STRIDE",
@@ -53,11 +53,13 @@ const NAMES: [&str; 25] = [
     "UPC_ST_REPLY_ARG_OFF",
     "UPC_ST_CWD_MASK_OFF",
     "UPC_ST_KBD_IN_OFF",
+    "UPC_ST_CONS_WAIT_OFF",
     "UPC_ST_SIZE",
     "UPC_TAG_SLOT",
     "UPC_TAG_A7",
     "UPC_TAG_REPLY",
     "UPC_TAG_KBD",
+    "UPC_TAG_CWAIT",
     "UPC_TAG_MASK",
     "UPC_REPLY_SET_BRK",
     "UPC_REPLY_YIELD",
@@ -202,12 +204,26 @@ fn layout_is_the_adr_layout() {
     assert_eq!(rust_const(&rs, "UPC_ST_REPLY_OFF"), slots * stride + 20);
     assert_eq!(rust_const(&rs, "UPC_ST_REPLY_ARG_OFF"), slots * stride + 24);
     assert_eq!(rust_const(&rs, "UPC_ST_KBD_IN_OFF"), slots * stride + 32);
-    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 36);
+    assert_eq!(rust_const(&rs, "UPC_ST_CONS_WAIT_OFF"), slots * stride + 36);
+    assert_eq!(rust_const(&rs, "UPC_ST_SIZE"), slots * stride + 40);
     let mask = rust_const(&rs, "UPC_TAG_MASK");
     assert_eq!(rust_const(&rs, "UPC_TAG_SLOT") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_A7") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_REPLY") & !mask, 0);
     assert_eq!(rust_const(&rs, "UPC_TAG_KBD") & !mask, 0);
+    assert_eq!(rust_const(&rs, "UPC_TAG_CWAIT") & !mask, 0);
+    let tags = [
+        "UPC_TAG_SLOT",
+        "UPC_TAG_A7",
+        "UPC_TAG_REPLY",
+        "UPC_TAG_KBD",
+        "UPC_TAG_CWAIT",
+    ];
+    for (i, a) in tags.iter().enumerate() {
+        for b in &tags[i + 1..] {
+            assert_ne!(rust_const(&rs, a), rust_const(&rs, b), "{a} and {b}");
+        }
+    }
     // The reply flags live below the tag.
     for f in [
         "UPC_REPLY_SET_BRK",
@@ -229,4 +245,28 @@ fn layout_is_the_adr_layout() {
     );
     // BootParams v3 sits at 0x100; `reserved` starts at byte offset 96.
     assert_eq!(rust_const(&rs, "UPC_SLOT_TABLES_BP_BYTE"), 0x100 + 96);
+}
+
+/// M-186.8 (decision pack row 41): the cheap wait has a BPF half (main.rs holds
+/// a console read while the kernel's mark is set and the ring is empty) and a
+/// kernel half (upc_consoleread sets and clears the mark). One without the other
+/// either never holds or holds on a stale mark, so the two switches must agree.
+#[test]
+fn kernel_cheap_wait_is_bpfs() {
+    let main_rs = read("ebpf/monad-cpu-ebpf/src/main.rs");
+    let l = main_rs
+        .lines()
+        .find(|l| l.starts_with("const UPC_CHEAP_WAIT: bool = "))
+        .expect("UPC_CHEAP_WAIT not in main.rs");
+    let bpf = match l.split('=').nth(1).unwrap().trim().trim_end_matches(';') {
+        "true" => 1,
+        "false" => 0,
+        v => panic!("UPC_CHEAP_WAIT is {v}"),
+    };
+    let h = read("crates/xv6-mbc/adapters/upc_slots.h");
+    assert_eq!(
+        c_define(&h, "UPC_CHEAP_WAIT"),
+        bpf,
+        "upc_slots.h and main.rs disagree"
+    );
 }

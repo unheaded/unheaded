@@ -1277,6 +1277,15 @@ fn cmd_boot(
             s[10], s[11], s[12], s[13], s[14]
         );
     }
+    // M-186.1b (ADR-135 RV-3): opcodes refused at U-mode (STAT 31) and U-mode
+    // page-walk misses that D6 sent nowhere (STAT 32), counted only under
+    // UPC_REFUSAL_STATS in the ascend object. Printed only when non-zero, so a
+    // boot with the const off prints what it printed before.
+    if let Ok(r) = runner.read_stats(&[31, 32]) {
+        if r[0] != 0 || r[1] != 0 {
+            println!("  REFUSALS: priv3={} d6_miss={}", r[0], r[1]);
+        }
+    }
     // Frames seen by monad_cpu (STAT 0), frames that passed the Monad checks
     // (STAT 1), and this instance's tick counter: where triggers go missing.
     if let Ok(t) = runner.read_stats(&[0, 1]) {
