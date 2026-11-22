@@ -318,6 +318,13 @@ fn atomic_addr(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     }
 }
 
+/// Whether CALL, JMPR, CALLR and RET store their branch diagnostics at
+/// physical 0xE0000 and 0xE1000: the Doom object only. They are Doom
+/// debugging, and in the ascend object a U-mode program chose the words and
+/// they landed in kernel memory, past its slice (ADR-135 SP-5b; M-186.12d,
+/// decision pack row 41). STAT_ROM_FAULT still counts in both objects.
+const BRANCH_DIAG: bool = !cfg!(feature = "ascend-linux");
+
 /// Whether the BPF timer fires and switches processes: the Doom object only.
 /// ADR-135 I9 and D18: fork in the ascend object copies over several ticks with
 /// its cursor in a2 and one reservation mark per slot, and relies on nothing
@@ -1267,12 +1274,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let target = insn_word & 0x00FF_FFFF;
             cpu.pc = target;
             if cpu.pc == 0 {
-                let old_pc = cpu.pc.wrapping_sub(1);
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, 0x27);
-                mem_write_word(0xE0008 >> 2, old_pc);
-                mem_write_word(0xE000C >> 2, target);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                if BRANCH_DIAG {
+                    let old_pc = cpu.pc.wrapping_sub(1);
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, 0x27);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, target);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                }
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::JMPR {
@@ -1292,23 +1301,27 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // Skipping the indirect jump lets execution fall through to
                     // the next MBC instruction (the return point), as if the
                     // called function returned immediately. Write diagnostics.
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0002); // sentinel (unmapped)
-                    mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
-                    mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of JMPR insn
-                    mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
-                    mem_write_word(0xE0014 >> 2, rv_word); // RV word index
+                    if BRANCH_DIAG {
+                        mem_write_word(0xE0000 >> 2, 0xDEAD0002); // sentinel (unmapped)
+                        mem_write_word(0xE0004 >> 2, opc as u32); // 0x29 = JMPR
+                        mem_write_word(0xE0008 >> 2, old_pc); // MBC PC of JMPR insn
+                        mem_write_word(0xE000C >> 2, rv_addr); // RV byte addr
+                        mem_write_word(0xE0010 >> 2, cpu.regs[15]); // SP
+                        mem_write_word(0xE0014 >> 2, rv_word); // RV word index
+                    }
                     increment_stat(STAT_ROM_FAULT);
                     cpu.pc // keep PC at next instruction (skip the JMPR)
                 }
             };
             // Restart: log but don't halt
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, opc as u32);
-                mem_write_word(0xE0008 >> 2, old_pc);
-                mem_write_word(0xE000C >> 2, rv_addr);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                if BRANCH_DIAG {
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, opc as u32);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, rv_addr);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                }
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::CALLR || (insn_word >> 24) == 0x2A {
@@ -1332,40 +1345,48 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
 
-            // DIAGNOSTIC: log every CALLR to debug region 0xE1000
+            // DIAGNOSTIC: log every CALLR to debug region 0xE1000 (Doom only)
             let callr_log_base = 0xE1000u32 >> 2;
-            mem_write_word(callr_log_base, rv_addr);
-            mem_write_word(callr_log_base + 1, rv_word);
-            mem_write_word(callr_log_base + 2, d as u32);
-            mem_write_word(callr_log_base + 3, old_pc);
+            if BRANCH_DIAG {
+                mem_write_word(callr_log_base, rv_addr);
+                mem_write_word(callr_log_base + 1, rv_word);
+                mem_write_word(callr_log_base + 2, d as u32);
+                mem_write_word(callr_log_base + 3, old_pc);
+            }
 
             cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Log successful lookup
-                    mem_write_word(callr_log_base + 4, *mbc_idx);
-                    mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
+                    if BRANCH_DIAG {
+                        mem_write_word(callr_log_base + 4, *mbc_idx);
+                        mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
+                    }
                     *mbc_idx
                 }
                 _ => {
                     // Unmapped CALLR — skip
-                    mem_write_word(callr_log_base + 4, 0xDEAD0003);
-                    mem_write_word(callr_log_base + 5, rv_word);
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0003);
-                    mem_write_word(0xE0004 >> 2, opc as u32);
-                    mem_write_word(0xE0008 >> 2, old_pc);
-                    mem_write_word(0xE000C >> 2, rv_addr);
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
-                    mem_write_word(0xE0014 >> 2, rv_word);
+                    if BRANCH_DIAG {
+                        mem_write_word(callr_log_base + 4, 0xDEAD0003);
+                        mem_write_word(callr_log_base + 5, rv_word);
+                        mem_write_word(0xE0000 >> 2, 0xDEAD0003);
+                        mem_write_word(0xE0004 >> 2, opc as u32);
+                        mem_write_word(0xE0008 >> 2, old_pc);
+                        mem_write_word(0xE000C >> 2, rv_addr);
+                        mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                        mem_write_word(0xE0014 >> 2, rv_word);
+                    }
                     increment_stat(STAT_ROM_FAULT);
                     cpu.pc // skip
                 }
             };
             if cpu.pc == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, opc as u32);
-                mem_write_word(0xE0008 >> 2, old_pc);
-                mem_write_word(0xE000C >> 2, rv_addr);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                if BRANCH_DIAG {
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, opc as u32);
+                    mem_write_word(0xE0008 >> 2, old_pc);
+                    mem_write_word(0xE000C >> 2, rv_addr);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                }
                 increment_stat(STAT_ROM_FAULT);
             }
         } else if opc == op::RET {
@@ -1401,12 +1422,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             } else {
                 // (b) Raw RV byte address (or a stale 0). rv2mbc lookup.
                 if ret == 0 {
-                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                    mem_write_word(0xE0004 >> 2, 0x28);
-                    mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
-                    mem_write_word(0xE000C >> 2, ret);
-                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
-                    mem_write_word(0xE0014 >> 2, cpu.regs[14]);
+                    if BRANCH_DIAG {
+                        mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                        mem_write_word(0xE0004 >> 2, 0x28);
+                        mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
+                        mem_write_word(0xE000C >> 2, ret);
+                        mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                        mem_write_word(0xE0014 >> 2, cpu.regs[14]);
+                    }
                     increment_stat(STAT_ROM_FAULT);
                 }
                 let rv_word = ret >> 2;
