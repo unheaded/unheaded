@@ -218,6 +218,8 @@ consoleintr(int c)
 // With a line buffered, copy out as consoleread does: up to n bytes, stopping
 // after a newline, 0 at ^D. The pointer is judged before any wait, so a bad
 // one answers -1 with or without input. A copy that fails puts its byte back.
+// M-186.8: every call clears the cheap-wait mark; a retry with no line and no
+// byte offered sets it, for this slot and fd (upc_cons_wait, upc_slots.c).
 int
 upc_consoleread(uint64 dst, int n)
 {
@@ -225,6 +227,9 @@ upc_consoleread(uint64 dst, int n)
   int c = 0, have;
   char cbuf;
 
+#if UPC_CHEAP_WAIT
+  upc_cons_wait(0);
+#endif
   if(n < 0 || upc_user_pa(dst) == 0)
     return -1;
   if(n == 0)
@@ -243,6 +248,10 @@ upc_consoleread(uint64 dst, int n)
     have = cons.r != cons.w;
     release(&cons.lock);
     if(!have){
+#if UPC_CHEAP_WAIT
+      if(c < 0)
+        upc_cons_wait(1);  // nothing buffered and nothing offered: BPF may hold
+#endif
       upc_retry();
       return UPC_RETRY_RC;
     }

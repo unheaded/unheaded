@@ -275,6 +275,25 @@ else
   note "crprobe gate skipped: UPC_RUNG4 is off"
 fi
 
+# M-186.8 (decision pack row 41): with UPC_CHEAP_WAIT on, a read blocked at an
+# empty console waits in BPF's arm, not in a kernel trap per tick. An `ls` boot
+# that ends at the prompt ran 6.27 M MBC instructions before rung 4 and 63.3 M
+# with the kernel's retry (4,000,000 triggers); held, it must come in far under
+# the second. 20 M sits between the two. crprobe above is the check that a held
+# read still takes the bytes that arrive.
+if rung_on UPC_CHEAP_WAIT; then
+  CWO="$(cd "$EBPF" && sudo ip netns exec upc0 env UPC_DEMO_MODE=1 "$BC" boot --allow-untrusted-ebpf-obj-dir --kernel "$K/xv6-mbc.mbc" \
+    --ramdisk "$K/fs.img" --userland "$K/init.mbc" --triggers 4000000 --instance 111 --input $'ls\n' 2>&1)"
+  CWN="$(grep -aoE 'insn_count=[0-9]+' <<<"$CWO" | tail -1 | cut -d= -f2)"
+  if grep -aq 'README' <<<"$CWO" && [ -n "$CWN" ] && [ "$CWN" -lt 20000000 ]; then
+    pass "cheap wait: ls then an idle prompt, insn_count=$CWN (UPC_CHEAP_WAIT)"
+  else
+    fail "cheap wait (UPC_CHEAP_WAIT): insn_count=${CWN:-none}, want README and under 20,000,000"
+  fi
+else
+  note "cheap wait gate skipped: UPC_CHEAP_WAIT is off"
+fi
+
 # S-STAGE-2C Phase 8 (A-62): the rung 0 asserter (ADR-109 I1-I8) against a
 # probe kernel. The kernel is built with -DUPC_STAGE2_PROBE from a copy in a
 # temp dir (the make rules write objects beside the sources, so the copy keeps

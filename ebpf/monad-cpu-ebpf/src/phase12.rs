@@ -93,11 +93,17 @@ pub const UPC_ST_REPLY_OFF: u32 = 0x0000_0814; // UPC_TAG_REPLY | flags, kernel;
 pub const UPC_ST_REPLY_ARG_OFF: u32 = 0x0000_0818; // the reply flag's one argument, kernel
 pub const UPC_ST_CWD_MASK_OFF: u32 = 0x0000_081C; // bit s: row s is off the root inode, kernel (ADR-135 D15)
 pub const UPC_ST_KBD_IN_OFF: u32 = 0x0000_0820; // UPC_TAG_KBD | byte, or 0, written at a console read's injection (ADR-135 D20)
-pub const UPC_ST_SIZE: u32 = 0x0000_0824;
+/// M-186.8: UPC_TAG_CWAIT | slot << 8 | fd, or 0: the kernel found nothing to
+/// read on that slot's console fd and nothing offered; BPF holds the read while
+/// it is set and its ring is empty (UPC_CHEAP_WAIT).
+pub const UPC_ST_CONS_WAIT_OFF: u32 = 0x0000_0824;
+pub const UPC_ST_SIZE: u32 = 0x0000_0828;
 pub const UPC_TAG_SLOT: u32 = 0x5107_0000;
 pub const UPC_TAG_A7: u32 = 0xA700_0000;
 pub const UPC_TAG_REPLY: u32 = 0x5250_0000;
 pub const UPC_TAG_KBD: u32 = 0x4B42_0000; // ADR-135 D20
+#[allow(dead_code)] // UPC_CHEAP_WAIT
+pub const UPC_TAG_CWAIT: u32 = 0x4357_0000; // M-186.8
 pub const UPC_TAG_MASK: u32 = 0xFFFF_0000;
 pub const UPC_REPLY_SET_BRK: u32 = 1;
 #[allow(dead_code)] // the sleep rung (ADR-135 D7)
@@ -114,9 +120,9 @@ pub const UPC_REPLY_KBD: u32 = 16;
 pub const UPC_HEAP_BASE: u32 = 0x0001_0000;
 #[allow(dead_code)]
 pub const UPC_HEAP_TOP: u32 = 0x0004_0000;
-// The table is the 8 trapframes followed by eight words (upc_slots.h asserts
+// The table is the 8 trapframes followed by ten words (upc_slots.h asserts
 // the same in C).
-const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 36);
+const _: () = assert!(UPC_ST_SIZE == UPC_SLOTS * UPC_TF_STRIDE + 40);
 const _: () = assert!(UPC_ST_CUR_SLOT_OFF == UPC_SLOTS * UPC_TF_STRIDE);
 
 // ── Gate 4 isolation invariants (compile-time) ─────────────────────────────

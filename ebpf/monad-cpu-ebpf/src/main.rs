@@ -343,6 +343,52 @@ fn user_stackop_refused(cpu: &MbcCpuState) -> bool {
     cfg!(feature = "ascend-linux") && UPC_USER_STACKOP_NOP && cpu.priv_level == 3
 }
 
+/// M-186.8 (decision pack row 41): rung 4's cheap wait. Since rung 4 a read
+/// blocked at an empty console traps into the kernel on every tick and retries
+/// (ADR-135 D7, D20): `ls` 6.27 M to 63.3 M MBC instructions per boot, an idle
+/// console about sixteen times the BPF work per tick. With this const on (and
+/// `#define UPC_CHEAP_WAIT 1` in upc_slots.h, which parity_slot_tables keeps
+/// equal), the kernel marks `cons_wait` with the slot and fd when it retries a
+/// console read with nothing buffered and no byte offered, and BPF holds that
+/// slot's read of that fd here while the mark is there and the ring is empty:
+/// the ecall is run again, with a yield when other slots exist, as the kernel's
+/// retry does, but without the trap. The fd is in the mark because under
+/// UPC_RUNG56 BPF cannot tell a console fd from a file fd.
+///
+/// Wired OFF (2026-11-22): turning it on needs the verified count, a mutant
+/// (the hold kept when a byte is waiting must fail crprobe and the echo
+/// golden), the sweep and lab boots, all with root. Off, the object is the
+/// earlier one exactly; the kernel keeps the word in its slot table at 0.
+const UPC_CHEAP_WAIT: bool = false;
+
+#[inline(always)]
+fn cheap_wait_holds(cpu: &MbcCpuState) -> bool {
+    if !(cfg!(feature = "ascend-linux") && UPC_CHEAP_WAIT && UPC_RUNG4 && UPC_RUNG56) {
+        return false;
+    }
+    if cpu.priv_level != 3 || cpu.regs[1] != 5 || cpu.regs[8] >= 16 {
+        return false;
+    }
+    let base = mem_read_word(phase12::UPC_SLOT_TABLES_BP_BYTE >> 2);
+    if base == 0 {
+        return false;
+    }
+    let slot = cpu.current_pid as u32 & (phase12::UPC_SLOTS - 1);
+    let want = phase12::UPC_TAG_CWAIT | (slot << 8) | cpu.regs[8];
+    if mem_read_word((base + phase12::UPC_ST_CONS_WAIT_OFF) >> 2) != want {
+        return false;
+    }
+    let tail = match KBD_TAIL.get(0) {
+        Some(v) => *v,
+        None => 0,
+    };
+    let head = match KBD_HEAD.get(0) {
+        Some(v) => *v,
+        None => 0,
+    };
+    tail >= head
+}
+
 /// ADR-135 RV-3's second half (M-186.1b, decision pack row 41): a refusal and a
 /// D6 miss leave a trace. With this const on, in the ascend object, an opcode
 /// refused at priv 3 (MRET, SRET, and PUSH, POP, INT, IRET under
@@ -2331,6 +2377,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a0 (x10 → r8) = first arg / return value,
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
+            // M-186.8: the cheap wait. The kernel's last answer to this read was a
+            // retry with nothing buffered, and the ring is still empty, so a trap
+            // would only retry again. Hold it as the kernel's retry does (the ecall
+            // runs again, others run first), without the trap.
+            if cheap_wait_holds(cpu) {
+                cpu.pc = cpu.pc.wrapping_sub(1);
+                if cpu.num_processes > 1 {
+                    switch_req = SWITCH_YIELD;
+                }
+                break;
+            }
             // Kernel-routed numbers share the getpid inject arm; the kernel reads
             // the real number from trap_a7 (regs[1]).
             let syscall_nr = kernel_routed_alias(syscall_nr, cpu);

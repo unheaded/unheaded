@@ -20,11 +20,13 @@
 #define UPC_ST_REPLY_ARG_OFF    0x00000818 // the reply flag's one argument, kernel
 #define UPC_ST_CWD_MASK_OFF     0x0000081C // bit s: row s is off the root inode, kernel; BPF reads at open (ADR-135 D15)
 #define UPC_ST_KBD_IN_OFF       0x00000820 // UPC_TAG_KBD | byte, or 0: the next console byte, BPF at a console read's injection (ADR-135 D20)
-#define UPC_ST_SIZE             0x00000824
+#define UPC_ST_CONS_WAIT_OFF    0x00000824 // UPC_TAG_CWAIT | slot << 8 | fd, or 0: kernel, at a console read that found nothing (M-186.8)
+#define UPC_ST_SIZE             0x00000828
 #define UPC_TAG_SLOT            0x51070000
 #define UPC_TAG_A7              0xA7000000
 #define UPC_TAG_REPLY           0x52500000
 #define UPC_TAG_KBD             0x4B420000 // ADR-135 D20
+#define UPC_TAG_CWAIT           0x43570000 // M-186.8
 #define UPC_TAG_MASK            0xFFFF0000
 #define UPC_REPLY_SET_BRK       1
 #define UPC_REPLY_YIELD         2
@@ -37,6 +39,11 @@
 // cmd/upc-bootctl/tests/parity_slot_tables.rs reads both lines. A header, not a
 // compiler flag, so make rebuilds what includes it.
 #define UPC_RUNG56              1
+// M-186.8 (decision pack row 41): the cheap wait. 1 when upc_consoleread marks
+// cons_wait and BPF holds a console read on it. It must equal `const
+// UPC_CHEAP_WAIT` in ebpf/monad-cpu-ebpf/src/main.rs (parity_slot_tables). Off,
+// the word is in the table and stays 0.
+#define UPC_CHEAP_WAIT          0
 #if UPC_RUNG56
 #define UPC_KFD_BASE            0  // ADR-135 D21: a kernel fd is the ofile index
 #else
@@ -76,6 +83,7 @@ struct upc_slot_tables {
   uint32 reply_arg;
   uint32 cwd_mask;
   uint32 kbd_in;
+  uint32 cons_wait;
 };
 
 struct proc;
@@ -95,6 +103,9 @@ uint64 upc_pause(int n);
 uint64 upc_user_pa(uint64 va);
 int  upc_slot0_str_ok(uint64 va);
 int  upc_kbd_take(void);
+#if UPC_CHEAP_WAIT
+void upc_cons_wait(int idle);
+#endif
 void upc_cwd_mark(struct proc *p, int off_root);
 
 _Static_assert(sizeof(struct upc_tf_slot) == UPC_TF_STRIDE, "ADR-109 trapframe stride");
@@ -108,5 +119,6 @@ _Static_assert(__builtin_offsetof(struct upc_slot_tables, reply) == UPC_ST_REPLY
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, reply_arg) == UPC_ST_REPLY_ARG_OFF, "reply_arg offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, cwd_mask) == UPC_ST_CWD_MASK_OFF, "cwd_mask offset");
 _Static_assert(__builtin_offsetof(struct upc_slot_tables, kbd_in) == UPC_ST_KBD_IN_OFF, "kbd_in offset");
+_Static_assert(__builtin_offsetof(struct upc_slot_tables, cons_wait) == UPC_ST_CONS_WAIT_OFF, "cons_wait offset");
 
 #endif
