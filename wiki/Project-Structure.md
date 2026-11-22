@@ -10,11 +10,10 @@ Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust 
 | `services/` | Service internals: wotan, timeguru, gateway, shield, sword, sabatons, yaldabaoth, anomaly, compliance, firewall, keymgmt, loadbalancer, nfv, qos, selfheal, version |
 | `pkg/` | Shared Go packages: auth, audit, transport, discovery, logagg, health, ports, wotan-client, compliance, champion, gungnir, gjallarhorn, enkrateia, pqc_policy, … |
 | `ebpf/` | Rust/Aya eBPF workspace (GPL-2.0-only): XDP/TC programs + shared types |
-| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, upc-cartridge, xv6-mbc, heimdall-bpf, lich-fuzz, objtrust, svc-token, zhend ([[Rust Components|Rust-Components]]) |
+| `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, upc-cartridge, xv6-mbc, heimdall-bpf, lich-fuzz, objtrust, svc-token, zhend |
 | `arch/mbc/` | MBC architecture support for the UPC kernel |
 | `drivers/` | UPC guest drivers (tty, block) |
 | `cartridges/` | MBC cartridge sources (`.s` plus data and model files) for `cart` and `upc-cartridgectl` ([[UPC-Cartridges]]) |
-| `doom/` | The UPC regression fixture only: `doom.mbc`, `doom.rv2mbc` and its sha256 (`scripts/upc-regression.sh`); Doom itself lives in `unheaded-doom` |
 | `proto/`, `api/` | Protobuf definitions, `openapi.yaml`. The `.pb.go` files beside each `.proto` are generated (`protoc-gen-go`, `protoc-gen-go-grpc`; Wotan's by `services/wotan/proto/generate.sh`) |
 | `dashboard/`, `kanban/` | Vanilla-JS front ends (ADR-006) |
 | `raft/` | Zhen's Flask web UI (`zhen_app.py`, its login, redaction and scheduler client), its tests and the generated prompt module `scripts/zhen_prompt_generated.py` ([[Zhen-AI]]) |

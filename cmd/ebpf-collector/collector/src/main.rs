@@ -1295,8 +1295,32 @@ mod tests {
         let base = format!("http://{}", l.local_addr().unwrap());
         let h = std::thread::spawn(move || {
             let (mut s, _) = l.accept().unwrap();
+            // Read the whole request before answering: a reply and close
+            // after the headers alone resets the connection while the client
+            // still writes its body ("Peer disconnected", 1 run in 4).
+            let mut req = Vec::new();
             let mut buf = [0u8; 4096];
-            let _ = s.read(&mut buf).unwrap();
+            loop {
+                let n = s.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
+                }
+                req.extend_from_slice(&buf[..n]);
+                let text = String::from_utf8_lossy(&req);
+                if let Some(end) = text.find("\r\n\r\n") {
+                    let len = text[..end]
+                        .lines()
+                        .find_map(|l| {
+                            let (k, v) = l.split_once(':')?;
+                            k.eq_ignore_ascii_case("content-length")
+                                .then(|| v.trim().parse::<usize>().ok())?
+                        })
+                        .unwrap_or(0);
+                    if req.len() >= end + 4 + len {
+                        break;
+                    }
+                }
+            }
             let reply = r#"{"subscriber":{"subscriber_id":"x","status":"pending"}}"#;
             write!(
                 s,
