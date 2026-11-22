@@ -93,3 +93,19 @@ groups:
           summary: "{{ $labels.device }} on {{ $labels.instance }} is sending over 3x its 7-day median hourly rate"
           description: "Sustained for 15m and above 256 KiB/s over the hour; the runbook finds which process or container"
           runbook_url: "runbooks/security/outbound-volume-deviation.yaml"
+
+  # The IOC audit's baseline (runbooks/security/ioc-audit.yaml,
+  # IOC_BASELINE_RECORDED; DECISION-PACK-2026-11-18 row 40). One series per
+  # host and source for every hour that had a login, remote-written to
+  # VictoriaMetrics like every recorded series, so the audit reads 21 days of
+  # a few series instead of the raw counter (that query took 24 s). It holds
+  # history only from its rollout: until 21 days have passed, a source last
+  # seen before then reads as new, which is a note, never an indicator.
+  # The window is 70m, not 1h: a range is open at its left end, so hourly 1h
+  # windows would lose a count that rises between two evaluations.
+  - name: ioc-baseline
+    interval: 1h
+    rules:
+      - record: host_src:unheaded_ssh_accepted:increase70m
+        expr: sum by (host, src) (increase(unheaded_ssh_accepted_total[70m])) > 0
+

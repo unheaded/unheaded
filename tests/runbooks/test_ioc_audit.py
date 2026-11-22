@@ -132,6 +132,22 @@ def test_a_quiet_window_is_clean(audit):
     assert any("[21d] offset 2d" in q for q in vm.queries)
 
 
+
+# Pack row 40: the baseline comes from the hourly recording rule by default,
+# and from the raw counter when IOC_BASELINE_RECORDED is 0; the same window
+# and offset either way, and a source in it is known.
+@pytest.mark.parametrize("recorded, needle", [
+    (None, "max_over_time(host_src:unheaded_ssh_accepted:increase70m[21d] offset 2d)"),
+    ("1", "max_over_time(host_src:unheaded_ssh_accepted:increase70m[21d] offset 2d)"),
+    ("0", "increase(unheaded_ssh_accepted_total[21d] offset 2d)"),
+])
+def test_the_baseline_reads_the_recording_rule(audit, recorded, needle):
+    env = {} if recorded is None else {"IOC_BASELINE_RECORDED": recorded}
+    code, out, vm = audit(env=env)
+    assert code == 0, out
+    assert [q for q in vm.queries if "offset" in q] == [q for q in vm.queries if needle in q], vm.queries
+    assert "new source" not in out, out
+
 @pytest.mark.parametrize("src", ["203.0.113.7", "2001:db8::1", "::ffff:203.0.113.7", "not-an-address"])
 def test_a_login_from_outside_is_an_indicator(audit, src):
     code, out, _ = audit(unheaded_ssh_accepted_total=[login("192.168.69.132", n=4), login(src)])
@@ -318,6 +334,7 @@ def test_victoria_down_or_refusing_is_blind(audit):
     {"IOC_CRON_EDIT_IS_INDICATOR": ""},
     {"IOC_MODULE_UNTRUSTED_IS_INDICATOR": "2"},
     {"IOC_KNOWN_MODULES": "spl zfs;rm"},              # module names only
+    {"IOC_BASELINE_RECORDED": "yes"},
 ])
 def test_bad_parameters_fail_blind_and_send_nothing(env):
     vm = FakeVictoria()

@@ -98,3 +98,21 @@ tests:
               summary: "enp16s0 on west:9100 is sending over 3x its 7-day median hourly rate"
               description: "Sustained for 15m and above 256 KiB/s over the hour; the runbook finds which process or container"
               runbook_url: "runbooks/security/outbound-volume-deviation.yaml"
+
+  # The IOC baseline (pack row 40): an hour with a login records one series
+  # for its host and source; an hour without records nothing. The login lands
+  # between the samples at 60m and 61m, the edge a 1h window would lose.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_ssh_accepted_total{host="west",user="govan",src="192.168.69.132",method="publickey",job="vector"}'
+        values: '0x60 1x240'
+    promql_expr_test:
+      - expr: count by (host, src) (host_src:unheaded_ssh_accepted:increase70m)
+        eval_time: 2h
+        exp_samples:
+          - labels: '{host="west",src="192.168.69.132"}'
+            value: 1
+      - expr: count by (host, src) (host_src:unheaded_ssh_accepted:increase70m)
+        eval_time: 4h
+        exp_samples: []
+

@@ -157,7 +157,10 @@ loaded. An alert on "no success for N days" reads this gauge.
 runs daily at 02:00 from the platform's `unheaded-ioc-audit.timer` (ADR-149;
 enabled on west 2026-11-22, the runbook approved by pack row 7 and the manifest
 sealed); `platform-schedule.sh` writes `unheaded_schedule_last_exit_code` and
-the report goes to the timer's journal. It reads VictoriaMetrics on loopback and nothing else: SSH logins by
+the report goes to the timer's journal. Its 21-day baseline of known sources reads the hourly recording rule
+`host_src:unheaded_ssh_accepted:increase70m` (`rules/detection.yml`; pack row 40;
+`IOC_BASELINE_RECORDED=0` reads the raw counter); the rule holds history from
+2026-11-22, so until 2026-12-13 an older source reads as new (a note). It reads VictoriaMetrics on loopback and nothing else: SSH logins by
 host, account, source and method, authentication failures by host and kind, and
 host events by kind (`unheaded_host_events_total`, counted by Vector from the
 journal), over the last two days. The run fails, and its card lands in Review,

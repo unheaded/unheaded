@@ -131,6 +131,9 @@ parameters:
   - name: IOC_KNOWN_MODULES
     default: ""
     description: Kernel modules this host is meant to load out of tree, space-separated names (a load of one is a note)
+  - name: IOC_BASELINE_RECORDED
+    default: "1"
+    description: 1 reads the baseline from the hourly recording rule host_src:unheaded_ssh_accepted:increase70m (a 70m window, so no login falls between two evaluations) (rules/detection.yml; pack row 40, the raw 21-day query took 24 s); 0 reads the raw counter
 
 steps:
   - name: audit
@@ -165,7 +168,8 @@ steps:
       if not NETS:
           fail_blind("IOC_OPERATOR_NETS is empty")
       SWITCH = {}
-      for name in ("IOC_ACCOUNT_CHANGE_IS_INDICATOR", "IOC_CRON_EDIT_IS_INDICATOR", "IOC_MODULE_UNTRUSTED_IS_INDICATOR"):
+      for name in ("IOC_ACCOUNT_CHANGE_IS_INDICATOR", "IOC_CRON_EDIT_IS_INDICATOR", "IOC_MODULE_UNTRUSTED_IS_INDICATOR",
+                   "IOC_BASELINE_RECORDED"):
           v = os.environ.get(name, "1")
           if v not in ("0", "1"):
               fail_blind(name + " is 0 or 1")
@@ -214,8 +218,15 @@ steps:
 
       logins = [(m, v) for m, v in query(
           'sum by (host, user, src, method) (increase(unheaded_ssh_accepted_total[%s])) > 0' % WINDOW)]
-      before = {(m.get("host", ""), m.get("src", "")) for m, v in query(
-          'sum by (host, src) (increase(unheaded_ssh_accepted_total[%s] offset %s)) > 0' % (BASELINE, WINDOW))}
+      # The baseline: every (host, source) with a login in the BASELINE before
+      # the window. The recording rule keeps one series per pair and hour, so
+      # this reads a few series instead of a 21-day counter range (pack row 40).
+      if SWITCH["IOC_BASELINE_RECORDED"]:
+          baseline_q = ('max by (host, src) (max_over_time(host_src:unheaded_ssh_accepted:increase70m[%s] offset %s)) > 0'
+                        % (BASELINE, WINDOW))
+      else:
+          baseline_q = 'sum by (host, src) (increase(unheaded_ssh_accepted_total[%s] offset %s)) > 0' % (BASELINE, WINDOW)
+      before = {(m.get("host", ""), m.get("src", "")) for m, v in query(baseline_q)}
       failures = query('sum by (host, kind) (increase(unheaded_auth_failures_total[%s])) > 0' % WINDOW)
       alerts = query('count by (alertname) (count_over_time(ALERTS{alertstate="firing",'
                      'alertname=~"SSHLoginNewSource|SSHAuthFailureBurst|OutboundVolumeDeviation"}[%s]))' % WINDOW)
