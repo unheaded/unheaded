@@ -133,6 +133,18 @@ func TestCgroupMemory(t *testing.T) {
 	wantLines(t, out, "huginn_cgroup_memory_max_bytes{"+xsvc+"} 2097152")
 }
 
+// pids.max beside pids.current (M-210.4): a slice's task cap, so a rule can
+// read how near the slice is to refusing forks. "max" (no cap) gives no line.
+func TestCgroupPidsMax(t *testing.T) {
+	out := oneGroup(t, map[string]string{"pids.current": "68\n", "pids.max": "max\n"})
+	wantLines(t, out, "huginn_cgroup_pids{"+xsvc+"} 68")
+	if strings.Contains(out, "huginn_cgroup_pids_max") {
+		t.Fatalf("pids.max max must give no line:\n%s", out)
+	}
+	out = oneGroup(t, map[string]string{"pids.current": "68\n", "pids.max": "4096\n"})
+	wantLines(t, out, "huginn_cgroup_pids{"+xsvc+"} 68", "huginn_cgroup_pids_max{"+xsvc+"} 4096")
+}
+
 func TestCgroupMemoryEvents(t *testing.T) {
 	out := oneGroup(t, map[string]string{"memory.events": "low 0\nhigh 1\nmax 7\noom 2\noom_kill 2\n"})
 	wantLines(t, out,

@@ -87,6 +87,22 @@ groups:
           description: "The sensor has read within 5 C of node_hwmon_temp_crit_celsius for 10 minutes."
           runbook_url: "runbooks/observe/host-temperature.yaml"
 
+      # A slice near its task cap (TasksMax, cgroup pids.max): at the cap
+      # every fork in it is refused (M-210.4, decision pack row 41). Only
+      # slices with a cap give huginn_cgroup_pids_max; on west that is
+      # user-1000.slice (4,096), where logins and lane builds run. Since
+      # the 2026-11-21 boot its children had 4 refused forks nothing saw.
+      - alert: SliceTasksNearMax
+        expr: huginn_cgroup_pids{cgroup=~".+\\.slice"} / huginn_cgroup_pids_max{cgroup=~".+\\.slice"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          urgency: none
+        annotations:
+          summary: "{{ $labels.cgroup }} on {{ $labels.host }} holds over 80% of its task cap"
+          description: "huginn_cgroup_pids over huginn_cgroup_pids_max has been above 0.8 for 5 minutes. At the cap every fork in the slice is refused."
+          runbook_url: "runbooks/observe/host-pressure.yaml"
+
   - name: host-units
     interval: 1m
     rules:

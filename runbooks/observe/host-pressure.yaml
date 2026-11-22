@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: host-pressure
-  description: A host stalls on memory, I/O or CPU, swaps, or a cgroup is CPU-throttled (HostMemoryPressure, HostIOPressure, HostCPUPressure, HostSwapping, HostSwapNearFull, ContainerCPUThrottled)
+  description: A host stalls on memory, I/O or CPU, swaps, or a cgroup is CPU-throttled (HostMemoryPressure, HostIOPressure, HostCPUPressure, HostSwapping, HostSwapNearFull, ContainerCPUThrottled, SliceTasksNearMax)
   owner: zhenai
   estimated_duration: 15m
   risk: low
@@ -67,6 +67,14 @@ steps:
       curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=sum by (cgroup) (rate(huginn_cgroup_cpu_throttled_periods_total[15m])) / sum by (cgroup) (rate(huginn_cgroup_cpu_periods_total[15m])) > 0.1' |
         python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), "%.0f%% of periods throttled" % (100 * float(r["value"][1]))) for r in json.load(sys.stdin)["data"]["result"]]'
     description: "For ContainerCPUThrottled: groups held by their cpu.max quota"
+
+  - name: slice-tasks
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=huginn_cgroup_pids{cgroup=~".+\\.slice"} / huginn_cgroup_pids_max{cgroup=~".+\\.slice"}' |
+        python3 -c 'import json,sys; [print(r["metric"].get("cgroup", "-"), "%.0f%% of its task cap" % (100 * float(r["value"][1]))) for r in json.load(sys.stdin)["data"]["result"]]'
+    description: "For SliceTasksNearMax: each capped slice's tasks as a share of its TasksMax; then systemd-cgls on that slice names the process tree"
 
   - name: decide
     action: manual

@@ -8,8 +8,8 @@
 //
 // What is read, all read only from cgroupfs (v2; ProtectControlGroups=yes
 // leaves it readable): cpu.stat, memory.current, memory.max,
-// memory.swap.current, memory.events, cpu/memory/io.pressure, io.stat and
-// pids.current.
+// memory.swap.current, memory.events, cpu/memory/io.pressure, io.stat,
+// pids.current and pids.max.
 //
 // Which groups: every top-level *.slice, and below a slice every *.slice,
 // *.service and docker-<64 hex>.scope, to depth 4, at most maxGroups. Session
@@ -32,7 +32,8 @@
 //   set), _memory_swap_bytes, _memory_events_total{event}
 //   huginn_cgroup_io_bytes_total{device,dir}, _io_ops_total{device,dir}
 //   huginn_cgroup_pressure_seconds_total{resource,kind}
-//   huginn_cgroup_pids
+//   huginn_cgroup_pids, _pids_max (only when a cap is set: a slice's
+//   TasksMax; M-210.4's UserSliceTasksNearMax reads the two)
 //   huginn_cgroups_seen, huginn_cgroups_truncated (host only)
 
 package main
@@ -78,6 +79,8 @@ type CgroupStat struct {
 	IO                map[[2]string]float64 // {device, rbytes|wbytes|rios|wios}
 	Pids              float64
 	HasPids           bool
+	PidsMax           float64
+	HasPidsMax        bool
 }
 
 // collectCgroups walks root and reads every selected group. truncated is
@@ -225,6 +228,9 @@ func readCgroup(dir string, devs map[string]string) CgroupStat {
 	if v, ok := readNumber(filepath.Join(dir, "pids.current")); ok {
 		s.Pids, s.HasPids = v, true
 	}
+	if v, ok := readNumber(filepath.Join(dir, "pids.max")); ok { // "max" (no cap) does not parse: no line
+		s.PidsMax, s.HasPidsMax = v, true
+	}
 	return s
 }
 
@@ -327,6 +333,9 @@ func promTextCgroups(host string, stats []CgroupStat, truncated bool) string {
 		}
 		if s.HasPids {
 			line("huginn_cgroup_pids", "", s.Pids)
+		}
+		if s.HasPidsMax {
+			line("huginn_cgroup_pids_max", "", s.PidsMax)
 		}
 	}
 	tr := 0

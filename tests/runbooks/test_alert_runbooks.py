@@ -46,7 +46,7 @@ RUNBOOKS = {
     # units and the monitoring path.
     "runbooks/observe/container-stopped.yaml": ("ContainerStopped", "ContainerUnhealthy"),
     "runbooks/observe/memory-kill.yaml": ("MemoryKill", "HostOOMKill", "ContainerMemoryNearLimit"),
-    "runbooks/observe/host-pressure.yaml": ("HostMemoryPressure", "HostSwapping", "HostSwapNearFull", "HostIOPressure", "HostCPUPressure", "ContainerCPUThrottled"),
+    "runbooks/observe/host-pressure.yaml": ("HostMemoryPressure", "HostSwapping", "HostSwapNearFull", "HostIOPressure", "HostCPUPressure", "ContainerCPUThrottled", "SliceTasksNearMax"),
     "runbooks/observe/host-temperature.yaml": ("HostTemperatureNearCritical",),
     "runbooks/observe/unit-restart.yaml": ("UnitFailed", "UnitRestartLoop"),
     "runbooks/data/store-backup-late.yaml": ("StoreBackupLate", "StoreBackupMissing", "StoreDrillLate"),

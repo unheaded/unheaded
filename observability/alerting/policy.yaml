@@ -191,6 +191,12 @@ promote:
     urgency: ticket
     reason: >-
       Decision 12: swap use alerts.
+  - alert: SliceTasksNearMax
+    urgency: ticket
+    reason: >-
+      M-210.4 (decision pack row 41): a slice at its task cap refuses every
+      fork; four refused forks in the user slice went unseen after the
+      2026-11-21 boot.
   - alert: HostIOPressure
     urgency: ticket
     reason: >-

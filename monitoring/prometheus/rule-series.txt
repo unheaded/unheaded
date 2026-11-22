@@ -10,6 +10,8 @@ huginn_cgroup_io_bytes_total
 huginn_cgroup_memory_bytes
 huginn_cgroup_memory_events_total
 huginn_cgroup_memory_max_bytes
+huginn_cgroup_pids
+huginn_cgroup_pids_max
 huginn_cgroup_pressure_seconds_total
 huginn_log_dir_bytes
 huginn_log_fs_avail_bytes

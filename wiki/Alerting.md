@@ -302,6 +302,7 @@ Before ADR-147 no alert read a resource, a stopped container or the monitoring p
 | HostIOPressure | `resources.yml` | PSI io full over 30% (15m rate) for 30m | ticket | `host-pressure.yaml` |
 | HostCPUPressure | `resources.yml` | PSI cpu some over 50% (15m rate) for 30m | none | `host-pressure.yaml` |
 | HostTemperatureNearCritical | `resources.yml` | a sensor within 5 C of its critical mark for 10m | ticket | `host-temperature.yaml` |
+| SliceTasksNearMax | `resources.yml` | a slice above 80% of its task cap (`TasksMax`) for 5m; on west `user-1000.slice` (4,096) | ticket | `host-pressure.yaml` |
 | UnitFailed | `resources.yml` | a watched unit is `failed` for 5m | page | `unit-restart.yaml` |
 | UnitRestartLoop | `resources.yml` | 3 restarts in 30 minutes | ticket | `unit-restart.yaml` |
 | HostStateStale | `resources.yml` | `host_state.prom` over 5 minutes old, or Docker did not answer | ticket | `monitoring-path.yaml` |

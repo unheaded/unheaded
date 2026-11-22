@@ -116,6 +116,36 @@ tests:
               description: "The sensor has read within 5 C of node_hwmon_temp_crit_celsius for 10 minutes."
               runbook_url: "runbooks/observe/host-temperature.yaml"
 
+  # 6b. SliceTasksNearMax (M-210.4): user-1000.slice at 3,500 of 4,096 fires
+  # after 5m; system.slice at 1,000 of 4,096 does not; a capped service (not
+  # a slice) at 95 of 100 does not.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_cgroup_pids{job="huginn",host="west",cgroup="user.slice/user-1000.slice"}'
+        values: '3500x10'
+      - series: 'huginn_cgroup_pids_max{job="huginn",host="west",cgroup="user.slice/user-1000.slice"}'
+        values: '4096x10'
+      - series: 'huginn_cgroup_pids{job="huginn",host="west",cgroup="system.slice"}'
+        values: '1000x10'
+      - series: 'huginn_cgroup_pids_max{job="huginn",host="west",cgroup="system.slice"}'
+        values: '4096x10'
+      - series: 'huginn_cgroup_pids{job="huginn",host="west",cgroup="system.slice/x.service"}'
+        values: '95x10'
+      - series: 'huginn_cgroup_pids_max{job="huginn",host="west",cgroup="system.slice/x.service"}'
+        values: '100x10'
+    alert_rule_test:
+      - eval_time: 4m
+        alertname: SliceTasksNearMax
+        exp_alerts: []
+      - eval_time: 6m
+        alertname: SliceTasksNearMax
+        exp_alerts:
+          - exp_labels: {severity: warning, urgency: none, job: huginn, host: west, cgroup: user.slice/user-1000.slice}
+            exp_annotations:
+              summary: "user.slice/user-1000.slice on west holds over 80% of its task cap"
+              description: "huginn_cgroup_pids over huginn_cgroup_pids_max has been above 0.8 for 5 minutes. At the cap every fork in the slice is refused."
+              runbook_url: "runbooks/observe/host-pressure.yaml"
+
   # 7. A failed unit fires after 5m.
   - interval: 1m
     input_series:
