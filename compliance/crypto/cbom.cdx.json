@@ -940,7 +940,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/zhen-ui-front/main.go:256:tls-config",
+      "bom-ref": "cmd/zhen-ui-front/main.go:261:tls-config",
       "name": "TLS server config",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -980,7 +980,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/zhen-ui-front/main.go:256"
+          "value": "cmd/zhen-ui-front/main.go:261"
         }
       ]
     },

@@ -87,7 +87,6 @@ cmd/unheaded-auth/users.go 7
 cmd/unheaded-baseline/main.go 2
 cmd/unheaded-baseline/wotan.go 1
 cmd/unheaded-cli/cmd/generate.go 1
-cmd/unheaded-cli/cmd/hop.go 1
 cmd/unheaded-cli/cmd/root.go 1
 cmd/unheaded-daemon/lxd_rest.go 2
 cmd/unheaded-daemon/main.go 2
