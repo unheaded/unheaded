@@ -390,6 +390,37 @@ else
   note "hostile_reply gate skipped: UPC_REPLY is off"
 fi
 
+# M-186.12c (ADR-135 SP-4d): in the stock object D6 drops hostile_fork's pde
+# plant, so no boot makes UPC_FORK_MARK the deciding control. A second ascend
+# object with D6 off, built from a copy of ebpf/ into its own target directory
+# (the tree's object is not touched), boots hostile_fork once: the plant lands
+# and the copy must still be whole. Ledger 2026-11-15, Step 120, is the hand run
+# this repeats.
+if rung_on UPC_D6_MISS_FAULT && rung_on UPC_FORK_MARK; then
+  D6S="$(mktemp -d)"
+  D6SRC="$D6S/ebpf/monad-cpu-ebpf/src/main.rs"
+  # build.rs includes upc-api's surface hash from outside ebpf/, so it comes too.
+  tar -C "$ROOT" --exclude=ebpf/target -cf - ebpf crates/upc-api/src/surface_hash.rs docs/protocol/error-registry.md \
+    | tar -C "$D6S" -xf -
+  sed -i 's/^const UPC_D6_MISS_FAULT: bool = true;$/const UPC_D6_MISS_FAULT: bool = false;/' "$D6SRC"
+  d6off_build() { ( cd "$D6S/ebpf" && CARGO_TARGET_DIR="$D6S/target" cargo build --release -p monad-cpu-ebpf --features ascend-linux ); }
+  if ! grep -q '^const UPC_D6_MISS_FAULT: bool = false;$' "$D6SRC"; then
+    fail "hostile_fork, D6 off: the variant's const was not switched"
+  elif ! cargo_build_ok d6off_build; then
+    fail "hostile_fork, D6 off: the variant object did not build"
+  else
+    HFD="$(probe_lines hostile_fork 4000000 HF MONAD_CPU_EBPF_OBJ="$D6S/target/bpfel-unknown-none/release/monad-cpu-ebpf")"
+    if want_counts "$HFD" "HF: copy-complete=yes" 1 "HF: pde-plant-dropped=no" 1 "HF: a2-ignored=yes" 1 "HF: done" 1; then
+      pass "hostile_fork, D6 off: the plant lands and the fork mark keeps the copy whole"
+    else
+      fail "hostile_fork, D6 off (UPC_FORK_MARK as the deciding control)"; note "$(tr '\n' ' ' <<<"$HFD")"
+    fi
+  fi
+  rm -rf "$D6S"
+else
+  note "hostile_fork D6-off boot skipped: needs UPC_D6_MISS_FAULT and UPC_FORK_MARK on"
+fi
+
 # S-STAGE-2C Phase 4, ADR-135 D17 (R-S4): upc-bootctl refuses a user image that
 # holds an atomic. The translator emits none, so the image is made here: one LD
 # of hostile_atomic rewritten to XCHG in a copy. Never booted: a dry run reaches
