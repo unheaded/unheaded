@@ -58,7 +58,7 @@ mailer:
   run_days:
     max_per_day: 24
     max_per_hour: 6
-    dates: ["2026-11-22"]
+    dates: []
 
 # Alertmanager timing for urgency=page. Alertmanager passes every change in
 # the set of firing pages to the mailer within group_interval; the mailer
