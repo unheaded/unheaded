@@ -14,3 +14,6 @@ alert-mailer       19130 http
 dashboard-backend  20000 https
 kanban-app         20001 https
 wiki-server        20002 https
+# vor answers /health since vor 6108b1b (2026-11-22, M-177.2); a vor from
+# before that answers 404 here until its new binary is installed.
+vor                20110 http
