@@ -208,6 +208,7 @@ Mail and labels carry no attacker text. The mail names the host and the decoy or
 7. sshd on 22 while `east.nft` expects 7375: out of scope, recorded only.
 8. Applying `east.nft` itself (ADR-098 step 6): out of scope. The tripwire works with or without it.
 9. A per-class byte-rate deviation rule for T10: out of scope, after 30 days of data.
+10. orb runs on east since 2026-11-24 and fetches its two feeds over HTTPS (the user's `~/.config/orb/config`). Those flows count as `unexpected_out` unless east's own `/etc/unheaded/watch.yaml` gets an `orb-feeds` profile. That profile names the feed host's addresses, which are private, so it is never written into `deploy/watch/watch.yaml` or any file in this repository. Phase 11's review must find these flows and move them into that profile.
 
 ---
 
