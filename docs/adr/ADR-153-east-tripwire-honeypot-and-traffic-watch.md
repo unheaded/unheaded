@@ -4,7 +4,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 -->
 # ADR-153: East tripwire: a honeypot and a traffic watch
 
-**Status:** Proposed. The battle plan was written on Stevie's word, 2026-11-24, with the Captain (why) and the BlackMage (threat model) seats. Nothing is built, no branch exists, no host has changed. Execution waits for Stevie's go and his answers under "To settle". It is not part of the ADR-147 series, and the ADR-112 freeze does not hold it: Stevie asked for it by name.
+**Status:** Accepted (Stevie Bellis, 2026-11-24: H1-H8 as recommended, see "Stevie's answers, 2026-11-24"). Not built: no branch, no code, no host changed. The S-EAST-TRIPWIRE plan below starts on his go. Previously: Proposed, the plan written on his word the same day with the Captain and BlackMage seats. It is not part of the ADR-147 series, and the ADR-112 freeze does not hold it: Stevie asked for it by name.
 **Date:** 2026-11-24
 **Related:** ADR-098 (findings register; `inet unheaded` table, commit-confirm), ADR-100 (detection alerts are metadata), ADR-117 (Prometheus evaluates, VictoriaMetrics stores), ADR-147 decisions 3, 17, 18 (east is a real second home), ADR-150 (east and west as a pair; east has no uplink of its own), `observability/alerting/policy.yaml` (`mailer.immediate`), `monitoring/prometheus/rules/detection.yml`.
 
@@ -197,6 +197,21 @@ Mail and labels carry no attacker text. The mail names the host and the decoy or
 | H7 | Delivery to east | (a) `.deb` from west's repo once it serves `resolute`; (b) a built binary installed by hand, as orb was | **(b) for the first run**, (a) once west is upgraded |
 | H8 | Mail drill | the plan sends one real immediate mail (Phase 12) | **yes**, attended or announced |
 
+## Stevie's answers, 2026-11-24
+
+"go with your recommendations for H1-H8":
+
+| # | Ruled |
+|---|---|
+| H1 | (a): the outside resolvers and Ubuntu's NTS pools are standing profiles in `watch.yaml`. Moving DNS and time to west is S-EAST-PAIR's job |
+| H2 | (a): low decoy ports by nft redirect; the honeypot holds no capability |
+| H3 | (a): passwords only as an HMAC and a length |
+| H4 | 48 h of `mode: learn`, then one review with Stevie before `mode: alert` |
+| H5 | `HoneypotDown` and `TrafficWatchStale` are tickets (digest); `TrafficWatchBlind` pages |
+| H6 | `unheaded-nft-table@` runs as the existing `unheaded-nft` account |
+| H7 | (b) for the first run (a binary installed by hand, Phase 10); (a), the `.deb`, once west's repo serves `resolute` |
+| H8 | yes: Phase 12 sends real immediate mail, announced to Stevie first |
+
 ## Not established
 
 1. Whether nft on 7.0 accepts `interval, timeout` on the concatenated window sets: Step 74 checks it, and Step 75 is the fallback.
@@ -216,7 +231,7 @@ Mail and labels carry no attacker text. The mail names the host and the decoy or
 
 **Date:** 2026-11-24
 **Sprint:** S-EAST-TRIPWIRE: a honeypot and a traffic watch on east, with IDS alerts that mail at once
-**Prerequisite:** this ADR's "To settle" answered; Stevie's go; east reachable as `ssh east` with passwordless `sudo -n`; develop clean except `demos/doom/`
+**Prerequisite:** "To settle" answered (done 2026-11-24); Stevie's go; east reachable as `ssh east` with passwordless `sudo -n`; develop clean except `demos/doom/`
 **Target:** a touch on any decoy, or any east flow outside its peers, profiles and open windows, mails Stevie within about 3 minutes. apt runs never alert, and every default can be changed in YAML.
 **Estimated Duration:** about 10 to 12 hours of work over 3 sessions, plus the 48 h learn period (H4)
 **Agent Strategy:** Phases 2 to 5 (honeypot) and 6 to 7 (watch) can run in parallel in two lanes; everything else is the coordinator's job (sudo on east, alerting, drills)
