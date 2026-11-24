@@ -225,6 +225,28 @@ Mail and labels carry no attacker text. The mail names the host and the decoy or
 9. A per-class byte-rate deviation rule for T10: out of scope, after 30 days of data.
 10. orb runs on east since 2026-11-24 and fetches its two feeds over HTTPS (the user's `~/.config/orb/config`). Those flows count as `unexpected_out` unless east's own `/etc/unheaded/watch.yaml` gets an `orb-feeds` profile. That profile names the feed host's addresses, which are private, so it is never written into `deploy/watch/watch.yaml` or any file in this repository. Phase 11's review must find these flows and move them into that profile.
 
+## Update, 2026-11-24: found on review, before anything is built
+
+Claude re-read the design against the repository and east. The plan's steps are not changed yet: each row names the step that must change first. H1 to H8 stand.
+
+| # | Defect in this ADR | Consequence | Proposed change | Steps |
+|---|---|---|---|---|
+| R1 | Step 71 matches `peers` before decoys and `probe_in`, and west is a peer | Every new packet from west counts as `peer`. `decoy` and `probe_in` never fire, so T1's second detection does not exist | Inbound: decoys first, then the configured services of each peer (a port list in `watch.yaml`), then `probe_in`. "Any port" holds outbound only | 15, 69-72 |
+| R2 | `probe_in` pages on any closed port a peer tries | West scrapes east's services by port (`monitoring/prometheus/prometheus.yml`, `config/victoria/scrape.yml`). One stopped service would page by immediate mail every scrape interval | Scraped and probed ports are in the peer's service list, so a stopped service is not a probe | 15, 71, 102 |
+| R3 | The watch chains run after the honeypot's redirect | At `filter + 10` a hit on 23 already has destination port 42023, so a decoy list of 23 does not match | Match the internal port as well as the shown one, or `ct original proto-dst` | 71, 72 |
+| R4 | The alerts use `increase(...) > 0` on counters that appear with their first event | A series whose first sample is 1 has no increase: the first touch, the one that matters, is missed. Auth attempts carry `method`, so each new method has the same gap | Every counter is created at 0 at start, for every decoy and method; a rule test starts from an absent series | 59, 60, 101, 102 |
+| R5 | "Mails within about 3 minutes" | Alertmanager groups by `urgency` alone, with `group_interval` 5m (`monitoring/alertmanager/alertmanager.yml`). With another page already firing, the mail waits up to 5 minutes more; the mailer's 3 an hour and 6 a day also apply | A route for the immediate alerts with its own grouping, or the target reads "3 minutes, 8 if another page is firing" | 100, 126 |
+| R6 | `interfaces: [enp2s0, wg0]` | `wlp7s0` has been up, listening only, since 2026-11-24. IP traffic on it would go unseen | Default `[]` (all). Wi-Fi management frames stay invisible to nft either way | 15 |
+| R7 | T10 and the apt window | An open window allows 80 and 443 to anywhere for 30 minutes, and anyone who can run apt as root opens it | Accepted as drawn, or the window's `to:` names the archive's address ranges once measured in the learn period | 15, 121 |
+| R8 | orb's feeds | Needs the host-only profile of "Not established" 10 before `mode: alert` | As written there | 121 |
+
+**Settled from "Not established", read-only, the same day:**
+
+- **1:** nft 1.1.6 on east accepts `interval, timeout` on both concatenated sets, the inet-family redirects and the `skuid` drop (`nft -c`; nothing applied). Step 75's fallback is not expected.
+- **2:** see R5.
+- **4:** `apt.systemd.daily` runs `apt-get update` itself, so that hook runs; both apt timers are enabled. Whether unattended-upgrades runs `DPkg::Pre-Invoke` is still open.
+- **5:** east's huginn has no `textfile_dir` and `/var/lib/unheaded/textfile` does not exist there. Step 110a is needed, not optional.
+
 ---
 
 # S-EAST-TRIPWIRE BATTLE PLAN: 13 Phases, 138 Steps
